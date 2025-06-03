@@ -1,0 +1,224 @@
+.weather-dashboard {
+  font-family: 'customfont', sans-serif;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+  color: #333;
+  background: #f8fafc;
+  border-radius: 16px;
+}
+
+.weather-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #e1e5eb;
+}
+
+.weather-title {
+  font-family: 'customfont3', sans-serif;
+  font-size: 1.8rem;
+  color: #1A4375;
+  margin: 0;
+}
+
+.weather-time {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  color: #666;
+}
+
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.weather-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.2rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e1e5eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.weather-card-header {
+  font-family: 'customfont2', sans-serif;
+  font-size: 1.1rem;
+  color: #1A4375;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e1e5eb;
+}
+
+.temperature-card {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #1D4E89 0%, #4FBED6 100%);
+  color: white;
+}
+
+.temperature-card .weather-card-header {
+  color: #93FFFE;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.temperature-display {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.temperature-value {
+  font-family: 'customfont3', sans-serif;
+  font-size: 3.5rem;
+  font-weight: bold;
+  margin-right: 0.5rem;
+  line-height: 1;
+}
+
+.temperature-unit {
+  font-size: 1.5rem;
+  vertical-align: super;
+}
+
+.temperature-status {
+  display: inline-block;
+  padding: 0.3rem 0.8rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 0.9rem;
+  margin-left: 1rem;
+}
+
+.detail-label {
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.2rem;
+}
+
+.detail-value {
+  font-family: 'customfont2', sans-serif;
+  font-size: 1.5rem;
+  color: #1A4375;
+  margin: 0.3rem 0;
+}
+
+.detail-secondary {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.2rem;
+}
+
+.detail-description {
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-top: 0.8rem;
+  color: #444;
+}
+
+.wind-display {
+  display: flex;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+.humidity-level {
+  height: 6px;
+  background: #e1e5eb;
+  border-radius: 3px;
+  margin-top: 0.8rem;
+  overflow: hidden;
+}
+
+.humidity-level-fill {
+  height: 100%;
+  background: linear-gradient(to right, #4FBED6, #1D4E89);
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.time-icon {
+  margin-right: 0.5rem;
+  font-size: 1rem;
+}
+
+.time-label {
+  font-weight: 500;
+  margin-right: 0.5rem;
+  color: #555;
+}
+
+.time-value {
+  margin-left: auto;
+  font-family: 'customfont2';
+}
+
+.refresh-btn {
+  background: rgba(26, 67, 117, 0.1);
+  border: 1px solid rgba(26, 67, 117, 0.2);
+  color: #1A4375;
+  cursor: pointer;
+  font-size: 1rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-left: 0.5rem;
+}
+
+.refresh-btn:hover {
+  background: rgba(81, 194, 217, 0.2);
+  border-color: #51C2D9;
+  color: #1A4375;
+  transform: rotate(180deg) scale(1.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.last-updated {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 1.5rem;
+  font-style: italic;
+}
+
+.update-icon {
+  font-size: 0.9rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .weather-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .temperature-card {
+    grid-column: span 1;
+  }
+  
+  .temperature-value {
+    font-size: 2.8rem;
+  }
+  
+  .weather-title {
+    font-size: 1.5rem;
+  }
+}

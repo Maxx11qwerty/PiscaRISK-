@@ -1,0 +1,140 @@
+@font-face {
+    font-family: 'customfont3';
+    src: url('../assets/fonts/ReadexPro-bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  
+  .otp-blur-bg {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: rgba(0,0,0,0.2);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.otp-modal {
+    background: #ffffff;
+    border-radius: 16px;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    padding: 0;
+    position: relative;
+    font-family: 'customfont2';
+    display: flex;
+    flex-direction: column;
+}
+
+.otp-header {
+  background: #1A4375;
+  color: #fff;
+  font-family: 'customfont3';
+  font-size: 1.5rem;
+  padding: 1.2rem 2rem 1.2rem 2rem;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  margin-bottom: 0;
+}
+
+.otp-logo {
+  height: 36px;
+  width: auto;
+  margin-right: 1rem;
+}
+
+.otp-title {
+  color: #fff;
+  font-size: 1.5rem;
+  font-family: 'customfont3', sans-serif;
+  font-weight: bold;
+  flex: 1;
+  text-align: left;
+}
+
+.otp-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #fff;
+  position: static;
+  margin-left: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.otp-content {
+  margin-top: 1rem;
+}
+
+.otp-instructions {
+  font-size: 1.1rem;
+  color: #062750;
+  margin-bottom: 2.2rem;
+  font-weight: bold;
+  text-align: center;
+  font-family: 'customfont3';
+  letter-spacing: 0.01em;
+  margin-top: 1.5rem;
+}
+
+.otp-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.otp-inputs {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.otp-input {
+  width: 56px;
+  height: 64px;
+  font-size: 2.8rem;
+  text-align: center;
+  border: none;
+  border-bottom: 4px solid #1A4375;
+  background: transparent;
+  color: #444;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.otp-input:focus {
+  border-bottom: 4px solid #2e6ba6;
+}
+
+.otp-error {
+  color: #d32f2f;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.otp-submit {
+  background: #1A4375;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+  transition: background 0.2s;
+}
+.otp-submit:hover {
+  background: #2e6ba6;
+} 

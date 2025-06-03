@@ -1,0 +1,404 @@
+import React, { useState, useEffect } from 'react';
+import { FaBell, FaUserCircle } from 'react-icons/fa';
+import './NotificationBox.css';
+import { db } from '../firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  onSnapshot,
+  doc,
+  setDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
+
+// Helper functions
+const extractPondId = (fishPond) => {
+  if (!fishPond) return '';
+  return typeof fishPond === 'string' 
+    ? fishPond.split(' ').pop() || fishPond 
+    : fishPond.toString();
+};
+
+const generateMessage = (report, pondId) => {
+  const user = report.submitted_by || report.user || 'A user';
+  return report.source === 'mobile'
+    ? `${user} submitted a new report for Fish Pond ${pondId}`
+    : `${user} submitted a new report for Fish Pond ${pondId}`;
+};
+
+const generateFeedbackMessage = (feedback) => {
+  const user = feedback.user || 'A user';
+  const type = feedback.feedback || 'feedback';
+  return `${user} submitted a new ${type} feedback`;
+};
+
+const generateDetails = (report) => {
+  return `Fish: ${report.fish_condition || 'N/A'}, Water: ${report.water_condition || 'N/A'}`;
+};
+
+const generateFeedbackDetails = (feedback) => {
+  return feedback.concern || 'No details provided';
+};
+
+// Initialize with Firebase data
+const initializeNotifications = async () => {
+  const notifications = [];
+
+  try {
+    // Fetch reports from Firebase
+    const reportsRef = collection(db, 'reports');
+    const reportsQuery = query(reportsRef, orderBy('timestamp', 'desc'));
+    const reportsSnapshot = await getDocs(reportsQuery);
+    
+    reportsSnapshot.docs.forEach(doc => {
+      const report = doc.data();
+      const pondId = report.fish_pond ? extractPondId(report.fish_pond) : '';
+      
+      // Handle timestamp conversion safely
+      let timestamp;
+      try {
+        // Check if timestamp is a Firestore Timestamp
+        if (report.timestamp && typeof report.timestamp.toDate === 'function') {
+          timestamp = report.timestamp.toDate().toISOString();
+        } 
+        // Check if it's already a Date object
+        else if (report.timestamp instanceof Date) {
+          timestamp = report.timestamp.toISOString();
+        }
+        // Check if it's already an ISO string
+        else if (typeof report.timestamp === 'string') {
+          // Validate it's a proper ISO string
+          if (!isNaN(new Date(report.timestamp).getTime())) {
+            timestamp = report.timestamp;
+          } else {
+            throw new Error('Invalid date string');
+          }
+        }
+        // Fallback to current date if no valid timestamp
+        else {
+          timestamp = new Date().toISOString();
+        }
+      } catch (error) {
+        console.warn('Error processing timestamp, using current date:', error);
+        timestamp = new Date().toISOString();
+      }
+
+      notifications.push({
+        id: doc.id,
+        type: 'fishpond',
+        message: generateMessage(report, pondId),
+        details: generateDetails(report),
+        username: report.user || 'Unknown User',
+        timestamp: timestamp, // Use the processed timestamp
+        read: false,
+        iconKey: "pond",
+        pondId,
+        reportData: report,
+        avatar: report.avatar || null,
+        source: report.source || 'web'
+      });
+    });
+
+    // Fetch feedback from Firebase
+    const feedbackRef = collection(db, 'PiscaRisk');
+    const feedbackQuery = query(feedbackRef, orderBy('timestamp', 'desc'));
+    const feedbackSnapshot = await getDocs(feedbackQuery);
+    
+    feedbackSnapshot.docs.forEach(doc => {
+      const feedback = doc.data();
+      
+      // Handle timestamp conversion safely for feedback
+      let timestamp;
+      try {
+        if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
+          timestamp = feedback.timestamp.toDate().toISOString();
+        } 
+        else if (feedback.timestamp instanceof Date) {
+          timestamp = feedback.timestamp.toISOString();
+        }
+        else if (typeof feedback.timestamp === 'string') {
+          if (!isNaN(new Date(feedback.timestamp).getTime())) {
+            timestamp = feedback.timestamp;
+          } else {
+            throw new Error('Invalid date string');
+          }
+        }
+        else {
+          timestamp = new Date().toISOString();
+        }
+      } catch (error) {
+        console.warn('Error processing feedback timestamp:', error);
+        timestamp = new Date().toISOString();
+      }
+
+      notifications.push({
+        id: doc.id,
+        type: 'feedback',
+        message: `${feedback.userName || feedback.user || 'A user'} submitted a feedback..`,
+        username: feedback.userName || feedback.user || 'Unknown User',
+        timestamp: timestamp,
+        read: false,
+        iconKey: "feedback",
+        feedbackType: feedback.concern || 'general',
+        feedbackData: feedback,
+        avatar: feedback.avatar || null,
+        source: feedback.source || 'web'
+      });
+    });
+
+    // Sort by timestamp (newest first)
+    return notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  } catch (error) {
+    console.error('Error initializing notifications:', error);
+    return [];
+  }
+};
+
+export const addFishpondReportNotification = (pondId, reportData) => {
+  const storedNotifications = localStorage.getItem('notifications');
+  let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
+  
+  // Create notification message
+  const message = reportData.source === 'mobile'
+    ? `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId}`
+    : `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId}`;
+  
+  const newNotification = {
+    type: 'fishpond',
+    message: message,
+    username: reportData.submitted_by || reportData.user || 'Unknown User',
+    timestamp: new Date().toISOString(),
+    read: false,
+    iconKey: "pond",
+    pondId: pondId,
+    reportData: reportData,
+    avatar: reportData.avatar || null,
+    source: reportData.source || 'web'
+  };
+  
+  notifications.unshift(newNotification);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  window.dispatchEvent(new Event('notifications-updated'));
+};
+
+export const addFeedbackNotification = (feedbackData) => {
+  const storedNotifications = localStorage.getItem('notifications');
+  let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
+  
+  const newNotification = {
+    type: 'feedback',
+    message: `${feedbackData.userName || feedbackData.user || 'A user'} submitted ${feedbackData.concern || 'feedback'}: ${feedbackData.feedback?.substring(0, 50)}...`,
+    details: feedbackData.feedback || 'No details',
+    username: feedbackData.userName || feedbackData.user || 'Unknown User',
+    timestamp: new Date().toISOString(),
+    read: false,
+    iconKey: "feedback",
+    feedbackType: feedbackData.concern || 'general',
+    feedbackData: feedbackData,
+    avatar: feedbackData.avatar || null,
+    source: feedbackData.source || 'web'
+  };
+  
+  notifications.unshift(newNotification);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  window.dispatchEvent(new Event('notifications-updated'));
+};
+
+const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+
+const removeOldNotifications = (notifications) => {
+  const now = new Date().getTime();
+  return notifications.filter(notification => {
+    const notificationDate = new Date(notification.timestamp).getTime();
+    return (now - notificationDate) <= THREE_DAYS_MS;
+  });
+};
+
+const NotificationBox = () => {
+  const [notifications, setNotifications] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    // Get current user from Firebase Auth
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleNotificationClick = async (notification) => {
+    if (!currentUser) return;
+    
+    // If notification is already read, do nothing
+    if (notification.read) return;
+
+    try {
+      // Update read status in Firestore
+      const userNotificationsRef = collection(db, 'users', currentUser.uid, 'notifications');
+      const notificationRef = doc(userNotificationsRef, notification.id);
+      
+      await setDoc(notificationRef, {
+        read: true, // Only mark as read, never unread
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+
+      // Update local state
+      const updatedNotifications = notifications.map(n => 
+        n.id === notification.id ? { ...n, read: true } : n
+      );
+      setNotifications(updatedNotifications);
+    
+      // Update unread count
+      const newUnreadCount = updatedNotifications.filter(n => !n.read).length;
+      setUnreadCount(newUnreadCount);
+    } catch (error) {
+      console.error('Error updating notification status:', error);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+
+    try {
+      // Fetch notifications from Firebase
+      const freshNotifications = await initializeNotifications();
+      
+      // Fetch user's read status from Firestore
+      const userNotificationsRef = collection(db, 'users', currentUser.uid, 'notifications');
+      const userNotificationsSnapshot = await getDocs(userNotificationsRef);
+      const readStatusMap = new Map();
+      
+      userNotificationsSnapshot.docs.forEach(doc => {
+        readStatusMap.set(doc.id, doc.data().read);
+      });
+
+      // Merge notifications with read status
+      const merged = freshNotifications.map(fresh => ({
+        ...fresh,
+        read: readStatusMap.get(fresh.id) || false
+      }));
+
+      // Sort and clean
+      const cleaned = removeOldNotifications(
+        merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      );
+
+      // Update state
+      setNotifications(cleaned);
+      const newUnreadCount = cleaned.filter(n => !n.read).length;
+      setUnreadCount(newUnreadCount);
+      
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      loadNotifications();
+    }
+  }, [currentUser]);
+
+  const toggleNotifications = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
+
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    setUnreadCount(0);
+    localStorage.removeItem('notifications');
+  };
+
+  const getNotificationIcon = (notification) => {
+    switch (notification.type) {
+      case 'fishpond':
+        return <FaUserCircle className="notification-type-icon" />;
+      case 'feedback':
+        return <FaUserCircle className="notification-type-icon" />;
+      default:
+        return <FaUserCircle className="notification-type-icon" />;
+    }
+  };
+
+  return (
+    <div className="notification-container">
+      <div className="notification-icon" onClick={toggleNotifications}>
+        <FaBell />
+        {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
+      </div>
+
+      {isOpen && (
+        <div className="notification-dropdown">
+          <div className="notification-header">
+            <h3>Notifications</h3>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                clearNotifications();
+              }} 
+              className="clear-notifications"
+            >
+              Clear All
+            </button>
+          </div>
+          <div className="notification-list">
+            {notifications.length > 0 ? (
+              notifications.map((notification, index) => (
+                <div
+                  key={notification.id || index}
+                  className={`notification-item ${notification.read ? 'read' : 'unread'} notification-${notification.type}`}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <div className="notification-icon-wrapper">
+                    {getNotificationIcon(notification)}
+                  </div>
+                  <div className="notification-content">
+                    <p className="notification-message">
+                      {notification.message}
+                    </p>
+                    <div className="notification-meta">
+                      <span className="notification-user">
+                        {notification.username}
+                      </span>
+                      <span className="notification-time">{formatTime(notification.timestamp)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="no-notifications">No notifications yet</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default NotificationBox;

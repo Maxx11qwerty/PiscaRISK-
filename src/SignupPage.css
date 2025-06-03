@@ -1,0 +1,470 @@
+@font-face {
+    font-family: 'customfont';
+    src: url('assets/fonts/Alexandria-Regular.ttf') format('ttf');
+    font-weight: normal;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: 'customfont2';
+    src: url('assets/fonts/Alexandria-Bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: 'customfont3';
+    src: url('assets/fonts/ReadexPro-bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+.signup-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1D4E89;
+    color: white;
+  }
+  
+  .signup-wrapper {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 80rem;
+    padding: 1rem;
+    justify-content: center;
+  }
+  
+  .logo-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: left;
+    justify-content: center;
+    margin-bottom: 14rem; /*adjust logo*/
+    margin-left: 5rem; /*adjust logo*/
+  }
+  
+  .logo {
+    width: 19rem;
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 0.1rem;
+  }
+  
+  .title {
+    font-size: 3.5rem;
+    font-weight: bold;
+    color: #93FFFE;
+    margin: 0;
+    margin-left: 2rem;
+  }
+
+  .bottom-text {
+    position: absolute;
+    font-family: 'customfont3';
+    color: #93FFFE;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    margin: 0;
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  
+  
+  .sign-form-section {
+    background-color: #ffffff;
+    padding: 3rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    height: 35rem;
+    width: 20rem;
+    flex: 0 0 auto;
+  }
+
+  .sign-register-text {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    font-size: 1rem;
+    color: black;
+    font-family: 'customfont2';
+  }
+
+  .sign-login-text {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    margin: 1rem 0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #666;
+    font-family: 'customfont2';
+  }
+
+  .sign-login-link {
+    color: #1A4375;
+    text-decoration: none;
+    margin-left: 0.3rem;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    font-family: 'customfont2';
+  }
+
+  .sign-login-link:hover {
+    color: #2e6ba6;
+    text-decoration: underline;
+  }
+
+  .social-sign-section {
+    text-align: center;
+    margin: -.5rem 0;
+  }
+  
+  .social-sign-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+  }
+  
+  .social-sign-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 350px;
+    padding: 0.5rem 1.5rem;
+    border: 2px solid #1A4375;
+    border-radius: 10px;
+    background: #fff;
+    color: #111;
+    font-family: 'customfont2';
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    margin-bottom: 0.7rem;
+    overflow: hidden;
+  }
+  
+  .social-sign-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    margin: 0 auto;
+    font-family: 'customfont2';
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: #111;
+    letter-spacing: 0.01em;
+    pointer-events: none; /* Allows clicks to pass through to the button */
+  }
+  
+  .social-icon {
+    font-size: 1.3rem;
+    position: relative;
+    z-index: 1; /* Ensures icon stays above the centered text */
+  }
+  
+  .social-sign-button.google .social-icon {
+    color: #ea4335;
+  }
+  
+  .social-sign-button.facebook .social-icon {
+    color: #1877f3;
+  }
+  
+  .social-sign-button:hover {
+    border-color: #1565c0;
+    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
+  }
+
+  .sign-rounded-line {
+    height: 5px;
+    width: 89%;
+    background-color: #1A4375;
+    border-radius: 9999px;
+    margin: 0 auto;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+  } 
+  
+  .sign-input-field {
+    width: 80%;
+    max-width: 300px;
+    padding: 15px 20px 15px 40px;
+    margin: -1rem auto 1.75rem auto; /* Added 1rem top margin */
+    border-radius: 1rem;
+    outline: none;
+    border: none;
+    background-color: #ffffff;
+    border: 0.2rem solid #1A4375;
+    display: block;
+  }
+  
+  .sign-input-field::placeholder {
+    color: #565656;
+    font-style: 'customfont';
+    font-size: 1rem;
+  }
+
+  .sign-input-field:focus {
+    outline: none;
+    border-color: #3B82F6;
+    background-color: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+  
+.sign-checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -1rem 0; /* Added 1rem top and bottom margin */
+  font-family: 'customfont2';
+}
+
+.sign-checkbox {
+  margin-right: 0.5rem;
+}
+  
+  .sign-terms-text {
+    font-size: 0.800rem;
+    color: black;
+    font-family: 'customfont2';
+  }
+  
+  .sign-terms-link {
+    text-decoration: underline;
+    font-family: 'customfont2';
+    color: #1A4375
+  }
+  
+  
+  .create-btn-container {
+    display: flex;
+    justify-content: center;
+  }
+  
+  .create-btn {
+    width: 100%;
+    margin-top: 1.5rem;
+    max-width: 150px;
+    padding: 0.75rem;
+    background: #1A4375;
+    font-family: 'customfont2';
+    border: none;
+    border-radius: 9999px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .create-btn:hover {
+    transform: scale(1.00);
+    background: #2e6ba6;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+
+ .sign-error-message {
+  color: #ff0000;
+  margin-top: -2rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  padding: 12px 16px;
+  background-color: #fff5f5;
+  border: 1px solid #ffd6d6;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: 
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
+}
+.sign-error-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Optional: Add an icon */
+.sign-error-message::before {
+  content: "⚠️";
+  margin-right: 8px;
+}
+
+/* Optional: Fade out when disappearing */
+.sign-error-message.fade-out {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* password style */
+.signup-password-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto .2rem;
+}
+
+.signup-password-input {
+  width: 80%;
+  max-width: 300px;
+  padding: 15px 20px 15px 40px;
+  margin: -1rem auto 1.75rem auto;
+  border-radius: 1rem;
+  outline: none;
+  border: none;
+  background-color: #ffffff;
+  border: 0.2rem solid #1A4375;
+  display: block;
+}
+
+.signup-password-input::placeholder{
+  color: #565656;
+  font-style: 'customfont';
+  font-size: 1rem;
+}
+
+.signup-password-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.signup-password-toggle {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  color: #64748B;
+  transition: color 0.2s ease;
+}
+
+.signup-password-toggle:hover {
+  color: #1A4375;
+}
+
+.signup-eye-icon {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+  .sign-input-field,
+  .signup-password-input {
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+  
+  .signup-password-input {
+    padding-right: 2.8rem;
+  }
+  
+  .signup-password-toggle {
+    right: 0.8rem;
+  }
+}
+/* Overlay for modal */
+.terms-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Modal box */
+.terms-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 800px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  padding: 0;
+  position: relative;
+  font-family: 'customfont2', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Modal header */
+.terms-modal-header {
+  background: #1A4375;
+  color: #fff;
+  font-family: 'customfont3';
+  font-size: 1.5rem;
+  padding: 1.2rem 2rem 1.2rem 2rem;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Close button */
+.terms-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  cursor: pointer;
+  margin-left: 1rem;
+  line-height: 1;
+}
+
+/* Modal content */
+.terms-modal-content {
+  padding: 2rem 2.5rem 0 2.5rem;
+  color: #062750;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+  font-family: 'customfont2';
+}
+
+/* Modal footer */
+.terms-modal-footer {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0 2.5rem 0;
+}
+
+/* Continue button */
+.terms-modal-continue {
+  background: #1A4375;
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  padding: 0.8rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transition: background 0.2s;
+}
+
+.terms-modal-continue:hover {
+  background: #16345a;
+}

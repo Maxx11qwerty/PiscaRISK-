@@ -1,0 +1,164 @@
+/* WeatherDisplay.css */
+.weather-display-container {
+    position: relative;
+    width: 80%;
+    height: 20rem;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    margin-left: 7rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .weather-display-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;
+    z-index: 1;
+  }
+  
+  .weather-display-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    padding: 20px;
+    text-align: center;
+    z-index: 2;
+  }
+  
+  .weather-time-info {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.75rem 1rem;
+    border-radius: 1.25rem;
+    backdrop-filter: blur(0.25rem);
+    min-width: 9.5rem;
+  }
+  
+  .current-date-time {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-bottom: 8px;
+  }
+  
+  .current-date {
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: white;
+    margin-bottom: 2px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  
+  .current-time {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  
+  .current-temp {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  }
+  
+  .weather-condition-text {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-top: 1.25rem;
+    text-transform: capitalize;
+    padding: 0.5rem 1rem;
+    border-radius: 1.25rem;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+  }
+  
+  .weather-condition-icon {
+    width: 140px;
+    height: 130px;
+    margin: 0.5rem 0;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.6));
+    transition: all 0.3s ease;
+  }
+  
+  /* Icon-specific styles */
+  .weather-condition-icon.sunny {
+    filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.7));
+  }
+  
+  .weather-condition-icon.moon {
+    filter: drop-shadow(0 0 10px rgba(230, 230, 250, 0.6));
+  }
+  
+  .weather-condition-icon.cloudy-moon {
+    filter: drop-shadow(0 0 8px rgba(200, 200, 255, 0.5));
+  }
+  
+  .weather-condition-icon.sunny-with-clouds {
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+  }
+  
+  /* Time-of-day specific styles */
+  .weather-condition-text.morning {
+    color: #ffd700;
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+  }
+  
+  .weather-condition-text.afternoon {
+    color: #ff8c00;
+    text-shadow: 0 0 8px rgba(255, 140, 0, 0.5);
+  }
+  
+  .weather-condition-text.evening {
+    color: #ff6347;
+    text-shadow: 0 0 8px rgba(255, 99, 71, 0.5);
+  }
+  
+  .weather-condition-text.night {
+    color: #e6e6fa;
+    text-shadow: 0 0 8px rgba(230, 230, 250, 0.5);
+  }
+  
+  /* Time-of-day background filters */
+  .weather-display-container.morning .weather-display-background {
+    filter: brightness(1.1) contrast(1.1) saturate(1.1);
+  }
+  
+  .weather-display-container.afternoon .weather-display-background {
+    filter: brightness(1.05) contrast(1.05);
+  }
+  
+  .weather-display-container.evening .weather-display-background {
+    filter: brightness(0.9) hue-rotate(-10deg);
+  }
+  
+  .weather-display-container.night .weather-display-background {
+    filter: brightness(0.7) contrast(1.2) hue-rotate(5deg);
+  }
+  
+  /* Modal-specific adjustments */
+  .weather-main-modal {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }

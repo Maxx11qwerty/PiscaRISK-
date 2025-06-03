@@ -1,0 +1,435 @@
+@font-face {
+    font-family: 'customfont';
+    src: url('assets/fonts/Alexandria-Regular.ttf') format('ttf');
+    font-weight: normal;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: 'customfont2';
+    src: url('assets/fonts/Alexandria-Bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: 'customfont3';
+    src: url('assets/fonts/ReadexPro-bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1D4E89;
+    color: white;
+  }
+  
+  .login-wrapper {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 80rem;
+    padding: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .logo-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align items to the start */
+    justify-content: center;
+    margin-bottom: 10%; /* Use percentage for margin */
+    margin-left: 5%;
+  }
+  
+  .logo {
+    width: 30%; /* Use percentage for width */
+    max-width: 19rem;
+    height: auto;
+    margin-bottom: 0.1rem;
+    margin-left: 6%;
+  }
+  
+  .title {
+    font-size: 5vw;
+    font-weight: bold;
+    color: #ffffff;
+    margin: 0;
+    margin-right: 5rem;
+  }
+
+  .bottom-text {
+    position: absolute;
+    font-family: 'customfont3';
+    color: #93FFFE;
+    bottom: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    margin: 0;
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  
+  
+  .form-section { 
+    background-color: #ffffff; 
+    padding: 3rem; 
+    border-radius: 1rem; 
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); 
+    height: 35rem; 
+    width: 20rem; 
+    flex: 0 0 auto; 
+  }
+  
+  .icon-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 3rem;
+  }
+  
+  .mail-icon {
+    width: 3.5rem;
+    height: 3rem; 
+    margin: 2rem 1.35rem 0;
+    color: rgb(0, 0, 0);
+    position: relative;
+  }
+
+  .rounded-line {
+    height: 5px;
+    width: 89%;
+    background-color: #1A4375;
+    border-radius: 9999px;
+    margin: 0 auto;
+    margin-bottom: 3rem;
+    margin-top: 1rem;
+  } 
+
+.input-with-icon {
+  position: relative;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #777;
+  font-size: 16px;
+}
+
+.input-field:focus + .input-icon {
+  color: #4a90e2;
+}
+
+.input-field {
+  width: 80%;
+  max-width: 300px;
+  padding: 15px 20px 15px 40px;
+  margin: -4.5rem auto 1rem auto;
+  border-radius: 1rem;
+  outline: none;
+  border: 0.2rem solid #1A4375;
+  background-color: #ffffff;
+  display: block;
+  transition: border-color 0.3s ease;
+} 
+
+.input-field:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+  
+.input-field::placeholder {
+  color: #565656;
+  font-style: 'customfont';
+  font-size: 1rem;
+}
+  
+  
+.login-btn-container {
+  display: flex;
+  justify-content: center;
+}
+  
+  .login-btn {
+    width: 100%;
+    max-width: 150px;
+    padding: 0.75rem;
+    background: #1A4375;
+    border: none;
+    border-radius: 9999px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'customfont2';
+  }
+  
+  .login-btn:hover {
+    transform: scale(1.00);
+    background: #2e6ba6;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+  
+  .login-text {
+    margin-top: 1rem;
+    text-align: center;
+    font-size: .9rem;
+    font-family: 'customfont2';
+    color: black;
+  }
+
+  .belowlogin-text{
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    margin: 1rem 0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #666;
+    font-family: 'customfont2';
+  }
+  
+  .register-link {
+    color: #1A4375;
+    text-decoration: none;
+    margin-left: 0.3rem;
+    cursor: pointer;
+    transition: color 0.3s ease;
+    font-family: 'customfont2';
+  }
+
+  .register-link:hover {
+    color: #2e6ba6;
+    text-decoration: underline;
+  }
+
+  /*error message style*/
+  .login-error-message {
+    color: #ff0000;
+    margin-top: -4rem;
+    margin-bottom: 5rem;
+    text-align: center;
+    padding: 12px 16px;
+    background-color: #fff5f5;
+    border: 1px solid #ffd6d6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(255, 0, 0, 0.1);
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: 
+      opacity 0.3s ease-out,
+      transform 0.3s ease-out;
+  }
+  .login-error-message.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  /* Optional: Add an icon */
+  .login-error-message::before {
+    content: "⚠️";
+    margin-right: 8px;
+  }
+  
+  /* Optional: Fade out when disappearing */
+  .login-error-message.fade-out {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  /* password style */
+.login-password-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto 1.2rem;
+}
+
+.login-password-input {
+  width: 80%;
+  max-width: 300px;
+  padding: 15px 20px 15px 40px;
+  margin: 0 auto 0.75rem auto;
+  border-radius: 1rem;
+  outline: none;
+  border: none;
+  background-color: #ffffff;
+  border: 0.2rem solid #1A4375;
+  display: block;
+}
+
+.login-password-input:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.login-password-input::placeholder{
+  color: #565656;
+  font-style: 'customfont';
+  font-size: 1rem;
+}
+
+.login-password-toggle {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  color: #64748B;
+  transition: color 0.2s ease;
+}
+
+.login-password-toggle:hover {
+  color: #1A4375;
+}
+
+.login-eye-icon {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.login-lock-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #777;
+  font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .login-password-input {
+    padding: 0.8rem 2.8rem 0.8rem 1rem;
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+  
+  .login-password-toggle {
+    right: 0.8rem;
+  }
+}
+
+/* Social Login Section */
+.social-login-section {
+  margin: 1rem 0 1rem;
+  text-align: center;
+}
+
+.social-login-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-bottom: 1.5rem;
+}
+
+.social-login-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 350px;
+  padding: 0.5rem 1.5rem;
+  border: 2px solid #1A4375;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-family: 'customfont2';
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  margin-bottom: 0.7rem;
+  overflow: hidden;
+}
+
+.social-login-button:hover {
+  border-color: #1565c0;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.1);
+}
+
+.social-login-button-text {
+  flex: 1;
+  text-align: center;
+  font-weight: 500;
+  color: #111;
+  letter-spacing: 0.01em;
+}
+
+.social-icon {
+  font-size: 1.3rem;
+  margin-right: 0.5rem;
+}
+
+.social-login-button.google .social-icon {
+  color: #ea4335;
+}
+
+.social-login-button.facebook .social-icon {
+  color: #1877f3;
+}
+
+/* Divider */
+.login-divider {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  color: #666;
+  font-family: 'customfont2';
+  font-size: 0.9rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #ddd;
+}
+
+.forgot-password-container {
+  text-align: center;
+  margin: 10px 0;
+}
+
+.forgot-password-text {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  margin: 1rem 0;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #666;
+  font-family: 'customfont2';
+}
+
+.forgot-password-link {
+  color: #1A4375;
+  text-decoration: none;
+  margin-left: 0.3rem;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  font-family: 'customfont2';
+}
+
+.forgot-password-link:hover {
+  color: #2e6ba6;
+  text-decoration: underline;
+}
+
