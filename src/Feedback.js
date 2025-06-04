@@ -10,7 +10,7 @@ import { logActivity, logMessages } from './utils/logger';
 import { exportToCSV, exportToPDF } from './utils/exportFeedback';
 import NotificationBox from './components/NotificationBox';
 import { db } from './firebase';
-import { collection, query, orderBy, getDocs, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, where, doc, updateDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
 
 const feedbackTypes = [
   { id: 'bug', label: 'Bug', icon: 'FaBug' },
@@ -19,6 +19,24 @@ const feedbackTypes = [
   { id: 'performance', label: 'Performance', icon: 'FaTachometerAlt' },
   { id: 'other', label: 'Other', icon: 'FaQuestionCircle' }
 ];
+
+// Add this helper function at the top level
+const formatFirestoreTimestamp = (timestamp) => {
+  if (!timestamp) return null;
+  if (timestamp.toDate) {
+    return timestamp.toDate().toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Manila'
+    });
+  }
+  return timestamp;
+};
 
 const Feedback = () => {
   const { currentUser } = useContext(AuthContext);
@@ -33,6 +51,10 @@ const Feedback = () => {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showActions, setShowActions] = useState(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isReplying, setIsReplying] = useState(false);
   const navigate = useNavigate();
 
   // Fetch feedback data from Firebase
@@ -80,6 +102,14 @@ const Feedback = () => {
             'other': 'other'
           };
 
+          // Initialize replies from Firebase data
+          if (data.replies && Array.isArray(data.replies)) {
+            setReplies(prev => ({
+              ...prev,
+              [doc.id]: data.replies
+            }));
+          }
+
           // Log feedback submissions
           if (data.source === 'mobile') {
             logActivity('feedback', logMessages.feedback.mobileSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
@@ -87,35 +117,26 @@ const Feedback = () => {
             logActivity('feedback', logMessages.feedback.webSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
           }
           
+          // Process replies if they exist
+          const processedReplies = data.replies?.map(reply => ({
+            ...reply,
+            date: formatFirestoreTimestamp(reply.date) || reply.date
+          })) || [];
+
           return {
             id: doc.id,
             user: data.userName || 'Anonymous',
             uid: data.uid || '',
             type: concernToType[data.concern?.toLowerCase()] || 'other',
             message: data.feedback || '',
-            date: data.timestamp ? data.timestamp.toDate().toLocaleString('en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-              timeZone: 'Asia/Manila'
-            }) : new Date().toLocaleString('en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              hour12: false,
-              timeZone: 'Asia/Manila'
-            }),
+            date: formatFirestoreTimestamp(data.timestamp),
             avatar: <FaUserCircle className="user-avatar" />,
             timestamp: data.timestamp,
             source: data.source || 'web',
-            userName: data.userName || 'Anonymous'
+            userName: data.userName || 'Anonymous',
+            hasResponse: data.hasResponse || false,
+            lastResponseDate: formatFirestoreTimestamp(data.lastResponseDate),
+            replies: processedReplies
           };
         });
 
@@ -197,21 +218,59 @@ const Feedback = () => {
     setSelectedFeedback(feedback);
   };
 
-  const handleReplySubmit = (feedbackId) => {
-    if (replyText.trim()) {
+  const handleReplySubmit = async (feedbackId) => {
+    if (!replyText.trim()) return;
+
+    try {
+      setIsReplying(true);
+      const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
+      const currentDate = new Date();
+      const formattedDate = currentDate.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Manila'
+      });
+
       const newReply = {
         id: Date.now(),
         text: replyText,
-        date: new Date().toISOString().split('T')[0],
+        date: formattedDate,
+        adminName: currentUser?.username || 'Admin',
         isAdmin: true
       };
-      
-      setReplies(prev => ({
-        ...prev,
-        [feedbackId]: [...(prev[feedbackId] || []), newReply]
-      }));
-      
+
+      await updateDoc(feedbackRef, {
+        replies: arrayUnion(newReply),
+        hasResponse: true,
+        lastResponseDate: currentDate
+      });
+
+      // Update local state with formatted dates
+      setFeedbacks(prevFeedbacks =>
+        prevFeedbacks.map(feedback =>
+          feedback.id === feedbackId
+            ? {
+                ...feedback,
+                hasResponse: true,
+                lastResponseDate: formattedDate,
+                replies: [...(feedback.replies || []), newReply]
+              }
+            : feedback
+        )
+      );
+
       setReplyText('');
+      logActivity('feedback', `Admin response added to feedback by ${currentUser?.username || 'Admin'}`, currentUser?.username);
+    } catch (error) {
+      console.error('Error adding reply:', error);
+      logActivity('error', `Failed to add reply: ${error.message}`, currentUser?.username);
+    } finally {
+      setIsReplying(false);
     }
   };
 
@@ -219,6 +278,63 @@ const Feedback = () => {
     setSelectedFeedback(null);
   };
 
+  const handleArchiveFeedback = async (feedbackId) => {
+    try {
+      setIsArchiving(true);
+      const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
+      await updateDoc(feedbackRef, {
+        status: 'archived',
+        archivedAt: new Date(),
+        archivedBy: currentUser?.username || 'Admin'
+      });
+      
+      // Update local state
+      setFeedbacks(prevFeedbacks => 
+        prevFeedbacks.map(feedback => 
+          feedback.id === feedbackId 
+            ? { ...feedback, status: 'archived' }
+            : feedback
+        )
+      );
+      
+      logActivity('feedback', `Feedback archived by ${currentUser?.username || 'Admin'}`, currentUser?.username);
+      setShowActions(null);
+    } catch (error) {
+      console.error('Error archiving feedback:', error);
+      logActivity('error', `Failed to archive feedback: ${error.message}`, currentUser?.username);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (feedbackId) => {
+    if (!window.confirm('Are you sure you want to delete this feedback? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
+      await deleteDoc(feedbackRef);
+      
+      // Update local state
+      setFeedbacks(prevFeedbacks => 
+        prevFeedbacks.filter(feedback => feedback.id !== feedbackId)
+      );
+      
+      if (selectedFeedback?.id === feedbackId) {
+        setSelectedFeedback(null);
+      }
+      
+      logActivity('feedback', `Feedback deleted by ${currentUser?.username || 'Admin'}`, currentUser?.username);
+      setShowActions(null);
+    } catch (error) {
+      console.error('Error deleting feedback:', error);
+      logActivity('error', `Failed to delete feedback: ${error.message}`, currentUser?.username);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="feedback">
@@ -364,22 +480,64 @@ const Feedback = () => {
                 <div 
                   key={feedback.id} 
                   className={`feedback-card ${selectedFeedback?.id === feedback.id ? 'selected' : ''}`}
-                  onClick={() => handleFeedbackClick(feedback)}
                 >
-                  <div className="user-avatar-container">
-                    {feedback.avatar}
-                    <span className="user-name">{feedback.userName || feedback.user}</span>
-                  </div>
-                  <div className="feedback-content">
-                    <div className="feedback-categ">
-                      <span className={`feedback-type ${feedback.type.replace(' ', '-')}`}>
-                        {getIconComponent(feedbackTypes.find(t => t.id === feedback.type)?.icon)}
-                        {feedbackTypes.find(t => t.id === feedback.type)?.label}
-                      </span>
-                      <span className="feedback-date">{feedback.date}</span>
+                  <div className="feedback-card-content" onClick={() => handleFeedbackClick(feedback)}>
+                    <div className="user-avatar-container">
+                      {feedback.avatar}
+                      <span className="user-name">{feedback.userName || feedback.user}</span>
+                      {feedback.hasResponse && (
+                        <span className="response-badge">
+                          <FaPaperPlane /> Responded
+                        </span>
+                      )}
                     </div>
-                    <p className="feedback-message">{feedback.message}</p>
+                    <div className="feedback-content">
+                      <div className="feedback-categ">
+                        <span className={`feedback-type ${feedback.type.replace(' ', '-')}`}>
+                          {getIconComponent(feedbackTypes.find(t => t.id === feedback.type)?.icon)}
+                          {feedbackTypes.find(t => t.id === feedback.type)?.label}
+                        </span>
+                        <span className="feedback-date">{feedback.date}</span>
+                      </div>
+                      <p className="feedback-message">{feedback.message}</p>
+                    </div>
                   </div>
+                  {(currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer') && (
+                    <div className="feedback-actions">
+                      <button 
+                        className="action-button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowActions(showActions === feedback.id ? null : feedback.id);
+                        }}
+                      >
+                        <FaEllipsisV />
+                      </button>
+                      {showActions === feedback.id && (
+                        <div className="action-menu">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchiveFeedback(feedback.id);
+                            }}
+                            disabled={isArchiving}
+                          >
+                            {isArchiving ? 'Archiving...' : 'Archive'}
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFeedback(feedback.id);
+                            }}
+                            disabled={isDeleting}
+                            className="delete-button"
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -415,12 +573,12 @@ const Feedback = () => {
 
               <div className="replies-container">
                 <h3>Responses:</h3>
-                {replies[selectedFeedback.id]?.length > 0 ? (
-                  replies[selectedFeedback.id].map(reply => (
+                {selectedFeedback?.replies?.length > 0 ? (
+                  selectedFeedback.replies.map(reply => (
                     <div key={reply.id} className="reply-message admin-reply">
                       <div className="reply-header">
                         <FaUserCircle className="admin-avatar" />
-                        <span>Admin</span>
+                        <span>{reply.adminName}</span>
                         <span className="reply-date">{reply.date}</span>
                       </div>
                       <p>{reply.text}</p>
@@ -436,12 +594,14 @@ const Feedback = () => {
                   placeholder="Type your response here..."
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
+                  disabled={isReplying}
                 />
                 <button 
                   className="send-reply"
                   onClick={() => handleReplySubmit(selectedFeedback.id)}
+                  disabled={isReplying || !replyText.trim()}
                 >
-                  <FaPaperPlane /> Send Response
+                  {isReplying ? 'Sending...' : <><FaPaperPlane /> Send Response</>}
                 </button>
               </div>
             </div>
