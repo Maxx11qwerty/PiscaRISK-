@@ -32,20 +32,9 @@ const generateMessage = (report, pondId) => {
     : `${user} submitted a new report for Fish Pond ${pondId}`;
 };
 
-const generateFeedbackMessage = (feedback) => {
-  const user = feedback.user || 'A user';
-  const type = feedback.feedback || 'feedback';
-  return `${user} submitted a new ${type} feedback`;
-};
-
 const generateDetails = (report) => {
   return `Fish: ${report.fish_condition || 'N/A'}, Water: ${report.water_condition || 'N/A'}`;
 };
-
-const generateFeedbackDetails = (feedback) => {
-  return feedback.concern || 'No details provided';
-};
-
 // Initialize with Firebase data
 const initializeNotifications = async () => {
   const notifications = [];
@@ -211,12 +200,52 @@ export const addFeedbackNotification = (feedbackData) => {
   const storedNotifications = localStorage.getItem('notifications');
   let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
   
+  // Format timestamp properly
+  let timestamp;
+  try {
+    if (feedbackData.timestamp && typeof feedbackData.timestamp.toDate === 'function') {
+      timestamp = feedbackData.timestamp.toDate().toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Manila'
+      });
+    } else {
+      timestamp = new Date().toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Manila'
+      });
+    }
+  } catch (error) {
+    console.warn('Error formatting timestamp:', error);
+    timestamp = new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Manila'
+    });
+  }
+  
   const newNotification = {
     type: 'feedback',
     message: `${feedbackData.userName || feedbackData.user || 'A user'} submitted ${feedbackData.concern || 'feedback'}: ${feedbackData.feedback?.substring(0, 50)}...`,
     details: feedbackData.feedback || 'No details',
     username: feedbackData.userName || feedbackData.user || 'Unknown User',
-    timestamp: new Date().toISOString(),
+    timestamp: timestamp,
     read: false,
     iconKey: "feedback",
     feedbackType: feedbackData.concern || 'general',
@@ -374,21 +403,34 @@ const NotificationBox = () => {
   };
 
   const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        // If timestamp is already in the formatted string, return it as is
+        return timestamp;
+      }
+      
+      const now = new Date();
+      const diff = Math.floor((now - date) / 1000);
 
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+      if (diff < 60) return 'Just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
 
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Manila'
+      });
+    } catch (error) {
+      console.warn('Error formatting time:', error);
+      return timestamp;
+    }
   };
 
   const clearNotifications = () => {

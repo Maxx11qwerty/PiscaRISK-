@@ -93,7 +93,25 @@ const Feedback = () => {
             uid: data.uid || '',
             type: concernToType[data.concern?.toLowerCase()] || 'other',
             message: data.feedback || '',
-            date: data.timestamp ? data.timestamp.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            date: data.timestamp ? data.timestamp.toDate().toLocaleString('en-US', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Manila'
+            }) : new Date().toLocaleString('en-US', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+              timeZone: 'Asia/Manila'
+            }),
             avatar: <FaUserCircle className="user-avatar" />,
             timestamp: data.timestamp,
             source: data.source || 'web',
