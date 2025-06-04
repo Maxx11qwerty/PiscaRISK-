@@ -3,7 +3,7 @@ import {FaUserCircle,FaPlayCircle,FaTimes,FaImage,FaCloudSun,FaFish,
         FaExclamationTriangle,FaEllipsisV,FaDatabase,
         FaFilePdf,FaFileCsv,FaChevronRight,FaChevronLeft} from "react-icons/fa";
 import logo from "./assets/images/PISCARISK_LOGO.png";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthContext } from './contexts/AuthContext';
@@ -27,6 +27,7 @@ const getInitialData = () => {
 
 const PiscaRiskHome = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({
     title: "",
@@ -71,6 +72,27 @@ const PiscaRiskHome = () => {
   useEffect(() => {
     refreshWeather();
   }, []);
+
+  // Handle navigation state from notifications
+  useEffect(() => {
+    if (location.state?.fromNotification) {
+      if (location.state.openPondModal) {
+        // Set the modal content to show pond conditions
+        setModalContent({
+          title: "Fish Pond Condition",
+          content: null,
+          icon: <FaFish className="box-icon" />
+        });
+        // Open the modal
+        setShowModal(true);
+      }
+      if (location.state.selectedPond) {
+        setSelectedPond(location.state.selectedPond);
+      }
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleExport = (format) => {
     exportBoxData({

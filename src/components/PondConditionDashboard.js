@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { logActivity, logMessages } from '../utils/logger';
 import './PondCondition.css';
 
-const PondConditionDashboard = ({ isModal = false, selectedPond, setSelectedPond }) => {
+const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [selectedPond, setSelectedPond] = useState(propSelectedPond || 1);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [reportFilter, setReportFilter] = useState('today');
@@ -12,6 +16,24 @@ const PondConditionDashboard = ({ isModal = false, selectedPond, setSelectedPond
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Handle navigation state from notifications
+  useEffect(() => {
+    if (location.state?.fromNotification) {
+      if (location.state.selectedPond) {
+        setSelectedPond(location.state.selectedPond);
+      }
+      // Clear the navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Update parent component if props are provided
+  useEffect(() => {
+    if (propSetSelectedPond) {
+      propSetSelectedPond(selectedPond);
+    }
+  }, [selectedPond, propSetSelectedPond]);
 
   // Fetch reports from Firebase
   useEffect(() => {

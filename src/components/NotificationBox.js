@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 
 // Helper functions
 const extractPondId = (fishPond) => {
@@ -115,26 +116,46 @@ const initializeNotifications = async () => {
       // Handle timestamp conversion safely for feedback
       let timestamp;
       try {
+        // Log the raw timestamp for debugging
+        console.log('Raw feedback timestamp:', feedback.timestamp);
+        
+        // First try to handle Firestore Timestamp
         if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
           timestamp = feedback.timestamp.toDate().toISOString();
         } 
+        // Then try Date object
         else if (feedback.timestamp instanceof Date) {
           timestamp = feedback.timestamp.toISOString();
         }
+        // Then try string
         else if (typeof feedback.timestamp === 'string') {
-          if (!isNaN(new Date(feedback.timestamp).getTime())) {
-            timestamp = feedback.timestamp;
+          // Try to parse the string as a date
+          const date = new Date(feedback.timestamp);
+          if (!isNaN(date.getTime())) {
+            timestamp = date.toISOString();
           } else {
-            throw new Error('Invalid date string');
+            // If string parsing fails, try to extract date from the string
+            const dateMatch = feedback.timestamp.match(/\d{4}-\d{2}-\d{2}/);
+            if (dateMatch) {
+              timestamp = new Date(dateMatch[0]).toISOString();
+            } else {
+              throw new Error('Invalid date string format');
+            }
           }
         }
+        // If no valid timestamp found, use current date
         else {
+          console.warn('No valid timestamp found for feedback, using current date');
           timestamp = new Date().toISOString();
         }
       } catch (error) {
-        console.warn('Error processing feedback timestamp:', error);
+        console.warn('Error processing feedback timestamp:', error, 'Feedback data:', feedback);
+        // Use current date as fallback
         timestamp = new Date().toISOString();
       }
+
+      // Log the processed timestamp for debugging
+      console.log('Processed timestamp:', timestamp);
 
       notifications.push({
         id: doc.id,
@@ -220,6 +241,7 @@ const removeOldNotifications = (notifications) => {
 };
 
 const NotificationBox = () => {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -234,19 +256,20 @@ const NotificationBox = () => {
     return () => unsubscribe();
   }, []);
 
-  const handleNotificationClick = async (notification) => {
+  const handleNotificationClick = async (notification, event) => {
+    // Prevent all event propagation
+    event.preventDefault();
+    event.stopPropagation();
+    
     if (!currentUser) return;
     
-    // If notification is already read, do nothing
-    if (notification.read) return;
-
     try {
       // Update read status in Firestore
       const userNotificationsRef = collection(db, 'users', currentUser.uid, 'notifications');
       const notificationRef = doc(userNotificationsRef, notification.id);
       
       await setDoc(notificationRef, {
-        read: true, // Only mark as read, never unread
+        read: true,
         lastUpdated: serverTimestamp()
       }, { merge: true });
 
@@ -259,8 +282,45 @@ const NotificationBox = () => {
       // Update unread count
       const newUnreadCount = updatedNotifications.filter(n => !n.read).length;
       setUnreadCount(newUnreadCount);
+
+      // Close the notification dropdown
+      setIsOpen(false);
+
+      // Handle based on notification type
+      switch (notification.type) {
+        case 'fishpond':
+          // Navigate to homepage and trigger modal with specific pond
+          if (notification.pondId) {
+            // Extract pond number from the notification
+            const pondNumber = parseInt(notification.pondId);
+            if (!isNaN(pondNumber)) {
+              navigate('/Homepage', { 
+                state: { 
+                  openPondModal: true,
+                  selectedPond: pondNumber,
+                  fromNotification: true,
+                  reportData: notification.reportData
+                }
+              });
+            } else {
+              console.warn('Invalid pond number in notification:', notification.pondId);
+            }
+          }
+          break;
+        case 'feedback':
+          // Navigate to the feedback page with the specific feedback
+          navigate('/feedback', { 
+            state: { 
+              feedbackData: notification.feedbackData,
+              fromNotification: true 
+            }
+          });
+          break;
+        default:
+          console.warn('Unknown notification type:', notification.type);
+      }
     } catch (error) {
-      console.error('Error updating notification status:', error);
+      console.error('Error handling notification click:', error);
     }
   };
 
@@ -307,7 +367,9 @@ const NotificationBox = () => {
     }
   }, [currentUser]);
 
-  const toggleNotifications = () => {
+  const toggleNotifications = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     setIsOpen(!isOpen);
   };
 
@@ -347,18 +409,23 @@ const NotificationBox = () => {
   };
 
   return (
-    <div className="notification-container">
+    <div className="notification-container" onClick={(e) => e.stopPropagation()}>
       <div className="notification-icon" onClick={toggleNotifications}>
         <FaBell />
         {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
       </div>
 
       {isOpen && (
-        <div className="notification-dropdown">
+        <div 
+          className="notification-dropdown" 
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
           <div className="notification-header">
             <h3>Notifications</h3>
             <button 
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 clearNotifications();
               }} 
@@ -373,7 +440,9 @@ const NotificationBox = () => {
                 <div
                   key={notification.id || index}
                   className={`notification-item ${notification.read ? 'read' : 'unread'} notification-${notification.type}`}
-                  onClick={() => handleNotificationClick(notification)}
+                  onClick={(e) => handleNotificationClick(notification, e)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div className="notification-icon-wrapper">
                     {getNotificationIcon(notification)}

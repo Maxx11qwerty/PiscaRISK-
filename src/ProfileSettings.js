@@ -43,6 +43,7 @@ export default function AccountSettings() {
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const [verificationCheckInterval, setVerificationCheckInterval] = useState(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const { 
     currentUser, 
@@ -208,21 +209,55 @@ const uploadImage = (file) => {
     }
   };
 
+  const captureImage = () => {
+    if (videoRef.current) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoRef.current, 0, 0);
+        
+        // Convert to base64 with better quality
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
+        setTempProfileImage(imageData);
+        setShowImagePreview(true);
+        stopCamera();
+      } catch (error) {
+        console.error('Error capturing image:', error);
+        setError('Failed to capture image. Please try again.');
+      }
+    }
+  };
+
   const confirmImage = async () => {
     try {
-      // Update local state
+      if (!tempProfileImage) {
+        throw new Error('No image to save');
+      }
+
+      // First update the local state
       setProfileImage(tempProfileImage);
+      
+      // Then update in Firebase
+      await updateProfileImage(tempProfileImage);
+      
+      // Log the activity
+      logActivity('profile', logMessages.profile.imageUpdate(currentUser.username), currentUser.username);
+      
+      // Clear temporary states
       setTempProfileImage(null);
       setShowImagePreview(false);
       setShowImageOptions(false);
-      
-      // Update user context and persist to storage
-      await updateProfileImage(tempProfileImage);
-      logActivity('profile', logMessages.profile.imageUpdate(currentUser.username), currentUser.username);
       setShowRemoveButton(true);
+      
+      // Show success message
+      setSuccess('Profile picture updated successfully!');
     } catch (error) {
-      logActivity('error', logMessages.error.system(error.message), currentUser.username);
       console.error('Error confirming image:', error);
+      setError('Failed to save profile picture. Please try again.');
+      // Revert local state if save failed
+      setProfileImage(currentUser?.profileImage || null);
     }
   };
 
@@ -234,27 +269,113 @@ const uploadImage = (file) => {
     }
   };
 
+  // Add effect to handle video element initialization
+  useEffect(() => {
+    if (isCameraActive && videoRef.current) {
+      setIsCameraReady(true);
+    } else {
+      setIsCameraReady(false);
+    }
+  }, [isCameraActive, videoRef.current]);
+
   const openCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = mediaStream;
-      setStream(mediaStream);
-      setIsCameraActive(true);
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      alert("Could not access camera. Please check permissions.");
-    }
-  };
+      // First check if mediaDevices is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
 
-  const captureImage = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
-      setTempProfileImage(canvas.toDataURL('image/png'));
-      setShowImagePreview(true);
-      stopCamera();
+      // Set camera as active first to ensure video element is rendered
+      setIsCameraActive(true);
+
+      // Wait for video element to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Ensure video element exists
+      if (!videoRef.current) {
+        setIsCameraActive(false);
+        throw new Error('Video element not initialized');
+      }
+
+      // List available devices first
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      if (videoDevices.length === 0) {
+        setIsCameraActive(false);
+        throw new Error('No camera devices found');
+      }
+
+      console.log('Available video devices:', videoDevices);
+
+      // Try to get camera access with more specific constraints
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: { ideal: 'user' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+
+      if (!mediaStream) {
+        setIsCameraActive(false);
+        throw new Error('Failed to get media stream');
+      }
+
+      // Check if we got video tracks
+      const videoTracks = mediaStream.getVideoTracks();
+      if (videoTracks.length === 0) {
+        setIsCameraActive(false);
+        throw new Error('No video tracks in media stream');
+      }
+
+      console.log('Active video track:', videoTracks[0].label);
+
+      // Set up video element
+      videoRef.current.srcObject = mediaStream;
+      await videoRef.current.play().catch(err => {
+        console.error('Error playing video:', err);
+        setIsCameraActive(false);
+        throw new Error('Failed to start video preview');
+      });
+
+      setStream(mediaStream);
+    } catch (err) {
+      console.error("Detailed camera error:", err);
+      let errorMessage = "Could not access camera. ";
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage += "Camera access was denied. Please check your browser settings and ensure no other applications are using the camera.";
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += "No camera device found. Please check if your camera is properly connected.";
+      } else if (err.name === 'NotReadableError') {
+        errorMessage += "Camera is already in use by another application. Please close other applications using the camera.";
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage += "Camera does not support the requested settings. Trying with basic settings...";
+        // Try again with basic settings
+        try {
+          const basicStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream;
+            await videoRef.current.play();
+            setStream(basicStream);
+            return;
+          }
+        } catch (basicErr) {
+          errorMessage = "Could not access camera even with basic settings. Please try again.";
+        }
+      } else {
+        errorMessage += `Error: ${err.message}. Please try again or use file upload instead.`;
+      }
+      
+      setError(errorMessage);
+      setShowImageOptions(false);
+      setIsCameraActive(false);
+      
+      // Automatically switch to file upload option after error
+      setTimeout(() => {
+        setShowImageOptions(true);
+      }, 3000);
     }
   };
 
@@ -365,6 +486,15 @@ const handleSendVerificationEmail = async () => {
       }
     };
   }, [verificationCheckInterval]);
+
+  // Add cleanup effect
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
 
   return (
     <div className="profile-settings">
@@ -478,8 +608,29 @@ const handleSendVerificationEmail = async () => {
               <h3>Update Profile Picture</h3>
               {isCameraActive ? (
                 <div className="camera-preview">
-                  <video ref={videoRef} autoPlay playsInline className="video-preview" />
-                  <button className="capture-btn" onClick={captureImage}>
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted
+                    className="video-preview" 
+                    style={{ 
+                      width: '100%', 
+                      maxHeight: '300px', 
+                      backgroundColor: '#000',
+                      display: isCameraReady ? 'block' : 'none'
+                    }}
+                  />
+                  {!isCameraReady && (
+                    <div className="camera-loading">
+                      Initializing camera...
+                    </div>
+                  )}
+                  <button 
+                    className="capture-btn" 
+                    onClick={captureImage}
+                    disabled={!isCameraReady}
+                  >
                     <FaCamera /> Capture
                   </button>
                   <button className="cancel-btn" onClick={stopCamera}>

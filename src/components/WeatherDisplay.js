@@ -46,6 +46,9 @@ const WeatherDisplay = ({ }) => {
       />
       <div className="weather-display-content">
         <div className="weather-time-info">
+          <div className="location-name">
+            {weatherData.locationName}
+          </div>
           <div className="current-date-time">
             <div className="current-date">
               {currentTime.toLocaleDateString([], { 
@@ -65,6 +68,7 @@ const WeatherDisplay = ({ }) => {
             {Math.round(weatherData.main.temp)}°C
           </div>
         </div>
+
         <img 
           src={weatherIcon} 
           alt={weatherCondition} 

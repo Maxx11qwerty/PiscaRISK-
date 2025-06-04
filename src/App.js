@@ -9,6 +9,7 @@ import RewardManagment from "./RewardManagement";
 import Feedback from "./Feedback";
 import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
+import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
         <Route path="/Feedback" element={<Feedback />} />
         <Route path="/logs" element={<Logs />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/pond-conditions" element={<PondConditionDashboard />} />
       </Routes>
       </div>
     </AuthProvider>
