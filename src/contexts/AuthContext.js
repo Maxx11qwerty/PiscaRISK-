@@ -195,21 +195,19 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // 1. Sign out from Firebase
+      // 1. Perform all cleanup first
       await signOut(auth);
-  
-      // 2. Clear all auth state and storage
       setCurrentUser(null);
       localStorage.clear();
       sessionStorage.clear();
-  
-      // 3. Clear all cookies
+      
+      // Clear cookies
       document.cookie.split(';').forEach(cookie => {
         const [name] = cookie.split('=');
-        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
   
-      // 4. Clean service workers and caches
+      // 2. Service worker cleanup
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map(r => r.unregister()));
@@ -217,40 +215,25 @@ export const AuthProvider = ({ children }) => {
         await Promise.all(cacheKeys.map(key => caches.delete(key)));
       }
   
-      // 5. Prepare silent redirect
-      const silentRedirect = () => {
-        // Remove all event listeners first
-        window.removeEventListener('popstate', blockNavigation);
-        window.onbeforeunload = null;
-        
-        // Silent redirect without triggering beforeunload
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = `/?logout=${Date.now()}`;
-        document.body.appendChild(iframe);
-        setTimeout(() => window.location.replace(iframe.src), 100);
-      };
+      // 3. Replace current history entry with logout state
+      window.history.replaceState(null, '', '/logout');
   
-      // 6. Navigation blocker that doesn't trigger dialogs
+      // 4. Add navigation blocker
       const blockNavigation = (e) => {
-        window.history.pushState(null, '', '/');
+        window.history.replaceState(null, '', '/');
         if (e) {
           e.preventDefault();
-          e.returnValue = undefined; // Explicitly undefined prevents dialog
+          window.location.replace('/');
         }
       };
   
-      // 7. Setup navigation blocking
-      window.history.pushState(null, '', '/');
       window.addEventListener('popstate', blockNavigation);
-      window.onbeforeunload = null; // Explicitly remove handler
   
-      // 8. Execute silent redirect
-      setTimeout(silentRedirect, 50);
-  
+      // 5. Force redirect after cleanup
+      window.location.replace('/');
+      
     } catch (error) {
       console.error('Logout error:', error);
-      // Fail-safe silent redirect
       window.location.replace('/');
     }
   };

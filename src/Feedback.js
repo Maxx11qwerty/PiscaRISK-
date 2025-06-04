@@ -82,9 +82,9 @@ const Feedback = () => {
 
           // Log feedback submissions
           if (data.source === 'mobile') {
-            logActivity('feedback', logMessages.feedback.mobileSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous');
+            logActivity('feedback', logMessages.feedback.mobileSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
           } else {
-            logActivity('feedback', logMessages.feedback.webSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous');
+            logActivity('feedback', logMessages.feedback.webSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
           }
           
           return {

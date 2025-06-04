@@ -14,6 +14,9 @@ import { exportBoxData } from './utils/exportBoxData';
 import NotificationBox from './components/NotificationBox';
 import ReportsChart from './components/ReportsChart';
 import HarvestChart from './components/HarvestChart';
+import PageTransition from './components/PageTransition';
+import AnimatedModal from './components/AnimatedModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Import data from localStorage or use default values
 const getInitialData = () => {
@@ -220,175 +223,188 @@ const PiscaRiskHome = () => {
   };
 
   return (
-    <div className="homepage-container">
-      <header className="homepage-header-bar">
-        <div className="header-logo-container">
-          <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-          <div className="header-title">PiscaRISK</div>
-        </div>
-        <div className="header-right">
-          <NotificationBox />
-          <div className="logs-menu">
-            <button onClick={() => setShowMenu(!showMenu)}>
-              <FaEllipsisV className="three-dot-icon" />
-            </button>
-            {showMenu && (
-              <div className="dropdown-menu">
-                <button onClick={handleLogout}>Logout</button> 
-              </div>
-            )}
+    <PageTransition>
+      <div className="homepage-container">
+        <header className="homepage-header-bar">
+          <div className="header-logo-container">
+            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
+            <div className="header-title">PiscaRISK</div>
           </div>
-        </div>
-      </header>
-
-      <div className="main-content">
-        {errorMessage && (
-          <div className="error-popup">
-            {errorMessage}
-          </div>
-        )}
-        <div className={`sidebar-wrapper ${sidebarOpen ? "visible" : ""}`}>
-          <div className="sidebar-top">
-            <div className="user-info">
-              {currentUser?.profileImage ? (
-                <img 
-                  src={currentUser.profileImage} 
-                  alt="Profile" 
-                  className="profile-picture" 
-                />
-              ) : (
-                <FaUserCircle className="user-icon" />
+          <div className="header-right">
+            <NotificationBox />
+            <div className="logs-menu">
+              <button onClick={() => setShowMenu(!showMenu)}>
+                <FaEllipsisV className="three-dot-icon" />
+              </button>
+              {showMenu && (
+                <div className="dropdown-menu">
+                  <button onClick={handleLogout}>Logout</button> 
+                </div>
               )}
-              <div className="welcome-text">
-                <h2>Welcome, {currentUser?.username || 'User'}!</h2>
-                {currentUser?.username && (
-                  <span className="username">{currentUser.username}</span>
-                )}
-              </div>
             </div>
           </div>
+        </header>
 
-          <aside className="sidebar">
-            <div className="sidebar-buttons">
-              <button className="profile-btn" onClick={() => navigate("/ProfileSettings")}>My Profile</button>
-              <button className="accountm-btn" onClick={handleAccountManagementClick}>Account Management</button>
-              <button className="reward-btn" onClick={handleRewardManagementClick}>Reward Management</button>
-              <button className="logs-btn" onClick={handleLogsClick}>Logs</button>
-              <button className="feedback-btn"  onClick={() => navigate("/Feedback")}>Feedbacks</button>
-
-              {/* Modified Export Button with Dropdown */}
-              <div className="sidebar-export-container">
-                <button 
-                  className="export-btn" 
-                  onClick={() => setShowDownloadOptions(!showDownloadOptions)}
-                >
-                  Export Data
-                </button>
-                
-                {showDownloadOptions && (
-                  <div className="sidebar-download-options">
-                    <button 
-                      className="homedownload-option" 
-                      onClick={() => {
-                        handleExport ('pdf');
-                        setShowDownloadOptions(false);
-                      }}
-                    >
-                      <FaFilePdf className="homeDL-icon" />
-                      Export Box Data (PDF)
-                    </button>
-                    <button 
-                      className="homedownload-option" 
-                      onClick={() => {
-                        handleExport ('csv');
-                        setShowDownloadOptions(false);
-                      }}
-                    >
-                      <FaFileCsv className="homeDL2-icon" />
-                      Export Box Data (CSV)
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div className="main-content">
+          {errorMessage && (
+            <div className="error-popup">
+              {errorMessage}
             </div>
-          </aside>
-        </div>
-
-        <section className="dashboard">
-          <div className="main-box">
-            {currentChart === 'reports' ? <ReportsChart /> : <HarvestChart />}
-            <button className="next-chart-btn" onClick={handleNextChart}>
-              {currentChart === 'reports' ? <FaChevronRight /> : <FaChevronLeft />}
-            </button>
-          </div>
-
-          <div className="bottom-boxes">
-            {boxData.map((box) => (
-              <div
-                key={box.id}
-                className="box"
-                onClick={() => handleBoxClick(box.id)}
-              >
-                {box.icon}
-                <span className="box-title">{box.title}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {showModal && (
-            <div className="modal-overlay">
-              <div className="modal-container">
-                <button className="modal-close-btn" onClick={closeModal}>
-                  <FaTimes />
-                </button>
-                <div className="modal-content">
-                  <div className="modal-header">
-                    {React.cloneElement(modalContent.icon, {
-                      className: "modal-title-icon"
-                    })}
-                    <h2>{modalContent.title}</h2>
-                  </div>
-
-                  {modalContent.title === "Weather Condition" ? (
-                  <div className="weather-main-modal">
-                    <WeatherDisplay 
-                      isModal={true}
-                      weatherData={weatherData}
-                      currentTime={new Date()}
-                      onRefresh={fetchWeatherData}
-                    />
-                  </div>
-                ) : modalContent.title === "Fish Pond Condition" ? (
-                    <div className="pond-modal-content">
-                      <PondConditionDashboard 
-                        isModal={true} 
-                        selectedPond={selectedPond}
-                        setSelectedPond={setSelectedPond}
-                      />
-                    </div>
-                  ) : (
-                    <div className="image-placeholder">
-                      <FaImage className="placeholder-icon" />
-                      <span>{modalContent.title} visualization</span>
-                    </div>
-                  )}
-
-                  {modalContent.title !== "Fish Pond Condition" && (
-                    <div className="modal-text-content">
-                      {typeof modalContent.content === "string"
-                        ? modalContent.content.split("\n").map((line, index) => (
-                            <p key={index}>{line}</p>
-                          ))
-                        : modalContent.content}
-                    </div>
+          )}
+          <div className={`sidebar-wrapper ${sidebarOpen ? "visible" : ""}`}>
+            <div className="sidebar-top">
+              <div className="user-info">
+                {currentUser?.profileImage ? (
+                  <img 
+                    src={currentUser.profileImage} 
+                    alt="Profile" 
+                    className="profile-picture" 
+                  />
+                ) : (
+                  <FaUserCircle className="user-icon" />
+                )}
+                <div className="welcome-text">
+                  <h2>Welcome, {currentUser?.username || 'User'}!</h2>
+                  {currentUser?.username && (
+                    <span className="username">{currentUser.username}</span>
                   )}
                 </div>
               </div>
             </div>
+
+            <aside className="sidebar">
+              <div className="sidebar-buttons">
+                <button className="profile-btn" onClick={() => navigate("/ProfileSettings")}>My Profile</button>
+                <button className="accountm-btn" onClick={handleAccountManagementClick}>Account Management</button>
+                <button className="reward-btn" onClick={handleRewardManagementClick}>Reward Management</button>
+                <button className="logs-btn" onClick={handleLogsClick}>Logs</button>
+                <button className="feedback-btn"  onClick={() => navigate("/Feedback")}>Feedbacks</button>
+
+                {/* Modified Export Button with Dropdown */}
+                <div className="sidebar-export-container">
+                  <button 
+                    className="export-btn" 
+                    onClick={() => setShowDownloadOptions(!showDownloadOptions)}
+                  >
+                    Export Data
+                  </button>
+                  
+                  {showDownloadOptions && (
+                    <div className="sidebar-download-options">
+                      <button 
+                        className="homedownload-option" 
+                        onClick={() => {
+                          handleExport ('pdf');
+                          setShowDownloadOptions(false);
+                        }}
+                      >
+                        <FaFilePdf className="homeDL-icon" />
+                        Export Box Data (PDF)
+                      </button>
+                      <button 
+                        className="homedownload-option" 
+                        onClick={() => {
+                          handleExport ('csv');
+                          setShowDownloadOptions(false);
+                        }}
+                      >
+                        <FaFileCsv className="homeDL2-icon" />
+                        Export Box Data (CSV)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <section className="dashboard">
+            <div className="main-box">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentChart}
+                  initial={{ opacity: 0, x: currentChart === 'reports' ? 100 : -100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: currentChart === 'reports' ? -100 : 100 }}
+                  transition={{ 
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30
+                  }}
+                >
+                  {currentChart === 'reports' ? <ReportsChart /> : <HarvestChart />}
+                </motion.div>
+              </AnimatePresence>
+              <motion.button 
+                className="next-chart-btn"
+                onClick={handleNextChart}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+              >
+                {currentChart === 'reports' ? <FaChevronRight /> : <FaChevronLeft />}
+              </motion.button>
+            </div>
+
+            <div className="bottom-boxes">
+              {boxData.map((box) => (
+                <div
+                  key={box.id}
+                  className="box"
+                  onClick={() => handleBoxClick(box.id)}
+                >
+                  {box.icon}
+                  <span className="box-title">{box.title}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {showModal && (
+            <AnimatedModal
+              isOpen={showModal}
+              onClose={closeModal}
+              title={modalContent.title}
+              icon={modalContent.icon}
+            >
+              {modalContent.title === "Weather Condition" ? (
+                <div className="weather-main-modal">
+                  <WeatherDisplay 
+                    isModal={true}
+                    weatherData={weatherData}
+                    currentTime={new Date()}
+                    onRefresh={fetchWeatherData}
+                  />
+                </div>
+              ) : modalContent.title === "Fish Pond Condition" ? (
+                <div className="pond-modal-content">
+                  <PondConditionDashboard 
+                    isModal={true} 
+                    selectedPond={selectedPond}
+                    setSelectedPond={setSelectedPond}
+                  />
+                </div>
+              ) : (
+                <div className="image-placeholder">
+                  <FaImage className="placeholder-icon" />
+                  <span>{modalContent.title} visualization</span>
+                </div>
+              )}
+
+              {modalContent.title !== "Fish Pond Condition" && (
+                <div className="modal-text-content">
+                  {typeof modalContent.content === "string"
+                    ? modalContent.content.split("\n").map((line, index) => (
+                        <p key={index}>{line}</p>
+                      ))
+                    : modalContent.content}
+                </div>
+              )}
+            </AnimatedModal>
           )}
+        </div>
       </div>
-    </div>
+    </PageTransition>
   );
 };
 

@@ -687,7 +687,6 @@ const handleSendVerificationEmail = async () => {
           </div>
         )}
 
-        {/* Rest of your existing code... */}
         <div className="email-section">
           <h4>Email Address</h4>
           <div className="email-info">

@@ -26,6 +26,7 @@ export const exportBoxData = async ({
       return [
         "WEATHER OVERVIEW",
         "----------------",
+        "Location: San Pablo City, Laguna",
         `Condition: ${weatherData.weather[0].description}`,
         `Temperature: ${Math.round(weatherData.main.temp)}°C`,
         `Feels like: ${Math.round(weatherData.main.feels_like)}°C`,
@@ -67,11 +68,18 @@ export const exportBoxData = async ({
           });
         });
 
+        // Sort ponds numerically
+        const sortedPonds = Object.entries(pondReports).sort(([pondA], [pondB]) => {
+          const numA = parseInt(pondA.match(/\d+/)?.[0] || '0');
+          const numB = parseInt(pondB.match(/\d+/)?.[0] || '0');
+          return numA - numB;
+        });
+
         // Add content for each pond
-        Object.entries(pondReports).forEach(([pondName, reports]) => {
+        sortedPonds.forEach(([pondName, reports]) => {
           const latestReport = reports[0];
           content.push(
-            `POND: ${pondName}`,
+            `**POND: ${pondName}**`,
             "-------------------",
             `Current Status:`,
             `• Fish Condition: ${latestReport.fish_condition}`,
@@ -85,7 +93,7 @@ export const exportBoxData = async ({
 
           if (reports.length > 0) {
             content.push(
-              "HISTORICAL REPORTS",
+              "**HISTORICAL REPORTS**",
               "-----------------"
             );
             reports.slice(0, 5).forEach((report, index) => {
@@ -152,7 +160,8 @@ export const exportBoxData = async ({
     const getWeatherCSVData = (weatherData) => {
       if (!weatherData) return "Weather Data,No data available";
 
-      return `"Weather Condition","${weatherData.weather[0].description}"
+      return `"Location","San Pablo City, Laguna"
+"Weather Condition","${weatherData.weather[0].description}"
 "Temperature (C)","${Math.round(weatherData.main.temp)}"
 "Feels Like (C)","${Math.round(weatherData.main.feels_like)}"
 "Humidity (%)","${weatherData.main.humidity}"

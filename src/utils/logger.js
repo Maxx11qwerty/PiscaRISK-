@@ -10,9 +10,41 @@ const createUniqueId = (category, timestamp) => {
   return `${category}_${dateStr}_${randomPart}`;
 };
 
-export const logActivity = async (category, message, username) => {
+export const logActivity = async (category, message, username, originalTimestamp = null) => {
+  // Use the original timestamp if provided, otherwise use current time
+  let timestamp;
+  try {
+    if (originalTimestamp) {
+      // Handle Firestore Timestamp
+      if (typeof originalTimestamp.toDate === 'function') {
+        timestamp = originalTimestamp.toDate().toISOString();
+      }
+      // Handle Date object
+      else if (originalTimestamp instanceof Date) {
+        timestamp = originalTimestamp.toISOString();
+      }
+      // Handle string
+      else if (typeof originalTimestamp === 'string') {
+        const date = new Date(originalTimestamp);
+        if (!isNaN(date.getTime())) {
+          timestamp = date.toISOString();
+        } else {
+          throw new Error('Invalid date string');
+        }
+      }
+      // If no valid timestamp found, use current date
+      else {
+        timestamp = new Date().toISOString();
+      }
+    } else {
+      timestamp = new Date().toISOString();
+    }
+  } catch (error) {
+    console.warn('Error processing timestamp:', error);
+    timestamp = new Date().toISOString();
+  }
+
   // Create log object with unique ID
-  const timestamp = new Date().toISOString();
   const logsUniqueId = createUniqueId(category, timestamp);
   const newLog = {
     id: logsUniqueId,
