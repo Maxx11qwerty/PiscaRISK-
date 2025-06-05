@@ -287,8 +287,7 @@
 .login-password-toggle {
   position: absolute;
   right: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 30%;
   cursor: pointer;
   background: none;
   border: none;

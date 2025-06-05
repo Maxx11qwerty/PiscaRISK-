@@ -149,7 +149,16 @@ function ReportsChart() {
             />
           </YAxis>
           <Tooltip />
-          <Bar dataKey="reports" fill="#7ffcff" radius={[8, 8, 0, 0]} />
+          <Bar 
+            dataKey="reports" 
+            fill="#7ffcff" 
+            radius={[8, 8, 0, 0]}
+            animationDuration={2000}
+            animationBegin={0}
+            animationEasing="ease-in-out"
+            isAnimationActive={true}
+            animationId="barAnimation"
+          />
         </BarChart>
       </ResponsiveContainer>
       <div className="reports-last-updated">

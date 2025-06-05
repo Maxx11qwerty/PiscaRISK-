@@ -11,6 +11,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Bar Chart Specific Styles */
@@ -57,14 +69,29 @@
 }
 
 .bar-chart-container .recharts-bar-rectangle {
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   rx: 4;
   ry: 4;
+  animation: barGrow 2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes barGrow {
+  from {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+  to {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
 }
 
 .bar-chart-container .recharts-bar-rectangle:hover {
   opacity: 0.8;
   filter: brightness(1.2);
+  transform: scaleY(1.05);
+  transform-origin: bottom;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Common Styles */

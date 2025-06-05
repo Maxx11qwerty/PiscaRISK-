@@ -433,97 +433,88 @@ min-width: 200px;
 
 /* Action Buttons Container */
 .popup-actions {
-display: flex;
-flex-direction: row;
-gap: 15px;
-width: 100%;
-margin-top: 25px;
-padding-top: 20px;
-border-top: 2px solid #e0e0e0;
+  display: flex;
+  flex-direction: row;
+  gap: 15px;
+  width: 100%;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 2px solid #e0e0e0;
 }
 
 /* Base Button Styles */
-.action-button {
-display: flex;
-align-items: center;
-justify-content: center;
-padding: 10px 20px;
-border: none;
-border-radius: 6px;
-cursor: pointer;
-font-weight: 600;
-font-size: 14px;
-transition: all 0.2s ease;
-flex: 1; /* Makes buttons equal width */
-box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.popup-actions .action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 0 !important;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex: 1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 /* Button Icon */
-.button-icon {
-margin-right: 8px;
-font-size: 14px;
+.popup-actions .button-icon {
+  margin-right: 8px;
+  font-size: 14px;
 }
 
 /* Edit Button */
-.edit-button {
-background-color: #3498db; /* Blue */
-color: white;
+.popup-actions .edit-button {
+  background-color: #1A4375 !important;
+  color: white !important;
+  font-family: 'customfont1';
 }
 
-.edit-button:hover {
-background-color: #2980b9;
-transform: translateY(-1px);
-}
-
-.edit-button:active {
-transform: translateY(0);
+.popup-actions .edit-button:hover {
+  background-color: #2e6ba6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* Save Button */
-.save-button {
-background-color: #2ecc71; /* Green */
-color: white;
+.popup-actions .save-button {
+  background-color: #1A4375 !important;
+  color: white !important;
+  font-family: 'customfont1';
 }
 
-.save-button:hover {
-background-color: #27ae60;
-transform: translateY(-1px);
-}
-
-.save-button:active {
-transform: translateY(0);
+.popup-actions .save-button:hover {
+  background-color: #2e6ba6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* Cancel Button */
-.cancel-button {
-background-color: #95a5a6; /* Gray */
-color: white;
+.popup-actions .cancel-button {
+  background-color: #1A4375 !important;
+  color: white !important;
+  font-family: 'customfont1';
 }
 
-.cancel-button:hover {
-background-color: #7f8c8d;
-transform: translateY(-1px);
-}
-
-.cancel-button:active {
-transform: translateY(0);
+.popup-actions .cancel-button:hover {
+  background-color: #2e6ba6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* Delete Button */
-.delete-button {
-background-color: #e74c3c; /* Red */
-color: white;
+.popup-actions .delete-button {
+  background-color: #1A4375 !important;
+  color: white !important;
+  font-family: 'customfont1';
 }
 
-.delete-button:hover {
-background-color: #c0392b;
-transform: translateY(-1px);
+.popup-actions .delete-button:hover {
+  background-color: #2e6ba6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
-
-.delete-button:active {
-transform: translateY(0);
-}
-
 
 /* Disabled State */
 .action-button:disabled {
@@ -757,7 +748,7 @@ border-top: 1px solid #E2E8F0;
 }
 
 .add-button {
-background-color: #4CAF50;
+background-color: #1B4577;
 color: white;
 font-family: 'customfont1';
 border: none;
@@ -769,7 +760,7 @@ box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .add-button:hover {
-background-color: #388e3c;
+background-color: #2e6ba6;
 transform: translateY(-2px);
 box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }

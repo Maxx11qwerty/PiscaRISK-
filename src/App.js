@@ -14,7 +14,6 @@ import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthProvider } from './contexts/AuthContext';
 import PageTransition from './components/PageTransition';
 
-// Create a wrapper component to use useLocation
 const AnimatedRoutes = () => {
   const location = useLocation();
 
@@ -76,7 +75,6 @@ const AnimatedRoutes = () => {
   );
 };
 
-// Main App component
 function App() {
   return (
     <AuthProvider>

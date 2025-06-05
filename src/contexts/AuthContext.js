@@ -154,11 +154,18 @@ export const AuthProvider = ({ children }) => {
         const userDoc = querySnapshot.docs[0];
         const userData = userDoc.data();
         
-        // Check if account is active
+        // Check if account is inactive or suspended
         if (userData.status === 'Inactive') {
           return { 
             success: false, 
             message: "Your account is pending admin approval. Please wait for activation." 
+          };
+        }
+        
+        if (userData.status === 'Suspended') {
+          return {
+            success: false,
+            message: "Your account has been suspended. Please contact support for assistance."
           };
         }
         
@@ -178,6 +185,14 @@ export const AuthProvider = ({ children }) => {
           return { 
             success: false, 
             message: "Your account is pending admin approval. Please wait for activation." 
+          };
+        }
+        if (userData.status === 'Suspended') {
+          // Sign out the user if account is suspended
+          await signOut(auth);
+          return {
+            success: false,
+            message: "Your account has been suspended. Please contact support for assistance."
           };
         }
       }

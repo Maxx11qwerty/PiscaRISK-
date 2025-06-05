@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import "./Login.css";
-import { logActivity, logMessages } from './utils/logger';
+import { logActivity } from './utils/logger';
 import OtpVerification from './components/OtpVerification';
 
 export default function Login() {
@@ -34,8 +34,7 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(''); // Clear previous errors
-    
+    setError('');
     try {
       const result = await login(formData.usernameOrEmail, formData.password);
       
@@ -47,7 +46,6 @@ export default function Login() {
         }
         setShowOtp(true);
       } else {
-        // Handle specific error cases
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
         } else {
@@ -79,13 +77,12 @@ export default function Login() {
 
   const handleGoogleLogin = async (e) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop event propagation
-    setError(''); // Clear any existing errors
+    e.stopPropagation();
+    setError('');
     
     try {
       const result = await signInWithGoogle();
       if (result.success) {
-        // Check if email is verified
         if (result.user.emailVerified) {
           setShowOtp(true);
         } else {
@@ -96,7 +93,6 @@ export default function Login() {
       console.error('Google login error:', error);
       setError(error.message || 'Failed to login with Google');
       
-      // Clear error after 3 seconds
       setTimeout(() => {
         setError('');
       }, 3000);
@@ -105,7 +101,7 @@ export default function Login() {
 
   const handleFacebookLogin = async (e) => {
     e.preventDefault();
-    e.stopPropagation(); // Stop event propagation
+    e.stopPropagation();
     try {
       const result = await signInWithFacebook();
       if (result.success) {
@@ -116,7 +112,6 @@ export default function Login() {
     }
   };
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (errorTimeoutRef.current) {
