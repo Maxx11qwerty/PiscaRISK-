@@ -690,3 +690,42 @@ font-style: italic;
 text-align: center;
 padding: 20px;
 }
+
+.claimed-rewards-list {
+  margin-top: 1.2rem;
+  padding: 0.7rem 1rem 0.7rem 1rem;
+  background: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(26, 67, 117, 0.07);
+}
+
+.claimed-reward-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.4rem;
+  background: #e6f7ff;
+  border-radius: 6px;
+  font-size: 1.05rem;
+  color: #1A4375;
+}
+
+.claimed-reward-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.claimed-reward-date {
+  color: #888;
+  font-size: 0.97em;
+  font-style: italic;
+  margin-left: 1.2rem;
+}
+
+.no-claimed-rewards {
+  color: #aaa;
+  font-style: italic;
+  text-align: center;
+  padding: 0.7rem 0;
+}

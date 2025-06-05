@@ -57,15 +57,17 @@ const WeatherDisplay = ({ }) => {
                 day: 'numeric' 
               })}
             </div>
-            <div className="current-time">
-              {currentTime.toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+            <div className="time-temp-container">
+              <div className="current-time">
+                {currentTime.toLocaleTimeString([], { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </div>
+              <div className="current-temp">
+                {Math.round(weatherData.main.temp)}°C
+              </div>
             </div>
-          </div>
-          <div className="current-temp">
-            {Math.round(weatherData.main.temp)}°C
           </div>
         </div>
 

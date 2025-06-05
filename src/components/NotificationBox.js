@@ -259,6 +259,25 @@ export const addFeedbackNotification = (feedbackData) => {
   window.dispatchEvent(new Event('notifications-updated'));
 };
 
+export const addRewardClaimNotification = (username, rewardName) => {
+  const storedNotifications = localStorage.getItem('notifications');
+  let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
+
+  const newNotification = {
+    type: 'reward-claim',
+    message: `${username} claimed the reward: ${rewardName}`,
+    username: username,
+    rewardName: rewardName,
+    timestamp: new Date().toISOString(),
+    read: false,
+    iconKey: 'reward',
+  };
+
+  notifications.unshift(newNotification);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  window.dispatchEvent(new Event('notifications-updated'));
+};
+
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
 
 const removeOldNotifications = (notifications) => {

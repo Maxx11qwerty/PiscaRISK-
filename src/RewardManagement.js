@@ -6,11 +6,12 @@ import { CSVLink } from 'react-csv';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
-import { fetchAllRewards, addNewReward, updateReward, deleteReward } from './services/rewardData';
+import { fetchAllRewards, addNewReward, updateReward, deleteReward, claimReward, fetchClaimedRewardsForUser } from './services/rewardData';
 import {exportUserPointsToPDF,exportRewardsToPDF,prepareUserPointsCSVData,prepareRewardsCSVData,generateUserPointsCSVFilename,generateRewardsCSVFilename,handleUserPointsCSVExport,handleRewardsCSVExport
 } from './utils/exportRewards';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { addRewardClaimNotification } from './components/NotificationBox';
 
 const RewardManagement = () => {
   const { currentUser } = useContext(AuthContext);
@@ -34,6 +35,9 @@ const RewardManagement = () => {
   const location = useLocation();
   const chunkSize = 3;
   const [csvFilename, setCsvFilename] = useState('');
+  const [claimedRewardsMap, setClaimedRewardsMap] = useState({});
+  const [popupClaimedRewards, setPopupClaimedRewards] = useState([]);
+  const [popupLoading, setPopupLoading] = useState(false);
 
   // Check user role and authorization
   useEffect(() => {
@@ -94,8 +98,32 @@ const RewardManagement = () => {
           email: doc.data().userEmail || ' ',
           username: doc.data().userName || doc.data().username || 'Unknown User'
         }));
-        setUsers(rewardUsers);
 
+        // Auto-claim logic
+        for (const user of rewardUsers) {
+          for (const reward of rewardsData) {
+            if ((user.points || 0) >= reward.points) {
+              // Check if already claimed
+              const claimId = `${user.id}_${reward.rewardId}`;
+              const claimDoc = await getDoc(doc(db, 'claimedRewards', claimId));
+              if (!claimDoc.exists()) {
+                await claimReward(user.id, user, reward, currentUser);
+                addRewardClaimNotification(user.username, reward.name);
+                // Remove the reward from the UI for this user
+                user.points -= reward.points;
+              }
+            }
+          }
+        }
+
+        // Fetch claimed rewards for all users
+        const claimedMap = {};
+        for (const user of rewardUsers) {
+          claimedMap[user.id] = await fetchClaimedRewardsForUser(user.id);
+        }
+        setClaimedRewardsMap(claimedMap);
+
+        setUsers(rewardUsers);
         console.log('Fetched users from Reward collection:', rewardUsers);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -104,6 +132,21 @@ const RewardManagement = () => {
 
     fetchData();
   }, [isAuthorized]);
+
+  // Fetch claimed rewards when a user is selected
+  useEffect(() => {
+    const fetchPopupClaimed = async () => {
+      if (selectedUser) {
+        setPopupLoading(true);
+        const claimed = await fetchClaimedRewardsForUser(selectedUser.id);
+        setPopupClaimedRewards(claimed);
+        setPopupLoading(false);
+      } else {
+        setPopupClaimedRewards([]);
+      }
+    };
+    fetchPopupClaimed();
+  }, [selectedUser]);
 
   // Handle window resize
   useEffect(() => {
@@ -279,14 +322,27 @@ const RewardManagement = () => {
             <FaUserCircle className="user-icon" />
             <h2>{user.username}</h2>
           </div>
-          
           <div className="popup-details">
             <div className="detail-row">
               <span className="detail-label">Points:</span>
               <span className="detail-value">{user.points || 0}</span>
             </div>
           </div>
-          
+          <div className="claimed-rewards-list">
+            <h3>Claimed Rewards</h3>
+            {popupLoading ? (
+              <div>Loading...</div>
+            ) : popupClaimedRewards.length > 0 ? (
+              popupClaimedRewards.map((reward, idx) => (
+                <div key={idx} className="claimed-reward-item">
+                  <span className="claimed-reward-name">{reward.rewardName}</span>
+                  <span className="claimed-reward-date">{new Date(reward.claimedAt).toLocaleDateString()}</span>
+                </div>
+              ))
+            ) : (
+              <div className="no-claimed-rewards">No claimed rewards</div>
+            )}
+          </div>
           <button className="popup-close-btn" onClick={onClose}>
             Exit
           </button>
