@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FaBell, FaUserCircle } from 'react-icons/fa';
+import { FaUserCircle } from 'react-icons/fa';
+import { IoNotificationsOutline } from "react-icons/io5";
 import './NotificationBox.css';
 import { db } from '../firebase';
 import { 
@@ -472,7 +473,7 @@ const NotificationBox = () => {
   return (
     <div className="notification-container" onClick={(e) => e.stopPropagation()}>
       <div className="notification-icon" onClick={toggleNotifications}>
-        <FaBell />
+        <IoNotificationsOutline />
         {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
       </div>
 

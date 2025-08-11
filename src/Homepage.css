@@ -1,14 +1,28 @@
-@font-face {
+ @font-face {
     font-family: 'customfont1';
     src: url('assets/fonts/ReadexPro-bold.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
 
+@font-face {
+  font-family: 'ReadexPro-Light';
+  src: url('assets/fonts/ReadexPro-Light.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ReadexPro-Regular';
+  src: url('assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 .homepage-container {
-  background-color: #ffffff;
+  background-color: #F6F5F5;
   min-height: 100vh;
-  padding: 1rem;
+  padding: 0;
   box-sizing: border-box;
   overflow-x: hidden;
   width: 100%;
@@ -28,14 +42,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #1A4375;
+  background: #2C517D;
   padding: .5rem 5rem;
-  border-radius: 12px;
-  width: 95%;
-  max-width: 1000px;
-  margin: 0 auto 2rem auto;
-  margin-bottom: 1rem;
-  height: 50px;
+  width: 100%;
+  margin: 0;
+  margin-bottom: 2rem;
+  height: 50%;
+  box-sizing: border-box;
 }
 
 .header-logo-container {
@@ -56,6 +69,18 @@
   margin: 0;
 }
 
+.header-hamburger-icon {
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  margin-left: 1rem;
+  transition: color 0.3s ease;
+}
+
+.header-hamburger-icon:hover {
+  color: #c5cdcd;
+}
+
 .homepage-menu {
   position: relative;
   cursor: pointer;
@@ -73,165 +98,349 @@
   justify-content: center;
 }
 
-.three-dot-icon {
-  color: white;
-  font-size: 1.2rem;
+.user-menu {
+  position: relative;
 }
 
-.dropdown-menu {
-  background-color: #1A4375;
-  border: 3px solid #DDDDDD;
-  border-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  padding: 0.5rem 0;
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 1001;
-  min-width: 200px;
-}
-
-.dropdown-menu button {
+.user-menu button {
   background: none;
   border: none;
-  color: #ffffff;
-  font-family: 'customfont1';
+  padding: 0;
   cursor: pointer;
-  padding: 0.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-dropdown-icon {
+  color: white;
+  font-size: 2.5rem;
+}
+
+.user-dropdown-profile-pic {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid white;
+}
+
+.dropdown-icon {
+  color: black;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+
+.header-dropdown-menu {
+  background-color: #EFEFEF;
+  border-radius: 10px;
+  padding: 0.5rem 0;
+  position: absolute;
+  top: 150%;
+  right: 0;
+  z-index: 1001;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.header-dropdown-menu button {
+  background: #EFEFEF;
+  border: none;
+  color: black;
+  font-family: 'ReadexPro-Light';
+  cursor: pointer;
+  padding: 0.75rem 1.5rem;
   text-align: left;
   width: 100%;
   transition: background-color 0.2s;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.dropdown-menu button:hover {
-  background-color: #2e6ba6;
+.header-dropdown-menu button:hover {
+  background-color: #8a8f93;  
 }
 
 .main-content {
   display: flex;
   gap: 1rem;
   height: calc(100vh - 6rem - 50px);
+  margin-left: 20%;
+  transition: margin-left 0.3s ease;
 }
+
+/* Remove the margin adjustment to keep main content in same position */
+
+/* FIXED SIDEBAR STYLES - Replace your existing sidebar CSS */
 
 .sidebar-wrapper {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 3rem - 50px - 2rem);
-  width: 22%;
-  margin-left: 8.2rem;
-}
-
-.sidebar-top {
-    background: #1A4375;
-    border-radius: 1rem 1rem 0 0;
-    padding: .5rem;
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
-    flex: 0 0 10%;
-
-}
-.sidebar, .dashboard {
-  height: 500%;
+  height: calc(100vh - 50px);
+  width: 18%;
+  position: absolute;
+  left: 0;
+  top: 78px;
+  transition: all 0.3s ease;
   overflow: hidden;
 }
 
-.sidebar {
-    background-color: #ffffff;
-    border: 0.2rem solid #1A4375;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
-    border-radius: 0 0 1rem 1rem;
-    flex: 1;
-}
-/*sidebar top profile and userame*/
-.user-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 20px;
+.sidebar-wrapper.collapsed {
+  width: 80px;
+  overflow: hidden;
 }
 
-.profile-picture {
-  width: 70px;
-  height: 70px;
+.sidebar-wrapper.collapsed .welcome-text,
+.sidebar-wrapper.collapsed .sidebar-nav-item span,
+.sidebar-wrapper.collapsed .sidebar-bottom-options .sidebar-nav-item span {
+  display: none;
+}
+
+.sidebar-wrapper.collapsed .sidebar-nav-item {
+  justify-content: center;
+  padding: 0.8rem 0.5rem;
+}
+
+.sidebar-wrapper.collapsed .sidebar-bottom-options .sidebar-nav-item {
+  justify-content: center;
+  padding: 0.8rem 0.5rem;
+}
+
+.sidebar-wrapper.collapsed .user-info {
+  justify-content: center;
+  padding: 10px 5px;
+  flex-direction: column;
+  text-align: center;
+  width: 100%;
+}
+
+.sidebar-wrapper.collapsed .profile-picture,
+.sidebar-wrapper.collapsed .user-icon {
+  margin: 0 auto;
+  width: 4rem;
+  height: 4rem;
+  max-width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-wrapper.collapsed .user-icon {
+  font-size: 3rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sidebar-wrapper.collapsed .welcome-text {
+  align-items: center;
+  text-align: center;
+}
+
+.sidebar-wrapper.collapsed .sidebar-export-container {
+  position: relative;
+}
+
+.sidebar-wrapper.collapsed .sidebar-download-options {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  z-index: 1000;
+}
+
+/* Sidebar Top Styles */
+.sidebar-top {
+  background-color: #ffffff;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgb(0, 0, 0);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0; /* Prevent top section from shrinking */
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.profile-picture, .user-icon {
+  width: 4rem;
+  height: 4rem;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid #3498db;
+  border: 3px solid #bbbbbb;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .user-icon {
-    font-size: 60px;
-    color: #93FFFE;
+  color: #000000;
+  font-size: 4rem;
 }
 
 .welcome-text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  flex: 1;
 }
 
 .welcome-text h2 {
-    font-family: 'customfont1';
-    margin-top: 1rem;
-    margin-bottom: .5rem;
-    font-size: 1.5rem;
-    color: #ffffff;
+  margin: 0;
+  font-family: 'customfont1';
+  font-size: 1.2rem;
+  color: #000000;
+  line-height: 1.2;
 }
 
 .username {
-    font-family: 'customfont1';
-    background: #1A4375;
-    padding: 5px 65px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.479);
-    border-radius: 15px;
-    color: #ffffff;
-    font-size: 1rem;
-    margin-left: -1.2rem;
+  font-family: 'ReadexPro-Light';
+  font-size: 0.9rem;
+  color: #000000;
+  opacity: 0.9;
+  line-height: 1.2;
+}
+
+.dashboard {
+  height: 100%; /* Changed from 500% */
+  overflow: hidden;
+}
+
+/* MAIN SIDEBAR CONTAINER - Key Fix */
+.sidebar {
+  background-color: #ffffff;
+  padding: 1rem;
+  padding-bottom: 5rem; /* Add space for bottom options */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-height: 0; /* Important for flex children */
+  position: relative; /* For absolute positioning of bottom options */
+}
+
+/* MAIN NAVIGATION AREA */
+.sidebar-main-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* Take up available space */
+  overflow-y: auto; /* Allow scrolling if needed */
 }
 
 .sidebar-buttons {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
 }
 
-.sidebar-buttons button {
-    width: 70%;
-    padding: 0.75rem;
-    margin-bottom: .8rem;
-    border: none;
-    border-radius: 15px;
-    background: #1A4375;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    color: #ffffff;
-    font-family: 'customfont1';
-    font-size: 17px;
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 85%;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  color: #000000;
+  font-family: 'ReadexPro-Regular';
+  font-size: 1.3rem;
+  transition: all 0.3s ease;
+  border-radius: 8px;
 }
 
-.profile-btn:hover,
-.accountm-btn:hover,
-.reward-btn:hover,
-.logs-btn:hover,
-.feedback-btn:hover,
-.export-btn:hover {
-    background: #005f8a;
-    transform: scale(1.05);
-    box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.4);
-    transition: all 0.3s ease;
+.sidebar-nav-item:hover {
+  background-color: #f5f5f5;
+  transform: translateX(5px);
 }
 
-.profile-btn:active,
-.accountm-btn:active,
-.reward-btn:active,
-.logs-btn:active,
-.feedback-btn:active,
-.export-btn:active {
-    transform: scale(0.98);
-    box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
+.sidebar-nav-icon {
+  font-size: 1.5rem;
+  color: #000000;
+  flex-shrink: 0;
 }
+
+.sidebar-nav-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* BOTTOM OPTIONS - Fixed positioning */
+.sidebar-bottom-options {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Remove all the problematic media queries */
+/* These were causing the positioning issues */
+
+.sidebar-bottom-options .sidebar-nav-item {
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+}
+
+.sidebar-bottom-options .sidebar-nav-item:hover {
+  background-color: #f0f0f0;
+}
+
+/* Optional: Add these for better responsive behavior */
+@media (max-height: 700px) {
+  .sidebar-top {
+    padding: 1rem;
+  }
+  
+  .sidebar-buttons {
+    gap: 0.3rem;
+    padding: 0.5rem 0;
+  }
+  
+  .sidebar-nav-item {
+    padding: 0.6rem 1rem;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-height: 600px) {
+  .user-info {
+    gap: 0.5rem;
+  }
+  
+  .profile-picture, .user-icon {
+    width: 3rem;
+    height: 3rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1rem;
+  }
+}
+
+/* Old button styles removed - now using text-based navigation */
 
 /* export data option*/
 /* Sidebar Export Button Styles */
@@ -241,11 +450,6 @@
   display: flex;
   flex-direction: column;
   align-items: center; /* This centers the button and dropdown */
-}
-
-
-.export-btn:hover {
-  background: #2980b9;
 }
 
 .sidebar-download-options {
@@ -261,7 +465,7 @@
   margin-bottom: 5px;
 }
 
-.sidebar-download-options .homedownload-option {
+.sidebar-download-options .sidebar-download-option {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -273,35 +477,103 @@
   cursor: pointer;
   color: #333;
   font-size: 13px;
+  transition: background-color 0.2s ease;
 }
 
-.sidebar-download-options .homedownload-option:hover {
+.sidebar-download-options .sidebar-download-option span {
+  font-family: 'ReadexPro-Regular';
+  font-size: 0.9rem;
+  color: #000000;
+  font-weight: 500;
+}
+
+.sidebar-download-options .sidebar-download-option:hover {
   background: #f5f5f5;
 }
 
-.homeDL-icon {
+.homeDLpdf-icon {
   font-size: 1.5rem;
-  color: #e74c3c;
+  color: #ff2727;
 }
 
-.homeDL2-icon {
+.homeDLcsv-icon {
   font-size: 1.5rem;
   color: #27ae60;
 }
 
 
 .dashboard {
-    width: 60%;
+    width: 95%;
     display: flex;
     flex-direction: column;
     gap: 1rem;
     height: calc(100vh - 3rem - 50px - 2rem);
-    margin-bottom: 9rem;
+
+}
+
+.dashboard-top-row {
+    display: flex;
+    gap: 1rem;
+    height: 600px;
+}
+
+.right-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 30%;
+}
+
+.pie-chart-box, .calendar-box {
+    background-color: #2C517D;
+    border-radius: 15px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.pie-chart-box {
+    flex: 1;
+}
+
+.calendar-box {
+    flex: 1;
+}
+
+.pie-chart-box h3, .calendar-box h3 {
+    color: white;
+    font-family: 'customfont1';
+    font-size: 1.2rem;
+    margin: 0 0 1rem 0;
+    text-align: center;
+}
+
+.chart-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+}
+
+.chart-icon {
+    font-size: 2.5rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.chart-placeholder span {
+    font-family: 'ReadexPro-Light';
+    font-size: 0.9rem;
 }
 
 .main-box {
     flex: 1;
-    background-color: #1A4375;
+    background-color: #2C517D;
     border-radius: 15px;
     display: flex;
     align-items: center;
@@ -310,6 +582,7 @@
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     min-height: 400px;
     position: relative;
+    width: 70%;
 }
 
 .icon {
@@ -326,7 +599,7 @@
 
 .box {
     flex: 1;
-    background-color: #1A4375;
+    background-color: #2C517D;
     border-radius: 15px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     display: flex;
@@ -523,12 +796,16 @@
   .main-content {
     flex-direction: column;
     height: auto;
+    margin-left: 0;
   }
 
   .sidebar-wrapper {
+    position: relative;
     width: 90%;
     margin: 0 auto;
     height: auto;
+    left: auto;
+    top: auto;
   }
 
   .dashboard {
@@ -545,6 +822,17 @@
     flex: 1 1 45%;
     min-width: 250px;
   }
+
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.8rem;
+  }
+
+  .welcome-text {
+    align-items: center;
+    text-align: center;
+  }
 }
 
 @media (max-width: 768px) {
@@ -557,8 +845,15 @@
     font-size: 1.2rem;
   }
 
+  .main-content {
+    margin-left: 0;
+  }
+
   .sidebar-wrapper {
+    position: relative;
     width: 95%;
+    left: auto;
+    top: auto;
   }
 
   .dashboard {
@@ -571,6 +866,31 @@
 
   .main-box {
     min-height: 300px;
+  }
+
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.8rem;
+    padding: 0.3rem;
+  }
+
+  .welcome-text {
+    align-items: center;
+    text-align: center;
+  }
+
+  .profile-picture, .user-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .welcome-text h2 {
+    font-size: 1.1rem;
+  }
+
+  .username {
+    font-size: 0.8rem;
   }
 }
 
@@ -603,46 +923,48 @@
   gap: 15px;
 }
 
-.search-container {
-  flex: 1;
-  max-width: 400px;
-  margin: 0 20px;
-}
-
-.search-input-wrapper {
+.header-search-container {
   position: relative;
-  width: 100%;
+  margin: 0 15px;
 }
 
-.search-input {
+.header-search-input-wrapper {
+  position: relative;
+  width: 200px;
+  margin-right: 75px;
+}
+
+.header-search-input {
   width: 100%;
-  padding: 8px 15px;
+  padding: 10px 15px 10px 50px;
   border: 1px solid #ddd;
   border-radius: 20px;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
   transition: all 0.3s ease;
+  background-color: #DDE9FF;
+  color: #2a2a2a;
 }
 
-.search-input:focus {
+.header-search-input:focus {
   outline: none;
   border-color: #007bff;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
 }
 
-.logs-menu {
-  position: relative;
+.header-search-input::placeholder {
+  color: #49454F;
+  opacity: 1;
 }
 
-.three-dot-icon {
-  font-size: 1.2rem;
-  color: #333;
-  cursor: pointer;
-  padding: 8px;
-  transition: color 0.3s ease;
-}
-
-.three-dot-icon:hover {
-  color: #007bff;
+.header-search-icon {
+  position: absolute;
+  left: 120%;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  font-size: 1rem;
+  z-index: 1;
 }
 
 .dropdown-menu {
@@ -765,4 +1087,17 @@
 .coming-soon-content p {
   margin: 0.5rem 0;
   line-height: 1.5;
+}
+
+.sidebar-wrapper.collapsed .sidebar-top {
+  padding: 1rem 0.5rem;
+  overflow: hidden;
+}
+
+.sidebar-wrapper.collapsed .sidebar-top .user-info {
+  justify-content: center;
+  padding: 10px 5px;
+  flex-direction: column;
+  text-align: center;
+  width: 100%;
 }

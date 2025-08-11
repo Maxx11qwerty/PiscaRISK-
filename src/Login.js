@@ -8,11 +8,43 @@ import { logActivity } from './utils/logger';
 import OtpVerification from './components/OtpVerification';
 
 export default function Login() {
+  // Custom hook for screen size tracking
+  const useScreenSize = () => {
+    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+    
+    useEffect(() => {
+      const handleResize = () => setScreenWidth(window.innerWidth);
+      
+      let timeoutId;
+      const debouncedResize = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(handleResize, 100);
+      };
+      
+      window.addEventListener('resize', debouncedResize);
+      return () => {
+        window.removeEventListener('resize', debouncedResize);
+        clearTimeout(timeoutId);
+      };
+    }, []);
+    
+    return {
+      width: screenWidth,
+      isMobile: screenWidth < 480,
+      isTablet: screenWidth < 900,
+      isDesktop: screenWidth >= 1200
+    };
+  };
+
+  // Use the hook
+  const screen = useScreenSize();
+  
+  // ALL your existing state and functions stay exactly the same
   const [formData, setFormData] = useState({
     usernameOrEmail: "",
     password: "",
   });
-  const { login, signInWithGoogle, signInWithFacebook, resetPassword } = useContext(AuthContext);
+  const { login, signInWithGoogle, signInWithFacebook, resetPassword, checkPasswordChangeRequired } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const errorTimeoutRef = useRef();
@@ -70,9 +102,24 @@ export default function Login() {
     }
   };
   
-  const handleOtpVerify = () => {
+  const handleOtpVerify = async () => {
     setShowOtp(false);
-    navigate('/Homepage');
+    
+    // Check if user needs to change password after admin reset
+    try {
+      const result = await checkPasswordChangeRequired();
+      if (result.requiresChange) {
+        // Navigate to homepage which will show the password change modal
+        navigate('/Homepage');
+      } else {
+        // Normal navigation to homepage
+        navigate('/Homepage');
+      }
+    } catch (error) {
+      console.error('Error checking password change requirements:', error);
+      // Fallback to normal navigation
+      navigate('/Homepage');
+    }
   };
 
   const handleGoogleLogin = async (e) => {
@@ -134,8 +181,23 @@ export default function Login() {
     };
   }, []);
 
+
   return (
     <div className="login-container">
+      {/* screen info for development */}
+      {process.env.NODE_ENV === 'development' && ( 
+        <div style={{
+          position: 'fixed', 
+          top: '10px', 
+          right: '10px', 
+          padding: '5px 10px', 
+          borderRadius: '4px',
+          fontSize: '12px',
+          zIndex: 9999
+        }}>
+          {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
+        </div>
+      )}
       <div className="login-wrapper">
         <div className="logo-section">
           <img src={logo} alt="PiscaRISK Logo" className="logo" />

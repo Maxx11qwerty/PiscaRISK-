@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useContext  } from "react";
 import {FaUserCircle,FaPlayCircle,FaTimes,FaImage,FaCloudSun,FaFish,
-        FaExclamationTriangle,FaEllipsisV,FaDatabase,
-        FaFilePdf,FaFileCsv,FaChevronRight,FaChevronLeft} from "react-icons/fa";
+        FaExclamationTriangle,FaUser,FaDatabase,FaSignOutAlt,
+        FaFilePdf,FaFileCsv,FaChevronRight,FaChevronLeft,FaSearch,FaBars,
+        FaHome,FaStar,FaClipboardList,FaComment,FaFileExport,FaMoon,FaGlobe,
+        FaChartPie,FaCalendarAlt} from "react-icons/fa";
+import { MdManageAccounts } from "react-icons/md";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
@@ -16,7 +19,9 @@ import ReportsChart from './components/ReportsChart';
 import HarvestChart from './components/HarvestChart';
 import PageTransition from './components/PageTransition';
 import AnimatedModal from './components/AnimatedModal';
+import PasswordChangeModal from './components/PasswordChangeModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import Sidebar from './components/Sidebar';
 
 // Import data from localStorage or use default values
 const getInitialData = () => {
@@ -40,30 +45,27 @@ const PiscaRiskHome = () => {
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [sidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [selectedPond, setSelectedPond] = useState(1);
-  const { currentUser, logout } = useContext(AuthContext);
+  const { currentUser, logout, handleLogout, checkPasswordChangeRequired, forcePasswordChange } = useContext(AuthContext);
   const [data, setData] = useState(getInitialData());
   const [errorMessage, setErrorMessage] = useState('');
   const setShowExportOptions = () => {};
   const [searchTerm, setSearchTerm] = useState('');
   const [currentChart, setCurrentChart] = useState('reports');
+  const [nightMode, setNightMode] = useState(false);
+  const [language, setLanguage] = useState('en');
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [passwordChangeRequirements, setPasswordChangeRequirements] = useState({
+    minLength: 8,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true
+  });
   
-  const handleLogout = async () => {
-    // Prevent any clicks during logout
-    const logoutButton = document.querySelector('.dropdown-menu button');
-    if (logoutButton) {
-      logoutButton.disabled = true;
-    }
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
   const refreshWeather = async () => {
     setLoading(true);
     const data = await fetchWeatherData();
@@ -74,6 +76,31 @@ const PiscaRiskHome = () => {
 
   useEffect(() => {
     refreshWeather();
+  }, []);
+
+  // Check for password change requirements when user logs in
+  useEffect(() => {
+    const checkPasswordChange = async () => {
+      if (currentUser) {
+        try {
+          const result = await checkPasswordChangeRequired();
+          if (result.requiresChange) {
+            setShowPasswordChangeModal(true);
+          }
+        } catch (error) {
+          console.error('Error checking password change requirements:', error);
+        }
+      }
+    };
+
+    checkPasswordChange();
+  }, [currentUser, checkPasswordChangeRequired]);
+
+  useEffect(() => {
+    const storedRequirements = localStorage.getItem('passwordChangeRequirements');
+    if (storedRequirements) {
+      setPasswordChangeRequirements(JSON.parse(storedRequirements));
+    }
   }, []);
 
   // Handle navigation state from notifications
@@ -222,6 +249,22 @@ const PiscaRiskHome = () => {
     setCurrentChart(currentChart === 'reports' ? 'harvest' : 'reports');
   };
 
+  const handlePasswordChange = async (newPassword) => {
+    try {
+      const result = await forcePasswordChange(newPassword);
+      if (result.success) {
+        setShowPasswordChangeModal(false);
+        // Show success message
+        setErrorMessage('Password changed successfully!');
+        setTimeout(() => setErrorMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('Password change error:', error);
+      setErrorMessage(`Password change failed: ${error.message}`);
+      setTimeout(() => setErrorMessage(''), 5000);
+    }
+  };
+
   return (
     <PageTransition>
       <div className="homepage-container">
@@ -229,21 +272,68 @@ const PiscaRiskHome = () => {
           <div className="header-logo-container">
             <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
             <div className="header-title">PiscaRISK</div>
+            <FaBars 
+              className="header-hamburger-icon" 
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+            />
           </div>
           <div className="header-right">
+          <div className="header-search-container">
+              <div className="header-search-input-wrapper">
+                <FaSearch className="header-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="header-search-input"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
             <NotificationBox />
-            <div className="logs-menu">
+            <div className="user-menu">
               <button onClick={() => setShowMenu(!showMenu)}>
-                <FaEllipsisV className="three-dot-icon" />
+                {currentUser?.profileImage ? (
+                  <img 
+                    src={currentUser.profileImage} 
+                    alt="Profile" 
+                    className="user-dropdown-profile-pic" 
+                  />
+                ) : (
+                  <FaUserCircle className="user-dropdown-icon" />
+                )}
               </button>
               {showMenu && (
-                <div className="dropdown-menu">
-                  <button onClick={handleLogout}>Logout</button> 
+                <div className="header-dropdown-menu">
+                  <button onClick={() => navigate("/ProfileSettings")}>
+                    <FaUser className="dropdown-icon" />
+                    Profile
+                  </button>
+                  <button onClick={() => handleLogout(navigate)}>
+                    <FaSignOutAlt className="dropdown-icon" />
+                    Logout
+                  </button> 
                 </div>
               )}
             </div>
           </div>
         </header>
+
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          currentUser={currentUser}
+          showDownloadOptions={showDownloadOptions}
+          setShowDownloadOptions={setShowDownloadOptions}
+          handleExport={handleExport}
+          onDashboardClick={() => navigate('/Homepage')}
+          onAccountManagementClick={handleAccountManagementClick}
+          onLogsClick={handleLogsClick}
+          onFeedbackClick={() => navigate('/Feedback')}
+          nightMode={nightMode}
+          setNightMode={setNightMode}
+          language={language}
+          setLanguage={setLanguage}
+        />
 
         <div className="main-content">
           {errorMessage && (
@@ -251,99 +341,25 @@ const PiscaRiskHome = () => {
               {errorMessage}
             </div>
           )}
-          <div className={`sidebar-wrapper ${sidebarOpen ? "visible" : ""}`}>
-            <div className="sidebar-top">
-              <div className="user-info">
-                {currentUser?.profileImage ? (
-                  <img 
-                    src={currentUser.profileImage} 
-                    alt="Profile" 
-                    className="profile-picture" 
-                  />
-                ) : (
-                  <FaUserCircle className="user-icon" />
-                )}
-                <div className="welcome-text">
-                  <h2>Welcome, {currentUser?.username || 'User'}!</h2>
-                  {currentUser?.username && (
-                    <span className="username">{currentUser.username}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <aside className="sidebar">
-              <div className="sidebar-buttons">
-                <button className="profile-btn" onClick={() => navigate("/ProfileSettings")}>My Profile</button>
-                <button className="accountm-btn" onClick={handleAccountManagementClick}>Account Management</button>
-                <button className="reward-btn" onClick={handleRewardManagementClick}>Reward Management</button>
-                <button className="logs-btn" onClick={handleLogsClick}>Logs</button>
-                <button className="feedback-btn"  onClick={() => navigate("/Feedback")}>Feedbacks</button>
-
-                {/* Modified Export Button with Dropdown */}
-                <div className="sidebar-export-container">
-                  <button 
-                    className="export-btn" 
-                    onClick={() => setShowDownloadOptions(!showDownloadOptions)}
-                  >
-                    Export Data
-                  </button>
-                  
-                  {showDownloadOptions && (
-                    <div className="sidebar-download-options">
-                      <button 
-                        className="homedownload-option" 
-                        onClick={() => {
-                          handleExport ('pdf');
-                          setShowDownloadOptions(false);
-                        }}
-                      >
-                        <FaFilePdf className="homeDL-icon" />
-                        Export Box Data (PDF)
-                      </button>
-                      <button 
-                        className="homedownload-option" 
-                        onClick={() => {
-                          handleExport ('csv');
-                          setShowDownloadOptions(false);
-                        }}
-                      >
-                        <FaFileCsv className="homeDL2-icon" />
-                        Export Box Data (CSV)
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </aside>
-          </div>
-
           <section className="dashboard">
-            <div className="main-box">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentChart}
-                  initial={{ opacity: 0, x: currentChart === 'reports' ? 100 : -100 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: currentChart === 'reports' ? -100 : 100 }}
-                  transition={{ 
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30
-                  }}
-                >
-                  {currentChart === 'reports' ? <ReportsChart /> : <HarvestChart />}
-                </motion.div>
-              </AnimatePresence>
-              <motion.button 
-                className="next-chart-btn"
-                onClick={handleNextChart}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
-              >
-                {currentChart === 'reports' ? <FaChevronRight /> : <FaChevronLeft />}
-              </motion.button>
+            <div className="dashboard-top-row">
+              <div className="main-box">
+                <ReportsChart />
+              </div>
+
+              <div className="right-sidebar">
+                <div className="pie-chart-box">
+                <HarvestChart />
+                </div>
+                
+                <div className="calendar-box">
+                  <h3>Calendar</h3>
+                  <div className="chart-placeholder">
+                    <FaCalendarAlt className="chart-icon" />
+                    <span>Calendar View</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="bottom-boxes">
@@ -402,6 +418,14 @@ const PiscaRiskHome = () => {
               )}
             </AnimatedModal>
           )}
+
+          {/* Password Change Modal */}
+          <PasswordChangeModal
+            isOpen={showPasswordChangeModal}
+            onClose={() => setShowPasswordChangeModal(false)}
+            onPasswordChange={handlePasswordChange}
+            userInfo={currentUser}
+          />
         </div>
       </div>
     </PageTransition>

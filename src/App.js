@@ -1,6 +1,5 @@
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
-import { AnimatePresence } from 'framer-motion';
 import SignupPage from "./SignupPage";
 import Login from "./Login";
 import Homepage from "./Homepage";
@@ -12,73 +11,30 @@ import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthProvider } from './contexts/AuthContext';
-import PageTransition from './components/PageTransition';
 
-const AnimatedRoutes = () => {
+const AppRoutes = () => {
   const location = useLocation();
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={
-          <PageTransition>
-            <Login />
-          </PageTransition>
-        } />
-        <Route path="/signup" element={
-          <PageTransition>
-            <SignupPage />
-          </PageTransition>
-        } />
-        <Route path="/ProfileSettings" element={
-          <PageTransition>
-            <ProfileSettings />
-          </PageTransition>
-        } />
-        <Route path="/Homepage" element={
-          <PageTransition>
-            <Homepage />
-          </PageTransition>
-        } />
-        <Route path="/RewardManagement" element={
-          <PageTransition>
-            <RewardManagment />
-          </PageTransition>
-        } />
-        <Route path="/AccountManagement" element={
-          <PageTransition>
-            <AccountManagement />
-          </PageTransition>
-        } />
-        <Route path="/Feedback" element={
-          <PageTransition>
-            <Feedback />
-          </PageTransition>
-        } />
-        <Route path="/logs" element={
-          <PageTransition>
-            <Logs />
-          </PageTransition>
-        } />
-        <Route path="/forgot-password" element={
-          <PageTransition>
-            <ForgotPassword />
-          </PageTransition>
-        } />
-        <Route path="/pond-conditions" element={
-          <PageTransition>
-            <PondConditionDashboard />
-          </PageTransition>
-        } />
-      </Routes>
-    </AnimatePresence>
+    <Routes location={location} key={location.pathname}>
+      <Route path="/" element={<Login />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/ProfileSettings" element={<ProfileSettings />} />
+      <Route path="/Homepage" element={<Homepage />} />
+      <Route path="/RewardManagement" element={<RewardManagment />} />
+      <Route path="/AccountManagement" element={<AccountManagement />} />
+      <Route path="/Feedback" element={<Feedback />} />
+      <Route path="/logs" element={<Logs />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/pond-conditions" element={<PondConditionDashboard />} />
+    </Routes>
   );
 };
 
 function App() {
   return (
     <AuthProvider>
-      <AnimatedRoutes />
+      <AppRoutes />
     </AuthProvider>
   );
 }

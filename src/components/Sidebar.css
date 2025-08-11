@@ -1,0 +1,253 @@
+.sidebar-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 50px);
+  width: 18%;
+  position: absolute;
+  left: 0;
+  top: 78px;
+  transition: all 0.3s ease;
+  overflow: aut;
+}
+
+.sidebar-wrapper.collapsed {
+  width: 80px;
+  overflow: hidden;
+}
+
+.sidebar-wrapper.collapsed .welcome-text,
+.sidebar-wrapper.collapsed .sidebar-nav-item span,
+.sidebar-wrapper.collapsed .sidebar-bottom-options .sidebar-nav-item span {
+  display: none;
+}
+
+.sidebar-wrapper.collapsed .sidebar-nav-item {
+  justify-content: center;
+  padding: 0.8rem 0.5rem;
+}
+
+.sidebar-wrapper.collapsed .sidebar-bottom-options .sidebar-nav-item {
+  justify-content: center;
+  padding: 0.8rem 0.5rem;
+}
+
+.sidebar-wrapper.collapsed .user-info {
+  justify-content: center;
+  padding: 10px 5px;
+  flex-direction: column;
+  text-align: center;
+  width: 100%;
+}
+
+.sidebar-wrapper.collapsed .profile-picture,
+.sidebar-wrapper.collapsed .user-icon {
+  margin: 0 auto;
+  width: 4rem;
+  height: 4rem;
+  max-width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-wrapper.collapsed .user-icon {
+  font-size: 3rem;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sidebar-wrapper.collapsed .welcome-text {
+  align-items: center;
+  text-align: center;
+}
+
+.sidebar-wrapper.collapsed .sidebar-export-container {
+  position: relative;
+}
+
+.sidebar-wrapper.collapsed .sidebar-download-options {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.sidebar-top {
+  background-color: #ffffff;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgb(0, 0, 0);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.profile-picture, .user-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #bbbbbb;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.user-icon {
+  color: #000000;
+  font-size: 4rem;
+}
+
+.welcome-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  flex: 1;
+}
+
+.welcome-text h2 {
+  margin: 0;
+  font-family: 'customfont1';
+  font-size: 1.2rem;
+  color: #000000;
+  line-height: 1.2;
+}
+
+.username {
+  font-family: 'ReadexPro-Light';
+  font-size: 0.9rem;
+  color: #000000;
+  opacity: 0.9;
+  line-height: 1.2;
+}
+
+.sidebar {
+  background-color: #ffffff;
+  padding: 1rem;
+  padding-bottom: 5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.sidebar-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 85%;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  color: #000000;
+  font-family: 'ReadexPro-Regular';
+  font-size: 1.3rem;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+}
+
+.sidebar-nav-item:hover {
+  background-color: #f5f5f5;
+  transform: translateX(5px);
+}
+
+.sidebar-nav-icon {
+  font-size: 1.5rem;
+  color: #000000;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-bottom-options {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-export-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar-download-options {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  z-index: 100;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.sidebar-download-options .sidebar-download-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  font-size: 13px;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-download-options .sidebar-download-option span {
+  font-family: 'ReadexPro-Regular';
+  font-size: 0.9rem;
+  color: #000000;
+  font-weight: 500;
+}
+
+.sidebar-download-options .sidebar-download-option:hover {
+  background: #f5f5f5;
+}
+
+.homeDLpdf-icon { font-size: 1.5rem; color: #ff2727; }
+.homeDLcsv-icon { font-size: 1.5rem; color: #27ae60; }

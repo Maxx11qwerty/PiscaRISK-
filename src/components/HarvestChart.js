@@ -10,6 +10,7 @@ function HarvestChart() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [hasData, setHasData] = useState(true);
+  const [showMonthOptions, setShowMonthOptions] = useState(false);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -95,23 +96,9 @@ function HarvestChart() {
   }
 
   return (
-    <div className="bar-chart-container">
+    <>
       <div className="chart-controls">
         <h2 className="pie-chart-title">Harvest Readiness</h2>
-        <div className="harvest-controls">
-          <select 
-            className="month-filter" 
-            value={selectedMonth} 
-            onChange={handleMonthChange}
-          >
-            {months.map((month, index) => (
-              <option key={month} value={index}>
-                {month}
-              </option>
-            ))}
-          </select>
-          <div className="harvest-label">Ready: {data[0]?.value || 0}</div>
-        </div>
       </div>
       <div className="pie-chart-container">
         {hasData ? (
@@ -151,10 +138,35 @@ function HarvestChart() {
           <div className="no-data-message">No data available for {months[selectedMonth]}</div>
         )}
       </div>
-      <div className="harvest-last-updated">
-        As of {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-      </div>
-    </div>
+        <div className="harvest-controls">
+          <div className="month-selector">
+            <div 
+              className="month-display" 
+              onClick={() => setShowMonthOptions(!showMonthOptions)}
+            >
+              <span className="month-prefix">In The Month of</span>
+              <span className="month-text">{months[selectedMonth]}</span>
+              <span className="month-arrow">▼</span>
+            </div>
+            {showMonthOptions && (
+              <div className="month-options">
+                {months.map((month, index) => (
+                  <div 
+                    key={month} 
+                    className={`month-option ${index === selectedMonth ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedMonth(index);
+                      setShowMonthOptions(false);
+                    }}
+                  >
+                    {month}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+    </>
   );
 }
 

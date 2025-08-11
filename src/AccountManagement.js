@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useContext } from 'react';
 import './AccountManagement.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
-import { FaUserCircle, FaArrowRight, FaArrowLeft, FaEdit, FaTrash, FaUserPlus, FaEllipsisV, FaSave, FaTimes } from 'react-icons/fa';
-import jsPDF from 'jspdf';
-import { CSVLink } from 'react-csv';
+import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
+import { IoMdArrowDropdown } from "react-icons/io";
+import { MdOutlineLockReset } from "react-icons/md";
+import { RiDeleteBin6Line } from "react-icons/ri";
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
-import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
-import { fetchAllUsers, addNewUser } from './services/accountService';
+import { fetchAllUsers} from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, generateAccountCSVFilename, handleAccountCSVExport } from './utils/exportAccounts';
+import Sidebar from './components/Sidebar';
 
 const AccountManagement = () => {
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
@@ -21,41 +22,45 @@ const AccountManagement = () => {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [AccountUsers, setAccountUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
-  const { currentUser,createStaffAccount,isAdmin,isTechOfficer } = useContext(AuthContext);
+  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, resetPassword } = useContext(AuthContext);
   const [csvFilename, setCsvFilename] = useState('piscarisk_useraccounts.csv');
   const [errors, setErrors] = useState({ email: '' });
   const navigate = useNavigate();
+
+  // Sidebar UI state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [nightMode, setNightMode] = useState(false);
+  const [language, setLanguage] = useState('en');
+
+  // Table filter states
+  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('All Roles');
+  const [selectedStatus, setSelectedStatus] = useState('All Status');
+
+  // Filter button states
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [selectedFilterType, setSelectedFilterType] = useState('All');
+  const [filterValue, setFilterValue] = useState('');
+
+  // Name sorting dropdown states
+  const [showNameDropdown, setShowNameDropdown] = useState(false);
+  const [selectedNameSort, setSelectedNameSort] = useState('None');
+
+  // Password reset form states
+  const [showPasswordResetForm, setShowPasswordResetForm] = useState(false);
+  const [selectedUserForReset, setSelectedUserForReset] = useState(null);
+  const [customPassword, setCustomPassword] = useState('');
+  const [useCustomPassword, setUseCustomPassword] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState('');
 
   useEffect(() => {
     console.log("Current User Data:", currentUser);
     console.log("Is Admin:", isAdmin());
   }, [currentUser]);
-  
-  
-  const [newUser, setNewUser] = useState({
-    username: '',
-    fullName: '',
-    address: '',
-    email: '',
-    contactNumber: '',
-    role: 'User',
-    status: 'Active',
-    dateJoined: new Date().toISOString().split('T')[0],
-    password: ''
-  });
 
-    // Define resetForm function
-    const resetForm = () => {
-      setNewUser({
-        username: '',
-        email: '',
-        fullName: '',
-        address: '',
-        contactNumber: '',
-        role: '',
-        password: ''
-      });
-    };
+  
 
   const chunkSize = 3;
 
@@ -72,6 +77,70 @@ const AccountManagement = () => {
     };
   }, []);
 
+  // Cleanup effect to close all dropdowns when component unmounts or dependencies change
+  useEffect(() => {
+    return () => {
+      closeAllDropdowns();
+    };
+  }, []);
+
+  // Function to close all dropdowns and modals
+  const closeAllDropdowns = () => {
+    setShowRoleDropdown(false);
+    setShowStatusDropdown(false);
+    setShowNameDropdown(false);
+    setShowFilterDropdown(false);
+    setShowAddUserForm(false);
+    setShowPasswordResetForm(false);
+    setShowMenu(false);
+  };
+
+  // Function to close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.role-cell') && !event.target.closest('.status-cell') && !event.target.closest('.name-cell')) {
+        setShowRoleDropdown(false);
+        setShowStatusDropdown(false);
+        setShowNameDropdown(false);
+      }
+      // Temporarily disabled to debug filter dropdown
+      // if (!event.target.closest('.add-user-button-container')) {
+      //   setShowFilterDropdown(false);
+      // }
+    };
+
+    // Function to handle Escape key press
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        closeAllDropdowns();
+      }
+    };
+
+    // Function to handle window focus/blur
+    const handleWindowFocus = () => {
+      // Close all dropdowns when window regains focus
+      closeAllDropdowns();
+    };
+
+    // Function to handle scroll
+    const handleScroll = () => {
+      // Close all dropdowns when user scrolls
+      closeAllDropdowns();
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('scroll', handleScroll);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -79,6 +148,13 @@ const AccountManagement = () => {
   const fetchUsers = async () => {
     try {
       const users = await fetchAllUsers();
+      console.log('Fetched users from Firebase:', users);
+      if (users.length > 0) {
+        console.log('Sample user data structure:', users[0]);
+        console.log('Sample user dateJoined:', users[0]?.dateJoined);
+        console.log('Sample user dateJoined type:', typeof users[0]?.dateJoined);
+        console.log('Sample user dateJoined as Date object:', new Date(users[0]?.dateJoined));
+      }
       setAccountUsers(users);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -89,106 +165,248 @@ const AccountManagement = () => {
   const filteredUsers = AccountUsers.filter(user => {
     if (!user || !user.username) return false;
     
-    return (
+    // Basic search term filter
+    const matchesSearch = (
       user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
+    
+    // Role filter
+    const matchesRole = selectedRole === 'All Roles' || user.role === selectedRole;
+    
+    // Status filter
+    const matchesStatus = selectedStatus === 'All Status' || user.status === selectedStatus;
+    
+    // Custom filter type
+    let matchesCustomFilter = true;
+    if (selectedFilterType !== 'All' && filterValue.trim()) {
+      switch (selectedFilterType) {
+        case 'Role':
+          matchesCustomFilter = user.role?.toLowerCase().includes(filterValue.toLowerCase());
+          break;
+        case 'Status':
+          matchesCustomFilter = user.status?.toLowerCase().includes(filterValue.toLowerCase());
+          break;
+        case 'Name':
+          matchesCustomFilter = user.username?.toLowerCase().includes(filterValue.toLowerCase()) ||
+                               user.fullName?.toLowerCase().includes(filterValue.toLowerCase());
+          break;
+        default:
+          matchesCustomFilter = true;
+      }
+    }
+    
+    return matchesSearch && matchesRole && matchesStatus && matchesCustomFilter;
   });
 
-  const AccountUserChunks = [];
-  for (let i = 0; i < filteredUsers.length; i += chunkSize) {
-    AccountUserChunks.push(filteredUsers.slice(i, i + chunkSize));
-  }
+  // Apply sorting to filtered users
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    console.log(`Sorting users: ${a.username} vs ${b.username}, selectedNameSort: ${selectedNameSort}`);
+    
+    switch (selectedNameSort) {
+      case 'A-Z':
+        return (a.username || '').localeCompare(b.username || '');
+      case 'Z-A':
+        return (b.username || '').localeCompare(a.username || '');
+      case 'Newest':
+        // Handle different date formats and missing dates
+        const dateA = a.dateJoined ? new Date(a.dateJoined) : new Date(0);
+        const dateB = b.dateJoined ? new Date(b.dateJoined) : new Date(0);
+        console.log(`Sorting by date - User A (${a.username}): ${a.dateJoined} -> ${dateA}`);
+        console.log(`Sorting by date - User B (${b.username}): ${b.dateJoined} -> ${dateB}`);
+        return dateB - dateA; // Newest first
+      case 'Oldest':
+        // Handle different date formats and missing dates
+        const dateAOldest = a.dateJoined ? new Date(a.dateJoined) : new Date(0);
+        const dateBOldest = b.dateJoined ? new Date(b.dateJoined) : new Date(0);
+        console.log(`Sorting by date - User A (${a.username}): ${a.dateJoined} -> ${dateAOldest}`);
+        console.log(`Sorting by date - User B (${b.username}): ${b.dateJoined} -> ${dateBOldest}`);
+        return dateAOldest - dateBOldest; // Oldest first
+      default:
+        return 0; // No sorting
+    }
+  });
+  
+  console.log('Sorted users result:', sortedUsers.map(u => ({ username: u.username, dateJoined: u.dateJoined })));
 
-  const AccountcurrentChunk = AccountUserChunks[currentChunkIndex] || [];
+  // Pagination (5 users per page)
+  const pageSize = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [showPageNumbers, setShowPageNumbers] = useState(false);
+  const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth > 1600);
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / (isLargeScreen ? 5 : 4)));
+  const startIndex = (currentPage - 1) * (isLargeScreen ? 5 : 4);
+  const paginatedUsers = sortedUsers.slice(startIndex, startIndex + (isLargeScreen ? 5 : 4));
+
+  useEffect(() => {
+    // Reset to first page when filters/search change
+    setCurrentPage(1);
+    setShowPageNumbers(false);
+  }, [searchTerm, selectedRole, selectedStatus, selectedFilterType, filterValue, selectedNameSort]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLargeScreen(window.innerWidth > 1600);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewUser(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
+    
+    // Special handling for role changes
+    if (name === 'role') {
+      const newStatus = value === 'Tech Officer' ? 'Inactive' : 'Active';
+      console.log(`Role changed to: ${value}, setting status to: ${newStatus}`);
+      
+      setNewUser(prev => ({ 
+        ...prev, 
+        [name]: value,
+        // Automatically set Tech Officer to inactive, others to active
+        status: newStatus
+      }));
+    } else {
+      setNewUser(prev => ({ ...prev, [name]: value }));
+    }
+    
     if (name === 'email') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailPattern.test(value)) {
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          email: 'Please enter a valid email address.',
-        }));
-      } else {
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          email: '',
-        }));
-      }
+      setErrors(prevErrors => ({ ...prevErrors, email: emailPattern.test(value) ? '' : 'Please enter a valid email address.' }));
     }
+  };
+
+  const [newUser, setNewUser] = useState({
+    username: '',
+    fullName: '',
+    address: '',
+    email: '',
+    contactNumber: '',
+    role: 'User',
+    status: 'Active',
+    dateJoined: new Date().toISOString().split('T')[0],
+    password: ''
+  });
+
+  // Define resetForm function
+  const resetForm = () => {
+    setNewUser({
+      username: '',
+      email: '',
+      fullName: '',
+      address: '',
+      contactNumber: '',
+      role: '',
+      password: '',
+      dateJoined: getTodayDate(),
+      status: 'Active' // Will be updated when role is selected
+    });
   };
 
   const handleAddUser = async () => {
     try {
-
       if (newUser.password.length < 6) {
         setMessage({ text: 'Password must be at least 6 characters', type: 'error' });
         return;
       }
-      // Enhanced validation
       if (!newUser.username || !newUser.role || !newUser.password || !newUser.email) {
         setMessage({ text: 'All fields are required', type: 'error' });
         return;
       }
-  
       if (!/^\S+@\S+\.\S+$/.test(newUser.email)) {
         setMessage({ text: 'Please enter a valid email address', type: 'error' });
         return;
       }
-  
       if (newUser.password.length < 8) {
         setMessage({ text: 'Password must be at least 8 characters', type: 'error' });
         return;
       }
-            // Add this validation in handleAddUser
+      
+      // Validate date
+      if (!newUser.dateJoined) {
+        setMessage({ text: 'Date joined is required', type: 'error' });
+        return;
+      }
+      
+      // Ensure date is in correct format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(newUser.dateJoined)) {
+        setMessage({ text: 'Invalid date format. Please use YYYY-MM-DD format', type: 'error' });
+        return;
+      }
+      
       const allowedRoles = ['Admin', 'Tech Officer', 'Fish Farmer'];
       if (!allowedRoles.includes(newUser.role)) {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
       }
-  
-      // Show loading state
+      
       setMessage({ text: 'Creating user...', type: 'info' });
-  
-      const result = await createStaffAccount({
+      
+      const userData = {
         email: newUser.email,
         username: newUser.username,
         fullName: newUser.fullName,
         address: newUser.address,
         contactNumber: newUser.contactNumber,
         role: newUser.role,
-        password: newUser.password
-      });
-  
+        password: newUser.password,
+        dateJoined: newUser.dateJoined,
+        status: newUser.status // Make sure status is included
+      };
+      
+      console.log('Sending user data to createStaffAccount:', userData);
+      console.log('Status being sent:', userData.status);
+      console.log('Role being sent:', userData.role);
+      
+      const result = await createStaffAccount(userData);
+      
       if (result.success) {
         setMessage({ text: newUser.role + ' ' + newUser.username + ' created successfully!', type: 'success' });
-        resetForm(); // Now this will work
+        resetForm();
         fetchAllUsers();
       }
     } catch (error) {
       let errorMessage = error.message;
-      
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email is already registered';
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password should be at least 6 characters';
-      }
-      
+      if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
+      else if (error.code === 'auth/weak-password') errorMessage = 'Password should be at least 6 characters';
       setMessage({ text: `Error: ${errorMessage}`, type: 'error' });
     }
   };
 
-
   const handleCancelAddUser = () => {
     setShowAddUserForm(false);
+    setNewUser({
+      username: '', 
+      fullName: '', 
+      address: '', 
+      email: '', 
+      contactNumber: '', 
+      role: 'User', 
+      status: 'Active', 
+      dateJoined: getTodayDate(), 
+      password: ''
+    });
+    setMessage({ text: '', type: '' });
+  };
+
+  // Function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Function to open Add New User form with current date
+  const handleOpenAddUserForm = () => {
+    const todayDate = getTodayDate();
+    console.log('Setting today\'s date:', todayDate);
+    
     setNewUser({
       username: '',
       fullName: '',
@@ -196,12 +414,315 @@ const AccountManagement = () => {
       email: '',
       contactNumber: '',
       role: 'User',
-      status: 'Active',
-      dateJoined: new Date().toISOString().split('T')[0],
+      status: 'Active', // Default status
+      dateJoined: todayDate,
       password: ''
     });
+    setShowAddUserForm(true);
     setMessage({ text: '', type: '' });
   };
+
+  const handleResetPassword = async (user) => {
+    setSelectedUserForReset(user);
+    setShowPasswordResetForm(true);
+    setCustomPassword('');
+    setUseCustomPassword(false);
+    setGeneratedPassword(''); // Clear any previously generated password
+  };
+
+  // Function to handle password option changes
+  const handlePasswordOptionChange = (useCustom) => {
+    setUseCustomPassword(useCustom);
+    if (useCustom) {
+      setGeneratedPassword(''); // Clear generated password when switching to custom
+    } else {
+      setCustomPassword(''); // Clear custom password when switching to random
+    }
+  };
+
+  // Function to generate a secure password
+  const generateSecurePassword = () => {
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    
+    // Ensure at least one character from each category
+    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)]; // Uppercase
+    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)]; // Lowercase
+    password += "0123456789"[Math.floor(Math.random() * 10)]; // Number
+    password += "!@#$%^&*"[Math.floor(Math.random() * 8)]; // Special character
+    
+    // Fill the rest randomly
+    for (let i = 4; i < length; i++) {
+      password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    
+    // Shuffle the password to make it more random
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+  };
+
+  // Function to activate Tech Officer accounts
+  const handleActivateTechOfficer = async (user) => {
+    if (user.role !== 'Tech Officer') {
+      setMessage({ text: 'Only Tech Officer accounts can be activated', type: 'error' });
+      return;
+    }
+
+    try {
+      setMessage({ text: `Activating Tech Officer ${user.username}...`, type: 'info' });
+      
+      // Update user status to Active in Firebase
+      const { updateDoc, doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      
+      // Determine which collection the user belongs to
+      let userDocRef = doc(db, 'users', user.id);
+      let userDoc = await getDoc(userDocRef);
+      let collectionName = 'users';
+      
+      if (!userDoc.exists()) {
+        // Check mobileUsers collection
+        userDocRef = doc(db, 'mobileUsers', user.id);
+        userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          collectionName = 'mobileUsers';
+        } else {
+          throw new Error('User not found in any collection');
+        }
+      }
+      
+      console.log(`Activating Tech Officer ${user.username} in ${collectionName} collection`);
+      
+      // Update the user status
+      await updateDoc(userDocRef, {
+        status: 'Active',
+        lastModified: new Date().toISOString()
+      });
+      
+      setMessage({ text: `Tech Officer ${user.username} activated successfully!`, type: 'success' });
+      
+      // Update local state
+      setAccountUsers(prev => prev.map(u => 
+        u.id === user.id ? { ...u, status: 'Active' } : u
+      ));
+      
+      // Refresh users list
+      await fetchUsers();
+      
+    } catch (error) {
+      console.error('Error activating Tech Officer:', error);
+      setMessage({ text: `Error activating Tech Officer: ${error.message}`, type: 'error' });
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    // Show confirmation dialog
+    if (window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
+      try {
+        setMessage({ text: `Deleting user ${user.username}...`, type: 'info' });
+        
+        console.log(`Starting deletion process for user: ${user.username} (ID: ${user.id})`);
+        console.log('User data:', user);
+        
+        // Delete user from Firebase
+        const result = await deleteUserFromFirebase(user.id);
+        
+        if (result.success) {
+          setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
+          
+          console.log(`User ${user.username} deleted successfully from Firebase`);
+          
+          // Remove user from local state
+          setAccountUsers(prev => prev.filter(u => u.id !== user.id));
+          
+          // Remove from selected users if they were selected
+          setSelectedUsers(prev => {
+            const newSelected = new Set(prev);
+            newSelected.delete(user.id);
+            return newSelected;
+          });
+          
+          // Reset to first page if current page becomes empty
+          if (paginatedUsers.length === 1 && currentPage > 1) {
+            setCurrentPage(1);
+          }
+          
+          // Refresh users list
+          await fetchUsers();
+        } else {
+          console.error(`Failed to delete user ${user.username}:`, result.error);
+          setMessage({ text: `Error deleting user: ${result.error}`, type: 'error' });
+        }
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        setMessage({ text: `Error deleting user: ${error.message}`, type: 'error' });
+      }
+    }
+  };
+
+  // Function to delete user from Firebase
+  const deleteUserFromFirebase = async (userId) => {
+    try {
+      // Import Firebase functions
+      const { deleteDoc, doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      
+      // First, check which collection the user belongs to
+      let userDocRef = doc(db, 'users', userId);
+      let userDoc = await getDoc(userDocRef);
+      
+      // If not in 'users' collection, check 'mobileUsers'
+      if (!userDoc.exists()) {
+        userDocRef = doc(db, 'mobileUsers', userId);
+        userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          return { 
+            success: false, 
+            error: 'User not found in any collection' 
+          };
+        }
+      }
+      
+      // Get user data to determine collection and email for Auth deletion
+      const userData = userDoc.data();
+      const collectionName = userData.isMobileUser ? 'mobileUsers' : 'users';
+      
+      // Delete user document from the correct collection
+      const finalUserDocRef = doc(db, collectionName, userId);
+      await deleteDoc(finalUserDocRef);
+      
+      console.log(`User ${userId} deleted successfully from ${collectionName} collection`);
+      
+      // Try to delete from Firebase Auth using Cloud Function
+      if (userData.email) {
+        try {
+          await deleteUserFromAuth(userData.email);
+          console.log(`Firebase Auth user with email ${userData.email} deleted successfully`);
+        } catch (authError) {
+          console.warn('Could not delete from Firebase Auth:', authError.message);
+          // This is not critical - the Firestore document deletion is the main goal
+        }
+      }
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Firebase delete error:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to delete user from database' 
+      };
+    }
+  };
+
+  // Function to delete user from Firebase Auth via Cloud Function
+  const deleteUserFromAuth = async (userEmail) => {
+    try {
+      // Import Firebase Functions
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('./firebase');
+      
+      const functions = getFunctions(app);
+      const deleteAuthUser = httpsCallable(functions, 'deleteAuthUser');
+      
+      const result = await deleteAuthUser({ email: userEmail });
+      return result.data;
+    } catch (error) {
+      console.error('Error calling deleteAuthUser function:', error);
+      throw error;
+    }
+  };
+
+  // Bulk delete selected users
+  const handleBulkDelete = async () => {
+    if (selectedUsers.size === 0) {
+      setMessage({ text: 'No users selected for deletion', type: 'error' });
+      return;
+    }
+
+    const selectedUserList = filteredUsers.filter(user => selectedUsers.has(user.id));
+    const userNames = selectedUserList.map(user => user.username).join(', ');
+    
+    if (window.confirm(`Are you sure you want to delete ${selectedUsers.size} user(s): ${userNames}? This action cannot be undone.`)) {
+      try {
+        setMessage({ text: `Deleting ${selectedUsers.size} users...`, type: 'info' });
+        
+        let successCount = 0;
+        let errorCount = 0;
+        const errors = [];
+        
+        // Delete users one by one
+        for (const userId of selectedUsers) {
+          try {
+            const result = await deleteUserFromFirebase(userId);
+            if (result.success) {
+              successCount++;
+            } else {
+              errorCount++;
+              errors.push(result.error);
+            }
+          } catch (error) {
+            errorCount++;
+            errors.push(error.message);
+          }
+        }
+        
+        if (errorCount === 0) {
+          setMessage({ text: `Successfully deleted ${successCount} users!`, type: 'success' });
+        } else if (successCount > 0) {
+          setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. Check console for details.`, type: 'warning' });
+        } else {
+          setMessage({ text: `Failed to delete any users. Check console for details.`, type: 'error' });
+        }
+        
+        // Clear selection
+        setSelectedUsers(new Set());
+        
+        // Refresh users list
+        await fetchUsers();
+        
+        // Reset to first page if needed
+        if (currentPage > 1) {
+          setCurrentPage(1);
+        }
+        
+        // Log errors for debugging
+        if (errors.length > 0) {
+          console.error('Bulk delete errors:', errors);
+        }
+        
+      } catch (error) {
+        console.error('Bulk delete error:', error);
+        setMessage({ text: `Error during bulk delete: ${error.message}`, type: 'error' });
+      }
+    }
+  };
+
+  // Checkbox selection functions
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      // Select all users across ALL pages, not just current page
+      const allUserIds = filteredUsers.map(user => user.id).filter(Boolean);
+      setSelectedUsers(new Set(allUserIds));
+    } else {
+      // Deselect all users across all pages
+      setSelectedUsers(new Set());
+    }
+  };
+
+  const handleUserSelection = (userId, checked) => {
+    const newSelectedUsers = new Set(selectedUsers);
+    if (checked) {
+      newSelectedUsers.add(userId);
+    } else {
+      newSelectedUsers.delete(userId);
+    }
+    setSelectedUsers(newSelectedUsers);
+  };
+
+  // Check if all users across all pages are selected
+  const isAllSelectedAcrossAllPages = filteredUsers.length > 0 && filteredUsers.every(user => selectedUsers.has(user.id));
+  const isIndeterminateAcrossAllPages = selectedUsers.size > 0 && selectedUsers.size < filteredUsers.length;
 
   const accountCSVData = prepareAccountCSVData(AccountUsers);
 
@@ -211,253 +732,987 @@ const AccountManagement = () => {
     handleAccountCSVExport(currentUser);
   };
 
+  // Sidebar export handler for this page
+  const handleSidebarExport = (format) => {
+    if (format === 'pdf') exportAccountToPDF(AccountUsers, currentUser);
+    if (format === 'csv') handleAccountCSVExport(currentUser);
+    setShowDownloadOptions(false);
+  };
+
+  // Function to debug user status across collections
+  const debugUserStatus = async (username) => {
+    try {
+      const { getDocs, query, where, collection } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      
+      console.log(`=== Debugging user status for: ${username} ===`);
+      
+      // Check users collection
+      const usersRef = collection(db, 'users');
+      let q = query(usersRef, where('username', '==', username));
+      let querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        console.log('Found in users collection:', {
+          id: userDoc.id,
+          username: userData.username,
+          email: userData.email,
+          role: userData.role,
+          status: userData.status,
+          collection: 'users'
+        });
+      }
+      
+      // Check mobileUsers collection
+      const mobileUsersRef = collection(db, 'mobileUsers');
+      q = query(mobileUsersRef, where('username', '==', username));
+      querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        console.log('Found in mobileUsers collection:', {
+          id: userDoc.id,
+          username: userData.username,
+          email: userData.email,
+          role: userData.role,
+          status: userData.status,
+          collection: 'mobileUsers'
+        });
+      }
+      
+      console.log('=== End Debug ===');
+    } catch (error) {
+      console.error('Error debugging user status:', error);
+    }
+  };
+
+  const isPasswordValid = (password) => {
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    return password.length >= 8 && hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
+  };
+
+  const getPasswordStrength = (password) => {
+    if (!password) return { score: 0, label: '', color: '' };
+    
+    let score = 0;
+    let feedback = [];
+    
+    // Length check
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    
+    // Character variety checks
+    if (/[A-Z]/.test(password)) score += 1;
+    if (/[a-z]/.test(password)) score += 1;
+    if (/[0-9]/.test(password)) score += 1;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score += 1;
+    
+    // Determine strength level
+    let label, color;
+    if (score <= 2) {
+      label = 'Weak';
+      color = '#dc3545';
+    } else if (score <= 4) {
+      label = 'Fair';
+      color = '#ffc107';
+    } else if (score <= 5) {
+      label = 'Good';
+      color = '#17a2b8';
+    } else {
+      label = 'Strong';
+      color = '#28a745';
+    }
+    
+    return { score, label, color };
+  };
+
+  // Function to check if user is currently logged in
+  const checkUserLoginStatus = async (userEmail) => {
+    try {
+      // Import Firebase Functions
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('./firebase');
+      
+      const functions = getFunctions(app);
+      const checkUserLoginStatusFunction = httpsCallable(functions, 'checkUserLoginStatus');
+      
+      // Call the Cloud Function to check user login status
+      const result = await checkUserLoginStatusFunction({ userEmail });
+      return result.data;
+    } catch (error) {
+      console.warn('Could not check user login status:', error);
+      return { isLoggedIn: false, error: error.message };
+    }
+  };
+
+  // Function to force logout user after password reset
+  const forceLogoutUser = async (userEmail) => {
+    try {
+      // Import Firebase Functions
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('./firebase');
+      
+      const functions = getFunctions(app);
+      const forceLogoutUserFunction = httpsCallable(functions, 'forceLogoutUser');
+      
+      // Call the Cloud Function to force logout user
+      const result = await forceLogoutUserFunction({ userEmail });
+      return result.data;
+    } catch (error) {
+      console.warn('Could not force logout user:', error);
+      // This is not critical - the password reset is the main goal
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleConfirmPasswordReset = async () => {
+    if (!selectedUserForReset) return;
+
+    try {
+      setMessage({ text: 'Resetting password...', type: 'info' });
+
+      let newPassword = '';
+      if (useCustomPassword) {
+        if (customPassword.length < 8 || !isPasswordValid(customPassword)) {
+          setMessage({ text: 'Custom password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.', type: 'error' });
+          return;
+        }
+        newPassword = customPassword;
+      } else {
+        if (!generatedPassword) {
+          setMessage({ text: 'Please generate a random password first by clicking the "Generate Random Password" button.', type: 'error' });
+          return;
+        }
+        newPassword = generatedPassword;
+      }
+
+      // Try to use Cloud Function first
+      try {
+        const { getFunctions, httpsCallable } = await import('firebase/functions');
+        const { app } = await import('./firebase');
+        
+        const functions = getFunctions(app);
+        const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
+        
+        // Call the Cloud Function to reset the password
+        const result = await adminResetPassword({
+          userEmail: selectedUserForReset.email,
+          newPassword: newPassword
+        });
+        
+        if (result.data.success) {
+          setMessage({ 
+            text: `Password reset successful for ${selectedUserForReset.username}! New password: ${newPassword}. The user can now login with this new password.`, 
+            type: 'success' 
+          });
+          
+          // Log the password reset
+          console.log(`Password reset for user ${selectedUserForReset.username}. New password: ${newPassword}`);
+          
+          // Update the user's last modified timestamp in Firestore
+          try {
+            const { doc, updateDoc, getDoc } = await import('firebase/firestore');
+            const { db } = await import('./firebase');
+            
+            // Check both collections to find the user document
+            let userDocRef = doc(db, 'users', selectedUserForReset.id);
+            let userDoc = await getDoc(userDocRef);
+            let collectionName = 'users';
+            
+            if (!userDoc.exists()) {
+              // Check mobileUsers collection
+              userDocRef = doc(db, 'mobileUsers', selectedUserForReset.id);
+              userDoc = await getDoc(userDocRef);
+              if (userDoc.exists()) {
+                collectionName = 'mobileUsers';
+              }
+            }
+            
+            if (userDoc.exists()) {
+              await updateDoc(userDocRef, {
+                lastPasswordReset: new Date().toISOString(),
+                passwordResetBy: currentUser.uid,
+                requiresPasswordChange: true
+              });
+              console.log(`Updated ${collectionName} collection for user ${selectedUserForReset.username}`);
+            }
+          } catch (firestoreError) {
+            console.warn('Could not update Firestore timestamp:', firestoreError);
+          }
+          
+          setShowPasswordResetForm(false);
+          setSelectedUserForReset(null);
+          setGeneratedPassword(''); // Clear generated password
+          return;
+        }
+      } catch (cloudFunctionError) {
+        console.warn('Cloud Function not available, using fallback method:', cloudFunctionError);
+      }
+      
+      // FALLBACK METHOD: Use Firebase Auth directly from frontend
+      try {
+        // Import Firebase Auth functions
+        const { getAuth, signInWithEmailAndPassword, updatePassword } = await import('firebase/auth');
+        const { app } = await import('./firebase');
+        
+        const auth = getAuth(app);
+        
+        // First, try to sign in as the user to get their current session
+        // This is a fallback method - in production, use Cloud Functions
+        setMessage({ 
+          text: `Attempting to reset password for ${selectedUserForReset.username}...`, 
+          type: 'info' 
+        });
+        
+        // Note: This fallback method has limitations and should only be used for testing
+        // In production, the Cloud Function should be deployed and used
+        setMessage({ 
+          text: `⚠️ IMPORTANT: Password reset initiated for ${selectedUserForReset.username}. New password: ${newPassword}. 
+
+To complete the password reset:
+1. Go to Firebase Console > Authentication > Users
+2. Find user with email: ${selectedUserForReset.email}
+3. Click "Edit" and set password to: ${newPassword}
+4. Save changes
+
+The user can then login with this new password. Old password will become invalid.`, 
+          type: 'warning' 
+        });
+        
+        // Log the password reset attempt
+        console.log(`Password reset initiated for user ${selectedUserForReset.username}. New password: ${newPassword}`);
+        console.log('Note: Cloud Function not available. Admin should manually update password in Firebase Console.');
+        
+        // Update Firestore to track the reset attempt
+        try {
+          const { doc, updateDoc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          
+          // Check both collections to find the user document
+          let userDocRef = doc(db, 'users', selectedUserForReset.id);
+          let userDoc = await getDoc(userDocRef);
+          let collectionName = 'users';
+          
+          if (!userDoc.exists()) {
+            // Check mobileUsers collection
+            userDocRef = doc(db, 'mobileUsers', selectedUserForReset.id);
+            userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              collectionName = 'mobileUsers';
+            }
+          }
+          
+          if (userDoc.exists()) {
+            await updateDoc(userDocRef, {
+              lastPasswordReset: new Date().toISOString(),
+              passwordResetBy: currentUser.uid,
+              requiresPasswordChange: true,
+              resetMethod: 'manual_fallback',
+              adminGeneratedPassword: newPassword,
+              resetStatus: 'pending_manual_completion'
+            });
+            console.log(`Updated ${collectionName} collection for user ${selectedUserForReset.username}`);
+          }
+        } catch (firestoreError) {
+          console.warn('Could not update Firestore timestamp:', firestoreError);
+        }
+        
+        setShowPasswordResetForm(false);
+        setSelectedUserForReset(null);
+        setGeneratedPassword(''); // Clear generated password
+        
+        // Refresh users list to show updated status
+        await fetchUsers();
+        
+      } catch (fallbackError) {
+        console.error('Fallback password reset failed:', fallbackError);
+        setMessage({ 
+          text: `Password reset failed: ${fallbackError.message}. Please try again or contact support.`, 
+          type: 'error' 
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error during password reset:', error);
+      setMessage({ text: `Error resetting password: ${error.message}`, type: 'error' });
+    }
+  };
+
+  // Function to close password reset form and clear state
+  const closePasswordResetForm = () => {
+    setShowPasswordResetForm(false);
+    setSelectedUserForReset(null);
+    setCustomPassword('');
+    setUseCustomPassword(false);
+    setGeneratedPassword('');
+  };
+
   return (
     <div className="account-management">
       <header className="account-header-bar">
         <div className="header-logo-container">
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-          <div className="header-title">PiscaRisk</div>
+          <div className="header-title">PiscaRISK</div>
+          <FaBars className="header-hamburger-icon" onClick={(e) => {
+            e.stopPropagation(); // Prevent closing dropdowns when clicking hamburger menu
+            closeAllDropdowns(); // Close all other dropdowns first
+            setSidebarOpen(!sidebarOpen);
+          }} />
         </div>
 
         <div className="header-right">
-          <div className="search-container">
-            <input
-              type="text"
-              placeholder="Search..."
-              className="search-input"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <span className="clear-icon" onClick={() => setSearchTerm('')}>
-                &times;
-              </span>
-            )}
-          </div>
-          <NotificationBox />
-          <div className="account-menu">
-            <button onClick={() => setShowMenu(!showMenu)}>
-              <FaEllipsisV className="three-dot-icon" />
-            </button>
-            {showMenu && (
-              <div className="dropdown-menu">
-                <button onClick={() => exportAccountToPDF(AccountUsers, currentUser)}>Export Account Data to PDF</button>
-                <CSVLink
-                  data={accountCSVData}
-                  filename={csvFilename}
-                  className="csv-link"
-                  onClick={handleCSVExportClick}
-                >
-                  Export Account Data to CSV
-                </CSVLink>
-                <button onClick={() => navigate('/Homepage')}>Go to Homepage</button>
+        <div className="header-search-container">
+              <div className="header-search-input-wrapper">
+                <FaSearch className="header-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  className="header-search-input"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    e.stopPropagation(); // Prevent closing dropdowns when typing in search
+                    setSearchTerm(e.target.value);
+                  }}
+                />
               </div>
-            )}
-          </div>
+            </div>
+          
+          <NotificationBox />
+          <div className="user-menu">
+              <button onClick={(e) => {
+                e.stopPropagation(); // Prevent closing dropdowns when clicking user menu
+                closeAllDropdowns(); // Close all other dropdowns first
+                setShowMenu(!showMenu);
+              }}>
+                {currentUser?.profileImage ? (
+                  <img 
+                    src={currentUser.profileImage} 
+                    alt="Profile" 
+                    className="user-dropdown-profile-pic" 
+                  />
+                ) : (
+                  <FaUserCircle className="user-dropdown-icon" />
+                )}
+              </button>
+              {showMenu && (
+                <div className="header-dropdown-menu">
+                  <button onClick={() => navigate("/ProfileSettings")}>
+                    <FaUser className="dropdown-icon" />
+                    Profile
+                  </button>
+                  <button onClick={() => handleLogout(navigate)}>
+                    <FaSignOutAlt className="dropdown-icon" />
+                    Logout
+                  </button> 
+                </div>
+              )}
+            </div>
         </div>
       </header>
 
-      <div className="manage-wrapper">
-        <p className="manage-title">Account Management</p>
-      </div>
-
-      <div className="account-container">
-        <div className="add-user-container">
-          <button className="add-user-button" onClick={() => setShowAddUserForm(true)}>
-            <FaUserPlus className="button-icon" /> Add New User
-          </button>
-        </div>
-
-        {showAddUserForm && (
-          <div className="add-user-form-container">
-            <div className="add-user-form">
-              <div className="form-header">
-                <h3>Add New Employee</h3>
-                <button className="close-form-button" onClick={handleCancelAddUser}>
-                  &times;
-                </button>
-              </div>
-              
-              {message.text && (
-                <div className={`message ${message.type}`}>
-                  {message.text}
-                </div>
-              )}
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Username*</label>
-                  <input 
-                    type="text" 
-                    name="username" 
-                    value={newUser.username} 
-                    onChange={handleInputChange} 
-                    placeholder='Enter Username'
-                    required 
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Full Name*</label>
-                  <input 
-                    type="text" 
-                    name="fullName" 
-                    value={newUser.fullName} 
-                    onChange={handleInputChange} 
-                    placeholder='Enter full name'
-                    required 
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Job Position</label>
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        currentUser={currentUser}
+        showDownloadOptions={showDownloadOptions}
+        setShowDownloadOptions={setShowDownloadOptions}
+        handleExport={handleSidebarExport}
+        onDashboardClick={() => navigate('/Homepage')}
+        onAccountManagementClick={() => navigate('/AccountManagement')}
+        onLogsClick={() => navigate('/logs')}
+        onFeedbackClick={() => navigate('/Feedback')}
+        nightMode={nightMode}
+        setNightMode={setNightMode}
+        language={language}
+        setLanguage={setLanguage}
+      />
+          <div className="add-user-button-container" onClick={closeAllDropdowns}>
+            {/* Filter Button */}
+            <button 
+              className="filter-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFilterDropdown(!showFilterDropdown);
+              }}
+            >
+              <FaFilter className="filter-icon" />
+              Filter
+            </button>
+            
+            {showFilterDropdown && (
+              <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
+                <div className="filter-section">
+                  <label>Filter Type:</label>
                   <select 
-                    name="role" 
-                    value={newUser.role} 
-                    onChange={handleInputChange}
-                    required
+                    value={selectedFilterType} 
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setSelectedFilterType(e.target.value);
+                    }}
                   >
-                    <option value="">Select Position</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Tech Officer">Tech Officer</option>
-                    <option value="Fish Farmer">Fish Farmer</option>
+                    <option value="All">All</option>
+                    <option value="Role">Role</option>
+                    <option value="Status">Status</option>
+                    <option value="Name">Name</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Email</label>
-                  <input 
-                    type="email" 
-                    name="email" 
-                    value={newUser.email} 
-                    onChange={handleInputChange}  
-                    placeholder='Enter Email Address'
-                    className={errors.email ? 'input-error' : ''}
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Address*</label>
-                  <input 
-                    type="text" 
-                    name="address" 
-                    value={newUser.address} 
-                    onChange={handleInputChange} 
-                    placeholder='Enter Address'
-                    required 
-                  />
-                </div>
                 
-                <div className="form-group">
-                  <label>Contact Number*</label>
-                  <input 
-                    type="text" 
-                    name="contactNumber" 
-                    value={newUser.contactNumber} 
-                    onChange={handleInputChange} 
-                    placeholder="Enter Phone Number"
-                  />
-                </div>
-              </div>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Password</label>
-                  <input 
-                    type="password" 
-                    name="password" 
-                    value={newUser.password} 
-                    onChange={handleInputChange} 
-                    placeholder='Enter Password'
-                    required 
-                  />
-                </div>
+                {selectedFilterType !== 'All' && (
+                  <div className="filter-section">
+                    <label>Filter Value:</label>
+                    <input
+                      type="text"
+                      placeholder={`Enter ${selectedFilterType.toLowerCase()}...`}
+                      value={filterValue}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setFilterValue(e.target.value);
+                      }}
+                      className="filter-input"
+                    />
+                  </div>
+                )}
                 
-                <div className="form-group">
-                  <label>Date Joined</label>
-                  <input 
-                    type="date" 
-                    name="dateJoined" 
-                    value={newUser.dateJoined} 
-                    onChange={handleInputChange} 
-                  />
+                <div className="filter-actions">
+                  <button 
+                    className="apply-filter-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowFilterDropdown(false);
+                    }}
+                  >
+                    Apply
+                  </button>
+                  <button 
+                    className="clear-filter-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFilterType('All');
+                      setFilterValue('');
+                      setShowFilterDropdown(false);
+                    }}
+                  >
+                    Clear
+                  </button>
                 </div>
               </div>
-              
-              <div className="form-buttons">
-                <button className="add-button" onClick={handleAddUser}>
-                  Add User
-                </button>
-                <button className="cancel-button" onClick={handleCancelAddUser}>
-                  Cancel
-                </button>
-              </div>
+            )}
+            
+            <button className="add-user-button" onClick={(e) => {
+              e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
+              closeAllDropdowns(); // Close all other dropdowns first
+              handleOpenAddUserForm();
+            }}>
+              <FaUserPlus className="button-icon" />
+              Add New User
+            </button>
+            
+            {selectedUsers.size > 0 && (
+              <button className="bulk-delete-button" onClick={(e) => {
+                e.stopPropagation(); // Prevent closing dropdowns when clicking bulk delete button
+                closeAllDropdowns(); // Close all other dropdowns first
+                handleBulkDelete();
+              }}>
+                <RiDeleteBin6Line className="button-icon" />
+                Delete Selected ({selectedUsers.size})
+              </button>
+            )}
+          </div>
+      <div className="manage-wrapper">
+        <div className="table-header" onClick={closeAllDropdowns}>
+          <div className="header-row">
+            <div className="header-cell checkbox-cell">
+              <input 
+                type="checkbox" 
+                className="select-all-checkbox"
+                checked={isAllSelectedAcrossAllPages}
+                ref={(input) => {
+                  if (input) input.indeterminate = isIndeterminateAcrossAllPages;
+                }}
+                onChange={(e) => {
+                  e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
+                  handleSelectAll(e.target.checked);
+                }}
+              />
+            </div>
+            <div className="header-cell name-cell">
+              <span>NAME</span>
+              <IoMdArrowDropdown 
+                className="dropdown-arrow" 
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
+                  closeAllDropdowns(); // Close all other dropdowns first
+                  setShowNameDropdown(!showNameDropdown);
+                }}
+              />
+              {showNameDropdown && (
+                <div className="dropdown-menu-name">
+                  <div className="dropdown-item" onClick={() => { 
+                    console.log('Setting sort to A-Z');
+                    setSelectedNameSort('A-Z'); 
+                    setShowNameDropdown(false); 
+                  }}>
+                    A-Z (Ascending)
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    console.log('Setting sort to Z-A');
+                    setSelectedNameSort('Z-A'); 
+                    setShowNameDropdown(false); 
+                  }}>
+                    Z-A (Descending)
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    console.log('Setting sort to Newest');
+                    setSelectedNameSort('Newest'); 
+                    setShowNameDropdown(false); 
+                  }}>
+                    Newest First
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    console.log('Setting sort to Oldest');
+                    setSelectedNameSort('Oldest'); 
+                    setShowNameDropdown(false); 
+                  }}>
+                    Oldest First
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    console.log('Setting sort to None');
+                    setSelectedNameSort('None'); 
+                    setShowNameDropdown(false); 
+                  }}>
+                    No Sorting
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="header-cell role-cell">
+              <span>ROLE</span>
+              <IoMdArrowDropdown 
+                className="dropdown-arrow" 
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
+                  closeAllDropdowns(); // Close all other dropdowns first
+                  setShowRoleDropdown(!showRoleDropdown);
+                }}
+              />
+              {showRoleDropdown && (
+                <div className="dropdown-menu-role">
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedRole('All Roles'); 
+                    setShowRoleDropdown(false); 
+                  }}>
+                    All Roles
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedRole('Admin'); 
+                    setShowRoleDropdown(false); 
+                  }}>
+                    Admin
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedRole('Tech Officer'); 
+                    setShowRoleDropdown(false); 
+                  }}>
+                    Tech Officer
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedRole('Fish Farmer'); 
+                    setShowRoleDropdown(false); 
+                  }}>
+                    Fish Farmer
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="header-cell status-cell">
+              <span>STATUS</span>
+              <IoMdArrowDropdown 
+                className="dropdown-arrow" 
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
+                  closeAllDropdowns(); // Close all other dropdowns first
+                  setShowStatusDropdown(!showStatusDropdown);
+                }}
+              />
+              {showStatusDropdown && (
+                <div className="dropdown-menu-status">
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedStatus('All Status'); 
+                    setShowStatusDropdown(false); 
+                  }}>
+                    All Status
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedStatus('Active'); 
+                    setShowStatusDropdown(false); 
+                  }}>
+                    Active
+                  </div>
+                  <div className="dropdown-item" onClick={() => { 
+                    setSelectedStatus('Inactive'); 
+                    setShowStatusDropdown(false); 
+                  }}>
+                    Inactive
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="header-cell contact-cell">
+              <span>CONTACT</span>
+            </div>
+            <div className="header-cell actions-cell">
+              <span>ACTIONS</span>
+            </div>
+            <div className="header-cell joined-cell">
+              <span>JOINED</span>
+            </div>
+            <div className="header-cell delete-cell">
+              <span></span>
             </div>
           </div>
-        )}
-
-        <div className="user-grid-container">
-          {AccountUsers.length > 0 ? (
-            <>
-              <div className={`account-grid ${isMobile ? 'mobile-view' : ''}`}>
-                {AccountcurrentChunk
-                  .filter(user => user && user.username)
-                  .map(user => (
-                    <div key={user.id} className="account-card" onClick={() => setSelectedUser(user)}>
-                      {user.profileImage ? (
-                        <img 
-                          src={user.profileImage} 
-                          alt={`${user.username}'s profile`} 
-                          className="account-image"
-                        />
-                      ) : (
-                        <FaUserCircle className="account-icon" />
-                      )}
-                      <div className="account-name">{user.username}</div>
-                      <div className="account-role">{user.role}</div>
-                    </div>
-                  ))
-                }
-              </div>
-              
-              {selectedUser && (
-                <UserPopup
-                  user={selectedUser}
-                  onClose={() => setSelectedUser(null)}
-                  onUpdate={(updatedUser) => {
-                    setSelectedUser(updatedUser);
-                    setAccountUsers(prev =>
-                      prev.map(u => u.username === updatedUser.username ? updatedUser : u)
-                    );
-                  }}
-                  currentUser={currentUser}
-                />
-              )}
-
-              <div className="acc-arrow-container">
-                {currentChunkIndex > 0 && (
-                  <div onClick={() => setCurrentChunkIndex(currentChunkIndex - 1)}>
-                    <FaArrowLeft className="acc-arrow-icon" />
+        </div>
+      </div>
+      <div className="account-main-content">
+        <div className="account-container" onClick={closeAllDropdowns}>
+          {showAddUserForm && (
+            <div className="add-user-form-container">
+              <div className="add-user-form">
+                <div className="form-header">
+                  <h3>Add New Employee</h3>
+                  <button className="close-form-button" onClick={handleCancelAddUser}>&times;</button>
+                </div>
+                {message.text && (<div className={`message ${message.type}`}>{message.text}</div>)}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Username*</label>
+                    <input type="text" name="username" value={newUser.username} onChange={handleInputChange} placeholder='Enter Username' required />
                   </div>
-                )}
-                {currentChunkIndex < AccountUserChunks.length - 1 && (
-                  <div onClick={() => setCurrentChunkIndex(currentChunkIndex + 1)}>
-                    <FaArrowRight className="acc-arrow-icon" />
+                  <div className="form-group">
+                    <label>Full Name*</label>
+                    <input type="text" name="fullName" value={newUser.fullName} onChange={handleInputChange} placeholder='Enter full name' required />
                   </div>
-                )}
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Job Position</label>
+                    <select name="role" value={newUser.role} onChange={handleInputChange} required>
+                      <option value="">Select Position</option>
+                      <option value="Admin">Admin</option>
+                      <option value="Tech Officer">Tech Officer</option>
+                      <option value="Fish Farmer">Fish Farmer</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select name="status" value={newUser.status} onChange={handleInputChange} required>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                    {newUser.role === 'Tech Officer' && (
+                      <small style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px', display: 'block' }}>
+                        ⚠️ Tech Officer accounts are set to Inactive by default and require admin activation
+                      </small>
+                    )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder='Enter Email Address' className={errors.email ? 'input-error' : ''} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Address*</label>
+                    <input type="text" name="address" value={newUser.address} onChange={handleInputChange} placeholder='Enter Address' required />
+                  </div>
+                  <div className="form-group">
+                    <label>Contact Number*</label>
+                    <input type="text" name="contactNumber" value={newUser.contactNumber} onChange={handleInputChange} placeholder="Enter Phone Number" />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" value={newUser.password} onChange={handleInputChange} placeholder='Enter Password' required />
+                  </div>
+                  <div className="form-group">
+                    <label>Date Joined</label>
+                    <input type="date" name="dateJoined" value={newUser.dateJoined} onChange={handleInputChange} />
+                  </div>
+                </div>
+                <div className="form-buttons">
+                  <button className="add-button" onClick={handleAddUser}>Add User</button>
+                  <button className="cancel-button" onClick={handleCancelAddUser}>Cancel</button>
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="no-users-message">
-              No users found.
             </div>
           )}
+
+          {/* Password Reset Form */}
+          {showPasswordResetForm && selectedUserForReset && (
+            <div className="add-user-form-container">
+              <div className="add-user-form">
+                <div className="form-header">
+                  <h3>Reset Password for {selectedUserForReset.username}</h3>
+                  <button className="close-form-button" onClick={closePasswordResetForm}>&times;</button>
+                </div>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>User Information</label>
+                    <div className="user-info-display">
+                      <p><strong>Username:</strong> {selectedUserForReset.username}</p>
+                      <p><strong>Email:</strong> {selectedUserForReset.email}</p>
+                      <p><strong>Role:</strong> {selectedUserForReset.role}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Password Options</label>
+                    <div className="password-options">
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="passwordType"
+                          checked={!useCustomPassword}
+                          onChange={() => handlePasswordOptionChange(false)}
+                        />
+                        <span>Generate Random Secure Password</span>
+                      </label>
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="passwordType"
+                          checked={useCustomPassword}
+                          onChange={() => handlePasswordOptionChange(true)}
+                        />
+                        <span>Set Custom Password</span>
+                      </label>
+                    </div>
+                    
+                    {!useCustomPassword && (
+                      <div className="generated-password-display">
+                        <div className="password-preview">
+                          {generatedPassword ? (
+                            <>
+                              <label>Generated Password:</label>
+                              <input
+                                type="text"
+                                value={generatedPassword}
+                                readOnly
+                                className="generated-password-input"
+                              />
+                            </>
+                          ) : (
+                            <div className="no-password-message">
+                              <span>No password generated yet</span>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="generate-random-password-btn"
+                            onClick={() => setGeneratedPassword(generateSecurePassword())}
+                          >
+                            Generate Random Password
+                          </button>
+                          <small>Click the button above to generate a secure random password</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {useCustomPassword && (
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Custom Password</label>
+                      <div className="custom-password-container">
+                        <input
+                          type="text"
+                          value={customPassword}
+                          onChange={(e) => setCustomPassword(e.target.value)}
+                          placeholder="Enter custom password"
+                          className="custom-password-input"
+                        />
+                        <button
+                          type="button"
+                          className="generate-password-btn"
+                          onClick={() => setCustomPassword(generateSecurePassword())}
+                        >
+                          Generate
+                        </button>
+                      </div>
+                      <small className="password-requirements">
+                        Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.
+                      </small>
+                      <div className="password-strength-indicator">
+                        <div className="strength-bar" style={{ width: `${getPasswordStrength(customPassword).score * 20}%`, backgroundColor: getPasswordStrength(customPassword).color }}></div>
+                        <span className="strength-label">{getPasswordStrength(customPassword).label}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-buttons">
+                  <button 
+                    className="add-button" 
+                    onClick={() => handleConfirmPasswordReset()}
+                    disabled={useCustomPassword && (customPassword.length < 8 || !isPasswordValid(customPassword))}
+                  >
+                    Reset Password
+                  </button>
+                  <button className="cancel-button" onClick={closePasswordResetForm}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="user-grid-container">
+            {paginatedUsers.length > 0 ? (
+              <>
+                <div className="user-table" onClick={closeAllDropdowns}>
+                  {paginatedUsers
+                    .filter(user => user && user.username)
+                    .map((user, index) => (
+                      <div key={user.id} className="user-row">
+                        <div className="user-cell checkbox-cell">
+                          <input 
+                            type="checkbox" 
+                            className="user-checkbox"
+                            checked={selectedUsers.has(user.id)}
+                            onChange={(e) => {
+                              e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
+                              handleUserSelection(user.id, e.target.checked);
+                            }}
+                          />
+                        </div>
+                        <div className="user-cell name-cell">
+                          <div className="user-info">
+                            {user.profileImage ? (
+                              <img src={user.profileImage} alt={`${user.username}'s profile`} className="user-avatar" />
+                            ) : (
+                              <FaUserCircle className="user-avatar-icon" />
+                            )}
+                            <div className="user-details">
+                              <div className="username">{user.username}</div>
+                              <div className="user-email">{user.email || 'No email'}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="user-cell role-cell">
+                          <span className={`role-badge role-${user.role?.toLowerCase().replace(' ', '-')}`}>
+                            {user.role || 'No role'}
+                          </span>
+                        </div>
+                        <div className="user-cell status-cell">
+                          <div className="status-indicator">
+                            <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
+                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{user.status || 'Unknown'}</span>
+                          </div>
+                        </div>
+                        <div className="user-cell contact-cell">
+                          {user.contactNumber || 'No contact'}
+                        </div>
+                        <div className="user-cell actions-cell">
+                          {user.role === 'Tech Officer' && user.status === 'Inactive' ? (
+                            <button className="activate-tech-officer-btn" onClick={(e) => {
+                              e.stopPropagation(); // Prevent closing dropdowns when clicking activate button
+                              closeAllDropdowns(); // Close all other dropdowns first
+                              handleActivateTechOfficer(user);
+                            }}>
+                              <FaUserCheck className="action-icon" />
+                              Activate
+                            </button>
+                          ) : (
+                            <button className="reset-password-btn" onClick={(e) => {
+                              e.stopPropagation(); // Prevent closing dropdowns when clicking reset password button
+                              closeAllDropdowns(); // Close all other dropdowns first
+                              handleResetPassword(user);
+                            }}>
+                              <MdOutlineLockReset className="action-icon" />
+                              Reset Password
+                            </button>
+                          )}
+                          {user.resetStatus === 'pending_manual_completion' && (
+                            <div className="password-reset-pending">
+                              <span className="pending-indicator">⚠️ Password Reset Pending</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="user-cell joined-cell">
+                          {user.dateJoined ? new Date(user.dateJoined).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : 'Unknown'}
+                        </div>
+                        <div className="user-cell delete-cell">
+                          <button className="delete-user-btn" onClick={(e) => {
+                            e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
+                            closeAllDropdowns(); // Close all other dropdowns first
+                            handleDeleteUser(user);
+                          }}>
+                            <RiDeleteBin6Line className="action-icon" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <div className="pagination-bar" onClick={closeAllDropdowns}>
+                  <button
+                    className="pagination-btn"
+                    disabled={currentPage === 1}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
+                      setCurrentPage(p => Math.max(1, p - 1));
+                    }}
+                  >
+                    Prev
+                  </button>
+                  {currentPage > 1 && (
+                    <div className="pagination-pages">
+                      <span className="pagination-page active">{currentPage}</span>
+                    </div>
+                  )}
+                  <button
+                    className="pagination-btn"
+                    disabled={currentPage === totalPages}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
+                      if (!showPageNumbers) setShowPageNumbers(true);
+                      setCurrentPage(p => Math.min(totalPages, p + 1));
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+                {selectedUser && (
+                  <UserPopup
+                    user={selectedUser}
+                    onClose={() => setSelectedUser(null)}
+                    onUpdate={(updatedUser) => {
+                      setSelectedUser(updatedUser);
+                      setAccountUsers(prev => prev.map(u => u.username === updatedUser.username ? updatedUser : u));
+                    }}
+                    currentUser={currentUser}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="no-users-message">No users found.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -22,7 +22,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #1D4E89;
+    background-color: #2C517D;
     color: white;
   }
   
@@ -187,7 +187,7 @@
   .sign-rounded-line {
     height: 5px;
     width: 89%;
-    background-color: #1A4375;
+    background-color: #2C517D;
     border-radius: 9999px;
     margin: 0 auto;
     margin-bottom: 1rem;
@@ -251,11 +251,11 @@
   }
   
   .create-btn {
-    width: 100%;
+    width: fit-content;
     margin-top: 1.5rem;
-    max-width: 150px;
+    max-width: fit-content;
     padding: 0.75rem;
-    background: #1A4375;
+    background: #2C517D;
     font-family: 'customfont2';
     border: none;
     border-radius: 9999px;
@@ -263,11 +263,12 @@
     color: white;
     cursor: pointer;
     transition: all 0.3s ease;
+    letter-spacing: .1rem;
   }
   
   .create-btn:hover {
     transform: scale(1.00);
-    background: #2e6ba6;
+    background: #60a3e6;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   }
 

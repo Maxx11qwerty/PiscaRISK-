@@ -138,21 +138,35 @@ export const AuthProvider = ({ children }) => {
   const login = async (usernameOrEmail, password) => {
     try {
       let email = usernameOrEmail;
+      let userData = null;
+      let collectionName = 'users';
 
       // If input is not an email (doesn't contain @), treat it as username
       if (!usernameOrEmail.includes('@')) {
-        // Query Firestore to find user with this username
+        // Query both collections to find user with this username
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('username', '==', usernameOrEmail));
-        const querySnapshot = await getDocs(q);
-
+        const mobileUsersRef = collection(db, 'mobileUsers');
+        
+        // Check users collection first
+        let q = query(usersRef, where('username', '==', usernameOrEmail));
+        let querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          // Check mobileUsers collection
+          q = query(mobileUsersRef, where('username', '==', usernameOrEmail));
+          querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            collectionName = 'mobileUsers';
+          }
+        }
+        
         if (querySnapshot.empty) {
           return { success: false, message: "Invalid username or password" };
         }
 
         // Get the email from the user document
         const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
+        userData = userDoc.data();
         
         // Check if account is inactive or suspended
         if (userData.status === 'Inactive') {
@@ -176,9 +190,22 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
       // Double check status in case email was used directly
-      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
+      if (!userData) {
+        // Try to find user document by UID in both collections
+        let userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+          collectionName = 'users';
+        } else {
+          userDoc = await getDoc(doc(db, 'mobileUsers', userCredential.user.uid));
+          if (userDoc.exists()) {
+            userData = userDoc.data();
+            collectionName = 'mobileUsers';
+          }
+        }
+      }
+      
+      if (userData) {
         if (userData.status === 'Inactive') {
           // Sign out the user if account is inactive
           await signOut(auth);
@@ -199,11 +226,34 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, user: userCredential.user };
     } catch (error) {
+      console.error('Login error:', error);
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/invalid-credential') {
+        return { 
+          success: false, 
+          message: "Invalid username/email or password. Please check your credentials." 
+        };
+      } else if (error.code === 'auth/user-not-found') {
+        return { 
+          success: false, 
+          message: "User account not found. Please check your username/email." 
+        };
+      } else if (error.code === 'auth/wrong-password') {
+        return { 
+          success: false, 
+          message: "Invalid username/email or password. Please check your credentials." 
+        };
+      } else if (error.code === 'auth/too-many-requests') {
+        return { 
+          success: false, 
+          message: "Too many failed login attempts. Please try again later." 
+        };
+      }
+      
       return { 
         success: false, 
-        message: error.code === 'auth/wrong-password' 
-          ? "Invalid username/email or password" 
-          : error.message 
+        message: error.message || "An error occurred during login. Please try again." 
       };
     }
   };
@@ -250,6 +300,31 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
       window.location.replace('/');
+    }
+  };
+
+  // Enhanced handleLogout function that can be used across components
+  const handleLogout = async (navigate) => {
+    try {
+      // Prevent any clicks during logout
+      const logoutButton = document.querySelector('.dropdown-menu button');
+      if (logoutButton) {
+        logoutButton.disabled = true;
+      }
+      
+      // Call the main logout function
+      await logout();
+      
+      // If navigate function is provided, use it
+      if (navigate && typeof navigate === 'function') {
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Handle logout error:', error);
+      // Fallback navigation
+      if (navigate && typeof navigate === 'function') {
+        navigate('/login');
+      }
     }
   };
 
@@ -530,12 +605,12 @@ export const AuthProvider = ({ children }) => {
         email: userData.email,
         username: userData.username,
         role: userData.role,
-        status: "Active",
+        status: userData.status || "Active", // Use status from form data or fallback to Active
         createdAt: serverTimestamp(),
         createdBy: currentAdmin.uid,
         address: userData.address || "",
         contactNumber: userData.contactNumber || "",
-        dateJoined: serverTimestamp(),
+        dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0], // Use provided date or fallback to current date
         fullName: userData.fullName || "",
         profileImage: userData.profileImage || null,
         isMobileUser: false
@@ -725,6 +800,79 @@ const resetPassword = async (email) => {
   }
 };
 
+  // Function to change password after admin reset
+  const forcePasswordChange = async (newPassword) => {
+    try {
+      if (!auth.currentUser) {
+        throw new Error("No user logged in");
+      }
+
+      // Import Firebase Functions
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('../firebase');
+      
+      const functions = getFunctions(app);
+      const forcePasswordChangeFunction = httpsCallable(functions, 'forcePasswordChange');
+      
+      // Call the Cloud Function to change password
+      const result = await forcePasswordChangeFunction({
+        newPassword: newPassword
+      });
+      
+      if (result.data.success) {
+        // Log the password change
+        await logActivity('account', 'Password changed after admin reset', currentUser?.username);
+        return { success: true, message: result.data.message };
+      } else {
+        throw new Error(result.data.message || 'Failed to change password');
+      }
+    } catch (error) {
+      console.error('Force password change error:', error);
+      
+      let errorMessage = error.message;
+      if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please use a stronger password.';
+      } else if (error.code === 'auth/invalid-password') {
+        errorMessage = 'Invalid password format.';
+      }
+      
+      throw new Error(errorMessage);
+    }
+  };
+
+  // Function to check if password change is required
+  const checkPasswordChangeRequired = async () => {
+    try {
+      if (!auth.currentUser) {
+        return { requiresChange: false };
+      }
+
+      // Import Firebase Functions
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app } = await import('../firebase');
+      
+      const functions = getFunctions(app);
+      const checkPasswordChangeFunction = httpsCallable(functions, 'checkPasswordChangeRequired');
+      
+      // Call the Cloud Function to check password change requirement
+      const result = await checkPasswordChangeFunction({});
+      
+      if (result.data.success) {
+        return {
+          requiresChange: result.data.requiresPasswordChange,
+          lastPasswordReset: result.data.lastPasswordReset,
+          passwordResetBy: result.data.passwordResetBy
+        };
+      } else {
+        console.warn('Failed to check password change requirement:', result.data);
+        return { requiresChange: false };
+      }
+    } catch (error) {
+      console.error('Check password change required error:', error);
+      return { requiresChange: false };
+    }
+  };
+
   const value = {
     currentUser,
     allUsers,
@@ -743,7 +891,10 @@ const resetPassword = async (email) => {
     signInWithFacebook,
     resetPassword,
     sendVerificationEmail,
-    checkEmailVerification
+    checkEmailVerification,
+    handleLogout,
+    forcePasswordChange,
+    checkPasswordChangeRequired
   };
 
   return (

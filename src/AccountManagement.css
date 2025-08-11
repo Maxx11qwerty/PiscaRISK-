@@ -5,78 +5,207 @@
   font-style: normal;
 }
 
+@font-face {
+  font-family: 'ReadexPro-Regular';
+  src: url('assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ReadexPro-Regular2';
+  src: url('assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+
 body {
-  background-color: #ffffff;
+  background-color: #F6F5F5;
   margin: 0;
   overflow: hidden;
   height: 100vh;
 }
 
 .account-header-bar {
-display: flex;
-align-items: center;
-justify-content: space-between;
-background: #1A4375;
-padding: .5rem 5rem;
-border-radius: 12px;
-width: 95%;
-max-width: 1000px;
-margin: 1rem auto 1rem auto;
-margin-bottom: 1rem;
-height: 50px;
-}
-
-.header-logo-container {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.header-logo {
-  height: 40px;
-  width: auto;
-}
-
-.header-title {
-  color: white;
-  font-family: 'customfont1';
-  font-size: 1.5rem;
+  justify-content: space-between;
+  background: #2C517D;
+  padding: .5rem 5rem;
+  width: 100%;
   margin: 0;
+  margin-bottom: 2rem;
+  height: 50%;
+  box-sizing: border-box;
 }
 
-.search-container {
+/* Filter Button Styles */
+.filter-button {
+  background: #D2D9E2;
+  color: #3F3F3F;
+  border: none;
+  border-radius: 9px;
+  padding: 17px 50px;
+  font-size: 15px;
+  font-family: 'ReadexPro-Regular';
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  margin-bottom: .5rem;
+  position: relative;
+}
+
+.filter-button:hover {
+  background: #b8c4d1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.filter-icon {
+  font-size: 15px;
+  color: #3F3F3F;
+}
+
+/* Filter Dropdown Styles */
+.filter-dropdown {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 30%; /* Adjust width as needed */
-  min-width: 200px; /* Minimum width */
-  max-width: 400px; /* Maximum width */
+  top: 100%;
+  left: 70%;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  min-width: 280px;
+  margin-top: 8px;
+  padding: 20px;
+  animation: filterDropdownFadeIn 0.2s ease;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+@keyframes filterDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filter-section {
+  margin-bottom: 15px;
+}
+
+.filter-section label {
+  display: block;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+}
+
+.filter-section select,
+.filter-section input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  background-color: #fff;
+  transition: border-color 0.2s ease;
+}
+
+.filter-section select:focus,
+.filter-section input:focus {
+  outline: none;
+  border-color: #2C517D;
+  box-shadow: 0 0 0 2px rgba(44, 81, 125, 0.1);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e9ecef;
+}
+
+.apply-filter-btn,
+.clear-filter-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.apply-filter-btn {
+  background: #2C517D;
+  color: white;
+}
+
+.apply-filter-btn:hover {
+  background: #2e6ba6;
+  transform: translateY(-1px);
+}
+
+.clear-filter-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.clear-filter-btn:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.account-search-input-wrapper {
+  position: relative;
+  width: 200px;
+  margin-right: 75px;
 }
 
 .search-input {
-  border: none;
-  outline: none;
-  background: transparent;
   width: 100%;
-  padding: 11px 15px;
-  border: 2px solid #D9D9D9;
-  border-radius: 100px;
-  color: white;
-  font-family: 'customfont1';
-  flex-grow: 1;
+  padding: 10px 15px 10px 50px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
+  transition: all 0.3s ease;
+  background-color: #DDE9FF;
+  color: #2a2a2a;
 }
 
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.7);
-  opacity: 0.7;
+  color: #49454F;
+  opacity: 1;
 }
 
-.clear-icon {
-  position: absolute; 
-  right: 5px;      
-  top: 50%;         
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+.account-search-icon {
+  position: absolute;
+  left: 120%;
+  top: 50%;
   transform: translateY(-50%);
-  cursor: pointer; 
+  color: #666;
+  font-size: 1rem;
+  z-index: 1;
 }
 
 .account-menu {
@@ -86,79 +215,270 @@ height: 50px;
   z-index: 1000;
 }
 
-.account-menu button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
+/* Account Wrapper */
+.manage-wrapper {
+background: #E6E4E4;
+max-width: 75.6%;
+margin: 9rem 0 0 25rem;
+margin-bottom: -5rem;
+box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Manage Header */
+.manage-header {
+display: flex;
+justify-content: flex-end;
+align-items: center;
+}
+
+.add-user-button-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  margin-bottom: -9rem;
+  gap: 1rem;
+  align-items: center;
+  position: relative;
+}
+
+.add-user-button {
+background: #2C517D;
+font-family: 'ReadexPro-Regular';
+font-size: 15px;
+color: white;
+border-radius: 18px;
+cursor: pointer; 
+transition: all 0.3s ease;
+display: flex;
+align-items: center;
+gap: 0.5rem;
+padding: 15px 20px;
+border: none;
+margin: 0rem 4rem 0 0;
+margin-bottom: -7rem;
+}
+
+.add-user-button:hover {
+background: #2e6ba6;
+transform: translateY(-1px);
+box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.add-user-button:active {
+transform: translateY(0);
+box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+}
+
+.bulk-delete-button {
+background: #dc3545;
+font-family: 'ReadexPro-Regular';
+font-size: 15px;
+color: white;
+border-radius: 15px;
+cursor: pointer; 
+transition: all 0.3s ease;
+display: flex;
+align-items: center;
+gap: 0.5rem;
+padding: 15px 20px;
+border: none;
+margin: 0 4rem 0 0;
+}
+
+.bulk-delete-button:hover {
+background: #c82333;
+transform: translateY(-1px);
+box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bulk-delete-button:active {
+transform: translateY(0);
+box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+}
+
+.button-icon {
+font-size: 1.2rem;
+}
+
+/* Table Header Styles */
+.table-header {
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+  padding: 1rem;
+  border-bottom: 2px solid #e9ecef;
+  margin-top: 5rem;
+}
+
+.header-row {
+  display: grid;
+  grid-template-columns: 50px 2fr 1fr .5fr 1fr 1fr 1fr 150px; /* added delete col */
+  gap: 1rem;
+  align-items: center;
+  font-weight: 600;
+  color: #495057;
+  font-family: 'ReadexPro-Regular';
+}
+
+.header-cell {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  position: relative;
+}
+
+.header-cell span {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.checkbox-cell {
   justify-content: center;
 }
 
-.three-dot-icon {
-  color: white;
-  font-size: 1.2rem;
+.select-all-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #1A4375;
 }
 
-.dropdown-menu {
-  background-color: #1A4375;
-  border: 3px solid #DDDDDD;
-  border-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  padding: 0.5rem 0;
+.select-all-checkbox:indeterminate {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  position: relative;
+}
+
+.select-all-checkbox:indeterminate::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 2px;
+  background-color: white;
+  border-radius: 1px;
+}
+
+.role-cell, .status-cell {
+  cursor: pointer;
+  user-select: none;
+}
+
+.dropdown-arrow {
+  font-size: 1.2rem;
+  color: #6c757d;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-arrow:hover {
+  color: #1A4375;
+  transform: scale(1.1);
+}
+
+.dropdown-menu-role, .dropdown-menu-status, .dropdown-menu-name {
   position: absolute;
   top: 100%;
-  right: 0;
-  z-index: 1001;
+  left: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 150px;
+  margin-top: 0.25rem;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f8f9fa;
+  font-size: 0.9rem;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+  color: #1A4375;
+}
+
+.dropdown-item:active {
+  background-color: #e9ecef;
+}
+
+/* Ensure proper spacing and alignment */
+.header-cell.role-cell, .header-cell.status-cell {
+  min-width: 120px;
+}
+
+.header-cell.contact-cell, .header-cell.actions-cell, .header-cell.joined-cell {
+  justify-content: center;
+}
+
+.header-cell.name-cell {
   min-width: 200px;
 }
 
-.dropdown-menu button {
-  background: none;
-  border: none;
-  color: #ffffff;
-  font-family: 'customfont1';
-  cursor: pointer;
-  padding: 0.5rem 2rem;
-  text-align: left;
-  width: 100%;
-  transition: background-color 0.2s;
-}
-
-.dropdown-menu button:hover {
-  background-color: #2e6ba6;
-}
-
-/* Account Wrapper */
-.manage-wrapper {
-background: #1A4375;
-border-radius: 1rem 1rem 0 0;
-padding: 1.7rem;
-max-width: 60%;
-margin: 0 auto;
-margin-bottom: -1rem;
-}
-
-.manage-title {
-font-size: 20px;
-font-family: 'customfont1';
-color: white;
-text-align: left;
-text-transform: uppercase;
-margin: 0;
-text-decoration: underline;
-}
-
+/* Responsive container height */
 .account-container {
-background: #ffffff;
-border: 0.2rem solid #1A4375;
-width: 59%;
-margin: 1rem auto;
-padding: 2rem;
-height: 29rem; 
-border-radius: 0 0 20px 20px;
-box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+  background: #ffffff;
+  border: 0.2rem solid #ffffff;
+  width: 90%;
+  margin: 5rem 1rem auto;
+  padding: 2rem;
+  height: 35rem; /* was: 35rem */
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Fine-tune for very short viewports */
+@media (max-height: 1536px) {
+  .account-container {
+    max-height: 60vh;
+  }
+}
+
+@media (max-height: 650px) {
+  .account-container {
+    max-height: 40vh;
+    overflow: auto;
+    width: 59.3rem;
+    margin-left: 1rem;
+  }
+  .table-header {
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+    padding: 1rem;
+    border-bottom: 2px solid #e9ecef;
+    margin-top: 5rem;
+    margin-left: .4rem;
+  }
+  .manage-wrapper {
+    background: #E6E4E4;
+    margin-bottom: -5rem;
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    margin-left: 1rem;
+    }
 }
 
 .account-header h2 {
@@ -186,142 +506,9 @@ filter: brightness(1.1);
 
 }
 
-/* User Grid */
-.account-grid {
-display: grid;
-grid-template-columns: repeat(3, 1fr);
-gap: 1rem;
-margin: 1rem auto;
-width: 80%;
-min-height: 20rem;
-max-height: 56.25rem;
-}
+/* User Grid - Replaced with table format */
 
-/* Mobile View */
-@media (max-width: 768px) {
-  .account-container {
-      width: 90%;
-      padding: 1rem;
-  }
-  
-  .account-header-title {
-      margin-right: 0;
-      font-size: 20px;
-  }
-  
-  .account-grid {
-      grid-template-columns: repeat(2, 1fr);
-      width: 95%;
-      gap: 1rem;
-  }
-  
-  .account-card {
-      margin-left: 0;
-      padding: 0.5rem;
-  }
-  
-  .account-icon {
-      font-size: 4rem;
-  }
-  
-  .account-tabs {
-      gap: 1rem;
-  }
-  
-  .tab {
-      padding: 0.5rem 1rem;
-      font-size: 13px;
-  }
-}
-
-/* User Card */
-.account-card {
-background: #1A4375;
-border-radius: 20px;
-padding: 1.5rem;
-margin: 1rem;
-text-align: center;
-box-shadow: 
-  0 4px 8px rgba(26, 67, 117, 0.2),
-  inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-display: flex;
-flex-direction: column;
-align-items: center;
-transition: all 0.3s ease;
-position: relative;
-overflow: hidden;
-}
-
-/* User Icon */
-.account-image {
-width: 6rem;
-height: 6rem;
-border-radius: 50%;
-object-fit: cover;
-margin-bottom: 0.5rem;
-border: 2px solid #93FFFE;
-box-shadow: 0 4px 8px rgba(26, 67, 117, 0.3);
-}
-
-.account-icon {
-font-size: 6rem;
-color: #93FFFE;
-margin-bottom: 0.5rem;
-}
-
-/* User Name */
-.account-name {
-margin: 0.5rem 0;
-background: #3A7CA5;
-font-family: 'customfont1';
-color: white;
-padding: 0.5rem 2.5rem;
-border-radius: 20px;
-box-shadow: 
-  0 4px 8px rgba(26, 67, 117, 0.3),
-  inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-display: inline-block;
-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-transition: all 0.3s ease;
-position: relative;
-overflow: hidden;
-}
-
-.account-role {
-margin: 0.5rem 0;
-background: #3A7CA5;
-font-family: 'customfont1';
-color: white;
-padding: 0.5rem 2.5rem;
-border-radius: 20px;
-box-shadow: 
-  0 4px 8px rgba(26, 67, 117, 0.3),
-  inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-display: inline-block;
-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-transition: all 0.3s ease;
-position: relative;
-overflow: hidden;
-}
-
-.acc-arrow-container {
-display: flex;
-justify-content: center;
-align-items: center;
-cursor: pointer;
-}
-
-.acc-arrow-icon {
-font-size: 2em;
-color: #1A4375;
-display: flex;
-margin-bottom: 15rem;
-}
-
-.empty-card {
-visibility: hidden;
-opacity: 0;
-}
+/* Arrow container - No longer needed with table format */
 
 /* Popup Overlay */
 .account-popup-overlay {
@@ -433,88 +620,97 @@ min-width: 200px;
 
 /* Action Buttons Container */
 .popup-actions {
-  display: flex;
-  flex-direction: row;
-  gap: 15px;
-  width: 100%;
-  margin-top: 25px;
-  padding-top: 20px;
-  border-top: 2px solid #e0e0e0;
+display: flex;
+flex-direction: row;
+gap: 15px;
+width: 100%;
+margin-top: 25px;
+padding-top: 20px;
+border-top: 2px solid #e0e0e0;
 }
 
 /* Base Button Styles */
-.popup-actions .action-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 0 !important;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.2s ease;
-  flex: 1;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+.action-button {
+display: flex;
+align-items: center;
+justify-content: center;
+padding: 10px 20px;
+border: none;
+border-radius: 6px;
+cursor: pointer;
+font-weight: 600;
+font-size: 14px;
+transition: all 0.2s ease;
+flex: 1; /* Makes buttons equal width */
+box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 /* Button Icon */
-.popup-actions .button-icon {
-  margin-right: 8px;
-  font-size: 14px;
+.button-icon {
+margin-right: 8px;
+font-size: 14px;
 }
 
 /* Edit Button */
-.popup-actions .edit-button {
-  background-color: #1A4375 !important;
-  color: white !important;
-  font-family: 'customfont1';
+.edit-button {
+background-color: #3498db; /* Blue */
+color: white;
 }
 
-.popup-actions .edit-button:hover {
-  background-color: #2e6ba6 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.edit-button:hover {
+background-color: #2980b9;
+transform: translateY(-1px);
+}
+
+.edit-button:active {
+transform: translateY(0);
 }
 
 /* Save Button */
-.popup-actions .save-button {
-  background-color: #1A4375 !important;
-  color: white !important;
-  font-family: 'customfont1';
+.save-button {
+background-color: #2ecc71; /* Green */
+color: white;
 }
 
-.popup-actions .save-button:hover {
-  background-color: #2e6ba6 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.save-button:hover {
+background-color: #27ae60;
+transform: translateY(-1px);
+}
+
+.save-button:active {
+transform: translateY(0);
 }
 
 /* Cancel Button */
-.popup-actions .cancel-button {
-  background-color: #1A4375 !important;
-  color: white !important;
-  font-family: 'customfont1';
+.cancel-button {
+background-color: #95a5a6; /* Gray */
+color: white;
 }
 
-.popup-actions .cancel-button:hover {
-  background-color: #2e6ba6 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.cancel-button:hover {
+background-color: #7f8c8d;
+transform: translateY(-1px);
+}
+
+.cancel-button:active {
+transform: translateY(0);
 }
 
 /* Delete Button */
-.popup-actions .delete-button {
-  background-color: #1A4375 !important;
-  color: white !important;
-  font-family: 'customfont1';
+.delete-button {
+background-color: #e74c3c; /* Red */
+color: white;
 }
 
-.popup-actions .delete-button:hover {
-  background-color: #2e6ba6 !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.delete-button:hover {
+background-color: #c0392b;
+transform: translateY(-1px);
 }
+
+.delete-button:active {
+transform: translateY(0);
+}
+
 
 /* Disabled State */
 .action-button:disabled {
@@ -748,7 +944,7 @@ border-top: 1px solid #E2E8F0;
 }
 
 .add-button {
-background-color: #1B4577;
+background-color: #4CAF50;
 color: white;
 font-family: 'customfont1';
 border: none;
@@ -760,7 +956,7 @@ box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .add-button:hover {
-background-color: #2e6ba6;
+background-color: #388e3c;
 transform: translateY(-2px);
 box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
@@ -825,6 +1021,12 @@ border: 1px solid #ef9a9a;
 background-color: #e8f5e9;
 color: #2e7d32;
 border: 1px solid #a5d6a7;
+}
+
+.message.warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
 }
 
 .error-message {
@@ -929,4 +1131,1002 @@ z-index: 1000;
 
 .dropdown-menu .csv-link:hover {
   background-color: #0056b3;
+}
+
+.header-hamburger-icon {
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  margin-left: 1rem;
+  transition: color 0.3s ease;
+}
+
+.header-hamburger-icon:hover {
+  color: #c5cdcd;
+}
+
+/* Space for sidebar on Account Management */
+.account-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-left: 20%;
+  transition: margin-left 0.3s ease;
+}
+
+/* User Table Styles */
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: -1.5rem;
+}
+
+.user-row {
+  display: grid;
+  grid-template-columns: 50px 1.8fr 1fr 1fr 1fr 1.2fr 1fr 70px; /* added delete col */
+  gap: .5rem;
+  align-items: center;
+  padding: 1rem 0.5rem;
+  border-bottom: 1px solid #e9ecef;
+  transition: background-color 0.2s ease;
+  margin-right: 2rem;
+  margin-left: -1.5rem;
+}
+
+.user-row:hover {
+  background-color: #f8f9fa;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+/* Individual User Cell Styling */
+.user-cell.checkbox-cell {
+  justify-content: center;
+  width: 50px;
+  min-width: 50px;
+  margin-left: -.5rem;
+}
+
+.user-cell.name-cell {
+  justify-content: flex-start;
+  min-width: 200px;
+  margin-left: -1rem;
+}
+
+.user-cell.role-cell {
+  justify-content: center;
+  min-width: 120px;
+  margin-left: -2.5rem;
+  font-size: 15px;
+}
+
+.user-cell.status-cell {
+  justify-content: center;
+  min-width: 120px;
+  margin-left: -2.5rem;
+  font-size: 15px;
+}
+
+.user-cell.contact-cell {
+  justify-content: center;
+  min-width: 120px;
+  background-color: transparent;
+  border: none;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 15px;
+  text-align: center;
+}
+
+/* Style for when contact is missing */
+.user-cell.contact-cell:empty::before,
+.user-cell.contact-cell:has(:only-child:empty)::before {
+  content: "No contact";
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.user-cell.actions-cell {
+  justify-content: center;
+  min-width: 150px;
+  padding: 0.5rem;
+}
+
+.user-cell.joined-cell {
+  justify-content: center;
+  min-width: 120px;
+  margin-left: -2.5rem;
+}
+
+.user-cell.delete-cell {
+  justify-content: center;
+  width: 70px;
+  min-width: 70px;
+  padding: 0.5rem;
+}
+
+.user-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #1A4375;
+}
+
+/* User Info Cell */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-avatar, .user-avatar-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #e9ecef;
+}
+
+.user-avatar-icon {
+  color: #6c757d;
+  font-size: 40px;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.username {
+  font-weight: 600;
+  color: #212529;
+  font-size: 0.95rem;
+}
+
+.user-email {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+/* Role Badge Styles */
+.role-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.role-admin {
+  background-color: #98CDF3;
+  color: black;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 13px;
+}
+
+.role-tech-officer {
+  background-color: #7FB2FE;
+  color: black;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 13px;
+}
+
+.role-fish-farmer {
+  background-color: #93A5FD;
+  color: black;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 13px;
+}
+
+/* Status Indicator Styles */
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.active {
+  background-color: #0EEA27;
+  margin-left: 1rem;
+}
+
+.status-dot.inactive {
+  background-color: #F8504A;
+  margin-left: 2rem;
+}
+
+.status-text.inactive {
+  color: #F8504A;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 15px;
+}
+
+.status-text.active {
+  font-family: 'ReadexPro-Regular2';
+  color: #10BF24;
+  font-size: 15px;
+}
+
+/* Action Button Styles */
+.reset-password-btn, .delete-user-btn, .activate-tech-officer-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: .9rem;
+  font-family: 'ReadexPro-Regular2';
+  transition: all 0.2s ease;
+  background: transparent;
+  border: none;
+  font-size: 15px;
+}
+
+.reset-password-btn {
+  color: #7b7b7b;
+}
+
+.reset-password-btn:hover {
+  transform: translateY(-1px);
+}
+
+.delete-user-btn {
+  color: #7b7b7b;
+  margin-right: 2rem;
+}
+
+.delete-user-btn:hover {
+  transform: translateY(-1px);
+}
+
+.activate-tech-officer-btn {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.activate-tech-officer-btn:hover {
+  transform: translateY(-1px);
+  color: #218838;
+}
+
+
+.user-cell.joined-cell {
+  justify-content: center;
+  min-width: 120px;
+  margin-left: -2.5rem;
+  font-size: 15px;
+  background-color: transparent;
+  border: none;
+  font-family: 'ReadexPro-Regular2';
+  text-align: center;
+}
+
+/* Style for when joined date is missing */
+.user-cell.joined-cell:empty::before,
+.user-cell.joined-cell:has(:only-child:empty)::before {
+  content: "Unknown";
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.action-icon {
+  font-size: 1.5rem;
+  color: black;
+}
+
+/* Cell Alignment */
+.user-cell.role-cell, .user-cell.status-cell {
+  justify-content: center;
+}
+
+.user-cell.contact-cell, .user-cell.joined-cell {
+  justify-content: center;
+}
+
+.user-cell.actions-cell, .user-cell.delete-cell {
+  justify-content: center;
+}
+
+/* Responsive adjustments for table */
+@media (max-width: 1600px) {
+  .manage-wrapper {
+    max-width: 78.4%;
+    margin: 9rem 0 0 18.3rem;
+    margin-bottom: -5rem;
+  }
+  
+  .header-row {
+    grid-template-columns: 20px 1fr 1fr 1fr 1fr 1fr 1fr 70px;
+    gap: 1rem;
+    padding: 0.50rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 50px 1fr 1fr 1fr 1fr 1fr 1fr 70px;
+    gap: 1rem;
+    padding: 0.75rem 0.5rem;
+    margin-right: 2rem;
+    margin-left: -1.5rem;
+    margin-top: -2.4rem;
+  }
+  
+  .user-cell {
+    padding: 1.3rem;
+    font-size: 0.85rem;
+  }
+  
+  .role-badge {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .account-main-content {
+    margin-left: 18%;
+  }
+  
+  /* Optimize spacing for 4 users per page */
+  .user-table {
+    margin-top: -0.5rem;
+  }
+  
+  .pagination-bar {
+    padding: 0.75rem 0;
+    margin-top: 1.5rem; 
+  }
+
+  .pagination-btn {
+    padding: 0.75rem 0;
+    margin-top: .5rem;
+  }
+}
+
+@media (max-width: 1300px) {
+  .manage-wrapper {
+    max-width: 80%;
+    margin: 9rem 0 0 15rem;
+    margin-bottom: -5rem;
+  }
+  
+  .header-row {
+    grid-template-columns: 20px 2fr 1fr 1fr 1fr 1.2fr 1fr 50px;
+    gap: .5rem;
+    padding: -2rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 50px 2fr 1fr 1fr 1fr 1.2fr 1fr 70px;
+    gap: .5rem;
+    padding: 0.70rem 0.5rem;
+    margin-right: 2rem;
+    margin-left: -2.5rem;
+  }
+  
+  .user-cell {
+    padding: .5rem;
+    font-size: 0.80rem;
+  }
+  
+  .role-badge {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.3rem .5rem;
+    font-size: 0.8rem;
+  }
+  
+  .account-main-content {
+    margin-left: 18%;
+  }
+  
+  /* Optimize spacing for 4 users per page */
+  .user-table {
+    margin-top: -2rem;
+  }
+  
+  .pagination-bar {
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .manage-wrapper {
+    max-width: 95%;
+    margin: 9rem 0 0 10rem;
+  }
+  
+  .header-row {
+    grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px;
+    gap: 0.4rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px;
+    gap: 0.4rem;
+    margin-right: 1rem;
+    margin-left: -0.5rem;
+  }
+  
+  .user-cell {
+    padding: 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .username {
+    font-size: 0.85rem;
+  }
+  
+  .user-email {
+    font-size: 0.7rem;
+  }
+  
+  .role-badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+  }
+  
+  .account-main-content {
+    margin-left: 12%;
+  }
+  
+  .add-user-button {
+    margin: 1.5rem 1.5rem 0 1.5rem;
+    margin-bottom: -7rem;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  
+  .bulk-delete-button {
+    padding: 8px 14px;
+    font-size: 13px;
+    margin: 0;
+  }
+  
+  .pagination-bar {
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+  }
+  
+  .pagination-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 14px;
+  }
+  
+  .pagination-page {
+    padding: 0.3rem 0.6rem;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 576px) {
+  .manage-wrapper {
+    max-width: 98%;
+    margin: 9rem 0 0 5rem;
+  }
+  
+  .header-row {
+    grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px;
+    gap: 0.3rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px;
+    gap: 0.3rem;
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+  
+  .user-cell {
+    padding: 0.2rem;
+    font-size: 0.7rem;
+  }
+  
+  .username {
+    font-size: 0.8rem;
+  }
+  
+  .user-email {
+    font-size: 0.65rem;
+  }
+  
+  .role-badge {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.6rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.6rem;
+  }
+  
+  .account-main-content {
+    margin-left: 8%;
+  }
+  
+  .add-user-button {
+    margin: 1rem 1rem 0 1rem;
+    margin-bottom: -7rem;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .bulk-delete-button {
+    padding: 6px 12px;
+    font-size: 12px;
+    margin: 0;
+  }
+  
+  .pagination-bar {
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+  }
+  
+  .pagination-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 13px;
+  }
+  
+  .pagination-page {
+    padding: 0.25rem 0.5rem;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .manage-wrapper {
+    max-width: 100%;
+    margin: 9rem 0 0 2rem;
+  }
+  
+  .header-row {
+    grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px;
+    gap: 0.25rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px;
+    gap: 0.25rem;
+    margin-right: 0.25rem;
+    margin-left: 0;
+  }
+  
+  .user-cell {
+    padding: 0.15rem;
+    font-size: 0.65rem;
+  }
+  
+  .username {
+    font-size: 0.75rem;
+  }
+  
+  .user-email {
+    font-size: 0.6rem;
+  }
+  
+  .role-badge {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.55rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.55rem;
+  }
+  
+  .account-main-content {
+    margin-left: 5%;
+  }
+  
+  .add-user-button {
+    margin: 0.75rem 0.75rem 0 0.75rem;
+    margin-bottom: -7rem;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+  
+  .bulk-delete-button {
+    padding: 5px 10px;
+    font-size: 11px;
+    margin: 0;
+  }
+  
+  .pagination-bar {
+    gap: 0.3rem;
+    padding: 0.4rem 0;
+  }
+  
+  .pagination-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 12px;
+  }
+  
+  .pagination-page {
+    padding: 0.2rem 0.4rem;
+    font-size: 11px;
+  }
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+
+.pagination-btn {
+  background: #2C517D;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  font-family: 'customfont1';
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.pagination-btn:disabled {
+  background: #A0AEC0;
+  cursor: not-allowed;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #2e6ba6;
+  transform: translateY(-1px);
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pagination-page {
+  background: #E6E4E4;
+  color: #1A4375;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  font-family: 'ReadexPro-Regular';
+  transition: all 0.2s ease;
+}
+
+.pagination-page.active {
+  background: #2C517D;
+  color: #fff;
+  border-color: #2C517D;
+}
+
+.pagination-page:hover {
+  background: #dbe7ff;
+}
+
+/* Keep account content as a column and anchor footer/pagination */
+.account-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-grid-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.user-table {
+  flex: 1; /* occupy remaining space so pager sits at bottom */
+}
+
+.pagination-bar {
+  margin-top: auto;
+  background: transparent;
+  position: sticky; /* keep visual position if inner area scrolls */
+  bottom: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .filter-button {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  
+  .filter-dropdown {
+    min-width: 250px;
+  }
+}
+
+@media (max-width: 576px) {
+  .filter-button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  .filter-dropdown {
+    min-width: 220px;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-button {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+  
+  .filter-dropdown {
+    min-width: 200px;
+  }
+}
+
+/* Password Reset Form Styles */
+.user-info-display {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 8px;
+}
+
+.user-info-display p {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #495057;
+}
+
+.user-info-display strong {
+  color: #2C517D;
+  font-weight: 600;
+}
+
+.password-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+  background-color: #f8f9fa;
+  border-color: #2C517D;
+}
+
+.radio-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #2C517D;
+}
+
+.radio-option span {
+  font-size: 14px;
+  color: #495057;
+  font-family: 'ReadexPro-Regular';
+}
+
+.custom-password-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  background-color: #fff;
+  transition: border-color 0.2s ease;
+}
+
+.custom-password-input:focus {
+  outline: none;
+  border-color: #2C517D;
+  box-shadow: 0 0 0 2px rgba(44, 81, 125, 0.1);
+}
+
+.custom-password-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.custom-password-container .custom-password-input {
+  flex: 1;
+}
+
+.generate-password-btn {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-family: 'ReadexPro-Regular';
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.generate-password-btn:hover {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.generate-random-password-btn {
+  background: #2C517D;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  margin: 10px 0;
+}
+
+.generate-random-password-btn:hover {
+  background: #2e6ba6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.no-password-message {
+  text-align: center;
+  padding: 20px;
+  color: #6c757d;
+  font-style: italic;
+  background-color: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+
+.generated-password-display {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+}
+
+.generated-password-display label {
+  display: block;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.password-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.generated-password-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  background-color: #fff;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.generated-password-input:focus {
+  outline: none;
+  border-color: #6c757d;
+  box-shadow: none;
+}
+
+.password-preview small {
+  font-size: 11px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.password-requirements {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6c757d;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.password-strength-indicator {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.strength-bar {
+  height: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  min-width: 0;
+}
+
+.strength-label {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+}
+
+/* Password Reset Pending Indicator */
+.password-reset-pending {
+  margin-top: 5px;
+  text-align: center;
+}
+
+.pending-indicator {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Disable button styling */
+.add-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.add-button:disabled:hover {
+  background-color: #6c757d;
+  transform: none;
+  box-shadow: none;
 }

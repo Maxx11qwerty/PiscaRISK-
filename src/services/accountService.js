@@ -35,7 +35,22 @@ export const fetchAllUsers = async () => {
     
     // Sort users by date joined (newest first)
     return uniqueUsers.sort((a, b) => {
-      return new Date(b.dateJoined) - new Date(a.dateJoined);
+      // Handle missing or invalid dateJoined fields
+      const dateA = a.dateJoined ? new Date(a.dateJoined) : new Date(0);
+      const dateB = b.dateJoined ? new Date(b.dateJoined) : new Date(0);
+      
+      // Check if dates are valid
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+        console.warn('Invalid date found during sorting:', { 
+          userA: a.username, 
+          dateA: a.dateJoined, 
+          userB: b.username, 
+          dateB: b.dateJoined 
+        });
+        return 0; // Don't sort if dates are invalid
+      }
+      
+      return dateB - dateA; // Newest first
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -50,7 +65,7 @@ export const addNewUser = async (userData, currentUser) => {
     const newUserData = {
       ...userData,
       id: uniqueId,
-      dateJoined: new Date().toISOString().split('T')[0],
+      dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0], // Use provided date or fallback to current date
       lastModified: new Date().toISOString()
     };
 

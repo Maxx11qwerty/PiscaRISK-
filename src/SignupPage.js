@@ -8,6 +8,37 @@ import "./SignupPage.css";
 import OtpVerification from './components/OtpVerification';
 
 export default function SignupPage() {
+  // Custom hook for screen size tracking
+  const useScreenSize = () => {
+    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+    
+    useEffect(() => {
+      const handleResize = () => setScreenWidth(window.innerWidth);
+      
+      let timeoutId;
+      const debouncedResize = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(handleResize, 100);
+      };
+      
+      window.addEventListener('resize', debouncedResize);
+      return () => {
+        window.removeEventListener('resize', debouncedResize);
+        clearTimeout(timeoutId);
+      };
+    }, []);
+    
+    return {
+      width: screenWidth,
+      isMobile: screenWidth < 480,
+      isTablet: screenWidth < 900,
+      isDesktop: screenWidth >= 1200
+    };
+  };
+
+  // Use the hook
+  const screen = useScreenSize();
+
   const [formData, setFormData] = useState({
     email: "",
     username: "",
@@ -119,6 +150,22 @@ export default function SignupPage() {
 
   return (
     <div className={`signup-container${showOtp ? ' otp-blur-parent' : ''}`}>
+      {/* screen info for development */}
+      {process.env.NODE_ENV === 'development' && ( 
+        <div style={{
+          position: 'fixed', 
+          top: '10px', 
+          right: '10px', 
+          background: 'rgba(0,0,0,0.8)', 
+          color: 'white', 
+          padding: '5px 10px', 
+          borderRadius: '4px',
+          fontSize: '12px',
+          zIndex: 9999
+        }}>
+          {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
+        </div>
+      )}
       <div className="signup-wrapper">
         <div className="logo-section">
         <img src={logo} alt="PiscaRisk Logo" className="logo" />

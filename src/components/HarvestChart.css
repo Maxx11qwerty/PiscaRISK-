@@ -1,17 +1,3 @@
-.bar-chart-container {
-  background: linear-gradient(160deg, #1A4375, #3087F2 99%);
-  border-radius: 24px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
-  padding: 24px;
-  margin: 1.5rem auto;
-  width: 100%;
-  max-width: 600px;
-  height: 18.75rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
 
 /* Chart Controls */
 .chart-controls {
@@ -23,50 +9,100 @@
 }
 
 .pie-chart-title {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   text-align: center;
   text-transform: uppercase;
   letter-spacing: 1px;
   margin: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .harvest-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   width: 100%;
   gap: 1rem;
 }
 
-.month-filter {
-  background: transparent;
-  border: 1px solid #7ffcff;
-  color: #7ffcff;
+.month-selector {
+  position: relative;
+  display: inline-block;
+}
+
+.month-display {
+  color: #ffffff;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-family: 'customfont1';
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.month-filter:hover {
+.month-prefix {
+  font-size: 0.9rem;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.month-text {
+  font-weight: bold;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.month-display:hover {
   background: rgba(127, 252, 255, 0.1);
 }
 
-.month-filter option {
-  background: #1a4375e6;
-  color: #7ffcff;
-  font-family: 'customfont1';
-  padding: 8px;
+.month-arrow {
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
 }
 
-.month-filter:focus {
-  outline: none;
-  border-color: #7ffcff;
-  box-shadow: 0 0 0 2px rgba(127, 252, 255, 0.2);
+.month-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #2C517D;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.month-option {
+  color: #ffffff;
+  font-family: 'customfont1';
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(127, 252, 255, 0.2);
+}
+
+.month-option:last-child {
+  border-bottom: none;
+}
+
+.month-option:hover {
+  background: rgba(127, 252, 255, 0.1);
+}
+
+.month-option.selected {
+  background: rgba(127, 252, 255, 0.2);
+  color: #ffffff;
+  font-weight: bold;
 }
 
 /* Pie Chart Container */
@@ -77,6 +113,7 @@
   justify-content: center;
   align-items: center;
   position: relative;
+  margin-top: -1rem;
 }
 
 .chart-with-labels {
@@ -89,7 +126,7 @@
 
 .chart-labels {
   position: absolute;
-  left: 20px;
+  left: -10px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -99,7 +136,7 @@
 }
 
 .chart-label {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1rem;
   display: flex;
@@ -143,17 +180,12 @@
 
 /* No Data Message */
 .no-data-message {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   text-align: center;
   margin: 2rem 0;
-  padding: 1rem;
-  border: 1px solid #7ffcff;
   border-radius: 8px;
-  background: rgba(127, 252, 255, 0.1);
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,7 +193,7 @@
 
 /* Loading and Labels */
 .loading-reports {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   text-align: center;
@@ -169,7 +201,7 @@
 }
 
 .harvest-label {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   text-align: center;
