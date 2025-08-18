@@ -77,7 +77,7 @@ export const addNewUser = async (userData, currentUser) => {
       await setDoc(doc(db, 'users', uniqueId), newUserData);
     }
 
-    logActivity('account', logMessages.account.userCreated(currentUser.username, userData.username), currentUser.username);
+    logActivity('account', logMessages.account.userCreated(currentUser.username, userData.username), currentUser.username, null, currentUser.role);
     return newUserData;
   } catch (error) {
     console.error('Error adding user:', error);

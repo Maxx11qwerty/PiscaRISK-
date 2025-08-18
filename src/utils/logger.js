@@ -10,7 +10,7 @@ const createUniqueId = (category, timestamp) => {
   return `${category}_${dateStr}_${randomPart}`;
 };
 
-export const logActivity = async (category, message, username, originalTimestamp = null) => {
+export const logActivity = async (category, message, username, originalTimestamp = null, userRole = null) => {
   // Use the original timestamp if provided, otherwise use current time
   let timestamp;
   try {
@@ -44,6 +44,16 @@ export const logActivity = async (category, message, username, originalTimestamp
     timestamp = new Date().toISOString();
   }
 
+  // Debug: Log timestamp creation for important categories
+  if (category === 'export' || category === 'feedback') {
+    console.log('logActivity timestamp creation:', {
+      category,
+      originalTimestamp,
+      finalTimestamp: timestamp,
+      username
+    });
+  }
+
   // Create log object with unique ID
   const logsUniqueId = createUniqueId(category, timestamp);
   const newLog = {
@@ -51,8 +61,20 @@ export const logActivity = async (category, message, username, originalTimestamp
     timestamp,
     category,
     message,
-    username
+    username,
+    userRole: userRole || 'Unknown'
   };
+
+  // Debug logging for timestamp issues
+  if (category === 'export' || category === 'feedback') {
+    console.log(`Creating log entry:`, {
+      category,
+      message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
+      username,
+      timestamp,
+      originalTimestamp: originalTimestamp
+    });
+  }
 
   try {
     // Save to Firebase
@@ -77,30 +99,146 @@ export const logActivity = async (category, message, username, originalTimestamp
 export const getAllLogs = async () => {
   try {
     const logs = await getData('systemLogs');
-    // Ensure all logs have proper username field
-    const processedLogs = logs.map(log => ({
-      ...log,
-      username: log.username || 'Unknown User',
-      message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
-      category: String(log.category || ''),
-      timestamp: log.timestamp || new Date().toISOString()
-    }));
     
-    // Sort by timestamp (newest first)
-    return processedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Debug: Log the raw data from Firebase
+    console.log('Raw logs from Firebase:', logs.slice(0, 3)); // Show first 3 logs
+    
+    // Fetch user data to get roles and mobile user status from users collection
+    let users = [];
+    try {
+      const webUsers = await getData('users');
+      const mobileUsers = await getData('mobileUsers');
+      users = [...webUsers, ...mobileUsers];
+    } catch (userError) {
+      console.warn('Could not fetch user data for roles:', userError);
+    }
+    
+    // Create a map of username to user data for quick lookup
+    const userDataMap = new Map();
+    users.forEach(user => {
+      if (user.username) {
+        userDataMap.set(user.username, {
+          role: user.user_role || user.role || 'Unknown',
+          isMobileUser: user.isMobileUser || false
+        });
+      }
+    });
+    
+    // Fetch reports data to get source information
+    let reports = [];
+    try {
+      reports = await getData('reports');
+    } catch (reportsError) {
+      console.warn('Could not fetch reports data for source:', reportsError);
+    }
+    
+    // Create a map of report data for source lookup
+    const reportSourceMap = new Map();
+    reports.forEach(report => {
+      if (report.submitted_by || report.user) {
+        const username = report.submitted_by || report.user;
+        if (username && report.source) {
+          reportSourceMap.set(username, report.source);
+        }
+      }
+    });
+    
+    // Ensure all logs have proper username field and include role and source information
+    const processedLogs = logs.map(log => {
+      const userData = userDataMap.get(log.username);
+      const reportSource = reportSourceMap.get(log.username);
+      
+      // Determine source: check report source first, then user mobile status
+      let source = 'Web'; // Default to Web
+      if (reportSource) {
+        source = reportSource;
+      } else if (userData && userData.isMobileUser) {
+        source = 'Mobile';
+      }
+      
+      // Validate timestamp - ensure it's a valid date string
+      let validTimestamp = log.timestamp;
+      if (log.timestamp) {
+        try {
+          const date = new Date(log.timestamp);
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid timestamp found in log:', log.timestamp, 'for log ID:', log.id);
+            validTimestamp = null; // Mark as invalid
+          }
+        } catch (error) {
+          console.warn('Error parsing timestamp:', error, 'for log ID:', log.id);
+          validTimestamp = null; // Mark as invalid
+        }
+      }
+      
+      // Debug: Log timestamp processing for first few logs
+      if (logs.indexOf(log) < 3) {
+        console.log('Processing log timestamp:', {
+          id: log.id,
+          originalTimestamp: log.timestamp,
+          validTimestamp: validTimestamp,
+          category: log.category,
+          username: log.username
+        });
+      }
+      
+      return {
+        ...log,
+        username: log.username || 'Unknown User',
+        message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
+        category: String(log.category || ''),
+        timestamp: validTimestamp, // Use validated timestamp
+        role: userData ? userData.role : 'Unknown',
+        isMobileUser: userData ? userData.isMobileUser : false,
+        source: source
+      };
+    });
+    
+    // Filter out logs with invalid timestamps and sort by timestamp (newest first)
+    const validLogs = processedLogs.filter(log => log.timestamp !== null);
+    if (validLogs.length !== processedLogs.length) {
+      console.warn(`Filtered out ${processedLogs.length - validLogs.length} logs with invalid timestamps`);
+    }
+    return validLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   } catch (error) {
     console.error('Error fetching logs from Firebase:', error);
     // Fallback to localStorage if Firebase fails
     const localLogs = JSON.parse(localStorage.getItem('logs') || '[]');
     // Process local logs similarly
-    const processedLocalLogs = localLogs.map(log => ({
-      ...log,
-      username: log.username || 'Unknown User',
-      message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
-      category: String(log.category || ''),
-      timestamp: log.timestamp || new Date().toISOString()
-    }));
-    return processedLocalLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    const processedLocalLogs = localLogs.map(log => {
+      // Validate timestamp for local logs too
+      let validTimestamp = log.timestamp;
+      if (log.timestamp) {
+        try {
+          const date = new Date(log.timestamp);
+          if (isNaN(date.getTime())) {
+            console.warn('Invalid timestamp found in local log:', log.timestamp);
+            validTimestamp = null;
+          }
+        } catch (error) {
+          console.warn('Error parsing local log timestamp:', error);
+          validTimestamp = null;
+        }
+      }
+      
+      return {
+        ...log,
+        username: log.username || 'Unknown User',
+        message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
+        category: String(log.category || ''),
+        timestamp: validTimestamp,
+        role: log.userRole || 'Unknown',
+        isMobileUser: log.isMobileUser || false,
+        source: log.source || 'Web'
+      };
+    });
+    
+    // Filter out logs with invalid timestamps and sort
+    const validLocalLogs = processedLocalLogs.filter(log => log.timestamp !== null);
+    if (validLocalLogs.length !== processedLocalLogs.length) {
+      console.warn(`Filtered out ${processedLocalLogs.length - validLocalLogs.length} local logs with invalid timestamps`);
+    }
+    return validLocalLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }
 };
 
@@ -108,14 +246,81 @@ export const getAllLogs = async () => {
 export const getLogsByCategory = async (category) => {
   try {
     const logs = await getData('systemLogs');
-    return logs
+    
+    // Fetch user data to get roles and mobile user status from users collection
+    let users = [];
+    try {
+      const webUsers = await getData('users');
+      const mobileUsers = await getData('mobileUsers');
+      users = [...webUsers, ...mobileUsers];
+    } catch (userError) {
+      console.warn('Could not fetch user data for roles:', userError);
+    }
+    
+    // Create a map of username to user data for quick lookup
+    const userDataMap = new Map();
+    users.forEach(user => {
+      if (user.username) {
+        userDataMap.set(user.username, {
+          role: user.user_role || user.role || 'Unknown',
+          isMobileUser: user.isMobileUser || false
+        });
+      }
+    });
+    
+    // Fetch reports data to get source information
+    let reports = [];
+    try {
+      reports = await getData('reports');
+    } catch (reportsError) {
+      console.warn('Could not fetch reports data for source:', reportsError);
+    }
+    
+    // Create a map of report data for source lookup
+    const reportSourceMap = new Map();
+    reports.forEach(report => {
+      if (report.submitted_by || report.user) {
+        const username = report.submitted_by || report.user;
+        if (username && report.source) {
+          reportSourceMap.set(username, report.source);
+        }
+      }
+    });
+    
+    const filteredLogs = logs
       .filter(log => log.category === category)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+      .map(log => {
+        const userData = userDataMap.get(log.username);
+        const reportSource = reportSourceMap.get(log.username);
+        
+        // Determine source: check report source first, then user mobile status
+        let source = 'Web'; // Default to Web
+        if (reportSource) {
+          source = reportSource;
+        } else if (userData && userData.isMobileUser) {
+          source = 'Mobile';
+        }
+        
+        return {
+          ...log,
+          role: userData ? userData.role : 'Unknown',
+          isMobileUser: userData ? userData.isMobileUser : false,
+          source: source
+        };
+      });
+    
+    return filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   } catch (error) {
     console.error('Error fetching logs by category:', error);
     // Fallback to localStorage if Firebase fails
     const logs = JSON.parse(localStorage.getItem('logs') || '[]');
-    return logs.filter(log => log.category === category);
+    const filteredLogs = logs.filter(log => log.category === category);
+    return filteredLogs.map(log => ({
+      ...log,
+      role: log.userRole || 'Unknown',
+      isMobileUser: log.isMobileUser || false,
+      source: log.source || 'Web'
+    }));
   }
 };
 
@@ -123,14 +328,81 @@ export const getLogsByCategory = async (category) => {
 export const getLogsByUsername = async (username) => {
   try {
     const logs = await getData('systemLogs');
-    return logs
+    
+    // Fetch user data to get roles and mobile user status from users collection
+    let users = [];
+    try {
+      const webUsers = await getData('users');
+      const mobileUsers = await getData('mobileUsers');
+      users = [...webUsers, ...mobileUsers];
+    } catch (userError) {
+      console.warn('Could not fetch user data for roles:', userError);
+    }
+    
+    // Create a map of username to user data for quick lookup
+    const userDataMap = new Map();
+    users.forEach(user => {
+      if (user.username) {
+        userDataMap.set(user.username, {
+          role: user.user_role || user.role || 'Unknown',
+          isMobileUser: user.isMobileUser || false
+        });
+      }
+    });
+    
+    // Fetch reports data to get source information
+    let reports = [];
+    try {
+      reports = await getData('reports');
+    } catch (reportsError) {
+      console.warn('Could not fetch reports data for source:', reportsError);
+    }
+    
+    // Create a map of report data for source lookup
+    const reportSourceMap = new Map();
+    reports.forEach(report => {
+      if (report.submitted_by || report.user) {
+        const reportUsername = report.submitted_by || report.user;
+        if (reportUsername && report.source) {
+          reportSourceMap.set(reportUsername, report.source);
+        }
+      }
+    });
+    
+    const filteredLogs = logs
       .filter(log => log.username === username)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+      .map(log => {
+        const userData = userDataMap.get(log.username);
+        const reportSource = reportSourceMap.get(log.username);
+        
+        // Determine source: check report source first, then user mobile status
+        let source = 'Web'; // Default to Web
+        if (reportSource) {
+          source = reportSource;
+        } else if (userData && userData.isMobileUser) {
+          source = 'Mobile';
+        }
+        
+        return {
+          ...log,
+          role: userData ? userData.role : 'Unknown',
+          isMobileUser: userData ? userData.isMobileUser : false,
+          source: source
+        };
+      });
+    
+    return filteredLogs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   } catch (error) {
     console.error('Error fetching logs by username:', error);
     // Fallback to localStorage if Firebase fails
     const logs = JSON.parse(localStorage.getItem('logs') || '[]');
-    return logs.filter(log => log.username === username);
+    const filteredLogs = logs.filter(log => log.username === username);
+    return filteredLogs.map(log => ({
+      ...log,
+      role: log.userRole || 'Unknown',
+      isMobileUser: log.isMobileUser || false,
+      source: log.source || 'Web'
+    }));
   }
 };
 
@@ -285,3 +557,210 @@ export const logMessages = {
     criticalError: (component, error) => `Critical error in ${component}: ${error}`
   }
 }; 
+
+// Function to properly log reports with their correct timestamps
+export const logReportSubmission = async (reportData, username, source = 'web') => {
+  try {
+    // Extract the actual submission timestamp from the report data
+    let submissionTimestamp = null;
+    
+    if (reportData.timestamp) {
+      // Handle Firestore Timestamp
+      if (typeof reportData.timestamp.toDate === 'function') {
+        submissionTimestamp = reportData.timestamp.toDate();
+      }
+      // Handle Date object
+      else if (reportData.timestamp instanceof Date) {
+        submissionTimestamp = reportData.timestamp;
+      }
+      // Handle string timestamp
+      else if (typeof reportData.timestamp === 'string') {
+        submissionTimestamp = new Date(reportData.timestamp);
+      }
+      // Handle timestamp object with seconds/nanoseconds
+      else if (reportData.timestamp.seconds && reportData.timestamp.nanoseconds) {
+        submissionTimestamp = new Date(reportData.timestamp.seconds * 1000 + reportData.timestamp.nanoseconds / 1000000);
+      }
+    }
+    
+    // If we have a valid submission timestamp, use it; otherwise use current time
+    const timestampToUse = submissionTimestamp && !isNaN(submissionTimestamp.getTime()) 
+      ? submissionTimestamp 
+      : new Date();
+    
+    // Create the appropriate log message based on source
+    let logMessage;
+    if (source === 'mobile') {
+      logMessage = logMessages.report.mobileSubmit(username, reportData.fish_pond || reportData.pond || 'Unknown Pond');
+    } else {
+      logMessage = logMessages.report.webSubmit(username, reportData.fish_pond || reportData.pond || 'Unknown Pond');
+    }
+    
+    // Log the activity with the correct timestamp
+    await logActivity('report', logMessage, username, timestampToUse);
+    
+    console.log('Report submission logged with correct timestamp:', {
+      username,
+      source,
+      submissionTimestamp: timestampToUse,
+      reportId: reportData.id || 'New Report'
+    });
+    
+  } catch (error) {
+    console.error('Error logging report submission:', error);
+    // Fallback: log with current timestamp if there's an error
+    await logActivity('report', `Report submission by ${username}`, username);
+  }
+};
+
+// Function to retroactively log existing reports with correct timestamps
+export const logExistingReports = async (reports) => {
+  try {
+    console.log(`Starting to log ${reports.length} existing reports with correct timestamps...`);
+    
+    for (const report of reports) {
+      if (report.timestamp && !report.logged) { // Only log if not already logged
+        await logReportSubmission(report, report.submitted_by || report.user || 'Unknown User', report.source || 'web');
+        
+        // Mark as logged to prevent duplicate logging
+        report.logged = true;
+      }
+    }
+    
+    console.log('Finished logging existing reports with correct timestamps');
+  } catch (error) {
+    console.error('Error logging existing reports:', error);
+  }
+}; 
+
+// Function to clean up incorrect report logs (use with caution)
+export const cleanupIncorrectReportLogs = async () => {
+  try {
+    console.log('Starting cleanup of incorrect report logs...');
+    
+    // Get all logs
+    const allLogs = await getAllLogs();
+    
+    // Find report logs that might have incorrect timestamps
+    // These are logs that were created when fetching reports instead of when submitting them
+    const reportLogs = allLogs.filter(log => log.category === 'report');
+    
+    console.log(`Found ${reportLogs.length} report logs to check`);
+    
+    // For now, just log the report logs so you can manually review them
+    // In a production environment, you might want to implement more sophisticated cleanup
+    reportLogs.forEach(log => {
+      console.log('Report log found:', {
+        id: log.id,
+        timestamp: log.timestamp,
+        message: log.message,
+        username: log.username
+      });
+    });
+    
+    console.log('Report log cleanup check completed. Review the logs above to identify incorrect entries.');
+    console.log('To remove incorrect logs, you may need to manually delete them from Firebase or implement a cleanup strategy.');
+    
+  } catch (error) {
+    console.error('Error during report log cleanup:', error);
+  }
+}; 
+
+// Function to remove specific incorrect report logs
+export const removeIncorrectReportLogs = async (logIds) => {
+  try {
+    console.log(`Attempting to remove ${logIds.length} incorrect report logs...`);
+    
+    // Import Firebase functions needed for deletion
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    const { db } = await import('../firebase');
+    
+    let removedCount = 0;
+    
+    for (const logId of logIds) {
+      try {
+        await deleteDoc(doc(db, 'systemLogs', logId));
+        removedCount++;
+        console.log(`Removed log: ${logId}`);
+      } catch (error) {
+        console.error(`Failed to remove log ${logId}:`, error);
+      }
+    }
+    
+    console.log(`Successfully removed ${removedCount} out of ${logIds.length} incorrect report logs`);
+    return removedCount;
+    
+  } catch (error) {
+    console.error('Error removing incorrect report logs:', error);
+    return 0;
+  }
+}; 
+
+// Browser console utility function to fix report log timestamps
+// Run this in the browser console to identify and fix incorrect report log timestamps
+export const fixReportLogsFromConsole = async () => {
+  try {
+    console.log('🔍 Starting report log timestamp fix...');
+    console.log('This utility will help identify and fix incorrect report log timestamps');
+    
+    // Get all logs
+    const allLogs = await getAllLogs();
+    
+    // Find report logs
+    const reportLogs = allLogs.filter(log => log.category === 'report');
+    
+    console.log(`📊 Found ${reportLogs.length} report logs`);
+    
+    // Group logs by date to identify patterns
+    const logsByDate = {};
+    reportLogs.forEach(log => {
+      const date = new Date(log.timestamp).toDateString();
+      if (!logsByDate[date]) {
+        logsByDate[date] = [];
+      }
+      logsByDate[date].push(log);
+    });
+    
+    console.log('📅 Report logs grouped by date:');
+    Object.keys(logsByDate).forEach(date => {
+      console.log(`  ${date}: ${logsByDate[date].length} logs`);
+    });
+    
+    // Identify potentially incorrect logs (logs created today for old reports)
+    const today = new Date().toDateString();
+    const todayLogs = logsByDate[today] || [];
+    const otherDayLogs = Object.keys(logsByDate)
+      .filter(date => date !== today)
+      .flatMap(date => logsByDate[date]);
+    
+    console.log(`\n⚠️  Potentially incorrect logs (created today): ${todayLogs.length}`);
+    console.log(`✅ Potentially correct logs (other dates): ${otherDayLogs.length}`);
+    
+    if (todayLogs.length > 0) {
+      console.log('\n🔍 Today\'s report logs (likely incorrect):');
+      todayLogs.forEach(log => {
+        console.log(`  ID: ${log.id}`);
+        console.log(`  Message: ${log.message}`);
+        console.log(`  Username: ${log.username}`);
+        console.log(`  Timestamp: ${log.timestamp}`);
+        console.log('  ---');
+      });
+      
+      console.log('\n💡 To remove these incorrect logs, run:');
+      console.log('removeIncorrectReportLogs([logId1, logId2, ...])');
+      console.log('Replace logId1, logId2, etc. with the actual log IDs from above');
+    }
+    
+    console.log('\n✅ Report log analysis complete!');
+    
+  } catch (error) {
+    console.error('❌ Error analyzing report logs:', error);
+  }
+};
+
+// Make the function available globally for console access
+if (typeof window !== 'undefined') {
+  window.fixReportLogsFromConsole = fixReportLogsFromConsole;
+  window.removeIncorrectReportLogs = removeIncorrectReportLogs;
+  window.cleanupIncorrectReportLogs = cleanupIncorrectReportLogs;
+} 

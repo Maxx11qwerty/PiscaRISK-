@@ -60,7 +60,7 @@
 .notification-header {
   padding: 15px;
   border-bottom: 1px solid #eee;
-  background-color: #062750;
+  background-color: #2C517D;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -179,14 +179,14 @@
 }
 
 .notification-fishpond .notification-icon-wrapper {
-  background-color: #04A6C2;
+  background-color: #000000;
   margin-top: .5rem;
-  border: 3px solid #93FFFE;
+  border: 3px solid #696969;
 }
 
 .notification-feedback .notification-icon-wrapper {
-  background-color: #04A6C2;
-  border: 3px solid #93FFFE;
+  background-color: #000000;
+  border: 3px solid #696969;
 }
 
 .notification-content {
@@ -262,11 +262,11 @@
 }
 
 .notification-fishpond .notification-type-icon {
-  color: #1A4375;
+  color: #b4b4b5;
   font-size: 3rem;
 }
 
 .notification-feedback .notification-type-icon {
-  color: #1A4375;
+  color: #b4b4b5;
   font-size: 3rem;
 }

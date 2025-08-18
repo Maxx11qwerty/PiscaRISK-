@@ -5,6 +5,7 @@ import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilt
 import { IoMdArrowDropdown } from "react-icons/io";
 import { MdOutlineLockReset } from "react-icons/md";
 import { RiDeleteBin6Line } from "react-icons/ri";
+// removed export button icon
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
@@ -14,7 +15,6 @@ import { exportAccountToPDF, prepareAccountCSVData, generateAccountCSVFilename, 
 import Sidebar from './components/Sidebar';
 
 const AccountManagement = () => {
-  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,9 +29,10 @@ const AccountManagement = () => {
 
   // Sidebar UI state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
 
   // Table filter states
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -43,6 +44,15 @@ const AccountManagement = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [selectedFilterType, setSelectedFilterType] = useState('All');
   const [filterValue, setFilterValue] = useState('');
+
+  // Export dropdown removed
+
+  // Admin password confirmation state
+  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [pendingUserData, setPendingUserData] = useState(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Name sorting dropdown states
   const [showNameDropdown, setShowNameDropdown] = useState(false);
@@ -59,10 +69,37 @@ const AccountManagement = () => {
     console.log("Current User Data:", currentUser);
     console.log("Is Admin:", isAdmin());
   }, [currentUser]);
-
   
+  
+  const useScreenSize = () => {
+    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+    
+    useEffect(() => {
+      const handleResize = () => setScreenWidth(window.innerWidth);
+      
+      let timeoutId;
+      const debouncedResize = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(handleResize, 100);
+      };
+      
+      window.addEventListener('resize', debouncedResize);
+      return () => {
+        window.removeEventListener('resize', debouncedResize);
+        clearTimeout(timeoutId);
+      };
+    }, []);
+    
+    return {
+      width: screenWidth,
+      isMobile: screenWidth < 480,
+      isTablet: screenWidth < 900,
+      isDesktop: screenWidth >= 1200
+    };
+  };
 
-  const chunkSize = 3;
+  // Use the hook
+  const screen = useScreenSize();
 
   useEffect(() => {
     const handleResize = () => {
@@ -77,6 +114,22 @@ const AccountManagement = () => {
     };
   }, []);
 
+  // Close sidebar when window is resized to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 1023) {
+        setSidebarOpen(false);
+        // Don't reset collapsed state on desktop
+      } else {
+        // On mobile, ensure sidebar is closed when resizing
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarOpen]);
+
   // Cleanup effect to close all dropdowns when component unmounts or dependencies change
   useEffect(() => {
     return () => {
@@ -90,7 +143,7 @@ const AccountManagement = () => {
     setShowStatusDropdown(false);
     setShowNameDropdown(false);
     setShowFilterDropdown(false);
-    setShowAddUserForm(false);
+    // Note: add user form and admin password modal are NOT closed here to prevent interference
     setShowPasswordResetForm(false);
     setShowMenu(false);
   };
@@ -98,11 +151,17 @@ const AccountManagement = () => {
   // Function to close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Don't close anything if clicking inside admin password modal or add user form
+      if (event.target.closest('.admin-password-modal') || event.target.closest('.add-user-form-container')) {
+        return;
+      }
+      
       if (!event.target.closest('.role-cell') && !event.target.closest('.status-cell') && !event.target.closest('.name-cell')) {
         setShowRoleDropdown(false);
         setShowStatusDropdown(false);
         setShowNameDropdown(false);
       }
+      // export dropdown removed
       // Temporarily disabled to debug filter dropdown
       // if (!event.target.closest('.add-user-button-container')) {
       //   setShowFilterDropdown(false);
@@ -112,20 +171,31 @@ const AccountManagement = () => {
     // Function to handle Escape key press
     const handleEscapeKey = (event) => {
       if (event.key === 'Escape') {
-        closeAllDropdowns();
+        // Close forms first if they're open
+        if (showAdminPasswordModal) {
+          closeAdminPasswordModal();
+        } else if (showAddUserForm) {
+          handleCancelAddUser();
+        } else {
+          closeAllDropdowns();
+        }
       }
     };
 
     // Function to handle window focus/blur
     const handleWindowFocus = () => {
-      // Close all dropdowns when window regains focus
-      closeAllDropdowns();
+      // Close all dropdowns when window regains focus, but not forms
+      if (!showAdminPasswordModal && !showAddUserForm) {
+        closeAllDropdowns();
+      }
     };
 
     // Function to handle scroll
     const handleScroll = () => {
-      // Close all dropdowns when user scrolls
-      closeAllDropdowns();
+      // Close all dropdowns when user scrolls, but not forms
+      if (!showAdminPasswordModal && !showAddUserForm) {
+        closeAllDropdowns();
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -139,7 +209,7 @@ const AccountManagement = () => {
       window.removeEventListener('focus', handleWindowFocus);
       window.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [showAdminPasswordModal, showAddUserForm]);
 
   useEffect(() => {
     fetchUsers();
@@ -263,16 +333,16 @@ const AccountManagement = () => {
       const newStatus = value === 'Tech Officer' ? 'Inactive' : 'Active';
       console.log(`Role changed to: ${value}, setting status to: ${newStatus}`);
       
-      setNewUser(prev => ({ 
-        ...prev, 
+    setNewUser(prev => ({
+      ...prev,
         [name]: value,
         // Automatically set Tech Officer to inactive, others to active
         status: newStatus
-      }));
+    }));
     } else {
       setNewUser(prev => ({ ...prev, [name]: value }));
     }
-    
+
     if (name === 'email') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       setErrors(prevErrors => ({ ...prevErrors, email: emailPattern.test(value) ? '' : 'Please enter a valid email address.' }));
@@ -343,9 +413,9 @@ const AccountManagement = () => {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
       }
-      
+  
       setMessage({ text: 'Creating user...', type: 'info' });
-      
+  
       const userData = {
         email: newUser.email,
         username: newUser.username,
@@ -358,17 +428,16 @@ const AccountManagement = () => {
         status: newUser.status // Make sure status is included
       };
       
-      console.log('Sending user data to createStaffAccount:', userData);
+      console.log('Preparing to create user with data:', userData);
       console.log('Status being sent:', userData.status);
       console.log('Role being sent:', userData.role);
       
-      const result = await createStaffAccount(userData);
+      // Store user data and show admin password modal
+      setPendingUserData(userData);
+      setShowAdminPasswordModal(true);
+      setAdminPassword('');
+      setAdminPasswordError('');
       
-      if (result.success) {
-        setMessage({ text: newUser.role + ' ' + newUser.username + ' created successfully!', type: 'success' });
-        resetForm();
-        fetchAllUsers();
-      }
     } catch (error) {
       let errorMessage = error.message;
       if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
@@ -380,13 +449,13 @@ const AccountManagement = () => {
   const handleCancelAddUser = () => {
     setShowAddUserForm(false);
     setNewUser({
-      username: '', 
-      fullName: '', 
-      address: '', 
-      email: '', 
-      contactNumber: '', 
-      role: 'User', 
-      status: 'Active', 
+      username: '',
+      fullName: '',
+      address: '',
+      email: '',
+      contactNumber: '',
+      role: 'User',
+      status: 'Active',
       dateJoined: getTodayDate(), 
       password: ''
     });
@@ -734,9 +803,22 @@ const AccountManagement = () => {
 
   // Sidebar export handler for this page
   const handleSidebarExport = (format) => {
-    if (format === 'pdf') exportAccountToPDF(AccountUsers, currentUser);
-    if (format === 'csv') handleAccountCSVExport(currentUser);
-    setShowDownloadOptions(false);
+    try {
+      if (!AccountUsers || AccountUsers.length === 0) {
+        setMessage({ text: 'No users data available for export', type: 'error' });
+        return;
+      }
+      // Ensure CSV export has data
+      localStorage.setItem('currentUsers', JSON.stringify(AccountUsers));
+
+      if (format === 'pdf') {
+        exportAccountToPDF(AccountUsers, currentUser);
+      } else if (format === 'csv') {
+        handleAccountCSVExport(currentUser);
+      }
+    } finally {
+      setShowDownloadOptions(false);
+    }
   };
 
   // Function to debug user status across collections
@@ -1053,34 +1135,110 @@ The user can then login with this new password. Old password will become invalid
     setGeneratedPassword('');
   };
 
+  // Function to handle admin password confirmation
+  const handleAdminPasswordConfirm = async () => {
+    if (!adminPassword.trim()) {
+      setAdminPasswordError('Admin password is required');
+      return;
+    }
+
+    if (adminPassword.length < 6) {
+      setAdminPasswordError('Admin password must be at least 6 characters long');
+      return;
+    }
+
+    if (!pendingUserData) {
+      setAdminPasswordError('No pending user data found');
+      return;
+    }
+
+    setIsConfirming(true);
+    try {
+      setAdminPasswordError('');
+      setMessage({ text: 'Verifying admin credentials and creating user...', type: 'info' });
+
+      // Call createStaffAccount with admin password
+      const result = await createStaffAccount(pendingUserData, adminPassword);
+      
+      if (result.success) {
+        setMessage({ text: `${pendingUserData.role} ${pendingUserData.username} created successfully!`, type: 'success' });
+        
+        // Close modal and reset form
+        setShowAdminPasswordModal(false);
+        setPendingUserData(null);
+        setAdminPassword('');
+        resetForm();
+        
+        // Refresh users list
+        await fetchUsers();
+      } else {
+        setAdminPasswordError(result.error || 'Failed to create user');
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+      setAdminPasswordError(error.message || 'An error occurred while creating the user');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  // Function to close admin password modal
+  const closeAdminPasswordModal = () => {
+    setShowAdminPasswordModal(false);
+    setPendingUserData(null);
+    setAdminPassword('');
+    setAdminPasswordError('');
+    setMessage({ text: '', type: '' });
+  };
+
+  // Handle sidebar toggle based on screen size
+  const handleSidebarToggle = () => {
+    if (window.innerWidth <= 1023) {
+      // Mobile/tablet: toggle open/closed 
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      // Desktop: toggle collapsed/expanded
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  };
+
   return (
     <div className="account-management">
+              {process.env.NODE_ENV === 'development' && ( 
+        <div style={{
+          position: 'fixed', 
+          top: '80px', 
+          right: '10px', 
+          padding: '5px 10px', 
+          borderRadius: '4px',
+          fontSize: '20px',
+          zIndex: 9999
+        }}>
+          {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
+        </div>
+      )}
       <header className="account-header-bar">
         <div className="header-logo-container">
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
           <div className="header-title">PiscaRISK</div>
-          <FaBars className="header-hamburger-icon" onClick={(e) => {
-            e.stopPropagation(); // Prevent closing dropdowns when clicking hamburger menu
-            closeAllDropdowns(); // Close all other dropdowns first
-            setSidebarOpen(!sidebarOpen);
-          }} />
+          <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
         </div>
 
         <div className="header-right">
         <div className="header-search-container">
               <div className="header-search-input-wrapper">
                 <FaSearch className="header-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search..."
+            <input
+              type="text"
+              placeholder="Search..."
                   className="header-search-input"
-                  value={searchTerm}
+              value={searchTerm}
                   onChange={(e) => {
                     e.stopPropagation(); // Prevent closing dropdowns when typing in search
                     setSearchTerm(e.target.value);
                   }}
-                />
-              </div>
+            />
+          </div>
             </div>
           
           <NotificationBox />
@@ -1099,8 +1257,8 @@ The user can then login with this new password. Old password will become invalid
                 ) : (
                   <FaUserCircle className="user-dropdown-icon" />
                 )}
-              </button>
-              {showMenu && (
+            </button>
+            {showMenu && (
                 <div className="header-dropdown-menu">
                   <button onClick={() => navigate("/ProfileSettings")}>
                     <FaUser className="dropdown-icon" />
@@ -1110,14 +1268,15 @@ The user can then login with this new password. Old password will become invalid
                     <FaSignOutAlt className="dropdown-icon" />
                     Logout
                   </button> 
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <Sidebar
         sidebarOpen={sidebarOpen}
+        sidebarCollapsed={sidebarCollapsed}
         currentUser={currentUser}
         showDownloadOptions={showDownloadOptions}
         setShowDownloadOptions={setShowDownloadOptions}
@@ -1131,7 +1290,7 @@ The user can then login with this new password. Old password will become invalid
         language={language}
         setLanguage={setLanguage}
       />
-          <div className="add-user-button-container" onClick={closeAllDropdowns}>
+          <div className={`add-user-button-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} onClick={closeAllDropdowns}>
             {/* Filter Button */}
             <button 
               className="filter-button"
@@ -1160,8 +1319,8 @@ The user can then login with this new password. Old password will become invalid
                     <option value="Status">Status</option>
                     <option value="Name">Name</option>
                   </select>
-                </div>
-                
+          </div>
+
                 {selectedFilterType !== 'All' && (
                   <div className="filter-section">
                     <label>Filter Value:</label>
@@ -1198,8 +1357,8 @@ The user can then login with this new password. Old password will become invalid
                     }}
                   >
                     Clear
-                  </button>
-                </div>
+          </button>
+        </div>
               </div>
             )}
             
@@ -1223,7 +1382,7 @@ The user can then login with this new password. Old password will become invalid
               </button>
             )}
           </div>
-      <div className="manage-wrapper">
+      <div className={`manage-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="table-header" onClick={closeAllDropdowns}>
           <div className="header-row">
             <div className="header-cell checkbox-cell">
@@ -1377,78 +1536,183 @@ The user can then login with this new password. Old password will become invalid
           </div>
         </div>
       </div>
-      <div className="account-main-content">
-        <div className="account-container" onClick={closeAllDropdowns}>
-          {showAddUserForm && (
-            <div className="add-user-form-container">
-              <div className="add-user-form">
-                <div className="form-header">
-                  <h3>Add New Employee</h3>
+      <div className={`account-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <div className="account-container">
+        {showAddUserForm && (
+            <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
+              <div className="add-user-form" onClick={(e) => e.stopPropagation()}>
+              <div className="form-header">
+                <h3>Add New Employee</h3>
                   <button className="close-form-button" onClick={handleCancelAddUser}>&times;</button>
-                </div>
+              </div>
                 {message.text && (<div className={`message ${message.type}`}>{message.text}</div>)}
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Username*</label>
-                    <input type="text" name="username" value={newUser.username} onChange={handleInputChange} placeholder='Enter Username' required />
-                  </div>
-                  <div className="form-group">
-                    <label>Full Name*</label>
-                    <input type="text" name="fullName" value={newUser.fullName} onChange={handleInputChange} placeholder='Enter full name' required />
-                  </div>
+                {newUser.role === 'Tech Officer' && (
+                  <div className="form-role-notice">
+                    <div className="role-notice-icon">ℹ️</div>
+                    <div className="role-notice-content">
+                      <strong>Tech Officer Account Notice:</strong>
+                      <p>New Tech Officer accounts start as Inactive and must be activated by an admin before login.</p>
+                    </div>
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Job Position</label>
-                    <select name="role" value={newUser.role} onChange={handleInputChange} required>
-                      <option value="">Select Position</option>
-                      <option value="Admin">Admin</option>
-                      <option value="Tech Officer">Tech Officer</option>
-                      <option value="Fish Farmer">Fish Farmer</option>
-                    </select>
-                  </div>
+              )}
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Username*</label>
+                  <input 
+                    type="text" 
+                    name="username" 
+                    value={newUser.username} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder='Enter Username'
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Full Name*</label>
+                  <input 
+                    type="text" 
+                    name="fullName" 
+                    value={newUser.fullName} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder='Enter full name'
+                    required 
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Job Position</label>
+                  <select 
+                    name="role" 
+                    value={newUser.role} 
+                    onChange={handleInputChange}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    required
+                  >
+                    <option value="">Select Position</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Tech Officer">Tech Officer</option>
+                    <option value="Fish Farmer">Fish Farmer</option>
+                  </select>
+                </div>
                   <div className="form-group">
                     <label>Status</label>
-                    <select name="status" value={newUser.status} onChange={handleInputChange} required>
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                    {newUser.role === 'Tech Officer' && (
-                      <small style={{ color: '#dc3545', fontSize: '12px', marginTop: '5px', display: 'block' }}>
-                        ⚠️ Tech Officer accounts are set to Inactive by default and require admin activation
-                      </small>
+                    {newUser.role === 'Tech Officer' ? (
+                      <div className="tech-officer-status-display">
+                        <div className="status-display-inactive">
+                          <span className="status-indicator">
+                            <span className="status-dot inactive"></span>
+                            <span className="status-text inactive">Inactive</span>
+                          </span>
+              </div>
+                      </div>
+                    ) : (
+                      <select 
+                        name="status" 
+                        value={newUser.status} 
+                        onChange={handleInputChange} 
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
                     )}
                   </div>
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Email</label>
-                    <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder='Enter Email Address' className={errors.email ? 'input-error' : ''} />
-                  </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Email</label>
+                  <input 
+                    type="email" 
+                    name="email" 
+                    value={newUser.email} 
+                    onChange={handleInputChange}  
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder='Enter Email Address'
+                    className={errors.email ? 'input-error' : ''}
+                  />
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Address*</label>
-                    <input type="text" name="address" value={newUser.address} onChange={handleInputChange} placeholder='Enter Address' required />
-                  </div>
-                  <div className="form-group">
-                    <label>Contact Number*</label>
-                    <input type="text" name="contactNumber" value={newUser.contactNumber} onChange={handleInputChange} placeholder="Enter Phone Number" />
-                  </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Address*</label>
+                  <input 
+                    type="text" 
+                    name="address" 
+                    value={newUser.address} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder='Enter Address'
+                    required 
+                  />
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Password</label>
-                    <input type="password" name="password" value={newUser.password} onChange={handleInputChange} placeholder='Enter Password' required />
-                  </div>
-                  <div className="form-group">
-                    <label>Date Joined</label>
-                    <input type="date" name="dateJoined" value={newUser.dateJoined} onChange={handleInputChange} />
-                  </div>
+                <div className="form-group">
+                  <label>Contact Number*</label>
+                  <input 
+                    type="text" 
+                    name="contactNumber" 
+                    value={newUser.contactNumber} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder="Enter Phone Number"
+                  />
                 </div>
-                <div className="form-buttons">
-                  <button className="add-button" onClick={handleAddUser}>Add User</button>
-                  <button className="cancel-button" onClick={handleCancelAddUser}>Cancel</button>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Password</label>
+                  <input 
+                    type="password" 
+                    name="password" 
+                    value={newUser.password} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                    placeholder='Enter Password'
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date Joined</label>
+                  <input 
+                    type="date" 
+                    name="dateJoined" 
+                    value={newUser.dateJoined} 
+                    onChange={handleInputChange} 
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+              <div className="form-buttons">
+                  <button 
+                    className="add-button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddUser();
+                    }}
+                  >
+                  Add User
+                </button>
+                  <button 
+                    className="cancel-button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCancelAddUser();
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
@@ -1577,12 +1841,59 @@ The user can then login with this new password. Old password will become invalid
             </div>
           )}
 
-          <div className="user-grid-container">
+          {/* Admin Password Confirmation Modal */}
+          {showAdminPasswordModal && pendingUserData && (
+            <div className="admin-password-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2>Confirm Admin Password</h2>
+                <p>Please enter your admin password to confirm the creation of this user.</p>
+                <div className="form-group">
+                  <label>Admin Password:</label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setAdminPassword(e.target.value);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.stopPropagation()}
+                    className="admin-password-input"
+                    placeholder="Enter admin password"
+                  />
+                  {adminPasswordError && <p className="error-message">{adminPasswordError}</p>}
+                </div>
+                <div className="modal-actions">
+                  <button 
+                    className="confirm-button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAdminPasswordConfirm();
+                    }} 
+                    disabled={isConfirming}
+                  >
+                    {isConfirming ? 'Confirming...' : 'Confirm and Create User'}
+                  </button>
+                  <button 
+                    className="cancel-button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeAdminPasswordModal();
+                    }}
+                  >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="user-grid-container">
             {paginatedUsers.length > 0 ? (
-              <>
+            <>
                 <div className="user-table" onClick={closeAllDropdowns}>
                   {paginatedUsers
-                    .filter(user => user && user.username)
+                  .filter(user => user && user.username)
                     .map((user, index) => (
                       <div key={user.id} className="user-row">
                         <div className="user-cell checkbox-cell">
@@ -1606,8 +1917,8 @@ The user can then login with this new password. Old password will become invalid
                             <div className="user-details">
                               <div className="username">{user.username}</div>
                               <div className="user-email">{user.email || 'No email'}</div>
-                            </div>
-                          </div>
+                    </div>
+              </div>
                         </div>
                         <div className="user-cell role-cell">
                           <span className={`role-badge role-${user.role?.toLowerCase().replace(' ', '-')}`}>
@@ -1697,22 +2008,22 @@ The user can then login with this new password. Old password will become invalid
                     Next
                   </button>
                 </div>
-                {selectedUser && (
-                  <UserPopup
-                    user={selectedUser}
-                    onClose={() => setSelectedUser(null)}
-                    onUpdate={(updatedUser) => {
-                      setSelectedUser(updatedUser);
+              {selectedUser && (
+                <UserPopup
+                  user={selectedUser}
+                  onClose={() => setSelectedUser(null)}
+                  onUpdate={(updatedUser) => {
+                    setSelectedUser(updatedUser);
                       setAccountUsers(prev => prev.map(u => u.username === updatedUser.username ? updatedUser : u));
-                    }}
-                    currentUser={currentUser}
-                  />
-                )}
-              </>
-            ) : (
-              <div className="no-users-message">No users found.</div>
-            )}
-          </div>
+                  }}
+                  currentUser={currentUser}
+                />
+              )}
+            </>
+          ) : (
+              <div className="loading-users-message">Loading User Accounts...</div>
+          )}
+      </div>
         </div>
       </div>
     </div>

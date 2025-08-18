@@ -38,156 +38,22 @@
   text-align: center;
 }
 
-.homepage-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #2C517D;
-  padding: .5rem 5rem;
-  width: 100%;
-  margin: 0;
-  margin-bottom: 2rem;
-  height: 50%;
-  box-sizing: border-box;
-}
-
-.header-logo-container {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-logo {
-  height: 40px;
-  width: auto;
-}
-
-.header-title {
-  color: white;
-  font-family: 'customfont1';
-  font-size: 1.5rem;
-  margin: 0;
-}
-
-.header-hamburger-icon {
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  margin-left: 1rem;
-  transition: color 0.3s ease;
-}
-
-.header-hamburger-icon:hover {
-  color: #c5cdcd;
-}
-
-.homepage-menu {
-  position: relative;
-  cursor: pointer;
-  padding: 10px;
-  z-index: 1000;
-}
-
-.homepage-menu button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-menu {
-  position: relative;
-}
-
-.user-menu button {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-dropdown-icon {
-  color: white;
-  font-size: 2.5rem;
-}
-
-.user-dropdown-profile-pic {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid white;
-}
-
-.dropdown-icon {
-  color: black;
-  font-size: 1.3rem;
-  flex-shrink: 0;
-  margin-right: 0.5rem;
-}
-
-.header-dropdown-menu {
-  background-color: #EFEFEF;
-  border-radius: 10px;
-  padding: 0.5rem 0;
-  position: absolute;
-  top: 150%;
-  right: 0;
-  z-index: 1001;
-  min-width: 160px;
-  overflow: hidden;
-}
-
-.header-dropdown-menu button {
-  background: #EFEFEF;
-  border: none;
-  color: black;
-  font-family: 'ReadexPro-Light';
-  cursor: pointer;
-  padding: 0.75rem 1.5rem;
-  text-align: left;
-  width: 100%;
-  transition: background-color 0.2s;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-dropdown-menu button:hover {
-  background-color: #8a8f93;  
-}
-
-.main-content {
-  display: flex;
-  gap: 1rem;
-  height: calc(100vh - 6rem - 50px);
-  margin-left: 20%;
-  transition: margin-left 0.3s ease;
-}
-
-/* Remove the margin adjustment to keep main content in same position */
-
-/* FIXED SIDEBAR STYLES - Replace your existing sidebar CSS */
-
+/* SIDEBAR STYLES - Fixed positioning and responsive behavior */
 .sidebar-wrapper {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 50px);
+  height: calc(100vh - 60px);
   width: 18%;
-  position: absolute;
+  position: fixed;
   left: 0;
-  top: 78px;
+  top: 60px; /* COMMENT: Adjust this value to control sidebar distance from top of screen */
   transition: all 0.3s ease;
   overflow: hidden;
+  z-index: 999;
+  box-sizing: border-box;
 }
 
+/* Desktop collapsed state */
 .sidebar-wrapper.collapsed {
   width: 80px;
   overflow: hidden;
@@ -253,6 +119,316 @@
   z-index: 1000;
 }
 
+/* Mobile slide-out state */
+.sidebar-wrapper.sidebarOpen {
+  left: 0;
+}
+
+/* Ensure sidebar content doesn't scroll with page */
+.sidebar {
+  background-color: #ffffff;
+  padding: 1rem;
+  padding-bottom: 5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* COMMENT: Main content positioning when sidebar is expanded (default state) */
+.main-content {
+  display: flex;
+  gap: 1rem;
+  height: calc(100vh - 120px);
+  margin-left: 18%;
+  transition: margin-left 0.3s ease;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 0 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* COMMENT: Change overflow-y to 'hidden' if you don't want scrolling on large screens */
+/* COMMENT: Adjust height calculation above if you want different content height */
+/* COMMENT: Adjust margin-left above to control content position when sidebar is expanded */
+
+/* COMMENT: This class is applied when sidebar is collapsed on desktop */
+/* COMMENT: Change margin-left value to adjust how much the content moves when sidebar collapses */
+.main-content.sidebar-collapsed {
+  margin-left: 80px;
+}
+
+/* Header styles */
+.homepage-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #2C517D;
+  padding: 1rem 2rem;
+  width: 100%;
+  margin: 0;
+  margin-bottom: 2rem;
+  height: 60px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1000;
+}
+
+.header-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-sizing: border-box;
+}
+
+.header-logo {
+  height: 40px;
+  width: auto;
+}
+
+.header-title {
+  color: white;
+  font-family: 'customfont1';
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.header-hamburger-icon {
+  color: white !important;
+  font-size: 0.8rem !important;
+  cursor: pointer;
+  margin-left: 1rem;
+  transition: color 0.3s ease;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-hamburger-icon:hover {
+  color: #c5cdcd !important;
+}
+
+.homepage-menu {
+  position: relative;
+  cursor: pointer;
+  padding: 10px;
+  z-index: 1000;
+}
+
+.homepage-menu button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-dropdown-profile-pic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid white;
+}
+
+.user-dropdown-icon {
+  color: white;
+  font-size: 2rem;
+}
+
+.header-dropdown-menu {
+  background-color: #EFEFEF;
+  border: 3px solid #DDDDDD;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 0.3rem 0;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1001;
+  min-width: 180px;
+  margin-top: 0.5rem;
+}
+
+.header-dropdown-menu button {
+  background: #EFEFEF;
+  border: none;
+  color: #000000;
+  font-family: 'customfont1';
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-size: 1rem;
+}
+
+.header-dropdown-menu button:hover {
+  background-color: #b0b1b1 !important; 
+}
+
+.dropdown-icon {
+  font-size: 1rem;
+  color: #666;
+  flex-shrink: 0;
+}
+
+/* Sidebar styles */
+.sidebar-main-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  width: 85%;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  color: #000000;
+  font-family: 'ReadexPro-Regular';
+  font-size: 1.3rem;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+}
+
+.sidebar-nav-item:hover {
+  background-color: #f5f5f5;
+  transform: translateX(5px);
+}
+
+.sidebar-nav-icon {
+  font-size: 1.5rem;
+  color: #000000;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-bottom-options {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.sidebar-bottom-options .sidebar-nav-item {
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+}
+
+.sidebar-bottom-options .sidebar-nav-item:hover {
+  background-color: #f0f0f0;
+}
+
+.sidebar-export-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 120px; /* COMMENT: Add space above bottom options to prevent overlap */
+  padding-bottom: 1rem;
+}
+
+.sidebar-download-options {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  z-index: 100;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.sidebar-download-options .sidebar-download-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  font-size: 13px;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-download-options .sidebar-download-option span {
+  font-family: 'ReadexPro-Regular';
+  font-size: 0.9rem;
+  color: #000000;
+  font-weight: 500;
+}
+
+.sidebar-download-options .sidebar-download-option:hover {
+  background: #f5f5f5;
+}
+
+.homeDLpdf-icon {
+  font-size: 1.5rem;
+  color: #ff2727;
+}
+
+.homeDLcsv-icon {
+  font-size: 1.5rem;
+  color: #27ae60;
+}
+
 /* Sidebar Top Styles */
 .sidebar-top {
   background-color: #ffffff;
@@ -263,7 +439,7 @@
   justify-content: center;
   color: rgb(0, 0, 0);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  flex-shrink: 0; /* Prevent top section from shrinking */
+  flex-shrink: 0;
   overflow: hidden;
   width: 100%;
   box-sizing: border-box;
@@ -319,401 +495,228 @@
 }
 
 .dashboard {
-  height: 100%; /* Changed from 500% */
-  overflow: hidden;
-}
-
-/* MAIN SIDEBAR CONTAINER - Key Fix */
-.sidebar {
-  background-color: #ffffff;
-  padding: 1rem;
-  padding-bottom: 5rem; /* Add space for bottom options */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.3);
-  flex: 1;
-  min-height: 0; /* Important for flex children */
-  position: relative; /* For absolute positioning of bottom options */
-}
-
-/* MAIN NAVIGATION AREA */
-.sidebar-main-nav {
-  display: flex;
-  flex-direction: column;
-  flex: 1; /* Take up available space */
-  overflow-y: auto; /* Allow scrolling if needed */
-}
-
-.sidebar-buttons {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 0;
-}
-
-.sidebar-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  width: 85%;
-  padding: 0.8rem 1rem;
-  cursor: pointer;
-  color: #000000;
-  font-family: 'ReadexPro-Regular';
-  font-size: 1.3rem;
-  transition: all 0.3s ease;
-  border-radius: 8px;
-}
-
-.sidebar-nav-item:hover {
-  background-color: #f5f5f5;
-  transform: translateX(5px);
-}
-
-.sidebar-nav-icon {
-  font-size: 1.5rem;
-  color: #000000;
-  flex-shrink: 0;
-}
-
-.sidebar-nav-item span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* BOTTOM OPTIONS - Fixed positioning */
-.sidebar-bottom-options {
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  right: 0;
-  padding: 1rem;
-  border-top: 1px solid #e0e0e0;
-  background-color: #ffffff;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-}
-
-/* Remove all the problematic media queries */
-/* These were causing the positioning issues */
-
-.sidebar-bottom-options .sidebar-nav-item {
-  font-size: 0.85rem;
-  padding: 0.6rem 1rem;
-}
-
-.sidebar-bottom-options .sidebar-nav-item:hover {
-  background-color: #f0f0f0;
-}
-
-/* Optional: Add these for better responsive behavior */
-@media (max-height: 700px) {
-  .sidebar-top {
-    padding: 1rem;
-  }
-  
-  .sidebar-buttons {
-    gap: 0.3rem;
-    padding: 0.5rem 0;
-  }
-  
-  .sidebar-nav-item {
-    padding: 0.6rem 1rem;
-    font-size: 1.1rem;
-  }
-}
-
-@media (max-height: 600px) {
-  .user-info {
-    gap: 0.5rem;
-  }
-  
-  .profile-picture, .user-icon {
-    width: 3rem;
-    height: 3rem;
-  }
-  
-  .welcome-text h2 {
-    font-size: 1rem;
-  }
-}
-
-/* Old button styles removed - now using text-based navigation */
-
-/* export data option*/
-/* Sidebar Export Button Styles */
-.sidebar-export-container {
-  position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center; /* This centers the button and dropdown */
-}
-
-.sidebar-download-options {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  width: 100%;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  z-index: 100;
-  overflow: hidden;
-  margin-bottom: 5px;
-}
-
-.sidebar-download-options .sidebar-download-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  color: #333;
-  font-size: 13px;
-  transition: background-color 0.2s ease;
-}
-
-.sidebar-download-options .sidebar-download-option span {
-  font-family: 'ReadexPro-Regular';
-  font-size: 0.9rem;
-  color: #000000;
-  font-weight: 500;
-}
-
-.sidebar-download-options .sidebar-download-option:hover {
-  background: #f5f5f5;
-}
-
-.homeDLpdf-icon {
-  font-size: 1.5rem;
-  color: #ff2727;
-}
-
-.homeDLcsv-icon {
-  font-size: 1.5rem;
-  color: #27ae60;
-}
-
-
-.dashboard {
-    width: 95%;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    height: calc(100vh - 3rem - 50px - 2rem);
-
+  gap: 1rem;
+  height: 100%;
+  box-sizing: border-box;
+  /* COMMENT: Change width to control dashboard size relative to main-content */
+  /* COMMENT: Use percentage (e.g., 95%) or fixed width (e.g., 1200px) */
+  /* COMMENT: Change height to control dashboard height */
 }
 
 .dashboard-top-row {
-    display: flex;
-    gap: 1rem;
-    height: 600px;
+  display: flex;
+  gap: 1rem;
+  height: 600px;
+  min-height: 500px;
+  box-sizing: border-box;
 }
 
 .right-sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 30%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 30%;
+  min-width: 250px;
+  box-sizing: border-box;
 }
 
 .pie-chart-box, .calendar-box {
-    background-color: #2C517D;
-    border-radius: 15px;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  background-color: #2C517D;
+  border-radius: 15px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .pie-chart-box {
-    flex: 1;
+  flex: 1;
 }
 
 .calendar-box {
-    flex: 1;
+  flex: 1;
 }
 
 .pie-chart-box h3, .calendar-box h3 {
-    color: white;
-    font-family: 'customfont1';
-    font-size: 1.2rem;
-    margin: 0 0 1rem 0;
-    text-align: center;
+  color: white;
+  font-family: 'customfont1';
+  font-size: 1.2rem;
+  margin: 0 0 1rem 0;
+  text-align: center;
 }
 
 .chart-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    color: rgba(255, 255, 255, 0.8);
-    text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
 }
 
 .chart-icon {
-    font-size: 2.5rem;
-    color: rgba(255, 255, 255, 0.7);
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .chart-placeholder span {
-    font-family: 'ReadexPro-Light';
-    font-size: 0.9rem;
+  font-family: 'ReadexPro-Light';
+  font-size: 0.9rem;
 }
 
 .main-box {
-    flex: 1;
-    background-color: #2C517D;
-    border-radius: 15px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1.5rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    min-height: 400px;
-    position: relative;
-    width: 70%;
+  flex: 1;
+  background-color: #2C517D;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  min-height: 400px;
+  position: relative;
+  min-width: 400px;
+  box-sizing: border-box;
 }
 
 .icon {
-    font-size: 2.5rem;
-    color: #ffffff;
+  font-size: 2.5rem;
+  color: #ffffff;
 }
 
 .bottom-boxes {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    height: 35%;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 35%;
+  min-height: 200px;
+  box-sizing: border-box;
 }
 
 .box {
-    flex: 1;
-    background-color: #2C517D;
-    border-radius: 15px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 0.8rem;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
+  flex: 1;
+  background-color: #2C517D;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  min-width: 200px;
+  box-sizing: border-box;
 }
 
 .box:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-5px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
 }
 
 .box-icon {
-    font-size: 2.2rem;
-    color: #ffffff;
+  font-size: 2.2rem;
+  color: #ffffff;
 }
 
 .box-title {
-    font-family: 'customfont1';
-    color: #ffffff;
-    text-align: center;
-    font-size: 1.3rem;
-    font-weight: bold;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.1);
+  font-family: 'customfont1';
+  color: #ffffff;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.1);
 }
 
 /* Modal Styling */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
 
-  .modal-container {
-    position: relative;
-    background-color: #FFFFFF; /* Warm white */
-    padding: 1.5rem;
-    border-radius: 10px;
-    width: 100%;
-    max-width: 1100px;
-    max-height: 80vh;
-    overflow-y: auto;
-    margin: auto;
-    box-shadow: 0 4px 20px rgba(26, 67, 117, 0.15); /* Soft blue shadow */
-    border: 1px solid #E9ECEF; /* Subtle border */
-  }
-  
-  /* For smaller screens */
-  @media (max-width: 768px) {
-    .modal-container {
-      width: 90%;
-      max-height: 85vh; /* Slightly more height on mobile for better usability */
-      padding: 1.2rem;
-    }
-  }
-  
-  /* For very small screens */
-  @media (max-width: 480px) {
-    .modal-container {
-      width: 95%;
-      max-height: 90vh; /* Maximum height on very small screens */
-      padding: 1rem;
-    }
-  }
+.modal-container {
+  position: relative;
+  background-color: #FFFFFF;
+  padding: 1.5rem;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 1100px;
+  max-height: 80vh;
+  overflow-y: auto;
+  margin: auto;
+  margin-top: 7rem;
+  margin-left: 30rem;
+  box-shadow: 0 4px 20px rgba(26, 67, 117, 0.15);
+  border: 1px solid #E9ECEF;
+}
+
 .modal-close-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background-color: #1A4375;
-    color: #FFFFFF;
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-    cursor: pointer;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background-color: #1A4375;
+  color: #FFFFFF;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+  cursor: pointer;
 }
 
 .modal-content {
-    color: #1A4375;
-    font-family: 'customfont1';
-    white-space: pre-line;
-    text-align: center;
-    font-size: 1.1rem;
-    line-height: 1.5;
+  color: #1A4375;
+  font-family: 'customfont1';
+  white-space: pre-line;
+  text-align: center;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 15px;
+  padding: 2rem;
+  max-width: 94%;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease;
+  border: 2px solid #2C517D;
+  position: relative;
+  margin-top: 3rem;
+  z-index: 10002;
 }
 
 .modal-title-icon {
-    font-size: 2.5rem;
-    color: #1A4375;  
-    opacity: 0.9;     
-    margin-bottom: 0.5rem;
+  font-size: 2.5rem;
+  color: #1A4375;  
+  opacity: 0.9;     
+  margin-bottom: 0.5rem;
 }
 
 .modal-header h2 {
-    color: #1A4375;
-    font-size: 2rem;
-    margin: 0;
-    text-align: center;
-    font-weight: 600;
-    position: relative;
-    display: inline-block;
+  color: #1A4375;
+  font-size: 2rem;
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+  position: relative;
+  display: inline-block;
 }
 
 .modal-text-content p {
@@ -735,236 +738,92 @@
 
 /* style for visual condition*/
 .image-placeholder {
-    background-color: rgba(255, 255, 255, 0.3);
-    border: 2px dashed #004a6f;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 180px;
-    transition: all 0.3s ease;
+  background-color: rgba(255, 255, 255, 0.3);
+  border: 2px dashed #004a6f;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  transition: all 0.3s ease;
 }
 
 .image-placeholder:hover {
-    background-color: rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .placeholder-icon {
-    font-size: 3.5rem;
-    color: #004a6f;
-    margin-bottom: 1rem;
-    opacity: 0.7;
+  font-size: 3.5rem;
+  color: #004a6f;
+  margin-bottom: 1rem;
+  opacity: 0.7;
 }
 
 .image-placeholder span {
-    color: #004a6f;
-    font-family: 'customfont1';
-    font-size: 1rem;
-}
-
-@media (max-width: 768px) {
-    .bottom-boxes {
-        flex-wrap: wrap;
-        height: auto;
-    }
-    
-    .box {
-        flex: 1 1 45%;
-        margin-bottom: 1rem;
-    }
-    
-    .modal-container {
-        width: 90%;
-        padding: 1.5rem;
-    }
-    
-    .sidebar-wrapper {
-        width: 30%;
-        margin-left: 5rem;
-    }
-    
-    .sidebar-buttons button {
-        width: 80%;
-    }
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-  .main-content {
-    flex-direction: column;
-    height: auto;
-    margin-left: 0;
-  }
-
-  .sidebar-wrapper {
-    position: relative;
-    width: 90%;
-    margin: 0 auto;
-    height: auto;
-    left: auto;
-    top: auto;
-  }
-
-  .dashboard {
-    width: 90%;
-    margin: 1rem auto;
-    height: auto;
-  }
-
-  .bottom-boxes {
-    flex-wrap: wrap;
-  }
-
-  .box {
-    flex: 1 1 45%;
-    min-width: 250px;
-  }
-
-  .user-info {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.8rem;
-  }
-
-  .welcome-text {
-    align-items: center;
-    text-align: center;
-  }
-}
-
-@media (max-width: 768px) {
-  .homepage-header-bar {
-    padding: .5rem 1rem;
-    width: 90%;
-  }
-
-  .header-title {
-    font-size: 1.2rem;
-  }
-
-  .main-content {
-    margin-left: 0;
-  }
-
-  .sidebar-wrapper {
-    position: relative;
-    width: 95%;
-    left: auto;
-    top: auto;
-  }
-
-  .dashboard {
-    width: 95%;
-  }
-
-  .box {
-    flex: 1 1 100%;
-  }
-
-  .main-box {
-    min-height: 300px;
-  }
-
-  .user-info {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.8rem;
-    padding: 0.3rem;
-  }
-
-  .welcome-text {
-    align-items: center;
-    text-align: center;
-  }
-
-  .profile-picture, .user-icon {
-    width: 3.5rem;
-    height: 3.5rem;
-  }
-
-  .welcome-text h2 {
-    font-size: 1.1rem;
-  }
-
-  .username {
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .homepage-header-bar {
-    padding: .5rem;
-    width: 95%;
-  }
-
-  .header-logo {
-    height: 30px;
-  }
-
-  .header-title {
-    font-size: 1rem;
-  }
-
-  .box-title {
-    font-size: 1.1rem;
-  }
-
-  .box-icon {
-    font-size: 1.8rem;
-  }
+  color: #004a6f;
+  font-family: 'customfont1';
+  font-size: 1rem;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 15px;
+  box-sizing: border-box;
 }
 
 .header-search-container {
   position: relative;
-  margin: 0 15px;
+  z-index: 1000;
+  box-sizing: border-box;
 }
 
 .header-search-input-wrapper {
   position: relative;
-  width: 200px;
-  margin-right: 75px;
+  display: flex;
+  align-items: center;
+  z-index: 1000;
+  box-sizing: border-box;
 }
 
 .header-search-input {
-  width: 100%;
-  padding: 10px 15px 10px 50px;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  font-size: 1rem;
-  font-family: 'ReadexPro-Regular';
-  transition: all 0.3s ease;
-  background-color: #DDE9FF;
-  color: #2a2a2a;
+  border: none;
+  outline: none;
+  background: #DDE9FF;
+  width: 200px;
+  padding: 11px 15px;
+  padding-right: 40px;
+  border: 2px solid #D9D9D9;
+  border-radius: 100px;
+  font-family: 'customfont1';
+  flex-grow: 1;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
 }
 
 .header-search-input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+  border-color: #1A4375;
+  box-shadow: 0 0 0 3px rgba(26, 67, 117, 0.2);
+  background-color: #ffffff;
 }
 
 .header-search-input::placeholder {
   color: #49454F;
-  opacity: 1;
+  opacity: 0.8;
+  font-size: 14px;
+  font-family: 'ReadexPro-Regular';
+  font-weight: 500;
 }
 
 .header-search-icon {
   position: absolute;
-  left: 120%;
+  right: 15px;
   top: 50%;
   transform: translateY(-50%);
-  color: #666;
-  font-size: 1rem;
-  z-index: 1;
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .dropdown-menu {
@@ -1045,7 +904,6 @@
   font-size: 1.2rem;
 }
 
-/* Add styles for the harvest chart */
 .harvest-label {
   color: #7ffcff;
   font-family: 'customfont1';
@@ -1100,4 +958,1432 @@
   flex-direction: column;
   text-align: center;
   width: 100%;
+}
+
+/* RESPONSIVE DESIGN - Fixed positioning and layout issues */
+
+/* Sidebar backdrop for mobile */
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 997;
+  display: none;
+}
+
+/* Large Desktop/TV Screens (1920px and above) */
+@media (min-width: 1920px) {
+  .homepage-header-bar {
+    padding: 1rem 4rem;
+    height: 80px;
+  }
+  
+  .header-logo {
+    height: 50px;
+  }
+  
+  .header-title {
+    font-size: 2rem;
+  }
+  
+  .sidebar-wrapper {
+    width: 16%;
+    top: 80px; /* COMMENT: Adjust this to control sidebar distance from top on large screens */
+    height: calc(100vh - 80px);
+  }
+  
+  .main-content {
+    margin-left: 16%;
+    height: calc(100vh - 140px);
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 10rem; 
+    margin-right: 5rem;/* COMMENT: Adjust this value to control content movement */
+  }
+  
+  .dashboard-top-row {
+    height: 700px;
+    min-height: 600px;
+  }
+  
+  .right-sidebar {
+    width: 25%;
+    min-width: 300px;
+  }
+  
+  .box {
+    min-width: 250px;
+  }
+  
+  .box-title {
+    font-size: 1.5rem;
+  }
+  
+  .box-icon {
+    font-size: 2.5rem;
+  }
+}
+
+/* Standard Desktop/Laptop Screens (1200px - 1919px) */
+@media (min-width: 1200px) and (max-width: 1919px) {
+  .homepage-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  
+  .sidebar-wrapper {
+    width: 18%;
+    top: 60px; /* COMMENT: Adjust this to control sidebar distance from top on standard desktop */
+    height: calc(100vh - 60px);
+  }
+  
+  .main-content {
+    margin-left: 18%;
+    height: calc(100vh - 120px);
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 80px; /* COMMENT: Adjust this value to control content movement */
+  }
+  
+  .dashboard-top-row {
+    height: 600px;
+    min-height: 500px;
+  }
+  
+  .right-sidebar {
+    width: 30%;
+    min-width: 250px;
+  }
+}
+
+/* Medium Desktop/Small Laptop Screens (1024px - 1199px) */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .homepage-header-bar {
+    padding: 1rem 1.5rem;
+    height: 60px;
+  }
+  
+  .sidebar-wrapper {
+    width: 20%;
+    top: 60px; /* COMMENT: Adjust this to control sidebar distance from top on medium desktop */
+    height: calc(100vh - 60px);
+  }
+  
+  .main-content {
+    margin-left: 20%;
+    height: calc(100vh - 120px);
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 80px; /* COMMENT: Adjust this value to control content movement */
+  }
+  
+  .dashboard-top-row {
+    height: 550px;
+    min-height: 450px;
+  }
+  
+  .right-sidebar {
+    width: 32%;
+    min-width: 220px;
+  }
+  
+  .box {
+    min-width: 180px;
+  }
+  
+  .box-title {
+    font-size: 1.2rem;
+  }
+  
+  .box-icon {
+    font-size: 2rem;
+  }
+}
+
+/* COMMENT: Small Monitor Screens (1280px and similar) - Specific breakpoint for common small monitor resolutions */
+@media (min-width: 1280px) and (max-width: 1365px) {
+  .homepage-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  
+  .sidebar-wrapper {
+    width: 18% !important; /* COMMENT: Increased from 18% to 22% to show export text on small monitor screens */
+    top: 60px !important; /* COMMENT: Adjust this to control sidebar distance from top on small monitor screens */
+    height: calc(100vh - 60px) !important;
+  }
+  
+  /* COMMENT: Collapsed sidebar state for small monitor screens */
+  .sidebar-wrapper.collapsed {
+    width: 80px !important; /* COMMENT: Force collapsed width on small monitor screens */
+  }
+  
+  .main-content {
+    overflow-y: auto; /* COMMENT: Allows scrolling on small monitor screens */
+    height: calc(100vh - 120px);
+    margin-left: 18% !important; /* COMMENT: Adjusted from 18% to 22% to match new sidebar width */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 90px !important; /* COMMENT: Adjust this value to control content movement on small monitor */
+  }
+  
+  .dashboard-top-row {
+    height: 600px;
+    min-height: 500px;
+  }
+  
+  .right-sidebar {
+    width: 30%;
+    min-width: 250px;
+  }
+}
+
+/* COMMENT: Laptop screens (1366px - 1919px) - Specific breakpoint for common laptop resolutions */
+@media (min-width: 1366px) and (max-width: 1919px) {
+  .homepage-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  
+  .sidebar-wrapper {
+    width: 17% !important; /* COMMENT: Adjust this to control sidebar width on laptop screens */
+    top: 60px !important; /* COMMENT: Adjust this to control sidebar distance from top on laptop screens */
+    height: calc(100vh - 60px) !important;
+  }
+  
+  /* COMMENT: Collapsed sidebar state for laptop screens */
+  .sidebar-wrapper.collapsed {
+    width: 80px !important; /* COMMENT: Force collapsed width on laptop screens */
+  }
+  
+  .main-content {
+    overflow-y: auto; /* COMMENT: Prevents scrolling on laptop screens */
+    height: calc(100vh - 120px);
+    margin-left: 17% !important; /* COMMENT: Adjust this to control content position when sidebar is expanded on laptop screens */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 90px !important; /* COMMENT: Adjust this value to control content movement on laptop */
+  }
+  
+  .dashboard-top-row {
+    height: 600px;
+    min-height: 500px;
+  }
+  
+  .right-sidebar {
+    width: 30%;
+    min-width: 250px;
+  }
+}
+
+/* Tablet Screens (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .homepage-header-bar {
+    padding: 0.8rem 1rem;
+    height: 60px;
+    margin-bottom: 1rem;
+  }
+  
+  .header-logo {
+    height: 35px;
+  }
+  
+  .header-title {
+    font-size: 1.3rem;
+  }
+  
+  .sidebar-wrapper {
+    position: fixed;
+    left: -100%;
+    width: 250px;
+    top: 60px; /* COMMENT: Adjust this to control sidebar distance from top on tablet */
+    height: calc(100vh - 60px);
+    z-index: 998;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar-wrapper.sidebarOpen {
+    left: 0;
+  }
+  
+  .sidebar-backdrop {
+    display: block;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    height: calc(100vh - 100px);
+    width: 100%;
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+  
+  .dashboard {
+    width: 95%;
+    margin: 0 auto;
+  }
+  
+  .dashboard-top-row {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: 1rem;
+  }
+  
+  .main-box {
+    min-height: 350px;
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .right-sidebar {
+    width: 100%;
+    flex-direction: row;
+    min-width: auto;
+  }
+  
+  .pie-chart-box, .calendar-box {
+    flex: 1;
+    min-height: 200px;
+  }
+  
+  .bottom-boxes {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: auto;
+    gap: 0.8rem;
+  }
+  
+  .box {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-width: 180px;
+    min-height: 150px;
+  }
+  
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.8rem;
+    padding: 0.3rem;
+  }
+  
+  .welcome-text {
+    align-items: center;
+    text-align: center;
+  }
+  
+  .profile-picture, .user-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1.1rem;
+  }
+  
+  .username {
+    font-size: 0.8rem;
+  }
+  
+  .header-search-input {
+    width: 150px;
+  }
+}
+
+/* Mobile Screens (480px - 767px) */
+@media (min-width: 480px) and (max-width: 767px) {
+  .homepage-header-bar {
+    padding: 0.6rem 0.8rem;
+    height: 55px;
+    margin-bottom: 1rem;
+  }
+  
+  .header-logo {
+    height: 30px;
+  }
+  
+  .header-title {
+    font-size: 1.1rem;
+  }
+  
+  .sidebar-wrapper {
+    position: fixed;
+    left: -100%;
+    width: 280px;
+    top: 55px; /* COMMENT: Adjust this to control sidebar distance from top on mobile */
+    height: calc(100vh - 55px);
+    z-index: 998;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar-wrapper.sidebarOpen {
+    left: 0;
+  }
+  
+  .sidebar-backdrop {
+    display: block;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    height: calc(100vh - 90px);
+    width: 100%;
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+  
+  .dashboard {
+    width: 95%;
+    margin: 0 auto;
+  }
+  
+  .dashboard-top-row {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: 1rem;
+  }
+  
+  .main-box {
+    min-height: 300px;
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .right-sidebar {
+    width: 100%;
+    flex-direction: row;
+    min-width: auto;
+  }
+  
+  .pie-chart-box, .calendar-box {
+    flex: 1;
+    min-height: 180px;
+  }
+  
+  .bottom-boxes {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: 0.8rem;
+  }
+  
+  .box {
+    flex: 1;
+    min-width: auto;
+    min-height: 120px;
+  }
+  
+  .box-title {
+    font-size: 1.1rem;
+  }
+  
+  .box-icon {
+    font-size: 1.8rem;
+  }
+  
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.6rem;
+    padding: 0.2rem;
+  }
+  
+  .profile-picture, .user-icon {
+    width: 3rem;
+    height: 3rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1rem;
+  }
+  
+  .username {
+    font-size: 0.75rem;
+  }
+  
+  .header-search-input {
+    width: 120px;
+    padding: 8px 12px;
+    padding-right: 35px;
+  }
+  
+  .header-search-icon {
+    right: 12px;
+  }
+  
+  .modal-container {
+    width: 95%;
+    padding: 1rem;
+    max-height: 90vh;
+  }
+}
+
+/* Small Mobile Screens (below 480px) */
+@media (max-width: 479px) {
+  .homepage-header-bar {
+    padding: 0.5rem;
+    height: 50px;
+    margin-bottom: 0.8rem;
+  }
+  
+  .header-logo {
+    height: 25px;
+  }
+  
+  .header-title {
+    font-size: 1rem;
+  }
+  
+  .sidebar-wrapper {
+    position: fixed;
+    left: -100%;
+    width: 100%;
+    top: 50px; /* COMMENT: Adjust this to control sidebar distance from top on small mobile */
+    height: calc(100vh - 50px);
+    z-index: 998;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar-wrapper.sidebarOpen {
+    left: 0;
+  }
+  
+  .sidebar-backdrop {
+    display: block;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    height: calc(100vh - 80px);
+    width: 100%;
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+  
+  .dashboard {
+    width: 98%;
+    margin: 0 auto;
+  }
+  
+  .dashboard-top-row {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: 0.8rem;
+  }
+  
+  .main-box {
+    min-height: 250px;
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .right-sidebar {
+    width: 100%;
+    flex-direction: column;
+    min-width: auto;
+  }
+  
+  .pie-chart-box, .calendar-box {
+    min-height: 150px;
+  }
+  
+  .bottom-boxes {
+    flex-direction: column;
+    height: auto;
+    min-height: auto;
+    gap: 0.6rem;
+  }
+  
+  .box {
+    min-height: 100px;
+  }
+  
+  .box-title {
+    font-size: 1rem;
+  }
+  
+  .box-icon {
+    font-size: 1.6rem;
+  }
+  
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 0.1rem;
+  }
+  
+  .profile-picture, .user-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 0.9rem;
+  }
+  
+  .username {
+    font-size: 0.7rem;
+  }
+  
+  .header-search-input {
+    width: 100px;
+    padding: 6px 10px;
+    padding-right: 30px;
+    font-size: 12px;
+  }
+  
+  .header-search-icon {
+    right: 10px;
+    font-size: 12px;
+  }
+  
+  .modal-container {
+    width: 98%;
+    padding: 0.8rem;
+    max-height: 95vh;
+  }
+  
+  .sidebar-nav-item {
+    font-size: 1.1rem;
+    padding: 0.6rem 0.8rem;
+  }
+}
+
+/* Landscape orientation adjustments for mobile/tablet */
+@media (max-height: 500px) and (orientation: landscape) {
+  .homepage-header-bar {
+    height: 45px;
+    margin-bottom: 0.5rem;
+  }
+  
+  .sidebar-wrapper {
+    top: 45px;
+    height: calc(100vh - 45px);
+  }
+  
+  .main-content {
+    height: calc(100vh - 70px);
+  }
+  
+  .dashboard-top-row {
+    height: auto;
+    min-height: 200px;
+  }
+  
+  .main-box {
+    min-height: 200px;
+  }
+  
+  .right-sidebar {
+    flex-direction: row;
+  }
+  
+  .pie-chart-box, .calendar-box {
+    min-height: 120px;
+  }
+  
+  .bottom-boxes {
+    height: auto;
+    min-height: 120px;
+  }
+  
+  .box {
+    min-height: 80px;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .header-logo {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Print styles */
+@media print {
+  .sidebar-wrapper,
+  .homepage-header-bar,
+  .header-right {
+    display: none;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .dashboard {
+    width: 100%;
+  }
+}
+
+/* Ensure proper font scaling */
+@media (min-width: 1920px) {
+  .header-title {
+    font-size: 2rem;
+  }
+  
+  .box-title {
+    font-size: 1.5rem;
+  }
+  
+  .sidebar-nav-item {
+    font-size: 1.4rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1.4rem;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1919px) {
+  .header-title {
+    font-size: 1.5rem;
+  }
+  
+  .box-title {
+    font-size: 1.3rem;
+  }
+  
+  .sidebar-nav-item {
+    font-size: 1.3rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1.2rem;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .header-title {
+    font-size: 1.3rem;
+  }
+  
+  .box-title {
+    font-size: 1.2rem;
+  }
+  
+  .sidebar-nav-item {
+    font-size: 1.2rem;
+  }
+  
+  .welcome-text h2 {
+    font-size: 1.1rem;
+  }
+}
+
+/* Ensure proper touch targets on mobile */
+@media (max-width: 1023px) {
+  .sidebar-nav-item {
+    min-height: 44px;
+    padding: 0.8rem 1rem;
+  }
+  
+  .box {
+    min-height: 120px;
+  }
+  
+  .header-hamburger-icon {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Smooth scrolling for better mobile experience */
+@media (max-width: 1023px) {
+  .dashboard {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .sidebar {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Ensure proper contrast and readability */
+@media (max-width: 767px) {
+  .box-title {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  
+  .header-title {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+}
+
+/* Fix for very small screens */
+@media (max-width: 360px) {
+  .homepage-header-bar {
+    padding: 0.4rem;
+    height: 45px;
+  }
+  
+  .header-logo {
+    height: 20px;
+  }
+  
+  .header-title {
+    font-size: 0.9rem;
+  }
+  
+  .dashboard {
+    width: 99%;
+    padding: 0 0.5rem;
+  }
+  
+  .box {
+    min-height: 80px;
+    padding: 0.8rem;
+  }
+  
+  .box-title {
+    font-size: 0.9rem;
+  }
+  
+  .box-icon {
+    font-size: 1.4rem;
+  }
+}
+
+/* Responsive hamburger icon sizing */
+
+@media (max-width: 1523px) {
+  .header-hamburger-icon {
+    font-size: 0.1em !important;
+    min-width: 36px;
+    min-height: 36px;
+    margin-left: 0.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .header-hamburger-icon {
+    font-size: 0.7rem !important;
+    min-width: 32px;
+    min-height: 32px;
+    margin-left: 0.4rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .header-hamburger-icon {
+    font-size: 0.6rem !important;
+    min-width: 28px;
+    min-height: 28px;
+    margin-left: 0.3rem;
+  }
+}
+
+@media (max-width: 479px) {
+  .header-hamburger-icon {
+    font-size: 0.5rem !important;
+    min-width: 24px;
+    min-height: 24px;
+    margin-left: 0.2rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .header-hamburger-icon {
+    font-size: 0.4rem !important;
+    min-width: 22px;
+    min-height: 22px;
+    margin-left: 0.1rem;
+  }
+}
+
+/* Custom Scrollbar Styles - Make all scrollbars thinner and more appealing */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px; /* COMMENT: Adjust this value to control scrollbar width */
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #888888;
+}
+
+/* Firefox scrollbar styles */
+* {
+  scrollbar-width: thin; /* COMMENT: Adjust this to 'auto' or 'none' if needed */
+  scrollbar-color: #c1c1c1 #f1f1f1; /* COMMENT: thumb color track color */
+}
+
+/* Specific scrollbar styles for sidebar */
+.sidebar::-webkit-scrollbar {
+  width: 6px; /* COMMENT: Even thinner for sidebar */
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: #f8f9fa;
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+/* Specific scrollbar styles for main content */
+.main-content::-webkit-scrollbar {
+  width: 8px; /* COMMENT: Standard width for main content */
+}
+
+.main-content::-webkit-scrollbar-track {
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 4px;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+/* Specific scrollbar styles for dashboard */
+.dashboard::-webkit-scrollbar {
+  width: 6px; /* COMMENT: Thinner for dashboard */
+}
+
+.dashboard::-webkit-scrollbar-track {
+  background: #f8f9fa;
+  border-radius: 3px;
+}
+
+.dashboard::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 3px;
+}
+
+.dashboard::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+/* Specific scrollbar styles for modal content */
+.modal-container::-webkit-scrollbar {
+  width: 8px; /* COMMENT: Standard width for modals */
+}
+
+.modal-container::-webkit-scrollbar-track {
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.modal-container::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 4px;
+}
+
+.modal-container::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+/* Specific scrollbar styles for sidebar main navigation */
+.sidebar-main-nav::-webkit-scrollbar {
+  width: 6px; /* COMMENT: Thinner for sidebar navigation */
+}
+
+.sidebar-main-nav::-webkit-scrollbar-track {
+  background: #f8f9fa;
+  border-radius: 3px;
+}
+
+.sidebar-main-nav::-webkit-scrollbar-thumb {
+  background: #dee2e6;
+  border-radius: 3px;
+}
+
+.sidebar-main-nav::-webkit-scrollbar-thumb:hover {
+  background: #adb5bd;
+}
+
+/* COMMENT: Large screens - No scrolling, content fits in viewport */
+@media (min-width: 1920px) {
+  .main-content {
+    overflow-y: hidden; /* COMMENT: Prevents scrolling on large screens */
+    height: calc(100vh - 120px); /* COMMENT: Adjust height for large screens */
+    margin-left: 18%; /* COMMENT: Adjust this to control content position when sidebar is expanded on large screens */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 10rem; 
+    margin-right: 5rem;/* COMMENT: Adjust this value to control content movement */
+  }
+}
+
+/* COMMENT: Standard desktop screens - No scrolling, content fits in viewport */
+@media (min-width: 1200px) and (max-width: 1919px) {
+  .main-content {
+    overflow-y: auto; /* COMMENT: Prevents scrolling on standard desktop */
+    height: calc(100vh - 120px); /* COMMENT: Standard height calculation */
+    margin-left: 18%; /* COMMENT: Adjust this to control content position when sidebar is expanded on standard desktop */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 80px; /* COMMENT: Adjust this value to control content movement */
+  }
+}
+
+/* COMMENT: Medium desktop screens - No scrolling, content fits in viewport */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .main-content {
+    overflow-y: auto; /* COMMENT: Prevents scrolling on medium desktop */
+    height: calc(100vh - 120px); /* COMMENT: Standard height calculation */
+    margin-left: 20%; /* COMMENT: Adjust this to control content position when sidebar is expanded on medium desktop */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 80px; /* COMMENT: Adjust this value to control content movement */
+  }
+}
+
+/* COMMENT: Tablet and mobile - Allow scrolling for smaller screens */
+@media (max-width: 1023px) {
+  .main-content {
+    overflow-y: auto; /* COMMENT: Allows scrolling on mobile/tablet */
+    height: calc(100vh - 100px); /* COMMENT: Adjust height for mobile */
+    margin-left: 0; /* COMMENT: Full width on mobile */
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0; /* COMMENT: No margin adjustment on mobile */
+  }
+}
+
+/* =============================
+Mobile Responsiveness
+- up to 360px: Small phones
+- 361px to 480px: Standard phones
+- 481px to 575px: Large phones / small phablets
+- 576px to 767px: Phablets / small tablets (portrait)
+============================= */
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  /* Container & scrolling */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+  }
+
+  .homepage-container { 
+    min-height: 100vh; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+
+  /* Header */
+  .homepage-header-bar { 
+    padding: 0.6rem 0.8rem; 
+    height: 55px; 
+    margin-bottom: 1rem; 
+    width: 335%;
+    box-sizing: border-box;
+    overflow: visible; /* prevent visual gaps on the right */
+  }
+
+  .header-logo { 
+    height: 30px; 
+  }
+
+  .header-title { 
+    font-size: 1.1rem; 
+  }
+
+  /* Sidebar - slide over content (no gap under header) */
+  .sidebar-wrapper { 
+    position: fixed; 
+    left: -100%; /* fully hidden off-screen by default */
+    width: 100vw; /* full viewport width */
+    top: 55px; /* align exactly under the header */
+    height: calc(100vh - 55px); 
+    margin-top: -.3rem;
+    z-index: 998; 
+    transition: left 0.3s ease; 
+    box-sizing: border-box;
+  }
+
+  .sidebar-wrapper.sidebarOpen { 
+    left: 0; /* fully visible */
+  }
+
+  /* Ensure sidebar content scrolls on mobile */
+  .sidebar { 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
+    height: 100%;
+  }
+
+  .sidebar-backdrop { 
+    display: block; 
+  }
+
+  /* Content - full width and scrollable */
+  .main-content { 
+    margin-left: 5rem; 
+    height: 100%; 
+    width: 100%;
+    min-width: 300%;
+    box-sizing: border-box;
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+  .main-content.sidebar-collapsed { 
+    margin-left: 0; 
+  }
+
+  /* Two-column top row: main-box + pie-chart side-by-side */
+  .dashboard-top-row {
+    flex-direction: row;
+    align-items: stretch;
+    height: auto;
+    min-height: auto;
+    gap: 0.8rem;
+  }
+  .main-box { flex: 0 0 35%; min-width: 0; min-height: 240px; }
+  .right-sidebar { width: 65%; min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+  .pie-chart-box { flex: 1; min-height: 240px; }
+  .calendar-box { display: flex; flex: 1; min-height: 200px; align-items: center; justify-content: center; }
+
+  /* Bottom boxes: two per row (Row 1: Weather + Fish Pond, Row 2: PiscaRisk Data + Risk Reports) */
+  .bottom-boxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    height: auto;
+    min-height: auto;
+  }
+  .bottom-boxes .box {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-width: calc(50% - 0.4rem);
+    min-height: 140px;
+  }
+
+  /* Sidebar profile sizing and alignment */
+  .sidebar-top { 
+    padding: 1rem; 
+  }
+  .user-info { 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 0.6rem; 
+    text-align: center; 
+    padding: 0.4rem; 
+  }
+  .profile-picture, .user-icon { 
+    width: 50px; 
+    height: 50px; 
+    border-width: 2px; 
+    margin-left: -2rem;
+  }
+  .user-icon { 
+    font-size: 56px; 
+  }
+  .welcome-text { 
+    align-items: center; 
+    text-align: center; 
+  }
+  .welcome-text h2 { 
+    font-size: 1rem; 
+    line-height: 1.1; 
+  }
+  .username { 
+    font-size: 0.8rem; 
+    opacity: 0.9; 
+  }
+}
+
+/* 361px to 480px (Standard phones) */
+@media (min-width: 361px) and (max-width: 480px) {
+  /* Container & scrolling */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+  }
+
+  .homepage-container { 
+    min-height: 100vh; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+
+  /* Header */
+  .homepage-header-bar { 
+    padding: 0.6rem 0.8rem; 
+    height: 55px; 
+    margin-bottom: 1rem; 
+    width: 335%;
+    box-sizing: border-box;
+    overflow: visible; /* prevent visual gaps on the right */
+  }
+
+  .header-logo { 
+    height: 30px; 
+  }
+
+  .header-title { 
+    font-size: 1.1rem; 
+  }
+
+  /* Sidebar - slide over content (no gap under header) */
+  .sidebar-wrapper { 
+    position: fixed; 
+    left: -100%; /* fully hidden off-screen by default */
+    width: 100vw; /* full viewport width */
+    top: 55px; /* align exactly under the header */
+    height: calc(100vh - 55px); 
+    margin-top: -.3rem;
+    z-index: 998; 
+    transition: left 0.3s ease; 
+    box-sizing: border-box;
+  }
+
+  .sidebar-wrapper.sidebarOpen { 
+    left: 0; /* fully visible */
+  }
+
+  /* Ensure sidebar content scrolls on mobile */
+  .sidebar { 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
+    height: 100%;
+  }
+
+  .sidebar-backdrop { 
+    display: block; 
+  }
+
+  /* Content - full width and scrollable */
+  .main-content { 
+    margin-left: 5rem; 
+    height: 100%; 
+    width: 100%;
+    min-width: 300%;
+    box-sizing: border-box;
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+  .main-content.sidebar-collapsed { 
+    margin-left: 0; 
+  }
+
+  /* Two-column top row: main-box + pie-chart side-by-side */
+  .dashboard-top-row {
+    flex-direction: row;
+    align-items: stretch;
+    height: auto;
+    min-height: auto;
+    gap: 0.8rem;
+  }
+  .main-box { flex: 0 0 35%; min-width: 0; min-height: 240px; }
+  .right-sidebar { width: 65%; min-width: 0; display: flex; flex-direction: column; gap: 0.8rem; }
+  .pie-chart-box { flex: 1; min-height: 240px; }
+  .calendar-box { display: flex; flex: 1; min-height: 200px; align-items: center; justify-content: center; }
+
+  /* Bottom boxes: two per row (Row 1: Weather + Fish Pond, Row 2: PiscaRisk Data + Risk Reports) */
+  .bottom-boxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    height: auto;
+    min-height: auto;
+  }
+  .bottom-boxes .box {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-width: calc(50% - 0.4rem);
+    min-height: 140px;
+  }
+
+  /* Sidebar profile sizing and alignment */
+  .sidebar-top { 
+    padding: 1rem; 
+  }
+  .user-info { 
+    flex-direction: column; 
+    align-items: center; 
+    gap: 0.6rem; 
+    text-align: center; 
+    padding: 0.4rem; 
+  }
+  .profile-picture, .user-icon { 
+    width: 50px; 
+    height: 50px; 
+    border-width: 2px; 
+    margin-left: -2rem;
+  }
+  .user-icon { 
+    font-size: 56px; 
+  }
+  .welcome-text { 
+    align-items: center; 
+    text-align: center; 
+  }
+  .welcome-text h2 { 
+    font-size: 1rem; 
+    line-height: 1.1; 
+  }
+  .username { 
+    font-size: 0.8rem; 
+    opacity: 0.9; 
+  }
+}
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  /* Container & scrolling */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+  }
+
+  .homepage-container { 
+    min-height: 100vh; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+
+  /* Header */
+  .homepage-header-bar { 
+    padding: 0.6rem 0.8rem; 
+    height: 55px; 
+    margin-bottom: 1rem; 
+  }
+
+  .header-logo { 
+    height: 30px; 
+  }
+
+  .header-title { 
+    font-size: 1.1rem; 
+  }
+
+  /* Sidebar - slide over content */
+  .sidebar-wrapper { 
+    position: fixed; 
+    left: -100%; 
+    width: 280px; 
+    top: 55px; 
+    height: calc(100vh - 55px); 
+    z-index: 998; 
+    transition: left 0.3s ease; 
+  }
+  .sidebar-wrapper.sidebarOpen { 
+    left: 0; 
+  }
+  .sidebar-backdrop { 
+    display: block; 
+  }
+
+  /* Content - full width and scrollable */
+  .main-content { 
+    margin-left: 0; 
+    height: calc(100vh - 90px); 
+    width: 100%; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+
+  .main-content.sidebar-collapsed { 
+    margin-left: 0; 
+  }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  /* Container & scrolling */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+  }
+  .homepage-container { 
+    min-height: 100vh; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+
+  /* Header */
+  .homepage-header-bar { 
+    padding: 0.6rem 0.8rem; 
+    height: 55px; 
+    margin-bottom: 1rem; 
+  }
+  .header-logo { 
+    height: 30px;
+   }
+  .header-title { 
+    font-size: 1.1rem; 
+  }
+
+  /* Sidebar - slide over content */
+  .sidebar-wrapper { 
+    position: fixed; 
+    left: -100%; 
+    width: 280px; 
+    top: 55px; 
+    height: calc(100vh - 55px); 
+    z-index: 998; 
+    transition: left 0.3s ease; 
+  }
+  .sidebar-wrapper.sidebarOpen { 
+    left: 0; 
+  }
+  .sidebar-backdrop { 
+    display: block; 
+  }
+
+  /* Content - full width and scrollable */
+  .main-content { 
+    margin-left: 0; 
+    height: calc(100vh - 90px); 
+    width: 100%; 
+    overflow-y: auto; 
+    overflow-x: auto; 
+  }
+  .main-content.sidebar-collapsed { 
+    margin-left: 0; 
+  }
 }

@@ -468,3 +468,585 @@
 .terms-modal-continue:hover {
   background: #16345a;
 }
+
+/*
+  =============================
+  Mobile Responsiveness (Signup)
+  - up to 360px: Small phones
+  - 361px to 480px: Standard phones
+  - 481px to 575px: Large phones / small phablets
+  - 576px to 767px: Phablets / small tablets (portrait)
+  =============================
+*/
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  /* Ensure full-viewport background with no white gap */
+  html, body { height: 100%; width: 100%; background-color: #2C517D; }
+  .signup-container { min-height: 100dvh; position: relative; background-color: #2C517D; }
+  /* Move content to the top like Login */
+  .signup-container { justify-content: flex-start; align-items: center; }
+  .signup-wrapper { flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; }
+
+  .logo-section { align-items: center; margin-left: 0; margin-bottom: 1.25rem; }
+  .logo { width: 55%; }
+  .title { font-size: 8vw; margin-left: 0; text-align: center; }
+
+  .sign-form-section { width: 92vw; height: auto; padding: 1.25rem; }
+  .sign-rounded-line { width: 100%; margin-bottom: 1.25rem; }
+
+  .sign-input-field { width: 100%; max-width: none; margin: 0.5rem auto 1rem auto; padding-left: 2.25rem; }
+  .signup-password-wrapper { max-width: 100%; }
+  .signup-password-input { width: 100%; max-width: none; margin: 0.5rem auto 1rem auto; padding-right: 2.8rem; }
+  .signup-password-toggle { right: 0.75rem; top: 50%; transform: translateY(-50%); }
+  .signup-eye-icon { width: 1.15rem; height: 1.15rem; }
+
+  .social-sign-button { max-width: 100%; }
+  .create-btn { width: 100%; max-width: none; }
+
+  /* Pin bottom text */
+  .bottom-text { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); width: 100%; text-align: center; }
+
+  /* Error spacing */
+  .sign-error-message { margin-top: 0; margin-bottom: 1rem; padding: 10px 12px; font-size: 13px; }
+}
+
+/* 361px to 480px (Standard phones) */
+@media (min-width: 361px) and (max-width: 480px) {
+  /* Layout */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+    background-color: #2C517D; 
+  }
+
+  .signup-container { 
+    min-height: 100dvh; 
+    position: relative; 
+    background-color: #2C517D; 
+    justify-content: flex-start; 
+    align-items: center;
+  }
+
+  .signup-wrapper { 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: flex-start; 
+    padding-top: 1rem; 
+  }
+
+  /* Branding */
+  .logo-section { 
+    align-items: center; 
+    margin-left: 0; 
+    margin-bottom: 1.5rem; 
+  }
+
+  .logo { 
+    width: 50%; 
+  }
+
+  .title { 
+    font-size: 7.2vw; 
+    margin-left: 0; 
+    text-align: center; 
+  }
+  /* Form card */
+  .sign-form-section { 
+    width: 92vw; 
+    height: auto; 
+    padding: 1.5rem; 
+  }
+  .sign-rounded-line { 
+    width: 100%; 
+    margin-bottom: 1.5rem; 
+  }
+  /* Fields */
+  .sign-input-field { 
+    width: 85%; 
+    max-width: none; 
+    margin: 0rem 2rem 1rem auto; 
+    padding-left: 2.25rem; 
+    text-align: left; 
+  }
+  .signup-password-wrapper { 
+    max-width: 82%; 
+    margin-left: .1rem; 
+  }
+  .signup-password-input { 
+    width: 92%; 
+    max-width: none; 
+    margin: 0.75rem auto 1rem auto; 
+    padding-right: 3rem; 
+    padding-left: 2.25rem;
+    text-align: left; 
+  }
+  .sign-input-field::placeholder,
+  .signup-password-input::placeholder { 
+    margin-left: 2rem; 
+    font-size: 0.95rem; 
+  }
+  .sign-input-field::-webkit-input-placeholder,
+  .signup-password-input::-webkit-input-placeholder { 
+    margin-left: 2rem;
+  }
+  .sign-input-field:-ms-input-placeholder,
+  .signup-password-input:-ms-input-placeholder { 
+    margin-left: 2rem; 
+  }
+
+  /* Password toggle */
+  .signup-password-toggle { 
+    right: -2.75rem; 
+    top: 50%; 
+    transform: translateY(-50%); 
+  }
+
+  .signup-password-toggle:focus,
+  .signup-password-toggle:active {
+    top: 50%;
+    transform: translateY(-50%); /* preserve position on focus/active */
+    outline: none;
+  }
+  .signup-eye-icon { 
+    width: 1.35rem; 
+    height: 1.35rem; 
+  }
+  /* Buttons */
+  .social-sign-button { 
+    max-width: 100%; 
+  }
+  .create-btn { 
+    width: 100%; 
+    max-width: none; 
+  }
+  /* Messages */
+  .sign-error-message { 
+    margin-top: 0; 
+    margin-bottom: 1rem; 
+    padding: 10px 12px; 
+    font-size: 13px; 
+  }
+
+  /* Terms and conditions text */
+  .sign-terms-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    text-align: left;
+    display: inline-block;
+    max-width: 92vw;
+    margin-left: 0.5rem;
+    margin-top: .5rem;
+  }
+  .sign-terms-link {
+    text-decoration: underline;
+  }
+
+  /* Checkbox row */
+  .sign-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.5rem 1rem 0.75rem 1rem;
+    max-width: 92vw;
+  }
+  .sign-checkbox {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-top: .7rem;
+  }
+
+  /* Footer */
+  .bottom-text { 
+    position: absolute; 
+    left: 50%; 
+    bottom: 0.75rem; 
+    transform: translateX(-50%); 
+    width: 100%; 
+    text-align: center; 
+  }
+}
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  .signup-container { justify-content: flex-start; align-items: center; }
+  .signup-wrapper { flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; }
+  .logo-section { align-items: center; margin-left: 0; }
+  .logo { width: 45%; }
+  .title { font-size: 6.5vw; margin-left: 0; text-align: center; }
+
+  .sign-form-section { width: 88vw; height: auto; padding: 1.75rem; }
+  .sign-rounded-line { width: 100%; }
+
+  .sign-input-field { width: 100%; max-width: none; margin: 0.75rem auto 1rem auto; padding-left: 2.25rem; }
+  .signup-password-wrapper { max-width: 100%; }
+  .signup-password-input { width: 100%; max-width: none; margin: 0.75rem auto 1rem auto; padding-right: 2.8rem; }
+  .signup-password-toggle { right: 0.8rem; top: 50%; transform: translateY(-50%); }
+
+  .social-sign-button { max-width: 100%; }
+  .create-btn { width: 100%; max-width: none; }
+
+  .bottom-text { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); width: 100%; text-align: center; }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .signup-container { justify-content: flex-start; align-items: center; }
+  .signup-wrapper { flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; }
+  .logo-section { align-items: center; margin-left: 0; }
+  .logo { width: 40%; }
+  .title { font-size: 5.5vw; margin-left: 0; text-align: center; }
+
+  .sign-form-section { width: 75vw; height: auto; padding: 2rem; }
+  .sign-rounded-line { width: 100%; }
+
+  .sign-input-field { width: 100%; max-width: none; margin: 0.75rem auto 1rem auto; padding-left: 2.25rem; }
+  .signup-password-wrapper { max-width: 100%; }
+  .signup-password-input { width: 100%; max-width: none; margin: 0.75rem auto 1rem auto; padding-right: 2.8rem; }
+  .signup-password-toggle { right: 0.8rem; top: 50%; transform: translateY(-50%); }
+
+  .social-sign-button { max-width: 100%; }
+  .create-btn { width: 100%; max-width: none; }
+
+  .bottom-text { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); width: 100%; text-align: center; }
+}
+
+/* Mobile overrides to match Login behavior: input widths, placeholders, and eye icon */
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  /* Layout */
+  html, body { 
+    height: 100%; 
+    width: 100%; 
+    background-color: #2C517D; 
+  }
+
+  .signup-container { 
+    min-height: 100dvh; 
+    position: relative; 
+    background-color: #2C517D; 
+    justify-content: flex-start; 
+    align-items: center;
+  }
+
+  .signup-wrapper { 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: flex-start; 
+    padding-top: 1rem; 
+  }
+
+  /* Branding */
+  .logo-section { 
+    align-items: center; 
+    margin-left: 0; 
+    margin-bottom: 1.5rem; 
+  }
+
+  .logo { 
+    width: 50%; 
+  }
+
+  .title { 
+    font-size: 7.2vw; 
+    margin-left: 0; 
+    text-align: center; 
+  }
+  /* Form card */
+  .sign-form-section { 
+    width: 92vw; 
+    height: auto; 
+    padding: 1.5rem; 
+  }
+  .sign-rounded-line { 
+    width: 100%; 
+    margin-bottom: 1.5rem; 
+  }
+  /* Fields */
+  .sign-input-field { 
+    width: 85%; 
+    max-width: none; 
+    margin: 0rem 2rem 1rem auto; 
+    padding-left: 2.25rem; 
+    text-align: left; 
+  }
+  .signup-password-wrapper { 
+    max-width: 82%; 
+    margin-left: .1rem; 
+  }
+  .signup-password-input { 
+    width: 92%; 
+    max-width: none; 
+    margin: 0.75rem auto 1rem auto; 
+    padding-right: 3rem; 
+    padding-left: 2.25rem;
+    text-align: left; 
+  }
+  .sign-input-field::placeholder,
+  .signup-password-input::placeholder { 
+    margin-left: 2rem; 
+    font-size: 0.95rem; 
+  }
+  .sign-input-field::-webkit-input-placeholder,
+  .signup-password-input::-webkit-input-placeholder { 
+    margin-left: 2rem;
+  }
+  .sign-input-field:-ms-input-placeholder,
+  .signup-password-input:-ms-input-placeholder { 
+    margin-left: 2rem; 
+  }
+
+  /* Password toggle */
+  .signup-password-toggle { 
+    right: -2.75rem; 
+    top: 50%; 
+    transform: translateY(-50%); 
+  }
+
+  .signup-password-toggle:focus,
+  .signup-password-toggle:active {
+    top: 50%;
+    transform: translateY(-50%); /* preserve position on focus/active */
+    outline: none;
+  }
+  .signup-eye-icon { 
+    width: 1.35rem; 
+    height: 1.35rem; 
+  }
+  /* Buttons */
+  .social-sign-button { 
+    max-width: 100%; 
+  }
+  .create-btn { 
+    width: 100%; 
+    max-width: none; 
+  }
+  /* Messages */
+  .sign-error-message { 
+    margin-top: 0; 
+    margin-bottom: 1rem; 
+    padding: 10px 12px; 
+    font-size: 13px; 
+  }
+
+  /* Terms and conditions text */
+  .sign-terms-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    text-align: left;
+    display: inline-block;
+    max-width: 92vw;
+    margin-left: 0.5rem;
+    margin-top: .5rem;
+  }
+  .sign-terms-link {
+    text-decoration: underline;
+  }
+
+  /* Checkbox row */
+  .sign-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.5rem 1rem 0.75rem 1rem;
+    max-width: 92vw;
+  }
+  .sign-checkbox {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-top: .7rem;
+  }
+
+  /* Footer */
+  .bottom-text { 
+    position: absolute; 
+    left: 50%; 
+    bottom: 0.75rem; 
+    transform: translateX(-50%); 
+    width: 100%; 
+    text-align: center; 
+  }
+}
+
+ 
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  /* Layout */
+  html, body { 
+    height: 100; 
+    width: 100%; 
+    background-color: #2C517D; 
+  }
+
+  .signup-container { 
+    min-height: 100dvh; 
+    position: relative; 
+    background-color: #2C517D; 
+    justify-content: flex-start; 
+    align-items: center;
+  }
+
+  .signup-wrapper { 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: flex-start; 
+    padding-top: 1rem; 
+  }
+
+  /* Branding */
+  .logo-section { 
+    align-items: center; 
+    margin-left: 0; 
+    margin-bottom: 1.5rem; 
+  }
+
+  .logo { 
+    width: 50%; 
+  }
+
+  .title { 
+    font-size: 7.2vw; 
+    margin-left: 0; 
+    text-align: center; 
+  }
+  /* Form card */
+  .sign-form-section { 
+    width: 92vw; 
+    height: auto; 
+    padding: 1.5rem; 
+  }
+  .sign-rounded-line { 
+    width: 100%; 
+    margin-bottom: 1.5rem; 
+  }
+  /* Fields */
+  .sign-input-field { 
+    width: 85%; 
+    max-width: none; 
+    margin: 0rem 2rem 1rem auto; 
+    padding-left: 2.25rem; 
+    text-align: left; 
+  }
+  .signup-password-wrapper { 
+    max-width: 82%; 
+    margin-left: .1rem; 
+  }
+  .signup-password-input { 
+    width: 92%; 
+    max-width: none; 
+    margin: 0.75rem auto 1rem auto; 
+    padding-right: 3rem; 
+    padding-left: 2.25rem;
+    text-align: left; 
+  }
+  .sign-input-field::placeholder,
+  .signup-password-input::placeholder { 
+    margin-left: 2rem; 
+    font-size: 0.95rem; 
+  }
+  .sign-input-field::-webkit-input-placeholder,
+  .signup-password-input::-webkit-input-placeholder { 
+    margin-left: 2rem;
+  }
+  .sign-input-field:-ms-input-placeholder,
+  .signup-password-input:-ms-input-placeholder { 
+    margin-left: 2rem; 
+  }
+
+  /* Password toggle */
+  .signup-password-toggle { 
+    right: -2.75rem; 
+    top: 50%; 
+    transform: translateY(-50%); 
+  }
+
+  .signup-password-toggle:focus,
+  .signup-password-toggle:active {
+    top: 50%;
+    transform: translateY(-50%); /* preserve position on focus/active */
+    outline: none;
+  }
+  .signup-eye-icon { 
+    width: 1.35rem; 
+    height: 1.35rem; 
+  }
+  /* Buttons */
+  .social-sign-button { 
+    max-width: 100%; 
+  }
+  .create-btn { 
+    width: 100%; 
+    max-width: none; 
+  }
+  /* Messages */
+  .sign-error-message { 
+    margin-top: 0; 
+    margin-bottom: 1rem; 
+    padding: 10px 12px; 
+    font-size: 13px; 
+  }
+
+  /* Terms and conditions text */
+  .sign-terms-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    text-align: left;
+    display: inline-block;
+    max-width: 92vw;
+    margin-left: 0.5rem;
+    margin-top: .5rem;
+  }
+  .sign-terms-link {
+    text-decoration: underline;
+  }
+
+  /* Checkbox row */
+  .sign-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.5rem 1rem 0.75rem 1rem;
+    max-width: 92vw;
+  }
+  .sign-checkbox {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-top: .7rem;
+  }
+
+  /* Footer */
+  .bottom-text { 
+    position: absolute; 
+    left: 50%; 
+    bottom: .75rem; 
+    transform: translateX(-50%); 
+    width: 100%; 
+    text-align: center; 
+  }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .sign-input-field,
+  .signup-password-input {
+    width: 100%;
+    max-width: none;
+    margin: 0.75rem auto 1rem auto;
+  }
+  .signup-password-wrapper { max-width: 100%; margin-left: 0; }
+  .signup-password-toggle { right: 0.8rem; top: 50%; transform: translateY(-50%); }
+  .signup-eye-icon { width: 1.25rem; height: 1.25rem; }
+  .sign-input-field::placeholder,
+  .signup-password-input::placeholder { font-size: 0.95rem; }
+}

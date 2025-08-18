@@ -43,7 +43,39 @@ export async function addData(collectionName, data) {
 export async function getData(collectionName) {
   try {
     const querySnapshot = await getDocs(collection(db, collectionName));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      
+      // Process Firestore Timestamps to preserve them properly
+      const processedData = {};
+      Object.keys(data).forEach(key => {
+        const value = data[key];
+        if (value && typeof value === 'object' && value.toDate && typeof value.toDate === 'function') {
+          // This is a Firestore Timestamp, convert to ISO string
+          processedData[key] = value.toDate().toISOString();
+        } else if (value && typeof value === 'object' && value.seconds && value.nanoseconds) {
+          // This is a Firestore Timestamp in a different format
+          const date = new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+          processedData[key] = date.toISOString();
+        } else {
+          // Regular value, keep as is
+          processedData[key] = value;
+        }
+      });
+      
+      // Debug: Log timestamp processing for systemLogs collection
+      if (collectionName === 'systemLogs' && doc.id.includes('export')) {
+        console.log('Processing export log in getData:', {
+          id: doc.id,
+          originalTimestamp: data.timestamp,
+          processedTimestamp: processedData.timestamp,
+          category: data.category,
+          username: data.username
+        });
+      }
+      
+      return { id: doc.id, ...processedData };
+    });
   } catch (e) {
     console.error("Error fetching documents: ", e);
     throw e;

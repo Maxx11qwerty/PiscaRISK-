@@ -7,7 +7,32 @@
   left: 0;
   top: 78px;
   transition: all 0.3s ease;
-  overflow: aut;
+  overflow: auto;
+}
+
+/* Mobile styles for sidebarOpen */
+@media (max-width: 1023px) {
+  .sidebar-wrapper {
+    width: 280px;
+    left: -280px; /* Start off-screen */
+    z-index: 1001;
+    background: #ffffff;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    position: fixed;
+    height: 100vh;
+    top: 0;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar-wrapper.sidebarOpen {
+    left: 0; /* Slide in when open */
+  }
+  
+  /* Ensure sidebar content is properly positioned */
+  .sidebar {
+    height: 100%;
+    overflow-y: auto;
+  }
 }
 
 .sidebar-wrapper.collapsed {
@@ -58,21 +83,6 @@
 .sidebar-wrapper.collapsed .welcome-text {
   align-items: center;
   text-align: center;
-}
-
-.sidebar-wrapper.collapsed .sidebar-export-container {
-  position: relative;
-}
-
-.sidebar-wrapper.collapsed .sidebar-download-options {
-  position: absolute;
-  left: 100%;
-  top: 0;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  min-width: 200px;
-  z-index: 1000;
 }
 
 .sidebar-top {
@@ -202,6 +212,7 @@
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* Re-add sidebar export styles */
 .sidebar-export-container {
   position: relative;
   width: 100%;
@@ -238,16 +249,39 @@
   transition: background-color 0.2s ease;
 }
 
-.sidebar-download-options .sidebar-download-option span {
-  font-family: 'ReadexPro-Regular';
-  font-size: 0.9rem;
-  color: #000000;
-  font-weight: 500;
-}
-
 .sidebar-download-options .sidebar-download-option:hover {
   background: #f5f5f5;
 }
 
+/* Collapsed behavior for export flyout */
+.sidebar-wrapper.collapsed .sidebar-export-container {
+  position: relative;
+}
+
+.sidebar-wrapper.collapsed .sidebar-download-options {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  z-index: 1000;
+}
+
+/* Icons for export options */
 .homeDLpdf-icon { font-size: 1.5rem; color: #ff2727; }
 .homeDLcsv-icon { font-size: 1.5rem; color: #27ae60; }
+
+
+
+
+
+
+
+
+
+
+
+
+

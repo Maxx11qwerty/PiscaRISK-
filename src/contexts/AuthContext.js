@@ -65,6 +65,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Function to fetch user data (address, contactNumber, fullName) from main user document
+  const fetchUserSubcollectionData = async (userId) => {
+    try {
+      console.log('fetchUserSubcollectionData: Starting fetch for user:', userId);
+      const userData = {};
+      
+      // Fetch user document directly
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userDataFromDoc = userDoc.data();
+        console.log('fetchUserSubcollectionData: User document data:', userDataFromDoc);
+        
+        // Get data from main user document
+        userData.address = userDataFromDoc.address || '';
+        userData.fullName = userDataFromDoc.fullName || '';
+        userData.contact = userDataFromDoc.contactNumber || '';
+        
+        console.log('fetchUserSubcollectionData: Extracted data:', userData);
+      }
+      
+      return userData;
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      return {};
+    }
+  };
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -80,14 +109,30 @@ export const AuthProvider = ({ children }) => {
             lastModified: serverTimestamp()
           });
 
+          // Get data from main user document
+          const userData = userDoc.data();
+          console.log('AuthContext: User document data:', userData);
+
           setCurrentUser({
             uid: user.uid,
             email: user.email,
-            username: userDoc.data().username,
-            role: userDoc.data().role,
-            profileImage: userDoc.data().profileImage || null,
-            dateJoined: userDoc.data().dateJoined || new Date().toISOString().split('T')[0],
-            emailVerified: user.emailVerified
+            username: userData.username,
+            role: userData.role,
+            profileImage: userData.profileImage || null,
+            dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+            emailVerified: user.emailVerified,
+            // Add data from main user document
+            address: userData.address || '',
+            fullName: userData.fullName || '',
+            contact: userData.contactNumber || ''
+          });
+          console.log('AuthContext: Set currentUser with data:', {
+            uid: user.uid,
+            email: user.email,
+            username: userData.username,
+            address: userData.address || '',
+            fullName: userData.fullName || '',
+            contact: userData.contactNumber || ''
           });
         }
       } else {
@@ -565,15 +610,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   
-  const createStaffAccount = async (userData) => {
+  const createStaffAccount = async (userData, adminPassword) => {
     try {
       // 1. Store current admin user credentials
       const currentAdmin = auth.currentUser;
       if (!currentAdmin) throw new Error("Not authenticated");
       
       const currentAdminEmail = currentAdmin.email;
-      const currentAdminPassword = prompt("Please confirm your admin password to continue");
-      if (!currentAdminPassword) throw new Error("Password required");
+      if (!adminPassword) throw new Error("Admin password required");
       
       console.log("Checking current admin UID:", currentAdmin.uid);
       // 2. Verify admin status
@@ -597,7 +641,7 @@ export const AuthProvider = ({ children }) => {
       await signInWithEmailAndPassword(
         auth,
         currentAdminEmail,
-        currentAdminPassword
+        adminPassword
       );
   
       // 5. Create user document
@@ -619,7 +663,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error("User creation failed:", error);
-      throw error;
+      return { success: false, error: error.message };
     }
   };
   
@@ -648,14 +692,12 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Update user in Firestore
-      await updateDoc(doc(db, 'users', currentUser.uid), {
-        username: updatedUserData.username
-      });
+      await updateDoc(doc(db, 'users', currentUser.uid), updatedUserData);
 
       // Update local state
       setCurrentUser(prev => ({
         ...prev,
-        username: updatedUserData.username
+        ...updatedUserData
       }));
 
       return true;
@@ -684,6 +726,8 @@ export const AuthProvider = ({ children }) => {
       // Check if user exists in Firestore
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
+      let userRole = 'User'; // Default role
+      
       if (!userDoc.exists()) {
         // Create new user document if it doesn't exist
         const userData = {
@@ -696,6 +740,7 @@ export const AuthProvider = ({ children }) => {
         };
 
         await setDoc(doc(db, 'users', user.uid), userData);
+        userRole = userData.role;
         
         // Update the current user state
         setCurrentUser({
@@ -705,13 +750,14 @@ export const AuthProvider = ({ children }) => {
       } else {
         // Update existing user's data
         const userData = userDoc.data();
+        userRole = userData.role || 'User';
         setCurrentUser({
           uid: user.uid,
           ...userData
         });
       }
 
-      logActivity('login', `User logged in with Google: ${user.email}`, user.email);
+      logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, userRole);
       return { success: true, user };
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -739,18 +785,27 @@ export const AuthProvider = ({ children }) => {
       // Check if user exists in Firestore
       const userDoc = await getDoc(doc(db, 'users', result.user.uid));
       
+      let userRole = 'User'; // Default role
+      
       if (!userDoc.exists()) {
         // Create new user document if it doesn't exist
-        await setDoc(doc(db, 'users', result.user.uid), {
+        const userData = {
           email: result.user.email,
           username: result.user.displayName || result.user.email.split('@')[0],
           dateJoined: new Date().toISOString().split('T')[0],
           profileImage: result.user.photoURL,
           role: 'User'
-        });
+        };
+        
+        await setDoc(doc(db, 'users', result.user.uid), userData);
+        userRole = userData.role;
+      } else {
+        // Get existing user's role
+        const userData = userDoc.data();
+        userRole = userData.role || 'User';
       }
 
-      logActivity('login', `User logged in with Facebook: ${result.user.email}`, result.user.email);
+      logActivity('login', `User logged in with Facebook: ${result.user.email}`, result.user.email, null, userRole);
       return { success: true, user: result.user };
     } catch (error) {
       logActivity('error', logMessages.error.system(`Facebook login failed: ${error.message}`), 'anonymous');
@@ -873,6 +928,36 @@ const resetPassword = async (email) => {
     }
   };
 
+  // Function to refresh current user data
+  const refreshCurrentUser = async () => {
+    try {
+      if (!auth.currentUser) {
+        return;
+      }
+
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        setCurrentUser({
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          username: userData.username,
+          role: userData.role,
+          profileImage: userData.profileImage || null,
+          dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+          emailVerified: auth.currentUser.emailVerified,
+          // Add data from main user document
+          address: userData.address || '',
+          fullName: userData.fullName || '',
+          contact: userData.contactNumber || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing current user:', error);
+    }
+  }
+
   const value = {
     currentUser,
     allUsers,
@@ -883,6 +968,8 @@ const resetPassword = async (email) => {
     changePassword,
     updateProfileImage,
     fetchAllUsers,
+    fetchUserSubcollectionData,
+    refreshCurrentUser,
     createStaffAccount,
     isAdmin,
     isTechOfficer,

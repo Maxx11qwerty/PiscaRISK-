@@ -64,13 +64,10 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         const querySnapshot = await getDocs(q);
         const fetchedReports = querySnapshot.docs.map(doc => {
           const data = doc.data();
-          // Log mobile report submissions
-          if (data.source === 'mobile') {
-            logActivity('report', logMessages.report.mobileSubmit(data.submitted_by || data.user || 'Unknown User', data.fish_pond), data.submitted_by || data.user || 'Unknown User');
-          } else {
-            logActivity('report', logMessages.report.webSubmit(data.submitted_by || data.user || 'Unknown User', data.fish_pond), data.submitted_by || data.user || 'Unknown User');
-          }
-
+          
+          // Note: Report logging should happen when reports are submitted, not when fetched
+          // Logging here creates duplicate entries with wrong timestamps
+          
           return {
             id: doc.id,
             date: data.timestamp.toDate(),
@@ -245,59 +242,61 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
       <div className="pond-history">
         <div className="history-header">
           <h4>Report History for Pond {selectedPond}</h4>
-          <div className="report-filter">
-            <div className="filter-dropdown">
-              <button 
-                className="filter-toggle" 
-                onClick={() => setIsDropdownOpen(prev => !prev)}
-              >
-                Filter Reports
-                <span className="dropdown-arrow">▼</span>
-              </button>
+          <div className="filter-container">
+            <div className="report-filter-new">
+              <div className="filter-dropdown-new">
+                <button 
+                  className="filter-toggle-new" 
+                  onClick={() => setIsDropdownOpen(prev => !prev)}
+                >
+                  Filter Reports
+                  <span className="dropdown-arrow-new">▼</span>
+                </button>
 
-              {isDropdownOpen && (
-                <div className="filter-options">
-                  <label className="filter-option">
-                    <input 
-                      type="radio" 
-                      name="reportFilter" 
-                      value="today" 
-                      checked={reportFilter === 'today'}
-                      onChange={() => setReportFilter('today')}
-                    />
-                    Today's Reports
-                  </label>
-                  <label className="filter-option">
-                    <input 
-                      type="radio" 
-                      name="reportFilter" 
-                      value="last7days" 
-                      checked={reportFilter === 'last7days'}
-                      onChange={() => setReportFilter('last7days')}
-                    />
-                    Last 7 Days
-                  </label>
-                  <label className="filter-option">
-                    <input 
-                      type="radio" 
-                      name="reportFilter" 
-                      value="custom" 
-                      checked={reportFilter === 'custom'}
-                      onChange={() => setReportFilter('custom')}
-                    />
-                    Custom Date
-                    {reportFilter === 'custom' && (
-                      <div className="custom-date-picker">
-                        <input 
-                          type="date" 
-                          value={customDate}
-                          onChange={(e) => setCustomDate(e.target.value)}
-                        />
-                      </div>
-                    )}
-                  </label>
-                </div>
-              )}
+                {isDropdownOpen && (
+                  <div className="filter-options-new">
+                    <label className="filter-option-new">
+                      <input 
+                        type="radio" 
+                        name="reportFilter" 
+                        value="today" 
+                        checked={reportFilter === 'today'}
+                        onChange={() => setReportFilter('today')}
+                      />
+                      <span>Today's Reports</span>
+                    </label>
+                    <label className="filter-option-new">
+                      <input 
+                        type="radio" 
+                        name="reportFilter" 
+                        value="last7days" 
+                        checked={reportFilter === 'last7days'}
+                        onChange={() => setReportFilter('last7days')}
+                      />
+                      <span>Last 7 Days</span>
+                    </label>
+                    <label className="filter-option-new">
+                      <input 
+                        type="radio" 
+                        name="reportFilter" 
+                        value="custom" 
+                        checked={reportFilter === 'custom'}
+                        onChange={() => setReportFilter('custom')}
+                      />
+                      <span>Custom Date</span>
+                      {reportFilter === 'custom' && (
+                        <div className="custom-date-picker-new">
+                          <input 
+                            type="date" 
+                            value={customDate}
+                            onChange={(e) => setCustomDate(e.target.value)}
+                          />
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

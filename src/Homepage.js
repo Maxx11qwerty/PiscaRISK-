@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useContext  } from "react";
-import {FaUserCircle,FaPlayCircle,FaTimes,FaImage,FaCloudSun,FaFish,
+import {FaUserCircle,FaImage,FaCloudSun,FaFish,
         FaExclamationTriangle,FaUser,FaDatabase,FaSignOutAlt,
-        FaFilePdf,FaFileCsv,FaChevronRight,FaChevronLeft,FaSearch,FaBars,
-        FaHome,FaStar,FaClipboardList,FaComment,FaFileExport,FaMoon,FaGlobe,
-        FaChartPie,FaCalendarAlt} from "react-icons/fa";
-import { MdManageAccounts } from "react-icons/md";
+        FaSearch,FaBars,FaCalendarAlt} from "react-icons/fa";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
@@ -20,8 +17,8 @@ import HarvestChart from './components/HarvestChart';
 import PageTransition from './components/PageTransition';
 import AnimatedModal from './components/AnimatedModal';
 import PasswordChangeModal from './components/PasswordChangeModal';
-import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './components/Sidebar';
+import RiskReportModal from './components/RiskReportModal';
 
 // Import data from localStorage or use default values
 const getInitialData = () => {
@@ -46,25 +43,53 @@ const PiscaRiskHome = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [selectedPond, setSelectedPond] = useState(1);
-  const { currentUser, logout, handleLogout, checkPasswordChangeRequired, forcePasswordChange } = useContext(AuthContext);
-  const [data, setData] = useState(getInitialData());
+  const { currentUser, handleLogout, checkPasswordChangeRequired, forcePasswordChange } = useContext(AuthContext);
   const [errorMessage, setErrorMessage] = useState('');
-  const setShowExportOptions = () => {};
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentChart, setCurrentChart] = useState('reports');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
-  const [passwordChangeRequirements, setPasswordChangeRequirements] = useState({
+  const [setPasswordChangeRequirements] = useState({
     minLength: 8,
     requireUppercase: true,
     requireLowercase: true,
     requireNumbers: true,
     requireSpecialChars: true
   });
+
+  const useScreenSize = () => {
+    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+    
+    useEffect(() => {
+      const handleResize = () => setScreenWidth(window.innerWidth);
+      
+      let timeoutId;
+      const debouncedResize = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(handleResize, 100);
+      };
+      
+      window.addEventListener('resize', debouncedResize);
+      return () => {
+        window.removeEventListener('resize', debouncedResize);
+        clearTimeout(timeoutId);
+      };
+    }, []);
+    
+    return {
+      width: screenWidth,
+      isMobile: screenWidth < 480,
+      isTablet: screenWidth < 900,
+      isDesktop: screenWidth >= 1200
+    };
+  };
+
+  // Use the hook
+  const screen = useScreenSize();
   
   const refreshWeather = async () => {
     setLoading(true);
@@ -76,6 +101,23 @@ const PiscaRiskHome = () => {
 
   useEffect(() => {
     refreshWeather();
+  }, []);
+
+  // Set initial sidebar state based on screen size
+  useEffect(() => {
+    const handleInitialState = () => {
+      if (window.innerWidth > 1023) {
+        // Desktop: start with expanded sidebar
+        setSidebarOpen(false);
+        setSidebarCollapsed(false);
+      } else {
+        // Mobile: start with closed sidebar
+        setSidebarOpen(false);
+        setSidebarCollapsed(false);
+      }
+    };
+
+    handleInitialState();
   }, []);
 
   // Check for password change requirements when user logs in
@@ -124,6 +166,56 @@ const PiscaRiskHome = () => {
     }
   }, [location.state]);
 
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const sidebar = document.querySelector('.sidebar-wrapper');
+      const hamburger = document.querySelector('.header-hamburger-icon');
+      
+      if (sidebarOpen && sidebar && !sidebar.contains(event.target) && !hamburger?.contains(event.target)) {
+        setSidebarOpen(false);
+      }
+    };
+
+    // Only add listener on mobile devices
+    if (window.innerWidth <= 1023) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [sidebarOpen]);
+
+  // Close sidebar when window is resized to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 1023) {
+        setSidebarOpen(false);
+        // Don't reset collapsed state on desktop
+      } else {
+        // On mobile, ensure sidebar is closed when resizing
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarOpen]);
+
+  // Handle sidebar toggle based on screen size
+  const handleSidebarToggle = () => {
+    if (window.innerWidth <= 1023) {
+      // Mobile/tablet: toggle open/closed 
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      // Desktop: toggle collapsed/expanded
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  };
+
   const handleExport = (format) => {
     exportBoxData({
       format,
@@ -135,15 +227,6 @@ const PiscaRiskHome = () => {
       currentUser: currentUser
     });
   }; 
-
-  const handleRewardManagementClick = async () => {
-    if (currentUser?.role === 'Admin') {
-      setErrorMessage('Access Denied: Only Tech Officers are allowed to access');
-      setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-    navigate('/RewardManagement');
-  };
 
   const handleLogsClick = async () => {
     if (currentUser?.role === 'Tech Officer') {
@@ -214,18 +297,13 @@ const PiscaRiskHome = () => {
       title: "Risk Reports",
       icon: <FaExclamationTriangle className="box-icon" />,
       content: (
-        <div className="coming-soon-content">
-          <div className="coming-soon-badge">Coming Soon</div>
-          <p>Risk analysis and emergency reports will be available here once the system is fully integrated.</p>
-          <p>This section will highlight alerts and potential threats detected in the fish pond environment and weather.</p>
-        </div>
+        <RiskReportModal />
       ),
       modalContent: (
         <div className="coming-soon-content modal-view">
           <div className="coming-soon-badge">Coming Soon</div>
           <p>Risk analysis and emergency reports will be available here once the system is fully integrated.</p>
           <p>This section will highlight alerts and potential threats detected in the fish pond environment and weather.</p>
-          <p>Soon you'll see automated risk reports based on sensor data and user feedback.</p>
         </div>
       )
     }
@@ -244,10 +322,6 @@ const PiscaRiskHome = () => {
     }
   };
   const closeModal = () => setShowModal(false);
-
-  const handleNextChart = () => {
-    setCurrentChart(currentChart === 'reports' ? 'harvest' : 'reports');
-  };
 
   const handlePasswordChange = async (newPassword) => {
     try {
@@ -268,13 +342,26 @@ const PiscaRiskHome = () => {
   return (
     <PageTransition>
       <div className="homepage-container">
+        {process.env.NODE_ENV === 'development' && ( 
+        <div style={{
+          position: 'fixed', 
+          top: '80px', 
+          right: '10px', 
+          padding: '5px 10px', 
+          borderRadius: '4px',
+          fontSize: '20px',
+          zIndex: 9999
+        }}>
+          {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
+        </div>
+      )}
         <header className="homepage-header-bar">
           <div className="header-logo-container">
             <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
             <div className="header-title">PiscaRISK</div>
             <FaBars 
               className="header-hamburger-icon" 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={handleSidebarToggle}
             />
           </div>
           <div className="header-right">
@@ -319,8 +406,17 @@ const PiscaRiskHome = () => {
           </div>
         </header>
 
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && window.innerWidth <= 1023 && (
+          <div 
+            className="sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         <Sidebar
           sidebarOpen={sidebarOpen}
+          sidebarCollapsed={sidebarCollapsed}
           currentUser={currentUser}
           showDownloadOptions={showDownloadOptions}
           setShowDownloadOptions={setShowDownloadOptions}
@@ -335,7 +431,7 @@ const PiscaRiskHome = () => {
           setLanguage={setLanguage}
         />
 
-        <div className="main-content">
+        <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           {errorMessage && (
             <div className="error-popup">
               {errorMessage}
@@ -399,6 +495,10 @@ const PiscaRiskHome = () => {
                     selectedPond={selectedPond}
                     setSelectedPond={setSelectedPond}
                   />
+                </div>
+              ) : modalContent.title === "Risk Reports" ? (
+                <div className="risk-modal-content">
+                  <RiskReportModal isModal={true} />
                 </div>
               ) : (
                 <div className="image-placeholder">

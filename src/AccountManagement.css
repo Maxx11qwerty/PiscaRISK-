@@ -68,6 +68,7 @@ body {
   color: #3F3F3F;
 }
 
+
 /* Filter Dropdown Styles */
 .filter-dropdown {
   position: absolute;
@@ -78,7 +79,6 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 10000;
   min-width: 280px;
-  margin-top: 8px;
   padding: 20px;
   animation: filterDropdownFadeIn 0.2s ease;
   display: block !important;
@@ -311,7 +311,7 @@ font-size: 1.2rem;
 
 .header-row {
   display: grid;
-  grid-template-columns: 50px 2fr 1fr .5fr 1fr 1fr 1fr 150px; /* added delete col */
+  grid-template-columns: 50px 2fr 1fr 1fr 1fr 1fr 1fr 20px; /* added delete col */
   gap: 1rem;
   align-items: center;
   font-weight: 600;
@@ -325,12 +325,16 @@ font-size: 1.2rem;
   gap: 0.5rem;
   padding: 0.5rem;
   position: relative;
+  font-family: 'ReadexPro-Regular';
+  color: #1F1F1F;
 }
 
 .header-cell span {
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-family: 'ReadexPro-Regular';
+  color: #1F1F1F;
 }
 
 .checkbox-cell {
@@ -451,12 +455,6 @@ font-size: 1.2rem;
   box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* Fine-tune for very short viewports */
-@media (max-height: 1536px) {
-  .account-container {
-    max-height: 60vh;
-  }
-}
 
 @media (max-height: 650px) {
   .account-container {
@@ -835,8 +833,9 @@ background-color: rgba(0, 0, 0, 0.5);
 display: flex;
 justify-content: center;
 align-items: center;
-z-index: 1000;
+z-index: 10000;
 backdrop-filter: blur(2px);
+isolation: isolate;
 }
 
 .add-user-form {
@@ -848,6 +847,8 @@ width: 90%;
 max-width: 650px;
 margin: 0 auto;
 font-family: 'customfont1';
+position: relative;
+z-index: 10001;
 }
 
 .form-header {
@@ -918,6 +919,8 @@ border-radius: 5px; /* Rounded corners */
 font-size: 16px; /* Font size */
 color: #333; /* Text color */
 transition: border-color 0.3s;
+position: relative;
+z-index: 10002;
 }
 
 /* Input Focus State */
@@ -1133,18 +1136,6 @@ z-index: 1000;
   background-color: #0056b3;
 }
 
-.header-hamburger-icon {
-  color: white;
-  font-size: 1.5rem;
-  cursor: pointer;
-  margin-left: 1rem;
-  transition: color 0.3s ease;
-}
-
-.header-hamburger-icon:hover {
-  color: #c5cdcd;
-}
-
 /* Space for sidebar on Account Management */
 .account-main-content {
   display: flex;
@@ -1163,8 +1154,8 @@ z-index: 1000;
 
 .user-row {
   display: grid;
-  grid-template-columns: 50px 1.8fr 1fr 1fr 1fr 1.2fr 1fr 70px; /* added delete col */
-  gap: .5rem;
+  grid-template-columns: 50px 2fr 1fr 1fr 1fr 1fr 1fr 80px;
+  gap: 0.5rem;
   align-items: center;
   padding: 1rem 0.5rem;
   border-bottom: 1px solid #e9ecef;
@@ -1202,14 +1193,14 @@ z-index: 1000;
 .user-cell.role-cell {
   justify-content: center;
   min-width: 120px;
-  margin-left: -2.5rem;
+  margin-left: -1rem;
   font-size: 15px;
 }
 
 .user-cell.status-cell {
   justify-content: center;
   min-width: 120px;
-  margin-left: -2.5rem;
+  margin-left: -1rem;
   font-size: 15px;
 }
 
@@ -1221,6 +1212,7 @@ z-index: 1000;
   font-family: 'ReadexPro-Regular2';
   font-size: 15px;
   text-align: center;
+  margin-left: -0.5rem;
 }
 
 /* Style for when contact is missing */
@@ -1236,12 +1228,13 @@ z-index: 1000;
   justify-content: center;
   min-width: 150px;
   padding: 0.5rem;
+  margin-left: -0.5rem;
 }
 
 .user-cell.joined-cell {
   justify-content: center;
   min-width: 120px;
-  margin-left: -2.5rem;
+  margin-left: -0.5rem;
 }
 
 .user-cell.delete-cell {
@@ -1354,7 +1347,8 @@ z-index: 1000;
 .status-text.inactive {
   color: #F8504A;
   font-family: 'ReadexPro-Regular2';
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .status-text.active {
@@ -1408,7 +1402,7 @@ z-index: 1000;
 .user-cell.joined-cell {
   justify-content: center;
   min-width: 120px;
-  margin-left: -2.5rem;
+  margin-left: -0.5rem;
   font-size: 15px;
   background-color: transparent;
   border: none;
@@ -1499,6 +1493,17 @@ z-index: 1000;
     padding: 0.75rem 0;
     margin-top: .5rem;
   }
+  
+  /* Export and filter button adjustments */
+  .export-button,
+  .filter-button {
+    padding: 15px 40px;
+    font-size: 14px;
+  }
+  
+  .add-user-button-container {
+    gap: 0.8rem;
+  }
 }
 
 @media (max-width: 1300px) {
@@ -1549,6 +1554,17 @@ z-index: 1000;
   .pagination-bar {
     padding: 0.75rem 0;
     margin-top: 0.5rem;
+  }
+  
+  /* Export and filter button adjustments */
+  .export-button,
+  .filter-button {
+    padding: 12px 35px;
+    font-size: 13px;
+  }
+  
+  .add-user-button-container {
+    gap: 0.6rem;
   }
 }
 
@@ -1853,6 +1869,13 @@ z-index: 1000;
   bottom: 0;
 }
 
+.loading-users-message {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  font-size: 1.1rem;
+} 
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .filter-button {
@@ -2129,4 +2152,2059 @@ z-index: 1000;
   background-color: #6c757d;
   transform: none;
   box-shadow: none;
+}
+
+/* Admin Password Modal Styles */
+.admin-password-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10001;
+  backdrop-filter: blur(5px);
+  isolation: isolate;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-content h2 {
+  color: #2C517D;
+  font-family: 'customfont1';
+  font-size: 1.5rem;
+  margin: 0 0 1rem 0;
+  text-align: center;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 1rem;
+}
+
+.modal-content p {
+  color: #495057;
+  font-family: 'ReadexPro-Regular';
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 0 1.5rem 0;
+  text-align: center;
+}
+
+.modal-content .form-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 10003;
+}
+
+.modal-content .form-group label {
+  display: block;
+  font-weight: 600;
+  color: #2C517D;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
+  position: relative;
+  z-index: 10003;
+}
+
+.admin-password-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
+  background-color: #fff;
+  color: #495057;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 10003;
+}
+
+.admin-password-input:focus {
+  outline: none;
+  border-color: #2C517D;
+  box-shadow: 0 0 0 3px rgba(44, 81, 125, 0.1);
+  transform: translateY(-1px);
+}
+
+.admin-password-input:focus-visible {
+  outline: 2px solid #2C517D;
+  outline-offset: 2px;
+}
+
+.admin-password-input:active {
+  transform: none;
+}
+
+.admin-password-input::placeholder {
+  color: #adb5bd;
+  font-style: italic;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0 0;
+  font-family: 'ReadexPro-Regular';
+  text-align: center;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.confirm-button {
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+.confirm-button:hover {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(40, 167, 69, 0.3);
+}
+
+.confirm-button:active {
+  transform: translateY(0);
+}
+
+.confirm-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
+.confirm-button:disabled:hover {
+  background: #6c757d;
+  transform: none;
+  box-shadow: none;
+}
+
+.cancel-button {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-family: 'ReadexPro-Regular';
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.cancel-button:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(108, 117, 125, 0.3);
+}
+
+.cancel-button:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design for Admin Password Modal */
+@media (max-width: 768px) {
+  .modal-content {
+    padding: 1.5rem;
+    max-width: 90%;
+    margin: 1rem;
+  }
+  
+  .modal-content h2 {
+    font-size: 1.3rem;
+    margin-bottom: 0.8rem;
+  }
+  
+  .modal-content p {
+    font-size: 0.9rem;
+    margin-bottom: 1.2rem;
+  }
+  
+  .admin-password-input {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+  }
+  
+  .confirm-button,
+  .cancel-button {
+    width: 100%;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 576px) {
+  .modal-content {
+    padding: 1.2rem;
+    max-width: 95%;
+    margin: 0.5rem;
+  }
+  
+  .modal-content h2 {
+    font-size: 1.2rem;
+    margin-bottom: 0.6rem;
+  }
+  
+  .modal-content p {
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+  
+  .admin-password-input {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .modal-actions {
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+  }
+  
+  .confirm-button,
+  .cancel-button {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+  }
+  
+  .error-message {
+    font-size: 0.8rem;
+    padding: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-content {
+    padding: 1rem;
+    max-width: 98%;
+    margin: 0.25rem;
+  }
+  
+  .modal-content h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .modal-content p {
+    font-size: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  
+  .admin-password-input {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+  
+  .modal-actions {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+  }
+  
+  .confirm-button,
+  .cancel-button {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .admin-password-modal {
+    background-color: rgba(0, 0, 0, 0.9);
+  }
+  
+  .modal-content {
+    border: 3px solid #000000;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  }
+  
+  .admin-password-input {
+    border: 2px solid #000000;
+  }
+  
+  .admin-password-input:focus {
+    border-color: #000000;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .modal-content {
+    animation: none;
+  }
+  
+  .admin-password-input:focus {
+    transform: none;
+  }
+  
+  .confirm-button:hover,
+  .cancel-button:hover {
+    transform: none;
+  }
+}
+
+/* Tech Officer Status Display Styles */
+.tech-officer-status-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-display-inactive {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  background-color: #ffffff;
+  border: 0.2rem solid #1A4375;
+  border-radius: 5px;
+  min-height: 42px; /* Match the height of the select dropdown */
+  width: 80%; /* Match the width of input fields */
+  box-sizing: border-box;
+}
+
+.status-display-inactive .status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-display-inactive .status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-display-inactive .status-dot.inactive {
+  background-color: #F8504A;
+}
+
+.status-display-inactive .status-text.inactive {
+  color: #F8504A;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 14px;
+  font-weight: 600;
+}
+
+
+
+/* Responsive adjustments for Tech Officer status display */
+@media (max-width: 768px) {
+  .status-display-inactive {
+    padding: 8px 10px;
+    min-height: 38px;
+  }
+  
+  .status-display-inactive .status-text.inactive {
+    font-size: 13px;
+  }
+  
+
+}
+
+@media (max-width: 576px) {
+  .status-display-inactive {
+    padding: 6px 8px;
+    min-height: 36px;
+  }
+  
+  .status-display-inactive .status-text.inactive {
+    font-size: 12px;
+  }
+  
+
+}
+
+/* Form Role Notice Styles */
+.form-role-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  margin-top: 10px;
+}
+
+.role-notice-icon {
+  font-size: 20px;
+  color: #2196f3;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.role-notice-content {
+  flex: 1;
+}
+
+.role-notice-content strong {
+  display: block;
+  color: #1976d2;
+  font-family: 'customfont1';
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.role-notice-content p {
+  margin: 0;
+  color: #1565c0;
+  font-family: 'ReadexPro-Regular';
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Responsive adjustments for form role notice */
+@media (max-width: 768px) {
+  .form-role-notice {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .role-notice-icon {
+    font-size: 18px;
+  }
+  
+  .role-notice-content strong {
+    font-size: 13px;
+  }
+  
+  .role-notice-content p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .form-role-notice {
+    padding: 10px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .role-notice-icon {
+    font-size: 16px;
+    margin-top: 0;
+  }
+  
+  .role-notice-content strong {
+    font-size: 12px;
+  }
+  
+  .role-notice-content p {
+    font-size: 11px;
+  }
+}
+
+/* RESPONSIVE DESIGN - Matching Homepage.css breakpoints and behavior */
+
+/* ======================================== */
+/* SCREEN SIZE COVERAGE GUIDE - NON-OVERLAPPING BREAKPOINTS */
+/* ======================================== */
+/*
+ * BREAKPOINT STRUCTURE (No Overlaps):
+ * 
+ * 1920px+ (4K/Large Desktop/TV): 1920px and above
+ * 1536px (Common Laptop): 1536px to 1919px
+ * 1366px (Standard Laptop): 1366px to 1535px  
+ * 1280px (Small Monitor): 1280px to 1365px
+ * 1024px (Medium Desktop): 1024px to 1279px
+ * 768px (Tablet): 768px to 1023px
+ * 480px (Mobile): 480px to 767px
+ * 479px and below (Small Mobile): 479px and below
+ * 
+ * Each breakpoint includes:
+ * - Sidebar open state: Increased margin-left for content spacing
+ * - Sidebar collapsed state: Reduced margin-left for compact layout
+ * - Responsive adjustments for buttons, text, and layout
+ * 
+ * TO ADJUST MARGINS WHEN SIDEBAR IS CLOSED:
+ * Look for comments "ADJUST THIS VALUE" in each breakpoint
+ * Change the margin-left value in .manage-wrapper.sidebar-collapsed and .account-main-content.sidebar-collapsed
+ * 
+ * NO OVERLAPS: Each screen size has exactly one breakpoint that applies
+ */
+
+/* ======================================== */
+/* SCREEN SIZE: 1920px and above (4K, Large Desktop/TV) */
+/* ======================================== */
+@media (min-width: 1920px) {
+  .account-header-bar {
+    padding: 1rem 4rem;
+    height: 80px;
+  }
+  
+  .header-logo {
+    height: 50px;
+  }
+  
+  .header-title {
+    font-size: 2rem;
+  }
+  
+  .manage-wrapper {
+    max-width: 75.8% !important;
+    margin-bottom: -5rem;
+    margin-left: 26rem !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-main-content {
+    margin-left: 25rem !important;
+    max-width: 100% !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 8rem !important;
+    max-width: 90% !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 7rem !important;
+    max-width: 100% !important;
+    width: 95% !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-container {
+    height: 35.6rem;
+    padding: 2.5rem;
+  }
+  
+  .add-user-button {
+    padding: 18px 25px;
+    font-size: 16px;
+  }
+  
+  .bulk-delete-button {
+    padding: 18px 25px;
+    font-size: 16px;
+  }
+
+  .filter-dropdown {
+    min-width: 220px !important;
+    padding: 25px !important;
+    top: 100% !important;
+    left: 75% !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+    border: 1px solid #e2e8f0 !important; /* Add border */
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important; /* Gradient background */
+  }
+
+  .filter-section select,
+.filter-section input {
+  padding: 12px 2px !important;
+  font-size: 15px !important;
+  border-radius: 8px !important;
+  border: 2px solid #e2e8f0 !important; /* Thicker border */
+  transition: all 0.3s ease !important;
+}
+  
+  .filter-button {
+    padding: 20px 55px;
+    font-size: 16px;
+  }
+  
+  .sidebar-wrapper {
+    top: 80px !important;
+  }
+  
+  /* ======================================== */
+  /* HEADER CELL ADJUSTMENTS FOR 1920px+ */
+  /* ======================================== */
+  
+  /* Checkbox Header Cell */
+  .header-cell.checkbox-cell {
+    width: 60px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -2rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Name Header Cell */
+  .header-cell.name-cell {
+    width: 250px !important;
+    padding: 0.75rem !important;
+    justify-content: flex-start !important;
+    margin-left: -2rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Role Header Cell */
+  .header-cell.role-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -6rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Status Header Cell */
+  .header-cell.status-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -6rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Contact Header Cell */
+  .header-cell.contact-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -8rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Actions Header Cell */
+  .header-cell.actions-cell {
+    width: 180px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -10rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Joined Header Cell */
+  .header-cell.joined-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -9rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Delete Header Cell */
+  .header-cell.delete-cell {
+    width: 100px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: 0 !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* ======================================== */
+  /* USER CELL ADJUSTMENTS FOR 1920px+ */
+  /* ======================================== */
+  
+  /* Checkbox User Cell */
+  .user-cell.checkbox-cell {
+    width: 60px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -2.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Name User Cell */
+  .user-cell.name-cell {
+    width: 250px !important;
+    padding: 0.75rem !important;
+    justify-content: flex-start !important;
+    margin-left: -3rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Role User Cell */
+  .user-cell.role-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Status User Cell */
+  .user-cell.status-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -4rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Contact User Cell */
+  .user-cell.contact-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -4rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Actions User Cell */
+  .user-cell.actions-cell {
+    width: 180px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -4rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Joined User Cell */
+  .user-cell.joined-cell {
+    width: 140px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-left: -2rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* Delete User Cell */
+  .user-cell.delete-cell {
+    width: 100px !important;
+    padding: 0.75rem !important;
+    justify-content: center !important;
+    margin-right: 2.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  /* ======================================== */
+  /* USER ROW STYLING FOR 1920px+ */
+  /* ======================================== */
+  
+  .user-row {
+    border-bottom: 1px solid #e2e8f0 !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .user-row:hover {
+    background-color: #f8fafc !important; /* Light blue-gray hover */
+    border-bottom: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    transform: translateY(-1px) !important;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 1536px (Common Laptop Resolution) */
+/* ======================================== */
+@media (min-width: 1536px) and (max-width: 1919px) {
+  .account-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  .manage-wrapper {
+    max-width: 77% !important; /* COMMENT: Full width available - ADJUST THIS VALUE */
+    margin: 9rem 0 0 17%;
+    margin-bottom: -5rem;
+    margin-left: 18rem !important; 
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-main-content {
+    margin-left: 17rem !important; 
+    max-width: 80.5% !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 8rem !important;
+    max-width: 88% !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 7rem !important;
+    max-width: 94% !important;
+    transition: all 0.3s ease !important;
+  }
+  
+  .account-container {
+    height: 23rem !important;
+    padding: 2rem;
+    padding-bottom: 5rem !important; /* Space for pagination */
+    overflow: auto !important;
+    position: relative !important;
+  }
+  
+  /* Force pagination to bottom */
+  .pagination-bar {
+    position: absolute !important;
+    bottom: -3rem !important;
+    left: 2rem !important; /* Account for container padding */
+    right: 2rem !important;
+    padding: 1rem 0 !important;
+    margin: 0 !important;
+    gap: 1rem !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 100 !important; /* High z-index to stay on top */
+  }
+
+  .pagination-btn {
+    padding: 0.5rem .5rem !important;
+    font-size: 13px !important;
+    font-family: 'customfont1' !important;
+    border-radius: 8px !important;
+    min-width: 50px !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .filter-dropdown {
+    min-width: 200px !important;
+    padding: 20px !important;
+    top: 100% !important;
+    left: 70% !important;
+    border-radius: 10px !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+  }
+
+  .filter-section select,
+.filter-section input {
+  padding: 10px 2px !important;
+  font-size: 14px !important;
+  border-radius: 6px !important;
+  border: 1px solid #d1d5db !important;
+  transition: all 0.2s ease !important;
+}
+  
+  .sidebar-wrapper {
+    top: 60px !important; 
+    transition: all 0.3s ease !important;
+  }
+  
+  /* Font scaling for 1536px laptops */
+  .header-title {
+    font-size: 1.5rem;
+  }
+  
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    font-size: 13px;
+  }
+  /* Header Cell Adjustments for 1536px */
+  .header-cell.checkbox-cell {
+    width: 50px !important;
+    padding: 0.5rem !important;
+    margin-left: -1.5rem !important;
+  }
+  
+  .user-cell.checkbox-cell {
+    width: 50px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -1.5rem !important; /* ADJUST THIS VALUE */
+  }
+
+  .header-cell.name-cell {
+    width: 200px !important;
+    padding: 0.5rem !important;
+    margin-left: -.5rem !important;
+  }
+
+  .user-cell.name-cell {
+    width: 200px !important;
+    padding: 1rem !important;
+    margin-left: -3rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.role-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: 1rem !important;
+  }
+
+  .user-cell.role-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: -1rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.status-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+  }
+  
+  .user-cell.status-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -1rem !important; /* ADJUST THIS VALUE */
+  }
+
+  .header-cell.contact-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: -1.5rem !important;
+  }
+
+  .user-cell.contact-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.actions-cell {
+    width: 150px !important;
+    padding: 0.5rem !important;
+    margin-left: -2.5rem !important;
+  }
+    
+  .user-cell.actions-cell {
+    width: 150px !important;
+    padding: 0.5rem !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.joined-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: -2.5rem !important;
+  }
+    
+  .user-cell.joined-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.delete-cell {
+    width: 80px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+  }
+    
+  .user-cell.delete-cell {
+    width: 80px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-right: 2rem !important; /* ADJUST THIS VALUE */
+  }
+
+  .user-row {
+    border-bottom: 1px solid #e2e8f0 !important;
+    width: 100% !important;
+    transition: all 0.3s ease !important;
+    padding: 1rem !important;
+    margin-top: -1rem !important;
+  }
+
+  
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 1366px (Standard Laptop) */
+/* ======================================== */
+@media (min-width: 1366px) and (max-width: 1535px) {
+  .account-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  
+  .manage-wrapper {
+    max-width: 75.6%;
+    margin: 9rem 0 0 18%;
+    margin-bottom: -5rem;
+    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+  }
+  
+  .account-main-content {
+    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 35rem;
+    padding: 2rem;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 1280px (Small Monitor) */
+/* ======================================== */
+@media (min-width: 1280px) and (max-width: 1365px) {
+  .account-header-bar {
+    padding: 1rem 2rem;
+    height: 60px;
+  }
+  
+  .manage-wrapper {
+    max-width: 76%;
+    margin: 9rem 0 0 18%;
+    margin-bottom: -5rem;
+    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  .account-main-content {
+    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 35rem;
+    padding: 2rem;
+  }
+  
+  /* COMMENT: Adjust this value to control sidebar distance from top on 1280px small monitor screens */
+  /* COMMENT: Increase the value to move sidebar down, decrease to move it up */
+  .sidebar-wrapper {
+    top: 65px !important;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 1024px (Medium Desktop) */
+/* ======================================== */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .account-header-bar {
+    padding: 1rem 1.5rem;
+    height: 60px;
+  }
+  
+  .manage-wrapper {
+    max-width: 78%;
+    margin: 9rem 0 0 20%;
+    margin-bottom: -5rem;
+    margin-left: 20rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+  }
+  
+  .account-main-content {
+    margin-left: 20rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 6rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 32rem;
+    padding: 1.8rem;
+  }
+  
+  .add-user-button {
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  
+  .bulk-delete-button {
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  
+  .filter-button {
+    padding: 16px 45px;
+    font-size: 14px;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 768px (Tablet - iPad, Small Tablets) */
+/* ======================================== */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .account-header-bar {
+    padding: 0.8rem 1rem;
+    height: 60px;
+    margin-bottom: 1rem;
+  }
+  
+  .header-logo {
+    height: 35px;
+  }
+  
+  .header-title {
+    font-size: 1.3rem;
+  }
+  
+  .manage-wrapper {
+    max-width: 85%;
+    margin: 9rem 0 0 15%;
+    margin-bottom: -5rem;
+    margin-left: 15rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 5rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  .account-main-content {
+    margin-left: 15rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 5rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 5rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 30rem;
+    padding: 1.5rem;
+    width: 95%;
+  }
+  
+  .add-user-button {
+    padding: 12px 16px;
+    font-size: 13px;
+    margin: 0 2rem 0 0;
+    margin-bottom: -7rem;
+  }
+  
+  .bulk-delete-button {
+    padding: 12px 16px;
+    font-size: 13px;
+    margin: 0;
+  }
+  
+  .filter-button {
+    padding: 14px 40px;
+    font-size: 13px;
+  }
+  
+  .header-row {
+    grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px;
+    gap: 0.4rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px;
+    gap: 0.4rem;
+    margin-right: 1rem;
+    margin-left: -0.5rem;
+  }
+  
+  .user-cell {
+    padding: 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .username {
+    font-size: 0.85rem;
+  }
+  
+  .user-email {
+    font-size: 0.7rem;
+  }
+  
+  .role-badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 480px (Mobile - Large Phones, Small Tablets) */
+/* ======================================== */
+@media (min-width: 480px) and (max-width: 767px) {
+  .account-header-bar {
+    padding: 0.6rem 0.8rem;
+    height: 55px;
+    margin-bottom: 1rem;
+  }
+  
+  .header-logo {
+    height: 30px;
+  }
+  
+  .header-title {
+    font-size: 1.1rem;
+  }
+  
+  .manage-wrapper {
+    max-width: 90%;
+    margin: 9rem 0 0 10%;
+    margin-bottom: -5rem;
+    margin-left: 10rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 4rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  .account-main-content {
+    margin-left: 10rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 4rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 4rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 28rem;
+    padding: 1.2rem;
+    width: 95%;
+  }
+  
+  .add-user-button {
+    padding: 10px 14px;
+    font-size: 12px;
+    margin: 0 1.5rem 0 0;
+    margin-bottom: -7rem;
+  }
+  
+  .bulk-delete-button {
+    padding: 10px 14px;
+    font-size: 12px;
+    margin: 0;
+  }
+  
+  .filter-button {
+    padding: 12px 35px;
+    font-size: 12px;
+  }
+  
+  .header-row {
+    grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px;
+    gap: 0.3rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px;
+    gap: 0.3rem;
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+  
+  .user-cell {
+    padding: 0.2rem;
+    font-size: 0.7rem;
+  }
+  
+  .username {
+    font-size: 0.8rem;
+  }
+  
+  .user-email {
+    font-size: 0.65rem;
+  }
+  
+  .role-badge {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.6rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.6rem;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: 479px and below (Small Mobile - Standard Phones) */
+/* ======================================== */
+@media (max-width: 479px) {
+  .account-header-bar {
+    padding: 0.5rem;
+    height: 50px;
+    margin-bottom: 0.8rem;
+  }
+  
+  .header-logo {
+    height: 25px;
+  }
+  
+  .header-title {
+    font-size: 1rem;
+  }
+  
+  .manage-wrapper {
+    max-width: 95%;
+    margin: 9rem 0 0 5%;
+    margin-bottom: -5rem;
+    margin-left: 5rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 3rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  .account-main-content {
+    margin-left: 5rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 3rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 3rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .account-container {
+    height: 25rem;
+    padding: 1rem;
+    width: 98%;
+  }
+  
+  .add-user-button {
+    padding: 8px 12px;
+    font-size: 11px;
+    margin: 0 1rem 0 0;
+    margin-bottom: -7rem;
+  }
+  
+  .bulk-delete-button {
+    padding: 8px 12px;
+    font-size: 11px;
+    margin: 0;
+  }
+  
+  .filter-button {
+    padding: 10px 30px;
+    font-size: 11px;
+  }
+  
+  .header-row {
+    grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px;
+    gap: 0.25rem;
+  }
+  
+  .user-row {
+    grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px;
+    gap: 0.25rem;
+    margin-right: 0.25rem;
+    margin-left: 0;
+  }
+  
+  .user-cell {
+    padding: 0.15rem;
+    font-size: 0.65rem;
+  }
+  
+  .username {
+    font-size: 0.75rem;
+  }
+  
+  .user-email {
+    font-size: 0.6rem;
+  }
+  
+  .role-badge {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.55rem;
+  }
+  
+  .reset-password-btn, .delete-user-btn {
+    padding: 0.15rem 0.3rem;
+    font-size: 0.55rem;
+  }
+}
+
+/* ======================================== */
+/* SCREEN SIZE: Landscape Mobile/Tablet (max-height: 500px) */
+/* ======================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+  .account-header-bar {
+    height: 45px;
+    margin-bottom: 0.5rem;
+  }
+  
+  .manage-wrapper {
+    margin-top: 7rem;
+  }
+  
+  .account-container {
+    height: 20rem;
+    padding: 1rem;
+  }
+  
+  .add-user-button-container {
+    margin-top: 1rem;
+    margin-bottom: -5rem;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .header-logo {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Print styles */
+@media print {
+  .manage-wrapper,
+  .account-header-bar,
+  .add-user-button-container {
+    display: none;
+  }
+  
+  .account-main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .account-container {
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+}
+
+/* ======================================== */
+/* FONT SCALING BREAKPOINTS (Non-overlapping) */
+/* ======================================== */
+
+/* Font scaling for 1920px+ */
+@media (min-width: 1920px) {
+  .header-title {
+    font-size: 2rem;
+  }
+  
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    font-size: 16px;
+  }
+}
+
+
+
+/* Font scaling for 1024px-1365px */
+@media (min-width: 1024px) and (max-width: 1365px) {
+  .header-title {
+    font-size: 1.3rem;
+  }
+  
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    font-size: 14px;
+  }
+}
+
+/* ======================================== */
+/* TOUCH TARGETS (Mobile/Tablet) */
+/* ======================================== */
+@media (max-width: 1023px) {
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .user-cell {
+    min-height: 44px;
+  }
+}
+
+/* Smooth scrolling for better mobile experience */
+@media (max-width: 1023px) {
+  .account-container {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .user-table {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Ensure proper contrast and readability */
+@media (max-width: 767px) {
+  .role-badge {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+  
+  .header-title {
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+}
+
+/* Very Small Mobile Screens (360px and below) - Small Phones */
+@media (max-width: 360px) {
+  .account-header-bar {
+    padding: 0.4rem;
+    height: 45px;
+  }
+  
+  .header-logo {
+    height: 20px;
+  }
+  
+  .header-title {
+    font-size: 0.9rem;
+  }
+  
+  .manage-wrapper {
+    width: 99%;
+    padding: 0 0.5rem;
+    margin-left: 4rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 2.5rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  .account-main-content {
+    margin-left: 4rem; /* COMMENT: Increased margin-left when sidebar is open */
+  }
+  
+  .account-main-content.sidebar-collapsed {
+    margin-left: 2.5rem; /* COMMENT: Reduced margin-left when sidebar is collapsed */
+  }
+  
+  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
+  .manage-wrapper.sidebar-collapsed,
+  .account-main-content.sidebar-collapsed {
+    margin-left: 2.5rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+  }
+  
+  .add-user-button,
+  .bulk-delete-button {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+  
+  .filter-button {
+    padding: 8px 25px;
+    font-size: 10px;
+  }
+}
+
+/* Responsive hamburger icon sizing - matching Homepage.css */
+@media (max-width: 1523px) {
+  .header-hamburger-icon {
+    font-size: 0.1em !important;
+    min-width: 36px;
+    min-height: 36px;
+    margin-left: 0.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .header-hamburger-icon {
+    font-size: 0.7rem !important;
+    min-width: 32px;
+    min-height: 32px;
+    margin-left: 0.4rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .header-hamburger-icon {
+    font-size: 0.6rem !important;
+    min-width: 28px;
+    min-height: 28px;
+    margin-left: 0.3rem;
+  }
+}
+
+@media (max-width: 479px) {
+  .header-hamburger-icon {
+    font-size: 0.5rem !important;
+    min-width: 24px;
+    min-height: 24px;
+    margin-left: 0.2rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .header-hamburger-icon {
+    font-size: 0.4rem !important;
+    min-width: 22px;
+    min-height: 22px;
+    margin-left: 0.1rem;
+  }
+}
+
+/* Responsive adjustments for table */
+
+/* =============================
+Mobile Responsiveness
+- up to 360px: Small phones
+- 361px to 480px: Standard phones
+- 481px to 575px: Large phones / small phablets
+- 576px to 767px: Phablets / small tablets (portrait)
+============================= */
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  /* Layout */
+  html, body { height: 100%; width: 100%; }
+
+  /* Header */
+  .account-header-bar { padding: 0.6rem 0.8rem; height: 55px; margin-bottom: 1rem; }
+
+  /* Sidebar (slide over content, no gap below header) */
+  .sidebar-wrapper { position: fixed; left: -100%; top: 55px; width: 100vw; height: calc(100vh - 55px); z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
+  .sidebar-wrapper.sidebarOpen { left: 0 !important; }
+  .sidebar { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sidebar-backdrop { display: block; }
+
+  /* Content */
+  .account-main-content { margin-left: 0 !important; width: 100%; }
+  .manage-wrapper { max-width: 95%; margin: 7rem auto 1rem auto; box-sizing: border-box; }
+  .account-container { width: 95%; margin: 1rem auto; padding: 1rem; height: auto; }
+
+  /* Allow horizontal scroll and prevent compression */
+  html, body { overflow-x: auto; }
+  .account-main-content { overflow-x: auto !important; }
+  .manage-wrapper, .account-container, .header-row, .user-row { min-width: 1200px !important; }
+  .account-container { width: 1200px !important; }
+}
+
+/* 361px to 480px (Standard phones) */
+@media (min-width: 361px) and (max-width: 480px) {
+  /* Layout */
+  html, body { 
+    height: 100%; 
+    width: 100%; }
+
+  /* Header */
+  .account-header-bar { 
+    padding: 0.6rem 0.8rem; 
+    height: 55px; 
+    margin-bottom: 1rem; }
+
+  /* Sidebar (slide over content, aligned under header) */
+  .sidebar-wrapper { 
+    position: fixed; 
+    left: -100%; 
+    top: 55px; 
+    width: 100vw; 
+    height: calc(100vh - 55px); 
+    z-index: 1100; 
+    transition: left 0.3s ease; 
+    box-sizing: border-box; 
+  }
+
+  .sidebar-wrapper.sidebarOpen { 
+    left: 0 !important; 
+  }
+
+  .sidebar { 
+    height: 100%; 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
+  }
+
+  .sidebar-backdrop { 
+    display: block; 
+  }
+
+  /* Content */
+  .account-main-content { 
+    margin-left: 0 !important; 
+    width: 100%; 
+  }
+  .manage-wrapper { 
+    max-width: 94%; 
+    margin: 7rem auto 1rem auto; 
+    box-sizing: border-box; 
+  }
+  .account-container { 
+    width: 94%; 
+    margin: 1rem auto; 
+    padding: 1rem; 
+    height: auto; 
+  }
+
+  /* Table compaction (keep grid but tighter spacing) */
+  .header-row { 
+    gap: 0.4rem; 
+  }
+  .user-row { 
+    gap: 0.4rem; 
+    margin-left: 0; 
+    margin-right: 0; 
+  }
+
+  /* Allow horizontal scroll and prevent compression */
+  html, body { 
+    overflow-x: auto; 
+  }
+
+  .account-main-content { 
+    overflow-x: auto !important; 
+  }
+  .manage-wrapper, .account-container, 
+  .header-row, .user-row { 
+    min-width: 1200px !important; 
+  }
+  .account-container { 
+    width: 1200px !important; 
+  }
+
+  /* Spread content; full-page scroll (horizontal and vertical) */
+  html, body {
+    overflow-x: auto;
+    overflow-y: auto;
+    min-width: 1200px;
+  }
+
+  /* Ensure header bar and main wrappers match spread width */
+  .account-header-bar,
+  .account-main-content,
+  .manage-wrapper,
+  .account-container {
+    min-width: 1200px !important;
+    width: 1200px !important;
+  }
+
+  /* Remove max-width constraints to avoid compression */
+  .manage-wrapper {
+    max-width: none !important;
+  }
+
+  /* Keep table sections aligned with spread width */
+  .table-header,
+  .header-row,
+  .user-row {
+    min-width: 1200px !important;
+  }
+
+  /* Buttons container and button polish for 361-480px */
+  .add-user-button-container {
+    position: relative !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 0.8rem !important;
+    margin: 1rem 1rem 0 1rem !important;
+    padding: 0 !important;
+  }
+
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    margin: 0 !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  }
+
+  .add-user-button:hover,
+  .bulk-delete-button:hover,
+  .filter-button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12) !important;
+  }
+
+  /* Position the filter dropdown neatly under the button on small phones */
+  .filter-dropdown {
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    left: auto !important;
+    transform: none !important;
+    min-width: 320px !important;
+    z-index: 10002 !important;
+  }
+}
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  /* Header */
+  .account-header-bar { padding: 0.6rem 0.8rem; height: 55px; margin-bottom: 1rem; }
+
+  /* Sidebar */
+  .sidebar-wrapper { position: fixed; left: -100%; top: 55px; width: 100vw; height: calc(100vh - 55px); z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
+  .sidebar-wrapper.sidebarOpen { left: 0 !important; }
+  .sidebar { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sidebar-backdrop { display: block; }
+
+  /* Content */
+  .account-main-content { margin-left: 0 !important; width: 100%; }
+  .manage-wrapper { max-width: 92%; margin: 7rem auto 1rem auto; }
+  .account-container { width: 92%; margin: 1rem auto; padding: 1.2rem; height: auto; }
+
+  /* Allow horizontal scroll and prevent compression */
+  html, body { overflow-x: auto; }
+  .account-main-content { overflow-x: auto !important; }
+  .manage-wrapper, .account-container, .header-row, .user-row { min-width: 1200px !important; }
+  .account-container { width: 1200px !important; }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  /* Header */
+  .account-header-bar { padding: 0.6rem 0.8rem; height: 55px; margin-bottom: 1rem; }
+
+  /* Sidebar */
+  .sidebar-wrapper { position: fixed; left: -100%; top: 55px; width: 100vw; height: calc(100vh - 55px); z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
+  .sidebar-wrapper.sidebarOpen { left: 0 !important; }
+  .sidebar { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sidebar-backdrop { display: block; }
+
+  /* Content */
+  .account-main-content { margin-left: 0 !important; width: 100%; }
+  .manage-wrapper { max-width: 90%; margin: 7rem auto 1rem auto; }
+  .account-container { width: 90%; margin: 1rem auto; padding: 1.5rem; height: auto; }
+
+  /* Allow horizontal scroll and prevent compression */
+  html, body { overflow-x: auto; }
+  .account-main-content { overflow-x: auto !important; }
+  .manage-wrapper, .account-container, .header-row, .user-row { min-width: 1200px !important; }
+  .account-container { width: 1200px !important; }
+}
+
+/* Deduplicated: horizontal scroll/min-width rules merged into the blocks above */
+
+/* =============================
+Mobile Buttons Styling (Add User / Filter)
+============================= */
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  /* Buttons container */
+  .add-user-button-container {
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 0.6rem;
+    margin: 1rem auto;
+    padding: 0 1rem;
+  }
+  /* Button look and sizing */
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+    border-radius: 12px !important;
+  }
+  /* Center the filter dropdown */
+  .filter-dropdown {
+    left: 50% !important;
+    transform: translateX(-50%);
+    right: auto !important;
+    min-width: 90vw !important;
+    top: 100% !important;
+  }
+}
+
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  .add-user-button-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1rem auto;
+    padding: 0 1rem;
+  }
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    flex: 1 1 calc(50% - 0.8rem);
+    min-width: 210px;
+    margin: 0 !important;
+    padding: 14px 18px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    text-align: center;
+  }
+  .filter-dropdown {
+    left: 50% !important;
+    transform: translateX(-50%);
+    right: auto !important;
+    min-width: 85vw !important;
+    top: 100% !important;
+  }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .add-user-button-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1rem auto;
+    padding: 0 1rem;
+  }
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    flex: 1 1 calc(50% - 0.8rem);
+    min-width: 230px;
+    margin: 0 !important;
+    padding: 14px 18px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+    text-align: center;
+  }
+  .filter-dropdown {
+    left: 50% !important;
+    transform: translateX(-50%);
+    right: auto !important;
+    min-width: 80vw !important;
+    top: 100% !important;
+  }
+}
+
+/* =============================
+Mobile Table Layout Polish (Readability + Horizontal Scroll)
+============================= */
+
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  .manage-wrapper { padding: 0 0.6rem; }
+  .account-container { 
+    overflow: auto; 
+    -webkit-overflow-scrolling: touch; 
+    border: 1px solid #e5e7eb; 
+    border-radius: 10px; 
+    background: #ffffff; 
+  }
+  .table-header { position: sticky; top: 0; z-index: 10; background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .header-row { padding: 0.6rem 0.9rem; gap: 0.8rem; border-bottom: 1px solid #e5e7eb; }
+  .header-cell { padding: 0.3rem 0.6rem; }
+  .header-cell span { font-size: 13px; letter-spacing: 0.5px; }
+  .user-row { padding: 0.6rem 0.9rem; gap: 0.8rem; background: #ffffff; border-bottom: 1px solid #e5e7eb; }
+  .user-row:nth-child(even) { background: #fafafa; }
+  .user-cell { padding: 0.45rem; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .role-badge { padding: 0.35rem 0.7rem; font-size: 0.75rem; border-radius: 12px; }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .manage-wrapper { padding: 0 0.8rem; }
+  .account-container { 
+    overflow: auto; 
+    -webkit-overflow-scrolling: touch; 
+    border: 1px solid #e5e7eb; 
+    border-radius: 10px; 
+    background: #ffffff; 
+  }
+  .table-header { position: sticky; top: 0; z-index: 10; background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+  .header-row { padding: 0.7rem 1rem; gap: 0.9rem; border-bottom: 1px solid #e5e7eb; }
+  .header-cell { padding: 0.35rem 0.7rem; }
+  .header-cell span { font-size: 14px; letter-spacing: 0.4px; }
+  .user-row { padding: 0.7rem 1rem; gap: 0.9rem; background: #ffffff; border-bottom: 1px solid #e5e7eb; }
+  .user-row:nth-child(even) { background: #fafafa; }
+  .user-cell { padding: 0.5rem; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .role-badge { padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 12px; }
+}
+
+/* =============================
+Mobile: Scrollable user-grid-container + Visible Header Cells
+============================= */
+
+/* up to 360px (Small phones) */
+@media (max-width: 360px) {
+  .account-container { overflow-x: auto; }
+  .table-header, .header-row { min-width: 1200px; }
+  .user-grid-container { 
+    overflow-y: auto; 
+    max-height: 62vh; 
+    -webkit-overflow-scrolling: touch; 
+    overscroll-behavior: contain; 
+  }
+}
+
+
+/* 481px to 575px (Large phones / small phablets) */
+@media (min-width: 481px) and (max-width: 575px) {
+  .account-container { overflow-x: auto; }
+  .table-header, .header-row { min-width: 1200px; }
+  .user-grid-container { 
+    overflow-y: auto; 
+    max-height: 68vh; 
+    -webkit-overflow-scrolling: touch; 
+    overscroll-behavior: contain; 
+  }
+}
+
+/* 576px to 767px (Phablets / small tablets portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .account-container { overflow-x: auto; }
+  .table-header, .header-row { min-width: 1200px; }
+  .user-grid-container { 
+    overflow-y: auto; 
+    max-height: 70vh; 
+    -webkit-overflow-scrolling: touch; 
+    overscroll-behavior: contain; 
+  }
 }

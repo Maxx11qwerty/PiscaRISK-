@@ -2,11 +2,13 @@ import React, { useState, useRef, useContext, useEffect } from "react";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import "./ProfileSettings.css";
 import { AuthContext } from './contexts/AuthContext';
-import { FaEllipsisV, FaCamera, FaUpload, FaTimes, FaCheck, FaEye, FaEyeSlash} from "react-icons/fa";
+import { FaEllipsisV, FaCamera, FaUpload, FaTimes, FaCheck, FaEye, FaEyeSlash, FaUserCircle, FaUser, FaSignOutAlt, FaBars } from "react-icons/fa";
+import { LiaEdit } from "react-icons/lia";
 import { useNavigate } from "react-router-dom";
 import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
-import { doc, updateDoc } from 'firebase/firestore';
+import Sidebar from './components/Sidebar';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { auth } from './firebase';
 
@@ -44,13 +46,32 @@ export default function AccountSettings() {
   const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const [verificationCheckInterval, setVerificationCheckInterval] = useState(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [nightMode, setNightMode] = useState(false);
+  const [language, setLanguage] = useState('en');
+  
+  // Form state variables
+  const [showFullNameChangeForm, setShowFullNameChangeForm] = useState(false);
+  const [showAddressChangeForm, setShowAddressChangeForm] = useState(false);
+  const [showContactChangeForm, setShowContactChangeForm] = useState(false);
+  const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
+  const [showProfileImageModal, setShowProfileImageModal] = useState(false);
+  const [newFullName, setNewFullName] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newContact, setNewContact] = useState('');
+  const [fullNameError, setFullNameError] = useState('');
+  const [addressError, setAddressError] = useState('');
+  const [contactError, setContactError] = useState('');
+  
+  const {handleLogout, refreshCurrentUser, updateUser } = useContext(AuthContext);
 
   const { 
     currentUser, 
     updateEmail, 
     changePassword, 
     updateProfileImage, 
-    updateUser, 
     setCurrentUser,
     sendVerificationEmail,
     checkEmailVerification 
@@ -62,70 +83,12 @@ export default function AccountSettings() {
     const timer = setTimeout(() => {
       if (error) setError('');
       if (success) setSuccess('');
-    }, 3000);
+    }, 4000);
     
     return () => clearTimeout(timer);
   }, [error, success]);
   
-  const handleEmailChange = async (e) => {
-    e.preventDefault();
-    setEmailError('');
-    setError('');
-    setSuccess('');
-  
-    // Validation
-    if (!/^\S+@\S+\.\S+$/.test(newEmail)) {
-      setEmailError('Please enter a valid email');
-      return;
-    }
-  
-    if (newEmail === currentUser?.email) {
-      setEmailError('This is already your current email');
-      return;
-    }
-  
-    try {
-      // First check if current email is verified
-      await auth.currentUser.reload();
-      
-      if (!auth.currentUser.emailVerified) {
-        setError('Please verify your current email before changing it');
-        setSuccess('');
-        return;
-      }
-  
-      // Proceed with email update
-      const result = await updateEmail(newEmail, emailCurrentPassword);
-      
-      if (result.success) {
-        setShowEmailChangeForm(false);
-        setNewEmail('');
-        setEmailCurrentPassword('');
-        setSuccess(result.message);
-        setError('');
-        
-        // Start checking for verification
-        const checkVerification = async () => {
-          try {
-            const isVerified = await checkEmailVerification();
-            if (isVerified) {
-              setSuccess('Email verified successfully! You can now complete the email change.');
-              clearInterval(verificationInterval);
-            }
-          } catch (error) {
-            console.error('Error checking verification:', error);
-          }
-        };
-        
-        const verificationInterval = setInterval(checkVerification, 5000);
-        // Clear interval after 5 minutes
-        setTimeout(() => clearInterval(verificationInterval), 300000);
-      }
-    } catch (err) {
-      setError(err.message);
-      setSuccess('');
-    }
-  };
+
   
 // Function to convert file to base64
 const uploadImage = (file) => {
@@ -153,28 +116,178 @@ const uploadImage = (file) => {
   });
 };
 
-  const handleUsernameChange = async (e) => {
-    e.preventDefault();
+  const handleUsernameChange = () => {
     if (!newUsername.trim()) {
       setUsernameError('Username cannot be empty');
       return;
     }
-    try {
-      // Update in Firebase and AuthContext
-      await updateUser({ username: newUsername });
-      
-      // Update local state
-      setProfileImage(prev => ({ ...prev, username: newUsername }));
-      logActivity('profile', logMessages.profile.usernameChange(currentUser.username, newUsername), currentUser.username);
-      
+    
+    // Check if the value actually changed
+    if (newUsername === currentUser?.username) {
       setShowUsernameChangeForm(false);
       setNewUsername('');
       setUsernameError('');
-      setSuccess('Username updated successfully!');
+      return; // No changes, just close editing mode
+    }
+    
+    // Just close editing mode - changes will be saved when Save Changes is clicked
+    setShowUsernameChangeForm(false);
+    setUsernameError('');
+  };
+
+  const handleFullNameChange = async () => {
+    if (!newFullName.trim()) {
+      setFullNameError('Full name cannot be empty');
+      return;
+    }
+    
+    // Check if the value actually changed
+    if (newFullName === currentUser?.fullName) {
+      setShowFullNameChangeForm(false);
+      setNewFullName('');
+      setFullNameError('');
+      return; // No changes, just close editing mode
+    }
+    
+    try {
+      // Update in Firestore directly in main user document
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        fullName: newFullName
+      });
+      
+      // Update local state
+      setNewFullName(newFullName);
+      
+      logActivity('profile', `Full name updated from "${currentUser.fullName || 'Not set'}" to "${newFullName}"`, currentUser.username);
+      
+      // Refresh current user data to get updated values
+      await refreshCurrentUser();
+      
+      setShowFullNameChangeForm(false);
+      setFullNameError('');
+      setSuccess('Full name updated successfully!');
     } catch (error) {
-      logActivity('error', logMessages.error.validation(error.message), currentUser.username);
-      setUsernameError(error.message);
-      setError('Failed to update username. Please try again.');
+      console.error('Error updating full name:', error);
+      setFullNameError('Failed to update full name. Please try again.');
+      setError('Failed to update full name. Please try again.');
+    }
+  };
+
+  const handleAddressChange = async () => {
+    if (!newAddress.trim()) {
+      setAddressError('Address cannot be empty');
+      return;
+    }
+    
+    // Check if the value actually changed
+    if (newAddress === currentUser?.address) {
+      setShowAddressChangeForm(false);
+      setNewAddress('');
+      setAddressError('');
+      return; // No changes, just close editing mode
+    }
+    
+    try {
+      // Update in Firestore directly in main user document
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        address: newAddress
+      });
+      
+      // Update local state
+      setNewAddress(newAddress);
+      
+      logActivity('profile', `Address updated from "${currentUser.address || 'Not set'}" to "${newAddress}"`, currentUser.username);
+      
+      // Refresh current user data to get updated values
+      await refreshCurrentUser();
+      
+      setShowAddressChangeForm(false);
+      setAddressError('');
+      setSuccess('Address updated successfully!');
+    } catch (error) {
+      console.error('Error updating address:', error);
+      setAddressError('Failed to update address. Please try again.');
+      setError('Failed to update address. Please try again.');
+    }
+  };
+
+  const handleContactChange = async () => {
+    if (!newContact.trim()) {
+      setContactError('Contact cannot be empty');
+      return;
+    }
+    
+    // Check if the value actually changed
+    if (newContact === currentUser?.contact) {
+      setShowContactChangeForm(false);
+      setNewContact('');
+      setContactError('');
+      return; // No changes, just close editing mode
+    }
+    
+    try {
+      // Update in Firestore directly in main user document
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        contactNumber: newContact
+      });
+      
+      // Update local state
+      setNewContact(newContact);
+      
+      logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${newContact}"`, currentUser.username);
+      
+      // Refresh current user data to get updated values
+      await refreshCurrentUser();
+      
+      setShowContactChangeForm(false);
+      setContactError('');
+      setSuccess('Contact updated successfully!');
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      setContactError('Failed to update contact. Please try again.');
+      setError('Failed to update contact. Please try again.');
+    }
+  };
+
+  const handleEmailChange = async () => {
+    if (!newEmail.trim()) {
+      setEmailError('Email cannot be empty');
+      return;
+    }
+    
+    // Check if the value actually changed
+    if (newEmail === currentUser?.email) {
+      setShowEmailChangeForm(false);
+      setNewEmail('');
+      setEmailError('');
+      return; // No changes, just close editing mode
+    }
+    
+    try {
+      // Update in Firestore directly (email is a main user field)
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        email: newEmail
+      });
+      
+      // Update local state
+      setNewEmail(newEmail);
+      
+      logActivity('profile', `Email updated from "${currentUser.email || 'Not set'}" to "${newEmail}"`, currentUser.username);
+      
+      // Refresh current user data to get updated values
+      await refreshCurrentUser();
+      
+      setShowEmailChangeForm(false);
+      setEmailError('');
+      setSuccess('Email updated successfully!');
+    } catch (error) {
+      console.error('Error updating email:', error);
+      setEmailError('Failed to update email. Please try again.');
+      setError('Failed to update email. Please try again.');
     }
   };
 
@@ -194,11 +307,7 @@ const uploadImage = (file) => {
   };
 
   const handleProfileImageClick = () => {
-    if (profileImage) {
-      toggleRemoveButton();
-    } else {
-      setShowImageOptions(true);
-    }
+    setShowProfileImageModal(true);
   };
 
   const toggleRemoveButton = () => {
@@ -389,13 +498,23 @@ const uploadImage = (file) => {
 
   const removeImage = async () => {
     try {
-      await updateProfileImage(null);
-      logActivity('profile', logMessages.profile.imageRemove(currentUser.username), currentUser.username);
+      // Update in Firestore directly
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        profileImage: null
+      });
+      
+      // Update local state
       setProfileImage(null);
       setShowRemoveButton(false);
+      
+      // Log the activity
+      logActivity('profile', `Profile picture removed by ${currentUser.username}`, currentUser.username);
+      
+      setSuccess('Profile picture removed successfully!');
     } catch (error) {
-      logActivity('error', logMessages.error.system(error.message), currentUser.username);
       console.error('Error removing image:', error);
+      setError('Failed to remove profile picture. Please try again.');
     }
   };
 
@@ -496,109 +615,455 @@ const handleSendVerificationEmail = async () => {
     };
   }, [stream]);
 
+
+
+  // Initialize form state with current user data when currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      console.log('Current user data:', currentUser);
+      setNewFullName(currentUser.fullName || '');
+      setNewAddress(currentUser.address || '');
+      setNewContact(currentUser.contact || '');
+      setNewUsername(currentUser.username || '');
+      setNewEmail(currentUser.email || '');
+    }
+  }, [currentUser]);
+
+  // Sidebar navigation handlers
+  const handleDashboardClick = () => {
+    navigate('/Homepage');
+  };
+
+  const handleAccountManagementClick = () => {
+    navigate('/AccountManagement');
+  };
+
+  const handleLogsClick = () => {
+    navigate('/Logs');
+  };
+
+  const handleSidebarFeedbackClick = () => {
+    navigate('/Feedback');
+  };
+
+  const handleExport = (format) => {
+    setShowDownloadOptions(false);
+    // Handle export functionality here if needed
+    console.log(`Exporting in ${format} format`);
+  };
+
+  // Function to save all changes when Save Changes button is clicked
+  const handleSaveChanges = async () => {
+    try {
+      setError('');
+      setSuccess('');
+      
+      const updates = {};
+      let hasChanges = false;
+      
+      // Check for username changes
+      if (newUsername && newUsername !== currentUser?.username) {
+        updates.username = newUsername;
+        hasChanges = true;
+      }
+      
+      // Check for full name changes
+      if (newFullName && newFullName !== currentUser?.fullName) {
+        updates.fullName = newFullName;
+        hasChanges = true;
+      }
+      
+      // Check for address changes
+      if (newAddress && newAddress !== currentUser?.address) {
+        updates.address = newAddress;
+        hasChanges = true;
+      }
+      
+      // Check for contact changes
+      if (newContact && newContact !== currentUser?.contact) {
+        updates.contactNumber = newContact;
+        hasChanges = true;
+      }
+      
+      // Check for email changes
+      if (newEmail && newEmail !== currentUser?.email) {
+        updates.email = newEmail;
+        hasChanges = true;
+      }
+      
+      if (!hasChanges) {
+        setSuccess('No changes to save.');
+        return;
+      }
+      
+      // Update in Firestore
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, updates);
+      
+      // Log activities for each change
+      if (updates.username) {
+        logActivity('profile', `Username updated from "${currentUser.username}" to "${updates.username}"`, currentUser.username);
+      }
+      if (updates.fullName) {
+        logActivity('profile', `Full name updated from "${currentUser.fullName || 'Not set'}" to "${updates.fullName}"`, currentUser.username);
+      }
+      if (updates.address) {
+        logActivity('profile', `Address updated from "${currentUser.address || 'Not set'}" to "${updates.address}"`, currentUser.username);
+      }
+      if (updates.contactNumber) {
+        logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${updates.contactNumber}"`, currentUser.username);
+      }
+      if (updates.email) {
+        logActivity('profile', `Email updated from "${currentUser.email}" to "${updates.email}"`, currentUser.username);
+      }
+      
+      // Refresh current user data
+      await refreshCurrentUser();
+      
+      // Reset form states
+      setNewUsername('');
+      setNewFullName('');
+      setNewAddress('');
+      setNewContact('');
+      setNewEmail('');
+      setShowUsernameChangeForm(false);
+      setShowFullNameChangeForm(false);
+      setShowAddressChangeForm(false);
+      setShowContactChangeForm(false);
+      setShowEmailChangeForm(false);
+      
+      setSuccess('All changes saved successfully!');
+      
+    } catch (error) {
+      console.error('Error saving changes:', error);
+      setError('Failed to save changes. Please try again.');
+    }
+  };
+
   return (
     <div className="profile-settings">
       <header className="profile-header-bar">
-        <div className="header-logo-container">
-          <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-          <div className="header-title">PiscaRisk</div>
-        </div>
-
-        <div className="header-right">
-          <NotificationBox />
-          <div className="profile-menu">
-            <button onClick={() => setShowMenu(!showMenu)}>
-              <FaEllipsisV className="three-dot-icon" />
-            </button>
-            {showMenu && (
-              <div className="dropdown-menu">
-                <button onClick={() => navigate('/Homepage')}>Go to Homepage</button>
-              </div>
-            )}
+          <div className="header-logo-container">
+            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
+            <div className="header-title">PiscaRISK</div>
+            <FaBars 
+              className="header-hamburger-icon" 
+              onClick={() => {
+                if (window.innerWidth <= 1023) {
+                  setSidebarOpen(!sidebarOpen);
+                } else {
+                  setSidebarCollapsed(!sidebarCollapsed);
+                }
+              }}
+            />
           </div>
+          <div className="header-right">
+            <NotificationBox />
+            <div className="user-menu">
+              <button onClick={() => setShowMenu(!showMenu)}>
+                {currentUser?.profileImage ? (
+                  <img 
+                    src={currentUser.profileImage} 
+                    alt="Profile" 
+                    className="user-dropdown-profile-pic" 
+                  />
+                ) : (
+                  <FaUserCircle className="user-dropdown-icon" />
+                )}
+              </button>
+              {showMenu && (
+                <div className="header-dropdown-menu">
+                  <button onClick={() => navigate("/ProfileSettings")}>
+                    <FaUser className="dropdown-icon" />
+                    Profile
+                  </button>
+                  <button onClick={() => handleLogout(navigate)}>
+                    <FaSignOutAlt className="dropdown-icon" />
+                    Logout
+                  </button> 
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        sidebarCollapsed={sidebarCollapsed}
+        currentUser={currentUser}
+        showDownloadOptions={showDownloadOptions}
+        setShowDownloadOptions={setShowDownloadOptions}
+        handleExport={handleExport}
+        onDashboardClick={handleDashboardClick}
+        onAccountManagementClick={handleAccountManagementClick}
+        onLogsClick={handleLogsClick}
+        onFeedbackClick={handleSidebarFeedbackClick}
+        nightMode={nightMode}
+        setNightMode={setNightMode}
+        language={language}
+        setLanguage={setLanguage}
+      />
+
+      {/* Error and Success Messages */}
+      {error && (
+        <div className="error-message visible">
+          {error}
         </div>
-      </header>
+      )}
+      {success && (
+        <div className="success-message visible">
+          {success}
+        </div>
+      )}
 
       {/* Account Settings Box */}
       <div className="account-wrapper">
-        <p className="accounts-title">Account Settings</p>
+        <p className="accounts-title">My Account</p>
       </div>
 
       <div className="profile-settings-box">
-      <div className="profile-icon-container">
-          <div 
-            className="profile-icon" 
-            onClick={handleProfileImageClick}
-            onMouseLeave={() => setShowRemoveButton(false)} // Hide when mouse leaves
-          >
-            {profileImage ? (
-              <>
-                <img src={profileImage} alt="Profile" className="profile-image" />
-                {showRemoveButton && (
-                  <button 
-                    className="remove-image-btn" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeImage();
-                      setShowRemoveButton(false);
-                    }}
-                  >
-                    <FaTimes />
-                  </button>
+        <div className="profile-layout">
+          {/* Left Section - User Identity */}
+          <div className="profile-identity-section">
+            <div className="profile-avatar-container">
+              <div 
+                className="profile-avatar" 
+                onClick={handleProfileImageClick}
+                onMouseLeave={() => setShowRemoveButton(false)}
+              >
+                {profileImage ? (
+                  <>
+                    <img src={profileImage} alt="Profile" className="profile-image" />
+                    {showRemoveButton && (
+                      <button 
+                        className="remove-image-btn" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeImage();
+                          setShowRemoveButton(false);
+                        }}
+                      >
+                        <FaTimes />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="avatar-placeholder">
+                    <FaUserCircle className="avatar-icon" />
+                  </div>
                 )}
-              </>
-            ) : (
-              <div className="circle-icon">
-                <span className="icon-user">👤</span>
               </div>
-            )}
+            </div>
+            <div className="user-info-display">
+              <h3 className="display-username">{currentUser?.username || 'Username'}</h3>
+              <p className="display-email">{currentUser?.email || 'username@gmail.com'}</p>
+            </div>
           </div>
-          <span className="username-label">
-            <span 
-              className="username-text" 
-              onClick={handleUsernameClick}
-              style={{ cursor: 'pointer' }}
-            >
-              {currentUser?.username || 'No username set'}
-            </span>
-            
-            {showUsernameOptions && (
-              <div className="username-options">
-                <button 
-                  className="username-option-btn"
-                  onClick={() => {
-                    setNewUsername(currentUser?.username || '');
-                    setShowUsernameChangeForm(true);
-                    setShowUsernameOptions(false);
-                  }}
-                >
-                  Change Username
-                </button>
-              </div>
-            )}
-            
-            {showUsernameChangeForm && (
-              <form onSubmit={handleUsernameChange} className="username-change-form">
-                <input
-                  type="text"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder="Enter new username"
-                  required
-                />
-                {usernameError && <div className="username-error">{usernameError}</div>}
-                <div className="form-buttons">
-                  <button type="button" className="usernamecancel-btn" onClick={() => setShowUsernameChangeForm(false)}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="usernamesubmit-btn">
-                    Update
-                  </button>
+
+          {/* Right Section - Editable Fields */}
+          <div className="profile-fields-section">
+            {/* Row 1: Username and Full Name */}
+            <div className="fields-row">
+              <div className="profile-field">
+                <label>Username:</label>
+                <div className="field-input-container">
+                  <input
+                    type="text"
+                    value={showUsernameChangeForm ? newUsername : (currentUser?.username || '')}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    readOnly={!showUsernameChangeForm}
+                    className={`field-input ${showUsernameChangeForm ? 'editing' : ''}`}
+                    placeholder="Enter username"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      if (showUsernameChangeForm) {
+                        // Save changes
+                        handleUsernameChange();
+                        // Remove focus from the input field
+                        const input = document.querySelector('.profile-field:first-child .field-input');
+                        if (input) input.blur();
+                      } else {
+                        // Start editing
+                        setNewUsername(currentUser?.username || '');
+                        setShowUsernameChangeForm(true);
+                      }
+                    }}
+                  />
                 </div>
-              </form>
-            )}
-          </span>
+                {showUsernameChangeForm && (
+                  <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem' }}>
+                    ⚠️ Warning: If you change your username, your old username will no longer work for login. You can still log in using your email address.
+                  </small>
+                )}
+              </div>
+
+              <div className="profile-field">
+                <label>Full name:</label>
+                <div className="field-input-container">
+                  <input
+                    type="text"
+                    value={showFullNameChangeForm ? newFullName : (currentUser?.fullName || '')}
+                    onChange={(e) => setNewFullName(e.target.value)}
+                    readOnly={!showFullNameChangeForm}
+                    className={`field-input ${showFullNameChangeForm ? 'editing' : ''}`}
+                    placeholder="Enter full name"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      if (showFullNameChangeForm) {
+                        // Save changes
+                        handleFullNameChange();
+                        // Remove focus from the input field
+                        const input = document.querySelector('.profile-field:nth-child(2) .field-input');
+                        if (input) input.blur();
+                      } else {
+                        // Start editing
+                        setNewFullName(currentUser?.fullName || '');
+                        setShowFullNameChangeForm(true);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Address and Contact */}
+            <div className="fields-row">
+              <div className="profile-field">
+                <label>Address:</label>
+                <div className="field-input-container">
+                  <input
+                    type="text"
+                    value={showAddressChangeForm ? newAddress : (currentUser?.address || '')}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                    readOnly={!showAddressChangeForm}
+                    className={`field-input ${showAddressChangeForm ? 'editing' : ''}`}
+                    placeholder="Enter address"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      if (showAddressChangeForm) {
+                        // Save changes
+                        handleAddressChange();
+                        // Remove focus from the input field
+                        const input = document.querySelector('.profile-field:nth-child(3) .field-input');
+                        if (input) input.blur();
+                      } else {
+                        // Start editing
+                        setNewAddress(currentUser?.address || '');
+                        setShowAddressChangeForm(true);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="profile-field">
+                <label>Contact:</label>
+                <div className="field-input-container">
+                  <input
+                    type="text"
+                    value={showContactChangeForm ? newContact : (currentUser?.contact || '')}
+                    onChange={(e) => setNewContact(e.target.value)}
+                    readOnly={!showContactChangeForm}
+                    className={`field-input ${showContactChangeForm ? 'editing' : ''}`}
+                    placeholder="Enter contact"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      if (showContactChangeForm) {
+                        // Save changes
+                        handleContactChange();
+                        // Remove focus from the input field
+                        const input = document.querySelector('.profile-field:nth-child(4) .field-input');
+                        if (input) input.blur();
+                      } else {
+                        // Start editing
+                        setNewContact(currentUser?.contact || '');
+                        setShowContactChangeForm(true);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Email */}
+            <div className="fields-row">
+              <div className="profile-field email-field">
+                <label>E-mail:</label>
+                <div className="field-input-container">
+                  <input
+                    type="email"
+                    value={showEmailChangeForm ? newEmail : (currentUser?.email || '')}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    readOnly={!showEmailChangeForm}
+                    className={`field-input ${showEmailChangeForm ? 'editing' : ''}`}
+                    placeholder="Enter email"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      if (showEmailChangeForm) {
+                        // Save changes
+                        handleEmailChange();
+                        // Remove focus from the input field
+                        const input = document.querySelector('.profile-field:nth-child(5) .field-input');
+                        if (input) input.blur();
+                      } else {
+                        // Start editing
+                        setNewEmail(currentUser?.email || '');
+                        setShowEmailChangeForm(true);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: Password */}
+            <div className="fields-row">
+              <div className="profile-field password-field">
+                <label>Password:</label>
+                <div className="field-input-container">
+                  <input
+                    type="password"
+                    value="******"
+                    readOnly
+                    className="field-input"
+                  />
+                  <LiaEdit 
+                    className="edit-icon-inside clickable-edit-icon" 
+                    onClick={() => {
+                      // This will open the password change functionality
+                      setShowPasswordChangeForm(true);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 5: Change Password Button */}
+            <div className="fields-row">
+              <div className="profile-field">
+                <button className="change-password-btn">Change Password</button>
+              </div>
+            </div>
+
+            {/* Row 6: Save Changes Button - Centered */}
+            <div className="fields-row save-changes-row">
+              <div className="profile-field">
+                <button className="save-changes-btn" onClick={handleSaveChanges}>Save Changes</button>
+              </div>
+            </div>
+          </div>
         </div>
+
 
 
         {/* Image Options Modal */}
@@ -687,150 +1152,44 @@ const handleSendVerificationEmail = async () => {
           </div>
         )}
 
-        <div className="email-section">
-          <h4>Email Address</h4>
-          <div className="email-info">
-            <span className="email-text">{currentUser?.email || 'No email registered'}</span>
-            {!currentUser?.emailVerified && (
-              <span className="verification-status">
-                (Unverified)
-                <button 
-                  className="verify-btn" 
-                  onClick={handleSendVerificationEmail}
-                  disabled={isSendingVerification || isCheckingVerification}
-                >
-                  {isSendingVerification ? 'Sending...' : 'Verify Email'}
-                </button>
-              </span>
-            )}
-            <button 
-              className="change-btn email-change-btn" 
-              onClick={async () => {
-                try {
-                  // Reload user to get latest verification status
-                  await auth.currentUser?.reload();
-                  console.log('Verification status before change:', auth.currentUser?.emailVerified);
-                  
-                  if (!auth.currentUser?.emailVerified) {
-                    setError('Please verify your current email before changing it');
-                    return;
-                  }
-                  setNewEmail(currentUser?.email || '');
-                  setShowEmailChangeForm(!showEmailChangeForm);
-                } catch (error) {
-                  console.error('Error checking verification:', error);
-                  setError('Error checking email verification status');
-                }
-              }}
-            >
-              {showEmailChangeForm ? 'Cancel' : 'Change'}
-            </button>
-          </div>
-          
-          {showEmailChangeForm && (
-            <form onSubmit={handleEmailChange} className="email-change-form">
-              <input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="Enter new email"
-                required
-              />
-              <div className="password-verification">
-                <input
-                  type={showEmailPassword ? "text" : "password"}
-                  value={emailCurrentPassword}
-                  onChange={(e) => setEmailCurrentPassword(e.target.value)}
-                  placeholder="Enter your password to confirm"
-                  required
-                />
-                <button 
-                  type="button" 
-                  className="password-toggle"
-                  onClick={toggleEmailPasswordVisibility}
-                  aria-label={showEmailPassword ? "Hide password" : "Show password"}
-                >
-                  {showEmailPassword ? <FaEyeSlash className="eye-icon" /> : <FaEye className="eye-icon" />}
-                </button>
-              </div>
-              {emailError && <div className="email-error">{emailError}</div>}
-              <div className="form-buttons">
-                <button type="button" className="emailcancel-btn" onClick={() => setShowEmailChangeForm(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="emailsubmit-btn">
-                  Update
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-
-        <hr className="divider" />
-
-        <div className="password-section">
-          <h4>Password</h4>
-          </div>
-        <div className="password-fields">
-                {error && (
-                <div className={`error-message ${error ? 'visible' : ''}`}>
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className={`success-message ${success ? 'visible' : ''}`}>
-                  {success}
-                </div>
-              )}
-              <div className="input-group">
-                <label>Current Password</label>
-                <div className="currentpassword-input-wrapper">
-                  <input
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                  />
-                  <button 
-                    type="button" 
-                    className="password-toggle"
-                    onClick={toggleCurrentPasswordVisibility}
-                    aria-label={showCurrentPassword ? "Hide password" : "Show password"}
-                  >
-                    {showCurrentPassword ? <FaEyeSlash className="eye-icon" /> : <FaEye className="eye-icon" />}
+        {/* Profile Image Modal */}
+        {showProfileImageModal && (
+          <div className="image-options-modal">
+            <div className="image-options-content">
+              <h3>Profile Picture Options</h3>
+              {profileImage ? (
+                <>
+                  <button className="option-btn" onClick={() => {
+                    setShowProfileImageModal(false);
+                    setShowImageOptions(true);
+                  }}>
+                    <FaUpload /> Change Picture
                   </button>
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label>New Password</label>
-                <div className="newpassword-input-wrapper">
-                  <input
-                    type={showNewPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                  />
-                  <button 
-                    type="button" 
-                    className="password-toggle"
-                    onClick={toggleNewPasswordVisibility}
-                    aria-label={showNewPassword ? "Hide password" : "Show password"}
-                  >
-                    {showNewPassword ? <FaEyeSlash className="eye-icon" /> : <FaEye className="eye-icon" />}
+                  <button className="option-btn remove-btn" onClick={() => {
+                    removeImage();
+                    setShowProfileImageModal(false);
+                  }}>
+                    <FaTimes /> Remove Picture
                   </button>
-                </div>
-              </div>
-
-              <button 
-                className="passconfirm-btn"
-                onClick={handlePasswordChange}
-                disabled={!currentPassword || !newPassword}
-              >
-                Confirm
+                </>
+              ) : (
+                <>
+                  <button className="option-btn" onClick={() => {
+                    setShowProfileImageModal(false);
+                    setShowImageOptions(true);
+                  }}>
+                    <FaUpload /> Add Picture
+                  </button>
+                </>
+              )}
+              <button className="cancel-btn" onClick={() => setShowProfileImageModal(false)}>
+                Close
               </button>
             </div>
-          <a href="#" className="forgot-password">Forgot password?</a>
+          </div>
+        )}
+
+
       </div>
     </div>
   );

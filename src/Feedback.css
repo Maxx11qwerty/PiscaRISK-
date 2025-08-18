@@ -12,26 +12,67 @@
     font-style: normal;
   }
 
-.feedback {
-    display: flex;
-    flex-direction: column;
+  @font-face {
+    font-family: 'ReadexPro-Medium';
+    src: url('assets/fonts/ReadexPro-Medium.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: 'ReadexPro-Regular';
+    src: url('assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+.body {
+    background-color: #F6F5F5;
+    margin: 0;
+    overflow: auto;
     height: 100vh;
-    overflow: hidden;
 }
 
 .feedback-header-bar {
-    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #1A4375;
+    background: #2C517D;
     padding: .5rem 5rem;
-    border-radius: 12px;
-    width: 95%;
-    max-width: 1000px;
-    margin: 1rem auto 1rem auto;
-    margin-bottom: 1rem;
-    height: 50px;
+    width: 100%;
+    margin: 0;
+    margin-bottom: 2rem;
+    height: 50%;
+    box-sizing: border-box;
+}
+
+/* Smaller hamburger icon for Feedback header */
+.header-hamburger-icon {
+    color: white !important;
+    font-size: 0.9rem !important; /* make the icon a bit smaller */
+    cursor: pointer;
+    margin-left: 0.5rem;
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (min-width: 1920px) {
+  .header-hamburger-icon {
+    font-size: 0.8rem !important;
+    min-width: 30px;
+    min-height: 30px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .header-hamburger-icon {
+    font-size: 0.8rem !important;
+    min-width: 28px;
+    min-height: 28px;
+  }
 }
 
 .header-logo-container {
@@ -166,6 +207,8 @@
     right: 0;
     z-index: 1001;
     min-width: 200px;
+    padding: 5px 0;
+    margin-top: 5px;
 }
 
 .dropdown-menu button {
@@ -186,39 +229,269 @@
 
 /* feedback Wrapper */
 .feedback-wrapper {
-    background: #1A4375;
+    background: transparent;
     border-radius: 1rem 1rem 0 0;
     padding: 1.7rem;
     width: 65%;
     margin: 0 auto;
     margin-bottom: -1rem;
+    position: relative;
 }
 
 .feedback-title {
     font-size: 1.5rem;
-    font-family: 'customfont1';
-    color: white;
+    font-family: 'ReadexPro-Medium';
+    color: black;
     text-align: left;
     text-transform: uppercase;
     margin: 0;
-    text-decoration: underline;
     padding-left: 2rem;
+}
+
+.feedback-tabs {
+    justify-content: center;
+    gap: 2rem;
+    margin: 1rem auto;
+    margin-left: -3.5rem;
+    margin-bottom: -3.4rem;
+    width: 72.3%;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.feedback-tab {
+    background: none;
+    border: none;
+	padding: 0.75rem 1.5rem;
+    font-family: 'ReadexPro-Medium';
+    font-size: 1rem;
+    color: #6c757d;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: solid transparent;
+    border-radius: 0;
+}
+
+.feedback-tab:hover {
+    color: #1A4375;
+    border-bottom-color: #1A4375;
+}
+
+.feedback-tab.active {
+    color: #1A4375;
+    border-bottom-color: #1A4375;
+    font-weight: 600;
+}
+
+.feedback-tab {
+    position: relative;
+}
+
+.feedback-tab::after {
+    content: attr(data-count);
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #1A4375;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    min-width: 20px;
+    z-index: 1;
+}
+
+.feedback-tab[data-count="0"]::after {
+    display: none;
+}
+
+/* Feedback Filter Button */
+.feedback-filter-container {
+    position: absolute;
+    left: 109rem;
+    top: 0;
+    display: flex;
+    align-items: center;
+    z-index: 100;
+}
+
+.feedback-filter-btn {
+    background: #D2D9E2;
+    color: #3F3F3F;
+    border: none;
+    border-radius: 9px;
+    padding: 17px 50px;
+    font-size: 15px;
+    font-family: 'ReadexPro-Regular';
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    margin-bottom: .5rem;
+    margin-right: 4rem;
+    position: relative;
+}
+
+.feedback-filter-btn:hover {
+    background: #b8c4d1;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.feedback-filter-btn .filter-icon {
+    font-size: 14px;
+}
+
+.feedback-filter-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 1rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    width: 250px;
+    padding: 15px;
+    margin-top: 5px;
+    border: 1px solid #e0e0e0;
+}
+
+.feedback-filter-header {
+    margin-bottom: 15px;
+}
+
+.feedback-filter-header label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+}
+
+.feedback-category-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.feedback-category-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 1px;
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
+    color: #333;
+    text-align: left;
+    width: 100%;
+    justify-content: center;
+    font-family: 'ReadexPro-Regular';
+}
+
+.feedback-category-option:hover {
+    background: #e9ecef;
+    border-color: #1A4375;
+}
+
+.feedback-category-option.active {
+    background: #1A4375;
+    color: white;
+    border-color: #1A4375;
+}
+
+.feedback-category-option svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.feedback-category-option span {
+    flex: 1;
+}
+
+.feedback-filter-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.feedback-filter-section {
+    margin-bottom: 15px;
+}
+
+.feedback-filter-section label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+}
+
+.feedback-filter-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.feedback-filter-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.feedback-apply-filter-btn,
+.feedback-clear-filter-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.feedback-apply-filter-btn {
+    background-color: #1A4375;
+    color: white;
+}
+
+.feedback-apply-filter-btn:hover {
+    background-color: #2980b9;
+}
+
+.feedback-clear-filter-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+.feedback-clear-filter-btn:hover {
+    background-color: #5a6268;
 }
 
 .feedback-container {
     flex: 1;
     display: flex;
     overflow: hidden;
-    padding: 20px;
     gap: 20px;
-    background: #ffffff;
-    border: 0.2rem solid #1A4375;
-    width: 64%;
-    margin: 1rem auto;
-    padding: 2rem;
-    height: 28rem;
-    border-radius: 0 0 20px 20px;
-    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+    background: transparent;
+    width: 72.3%;
+    margin: 5.3rem 1rem auto;
+    padding: 0rem 2rem;
+    height: 38.5rem;
+    border-top: 1px solid #6c757d;
 }
 
 /* Categories */
@@ -265,12 +538,12 @@
 
 /* Inbox Container */
 .inbox-container {
-    flex: 1;
+    flex: 0 0 450px;
     overflow-y: auto;
-    padding-right: 10px;
     max-height: calc(100vh - 200px);
     border-top: 1px solid #eee;
     padding-top: 20px;
+    border-right: 2px solid #868383;
 }
 
 .feedback-card {
@@ -280,9 +553,46 @@
     align-items: flex-start;
     padding: 15px;
     margin-bottom: 15px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #868383;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
+    width: 90%;
+}
+
+.feedback-card.unread {
+    background-color: #f0f8ff;
+    border-left: 4px solid #1a73e8;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.15);
+    position: relative;
+}
+
+.feedback-card.unread::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(26, 115, 232, 0.05) 0%, rgba(26, 115, 232, 0.02) 100%);
+    border-radius: 8px;
+    pointer-events: none;
+    animation: unreadPulse 2s ease-in-out infinite;
+}
+
+@keyframes unreadPulse {
+    0%, 100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+
+.feedback-card.unread:hover {
+    background-color: #e8f4fd;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);
 }
 
 .feedback-card:hover {
@@ -300,6 +610,9 @@
 .feedback-actions {
     position: relative;
     margin-left: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .action-button {
@@ -315,6 +628,24 @@
 .action-button:hover {
     background-color: #f0f0f0;
     color: #333;
+}
+
+.action-button.read-button {
+    color: #28a745;
+}
+
+.action-button.read-button:hover {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.action-button.unread-button {
+    color: #6c757d;
+}
+
+.action-button.unread-button:hover {
+    background-color: #e9ecef;
+    color: #495057;
 }
 
 .action-menu {
@@ -363,25 +694,49 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 8px;
+    padding: 0;
 }
 
 .user-avatar-container svg {
-    width: 32px;
-    height: 32px;
-    color: #1a5276;
+    color: #6c757d;
+    font-size: 35px;
 }
 
 .user-name {
     font-size: 0.9rem;
-    color: #ffffff;
+    color: #3A3A3A;
+    font-family: 'ReadexPro-Regular';
     font-weight: 500;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-sizing: border-box;
+    display: inline !important;
+    line-height: normal;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    text-decoration: none !important;
+}
+
+/* Target span elements specifically */
+span.user-name {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    text-decoration: none !important;
 }
 
 .feedback-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .feedback-categ {
@@ -401,6 +756,14 @@
     border-radius: 12px;
 }
 
+.feedback-card.unread .feedback-type {
+    font-weight: 700;
+    background: linear-gradient(135deg, rgba(26, 115, 232, 0.1) 0%, rgba(26, 115, 232, 0.05) 100%);
+    border: 1px solid rgba(26, 115, 232, 0.3);
+    color: #1a73e8;
+    box-shadow: 0 1px 3px rgba(26, 115, 232, 0.1);
+}
+
 .feedback-type svg {
     width: 14px;
     height: 14px;
@@ -410,40 +773,46 @@
     word-wrap: break-word;
     white-space: pre-wrap;
     margin: 0;
-    font-family: 'customfont';
-    color: #222f3c;
+    font-family: 'ReadexPro-Regular';
+    color: #535353;
     line-height: 1.5;
     font-size: 0.95rem;
 }
 
 .feedback-type.bug {
-    background-color: #fee2e2;
+    font-family: 'ReadexPro-Regular';
+    background-color: transparent;
     color: #dc2626;
 }
 
 .feedback-type.uiux {
-    background-color: #e0e7ff;
+    font-family: 'ReadexPro-Regular';
+    background-color: transparent;
     color: #4338ca;
 }
 
 .feedback-type.feature-request {
-    background-color: #ecfccb;
+    font-family: 'ReadexPro-Regular';
+    background-color: transparent;
     color: #65a30d;
 }
 
 .feedback-type.performance {
-    background-color: #fef3c7;
+    font-family: 'ReadexPro-Regular';
+    background-color: transparent;;
     color: #d97706;
 }
 
 .feedback-type.other {
-    background-color: #f3e8ff;
+    font-family: 'ReadexPro-Regular';
+    background-color: transparent;
     color: #7e22ce;
 }
 
 .feedback-date {
-    color: #95a5a6;
-    font-size: 0.8rem;
+    font-family: 'ReadexPro-Regular';
+    color: #8D8D8D;
+    font-size: 0.7rem;
 }
 
 /*user inbox with reply */
@@ -461,9 +830,42 @@
     padding: 20px;
     background: #fff;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     max-height: calc(100vh - 200px);
     position: relative;
+    padding-left: 20px;
+}
+
+.feedback-detail-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding-left: 20px;
+}
+
+.placeholder-content {
+    text-align: center;
+    color: #6c757d;
+}
+
+.placeholder-icon {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.placeholder-content h3 {
+    font-family: 'ReadexPro-Medium';
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.placeholder-content p {
+    font-family: 'ReadexPro-Regular';
+    color: #6c757d;
+    line-height: 1.5;
 }
 
 .close-detail {
@@ -475,6 +877,23 @@
     cursor: pointer;
     padding: 5px;
     color: #666;
+}
+
+.detail-header-top {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.detail-header-top .feedback-date {
+    font-family: 'ReadexPro-Regular';
+    color: #8D8D8D;
+    font-size: 0.9rem;
+    margin-right: 3rem;
+    margin-top: .7rem;
 }
 
 .close-detail:hover {
@@ -534,7 +953,8 @@
 }
 
 .admin-avatar {
-    color: #1a5276;
+    color: #6c757d;
+    font-size: 35px;
 }
 
 .reply-date {
@@ -557,7 +977,7 @@
 }
 
 .reply-box textarea {
-    width: 100%;
+    width: 98%;
     min-height: 100px;
     max-height: 200px;
     resize: vertical;
@@ -585,7 +1005,7 @@
 }
 
 .feedback-card.selected {
-    border: 2px solid #1a5276;
+    border: 2px solid #636364;
 }
 
 /* Make the layout responsive */
@@ -607,68 +1027,6 @@
 /* Download Button Styles */
 .download-container {
     position: relative;
-}
-
-.download-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 15px;
-    background: #1A4375;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 14px;
-}
-
-.download-btn:hover {
-    background: #2980b9;
-    transform: translateY(-1px);
-}
-
-.download-icon {
-    font-size: 16px;
-}
-
-.download-options {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: white;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-}
-
-.download-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px 15px;
-    background: none;
-    border: none;
-    text-align: left;
-    cursor: pointer;
-    color: #333;
-    font-size: 13px;
-    transition: background 0.2s;
-}
-
-.download-option:hover {
-    background: #f8f9fa;
-    color: #3498db;
-}
-
-.option-icon {
-    font-size: 14px;
-    color: #e74c3c;
-}
-
-.download-option:last-child .option-icon {
-    color: #27ae60;
 }
 
 /* Add some spacing between header elements */
@@ -752,6 +1110,35 @@
   margin-left: 0.5rem;
 }
 
+.unread-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.8rem;
+  background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  border: none;
+  box-shadow: 0 2px 4px rgba(255, 107, 53, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.unread-badge svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.unread-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(255, 107, 53, 0.4);
+}
+
 .response-badge svg {
   font-size: 0.75rem;
 }
@@ -764,6 +1151,683 @@
 .send-reply:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+/* Sidebar Layout */
+.feedback {
+  position: relative;
+}
+
+.feedback-header-bar {
+  position: relative;
+  z-index: 1000;
+}
+
+/* Sidebar backdrop for mobile */
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Adjust main content when sidebar is open */
+.feedback-wrapper {
+  transition: margin-left 0.3s ease;
+}
+
+.feedback-container {
+  transition: margin-left 0.3s ease;
+}
+
+/* When sidebar is open, adjust margins */
+.feedback.sidebar-open .feedback-wrapper {
+  margin-left: 25rem;
+}
+
+.feedback.sidebar-open .feedback-container {
+  margin-left: 25rem;
+}
+
+/* Add gap between sidebar and content when sidebar is open */
+.feedback.sidebar-open .feedback-wrapper {
+  margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+}
+
+.feedback.sidebar-open .feedback-container {
+  margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+}
+
+.feedback.sidebar-open .feedback-tabs {
+  margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+}
+
+/* Add gap when sidebar is closed */
+.feedback:not(.sidebar-open) .feedback-wrapper {
+  margin-left: 2rem; /* 2rem gap from left edge */
+}
+
+.feedback:not(.sidebar-open) .feedback-container {
+  margin-left: 2rem; /* 2rem gap from left edge */
+}
+
+.feedback:not(.sidebar-open) .feedback-tabs {
+  margin-left: 2rem; /* 2rem gap from left edge */
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: calc(20rem + 1.5rem); /* 20rem sidebar width + 1.5rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: calc(20rem + 1.5rem); /* 20rem sidebar width + 1.5rem gap */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-wrapper {
+    margin-left: 1.5rem; /* 1.5rem gap from left edge */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-container {
+    margin-left: 1.5rem; /* 1.5rem gap from left edge */
+  }
+}
+
+@media (max-width: 768px) {
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: 0;
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: 0;
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-wrapper {
+    margin-left: 1rem; /* 1rem gap from left edge on mobile */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-container {
+    margin-left: 1rem; /* 1rem gap from left edge on mobile */
+  }
+}
+
+/* ===== RESPONSIVE DESIGN FOR DIFFERENT SCREEN SIZES ===== */
+
+/* Large Monitors and TV Screens (1920px and above) */
+@media (min-width: 1920px) {
+  /* Optimized for 4K displays, large monitors, and TV screens */
+  .feedback-wrapper {
+    width: 70%; /* Increase width for larger screens */
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 70%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 70%;
+    margin: 0 auto;
+  }
+  
+  
+  .feedback-title {
+    font-size: 2rem; /* Larger title for big screens */
+  }
+  
+  .feedback-card {
+    padding: 20px; /* More padding for larger screens */
+    margin-bottom: 20px;
+  }
+  
+  .feedback-message {
+    font-size: 1.1rem; /* Larger text for readability on big screens */
+  }
+  
+  .user-name {
+    font-size: 1.1rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.95rem;
+    padding: 6px 12px;
+  }
+
+  .feedback-filter-container {
+    left: 105rem; /* Adjust filter position for larger screens */
+    bottom: 1.5rem;
+  }
+  
+  /* Sidebar open state adjustments for large monitors */
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: 25rem !important; /* 25rem sidebar width + 3rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: 25rem !important; /* 25rem sidebar width + 3rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-tabs {
+    margin-left: -4rem !important; /* 25rem sidebar width + 3rem gap */
+  }
+  
+  /* Sidebar collapsed state adjustments for large monitors */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: 16rem; /* 5rem collapsed sidebar width + 3rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: 17rem; /* 5rem collapsed sidebar width + 3rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: -10rem; /* 5rem collapsed sidebar width + 3rem gap */
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 100rem; /* Adjust filter position when sidebar is collapsed */
+  }
+
+  /* Filter dropdown horizontal offset controls (separated) */
+  .feedback.sidebar-open .feedback-filter-dropdown {
+    right: 1rem;
+    top: 2.5rem; /* adjust when sidebar is open on 1920+ */
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown {
+    right: 1rem;
+    top: 2.5rem; /* adjust when sidebar is closed on 1920+ */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is collapsed on 1920+ */
+  }
+  /* Filter value widths (1920+) */
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-input,
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 340px; /* adjust here for 1920+ open */
+    box-sizing: border-box;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-input,
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 340px; /* adjust here for 1920+ closed */
+    box-sizing: border-box;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-input,
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 340px; /* adjust here for 1920+ collapsed */
+    box-sizing: border-box;
+  }
+}
+
+/* Laptop and Medium Desktop Screens (1536px to 1919px) */
+@media (min-width: 1536px) and (max-width: 1919px) {
+  /* Optimized for laptop screens, medium desktops, and high-resolution displays */
+  .feedback-wrapper {
+    width: 75%; /* Slightly wider than default for laptop screens */
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 75%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 50%;
+    margin: 0 auto;
+  }
+  
+  .feedback-filter-container {
+    left: 75rem;
+    bottom: 1.6rem; /* Adjust filter position for laptop screens */
+  }
+  
+  .feedback-title {
+    font-size: 1.8rem; /* Medium title size for laptop screens */
+  }
+  
+  .feedback-card {
+    padding: 18px; /* Comfortable padding for laptop screens */
+    margin-bottom: 18px;
+  }
+  
+  .feedback-message {
+    font-size: 1rem; /* Standard text size for laptop screens */
+  }
+  
+  .user-name {
+    font-size: 1rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.9rem;
+    padding: 5px 10px;
+  }
+  
+  /* Nudge the main content area upward on laptop screens */
+  .content-area {
+    margin-bottom: 10rem;
+  }
+  
+  
+  /* Sidebar closed state adjustments for laptops */
+  .feedback:not(.sidebar-open) .feedback-wrapper {
+    width: 90%; /* Wider when sidebar is closed */
+    margin-left: 2.5rem; /* 2.5rem gap from left edge for laptops */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-container {
+    width: 80%; /* Wider when sidebar is closed */
+    margin-left: 2.5rem; /* 2.5rem gap from left edge for laptops */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-tabs {
+    width: 90%; /* Wider when sidebar is closed */
+    margin-left: 2.5rem; /* 2.5rem gap from left edge for laptops */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-filter-container {
+    left: 100rem; /* Adjust filter position when sidebar is closed */
+    top: .5rem;
+
+  }
+  
+  /* Sidebar open state adjustments for laptops */
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: 15rem; /* 25rem sidebar width + 2.5rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: 18rem; /* 25rem sidebar width + 2.5rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-tabs {
+    margin-left: 8rem; /* 25rem sidebar width + 2.5rem gap */
+  }
+  
+  
+  /* Sidebar collapsed state adjustments for laptops */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: 8rem; /* 5rem collapsed sidebar width + 2.5rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: 10rem; /* 5rem collapsed sidebar width + 2.5rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: -19rem; /* 5rem collapsed sidebar width + 2.5rem gap */
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 90rem; /* Adjust filter position when sidebar is collapsed */
+  }
+
+  /* Filter dropdown horizontal offset controls (separated) */
+  .feedback.sidebar-open .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is open on 1536–1919 */
+    top: 2.5rem;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is closed on 1536–1919 */
+    top: 2.5rem;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is collapsed on 1536–1919 */
+    top: 2rem;
+  }
+  /* Filter value widths (1536–1919) */
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-input,
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px; /* adjust here for 1536–1919 open */
+    box-sizing: border-box;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-input,
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px; /* adjust here for 1536–1919 closed */
+    box-sizing: border-box;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-input,
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px; /* adjust here for 1536–1919 collapsed */
+    box-sizing: border-box;
+  }
+}
+
+/* Small Monitor and Standard Desktop Screens (1280px to 1535px) */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  /* Optimized for standard desktop monitors, small monitors, and compact displays */
+  .feedback-wrapper {
+    width: 80%; /* Wider than default for small monitors */
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 80%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 80%;
+    margin: 0 auto;
+  }
+  
+  .feedback-filter-container {
+    left: 100rem; /* Adjust filter position for small monitor screens */
+  }
+  
+  .feedback-title {
+    font-size: 1.6rem; /* Medium title size for small monitors */
+  }
+  
+  .feedback-card {
+    padding: 16px; /* Standard padding for small monitor screens */
+    margin-bottom: 16px;
+  }
+  
+  .feedback-message {
+    font-size: 0.95rem; /* Slightly smaller text for small monitors */
+  }
+  
+  .user-name {
+    font-size: 0.95rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.85rem;
+    padding: 4px 8px;
+  }
+  
+  /* Sidebar closed state adjustments for small monitors */
+  .feedback:not(.sidebar-open) .feedback-wrapper {
+    width: 95%; /* Wider when sidebar is closed */
+    margin-left: 2rem; /* 2rem gap from left edge for small monitors */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-container {
+    width: 95%; /* Wider when sidebar is closed */
+    margin-left: 2rem; /* 2rem gap from left edge for small monitors */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-tabs {
+    width: 95%; /* Wider when sidebar is closed */
+    margin-left: 2rem; /* 2rem gap from left edge for small monitors */
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-filter-container {
+    left: 80rem; /* Adjust filter position when sidebar is closed */
+  }
+  
+  /* Sidebar open state adjustments for small monitors */
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+  }
+  
+  .feedback.sidebar-open .feedback-tabs {
+    margin-left: calc(25rem + 2rem); /* 25rem sidebar width + 2rem gap */
+  }
+  
+  /* Sidebar collapsed state adjustments for small monitors */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: calc(5rem + 2rem); /* 5rem collapsed sidebar width + 2rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: calc(5rem + 2rem); /* 5rem collapsed sidebar width + 2rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: calc(5rem + 2rem); /* 5rem collapsed sidebar width + 2rem gap */
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 80rem; /* Adjust filter position when sidebar is collapsed */
+  }
+
+  /* Filter dropdown horizontal offset controls (separated) */
+  .feedback.sidebar-open .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is open on 1280–1535 */
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is closed on 1280–1535 */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown {
+    right: 1rem; /* adjust when sidebar is collapsed on 1280–1535 */
+  }
+  /* Filter value widths (1280–1535) */
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-input,
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 300px; /* adjust here for 1280–1535 open */
+    box-sizing: border-box;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-input,
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 300px; /* adjust here for 1280–1535 closed */
+    box-sizing: border-box;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-input,
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 300px; /* adjust here for 1280–1535 collapsed */
+    box-sizing: border-box;
+  }
+}
+
+/* Tablet and Small Desktop Screens (1024px to 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  /* Optimized for tablets, small laptops, and compact desktop displays */
+  .feedback-wrapper {
+    width: 85%; /* Wider for tablet screens */
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 85%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 85%;
+    margin: 0 auto;
+  }
+  
+  .feedback-filter-container {
+    left: 90rem; /* Adjust filter position for tablet screens */
+  }
+  
+  .feedback-title {
+    font-size: 1.5rem; /* Standard title size for tablet screens */
+  }
+  
+  .feedback-card {
+    padding: 15px; /* Comfortable padding for tablet screens */
+    margin-bottom: 15px;
+  }
+  
+  .feedback-message {
+    font-size: 0.9rem; /* Standard text size for tablet screens */
+  }
+  
+  .user-name {
+    font-size: 0.9rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+  }
+  
+  /* Sidebar collapsed state adjustments for tablets */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: calc(5rem + 1.5rem); /* 5rem collapsed sidebar width + 1.5rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: calc(5rem + 1.5rem); /* 5rem collapsed sidebar width + 1.5rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: calc(5rem + 1.5rem); /* 5rem collapsed sidebar width + 1.5rem gap */
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 70rem; /* Adjust filter position when sidebar is collapsed on tablets */
+  }
+}
+
+/* Mobile and Small Tablet Screens (768px to 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Optimized for mobile devices, small tablets, and portrait orientations */
+  .feedback-wrapper {
+    width: 90%; /* Wider for mobile screens */
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 90%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 90%;
+    margin: 0 auto;
+  }
+  
+  .feedback-filter-container {
+    left: 70rem; /* Adjust filter position for mobile screens */
+  }
+  
+  .feedback-title {
+    font-size: 1.4rem; /* Smaller title for mobile screens */
+  }
+  
+  .feedback-card {
+    padding: 14px; /* Compact padding for mobile screens */
+    margin-bottom: 14px;
+  }
+  
+  .feedback-message {
+    font-size: 0.85rem; /* Smaller text for mobile screens */
+  }
+  
+  .user-name {
+    font-size: 0.85rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+  }
+  
+  /* Sidebar collapsed state adjustments for mobile */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: calc(5rem + 1rem); /* 5rem collapsed sidebar width + 1rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: calc(5rem + 1rem); /* 5rem collapsed sidebar width + 1rem gap */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: calc(5rem + 1rem); /* 5rem collapsed sidebar width + 1rem gap */
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 60rem; /* Adjust filter position when sidebar is collapsed on mobile */
+  }
+}
+
+/* Small Mobile Screens (below 768px) */
+@media (max-width: 767px) {
+  /* Optimized for small mobile devices and portrait orientations */
+  .feedback-wrapper {
+    width: 95%; /* Almost full width for small mobile screens */
+    margin: 0 auto;
+    padding: 1rem;
+  }
+  
+  .feedback-container {
+    width: 95%;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+  
+  .feedback-tabs {
+    width: 95%;
+    margin: 0 auto;
+    flex-direction: column; /* Stack tabs vertically on small screens */
+    gap: 1rem;
+  }
+  
+  .feedback-filter-container {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin: 1rem auto;
+    width: 100%;
+  }
+  
+  .feedback-title {
+    font-size: 1.3rem; /* Compact title for small mobile screens */
+    text-align: center;
+  }
+  
+  .feedback-card {
+    padding: 12px; /* Minimal padding for small mobile screens */
+    margin-bottom: 12px;
+  }
+  
+  .feedback-message {
+    font-size: 0.8rem; /* Compact text for small mobile screens */
+  }
+  
+  .user-name {
+    font-size: 0.8rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.7rem;
+    padding: 2px 4px;
+  }
+  
+  /* Adjust header for mobile */
+  .feedback-header-bar {
+    padding: 0.5rem 1rem;
+  }
+  
+  .header-title {
+    font-size: 1.2rem;
+  }
+  
+  .header-logo {
+    height: 30px;
+  }
+  
+  /* Sidebar collapsed state adjustments for small mobile */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: 1rem; /* Minimal gap for small mobile when sidebar is collapsed */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: 1rem; /* Minimal gap for small mobile when sidebar is collapsed */
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: 1rem; /* Minimal gap for small mobile when sidebar is collapsed */
+  }
 }
 
   
