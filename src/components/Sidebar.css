@@ -25,7 +25,7 @@
   }
   
   .sidebar-wrapper.sidebarOpen {
-    left: 0; /* Slide in when open */
+    left: 0 !important; /* Slide in when open */
   }
   
   /* Ensure sidebar content is properly positioned */

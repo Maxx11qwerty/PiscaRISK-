@@ -106,13 +106,16 @@ const PiscaRiskHome = () => {
   // Set initial sidebar state based on screen size
   useEffect(() => {
     const handleInitialState = () => {
-      if (window.innerWidth > 1023) {
+      const width = window.innerWidth;
+      const isStickyMobile = width >= 370 && width <= 380;
+
+      if (width > 1023) {
         // Desktop: start with expanded sidebar
         setSidebarOpen(false);
         setSidebarCollapsed(false);
       } else {
-        // Mobile: start with closed sidebar
-        setSidebarOpen(false);
+        // Mobile: keep the sidebar open on ~375px devices
+        setSidebarOpen(isStickyMobile);
         setSidebarCollapsed(false);
       }
     };
@@ -172,6 +175,15 @@ const PiscaRiskHome = () => {
       const sidebar = document.querySelector('.sidebar-wrapper');
       const hamburger = document.querySelector('.header-hamburger-icon');
       
+      // Keep sidebar open for 375px devices
+      const width = window.innerWidth;
+      const isStickyMobile = width >= 370 && width <= 380;
+
+      if (isStickyMobile) {
+        // Do nothing: sidebar should remain open on 375px
+        return;
+      }
+
       if (sidebarOpen && sidebar && !sidebar.contains(event.target) && !hamburger?.contains(event.target)) {
         setSidebarOpen(false);
       }
@@ -192,12 +204,15 @@ const PiscaRiskHome = () => {
   // Close sidebar when window is resized to desktop
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 1023) {
+      const width = window.innerWidth;
+      const isStickyMobile = width >= 370 && width <= 380;
+
+      if (width > 1023) {
         setSidebarOpen(false);
         // Don't reset collapsed state on desktop
       } else {
-        // On mobile, ensure sidebar is closed when resizing
-        setSidebarOpen(false);
+        // On mobile: keep sidebar open on 375px devices
+        setSidebarOpen(isStickyMobile ? true : false);
       }
     };
 
@@ -208,6 +223,11 @@ const PiscaRiskHome = () => {
   // Handle sidebar toggle based on screen size
   const handleSidebarToggle = () => {
     if (window.innerWidth <= 1023) {
+      // Keep sidebar always open for ~375px devices
+      if (window.innerWidth >= 370 && window.innerWidth <= 380) {
+        setSidebarOpen(true);
+        return;
+      }
       // Mobile/tablet: toggle open/closed 
       setSidebarOpen(!sidebarOpen);
     } else {

@@ -103,14 +103,14 @@ function HarvestChart() {
       <div className="pie-chart-container">
         {hasData ? (
           <div className="chart-with-labels">
-            <div className="chart-labels">
-              <div className="chart-label ready">
-                <span className="label-dot" style={{ backgroundColor: COLORS[0] }}></span>
-                Ready: {data[0]?.value || 0}
+            <div className="chart-legend">
+              <div className="chart-legend-item">
+                <span className="legend-dot" style={{ backgroundColor: COLORS[0] }}></span>
+                <span className="legend-text">Ready</span>
               </div>
-              <div className="chart-label not-ready">
-                <span className="label-dot" style={{ backgroundColor: COLORS[1] }}></span>
-                Not Ready: {data[1]?.value || 0}
+              <div className="chart-legend-item">
+                <span className="legend-dot" style={{ backgroundColor: COLORS[1] }}></span>
+                <span className="legend-text">Not Ready</span>
               </div>
             </div>
             <ResponsiveContainer>

@@ -1,12 +1,12 @@
 /* WeatherDisplay.css */
 .weather-display-container {
     position: relative;
-    width: 80%;
+    width: 90%;
     height: 20rem;
     border-radius: 10px;
     overflow: hidden;
     margin-bottom: 15px;
-    margin-left: 7rem;
+    margin-left: 1rem;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
   
