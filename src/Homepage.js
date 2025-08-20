@@ -527,7 +527,7 @@ const PiscaRiskHome = () => {
                 </div>
               )}
 
-              {modalContent.title !== "Fish Pond Condition" && (
+              {modalContent.title !== "Fish Pond Condition" && modalContent.title !== "Risk Reports" && (
                 <div className="modal-text-content">
                   {typeof modalContent.content === "string"
                     ? modalContent.content.split("\n").map((line, index) => (

@@ -2,6 +2,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { logActivity, logMessages } from '../utils/logger';
 import { auth, db } from '../firebase';
+import { fetchAllUsers } from '../services/accountService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/functions';
 import 'firebase/compat/auth';
@@ -49,21 +50,6 @@ export const AuthProvider = ({ children }) => {
     };
     initialize();
   }, []);
-
-  // Function to fetch all users from Firestore
-  const fetchAllUsers = async () => {
-    try {
-      const usersRef = collection(db, 'users');
-      const querySnapshot = await getDocs(usersRef);
-      const users = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setAllUsers(users);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
 
   // Function to fetch user data (address, contactNumber, fullName) from main user document
   const fetchUserSubcollectionData = async (userId) => {
