@@ -14,7 +14,7 @@ const cors = require('cors')({ origin: true });
  * Creates a staff account with admin privileges
  */
 exports.createStaffAccount = functions.https.onCall(async (data, context) => {
-  return cors(req, res, async () => {
+
   console.log("=== STARTING FUNCTION EXECUTION ===");
   console.log("Received data:", JSON.stringify(data));
   console.log("Context auth:", context.auth);
@@ -45,9 +45,10 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
   }
 
   // Create user
+  let userRecord;
   try {
     console.log("Attempting to create user with email:", data.email);
-    const userRecord = await admin.auth().createUser({
+    userRecord = await admin.auth().createUser({
       email: data.email,
       password: data.password,
       displayName: data.username,
@@ -57,23 +58,12 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
     console.error("FAIL: Error creating auth user:", err);
     throw new functions.https.HttpsError("internal", "Failed to create auth user");
   }
-  const requiredFields = ['email', 'password', 'username', 'role'];
-  for (const field of requiredFields) {
-    if (!data[field]) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        `Missing required field: ${field}`
-      );
-    }
-  }
 
   // Create Firestore document
+  // Now use userRecord.uid in the Firestore creation
   try {
     console.log("Attempting to create Firestore document");
-    
-    // Determine collection based on role
     const collectionName = data.role === 'Fish Farmer' ? 'mobileUsers' : 'users';
-    console.log(`Creating user in collection: ${collectionName}`);
     
     const userData = {
       email: data.email,
@@ -104,7 +94,6 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
 
   console.log("=== FUNCTION COMPLETED SUCCESSFULLY ===");
   return { success: true };
-  });
 });
 
 /**

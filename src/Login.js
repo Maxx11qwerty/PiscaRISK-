@@ -5,7 +5,7 @@ import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import "./Login.css";
 import { logActivity } from './utils/logger';
-import OtpVerification from './components/OtpVerification';
+import OTPVerification from './components/OTPVerification';
 
 export default function Login() {
   // Custom hook for screen size tracking
@@ -44,7 +44,15 @@ export default function Login() {
     usernameOrEmail: "",
     password: "",
   });
-  const { login, signInWithGoogle, signInWithFacebook, resetPassword, checkPasswordChangeRequired } = useContext(AuthContext);
+  const { 
+    login, 
+    signInWithGoogle, 
+    signInWithFacebook, 
+    resetPassword, 
+    checkPasswordChangeRequired,
+    requiresOTP,
+    sendOTP
+  } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const errorTimeoutRef = useRef();
@@ -53,7 +61,7 @@ export default function Login() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
-  const otpCode = "1234";
+  const [isOtpSent, setIsOtpSent] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -76,7 +84,15 @@ export default function Login() {
         } catch (logError) {
           console.error('Failed to log activity:', logError);
         }
-        setShowOtp(true);
+        
+        // Send OTP after successful login
+        const otpResult = await sendOTP(result.user.email);
+        if (otpResult.success) {
+          setIsOtpSent(true);
+          setShowOtp(true);
+        } else {
+          setError('Failed to send OTP. Please try again.');
+        }
       } else {
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
@@ -104,6 +120,7 @@ export default function Login() {
   
   const handleOtpVerify = async () => {
     setShowOtp(false);
+    setIsOtpSent(false);
     
     // Check if user needs to change password after admin reset
     try {
@@ -309,11 +326,12 @@ export default function Login() {
         </div>
       </div>
 
-      <OtpVerification
-        open={showOtp}
-        code={otpCode}
-        onVerify={handleOtpVerify}
-        onClose={() => setShowOtp(false)}
+      <OTPVerification
+        onVerificationComplete={handleOtpVerify}
+        onCancel={() => {
+          setShowOtp(false);
+          setIsOtpSent(false);
+        }}
       />
     </div>
   );

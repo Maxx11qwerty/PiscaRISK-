@@ -5,7 +5,7 @@ import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import { logActivity, logMessages } from './utils/logger';
 import "./SignupPage.css";
-import OtpVerification from './components/OtpVerification';
+import OTPVerification from './components/OTPVerification';
 
 export default function SignupPage() {
   // Custom hook for screen size tracking
@@ -334,7 +334,7 @@ export default function SignupPage() {
           </div>
         </div>
       )}
-      <OtpVerification 
+      <OTPVerification 
         open={showOtp} 
         code={otpCode} 
         onVerify={handleOtpVerify}

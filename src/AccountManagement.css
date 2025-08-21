@@ -851,6 +851,106 @@ position: relative;
 z-index: 10001;
 }
 
+/* Form polish without changing container size */
+.add-user-form .form-group input,
+.add-user-form .form-group select {
+  width: 100%;
+  max-width: 100%;
+  height: 42px;
+  border-radius: 8px;
+  border: 1.5px solid #1A4375;
+  background-color: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.add-user-form .form-group input::placeholder {
+  color: #9aa6b2;
+}
+
+.add-user-form .form-group input:focus,
+.add-user-form .form-group select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.add-user-form .input-error {
+  border-color: #e11d48 !important;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
+}
+
+/* Role/Info notice styling */
+.add-user-form .form-role-notice {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f1f5ff;
+  border: 1px solid #dbe6ff;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  margin: 10px 0 6px 0;
+}
+.add-user-form .role-notice-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.add-user-form .role-notice-content p {
+  margin: 4px 0 0 0;
+  color: #334155;
+  font-family: 'ReadexPro-Regular';
+}
+
+/* Buttons: modernized, consistent */
+.add-user-form .add-button {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  letter-spacing: 0.2px;
+}
+.add-user-form .add-button:hover {
+  filter: brightness(0.98);
+  transform: translateY(-1px);
+}
+.add-user-form .add-button:active {
+  transform: translateY(0);
+}
+.add-user-form .add-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.add-user-form .cancel-button {
+  background: #e5e7eb;
+  color: #111827;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+}
+.add-user-form .cancel-button:hover {
+  background: #dfe3e8;
+}
+
+/* Status selector wrapper */
+.add-user-form .tech-officer-status-display .status-display-inactive {
+  background: #fef7e0;
+  border: 1px solid #feefc3;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.add-user-form .status-indicator .status-dot.inactive {
+  background: #f59e0b;
+}
+
+/* Inline message spacing inside form */
+.add-user-form .message {
+  margin: 10px 0 8px 0;
+  border-radius: 8px;
+}
+
 .form-header {
 display: flex;
 justify-content: space-between;
@@ -1024,6 +1124,135 @@ border: 1px solid #ef9a9a;
 background-color: #e8f5e9;
 color: #2e7d32;
 border: 1px solid #a5d6a7;
+}
+
+.message.info {
+  background-color: #e8f0fe;
+  color: #174ea6;
+  border: 1px solid #c6dafc;
+}
+
+/* ===== Add User Form - Visual Refinements (no size change) ===== */
+.add-user-form .form-header h3 {
+  font-family: 'ReadexPro-Regular';
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.add-user-form .form-group label {
+  font-family: 'ReadexPro-Regular';
+  font-weight: 500;
+  color: #334155;
+}
+
+.add-user-form .form-group input,
+.add-user-form .form-group select {
+  width: 80%;
+  max-width: 80%;
+  height: 44px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  font-size: 14px;
+  color: #111827;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.add-user-form .form-group input::placeholder {
+  color: #9aa6b2;
+}
+
+.add-user-form .form-group input:focus,
+.add-user-form .form-group select:focus {
+  border-color: #2C517D;
+  box-shadow: 0 0 0 3px rgba(44, 81, 125, 0.15);
+  outline: none;
+}
+
+.add-user-form .input-error {
+  border-color: #e11d48 !important;
+  box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
+}
+
+/* Inline notice */
+.add-user-form .form-role-notice {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #f5f8ff;
+  border: 1px solid #e3ebff;
+  border-left: 4px solid #2C517D;
+  border-radius: 8px;
+  margin: 10px 0 6px 0;
+}
+.add-user-form .role-notice-icon {
+  font-size: 18px;
+}
+.add-user-form .role-notice-content p {
+  margin: 4px 0 0 0;
+  color: #334155;
+}
+
+/* Buttons - brand color */
+.add-user-form .add-button {
+  background: #2C517D;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  letter-spacing: 0.2px;
+}
+.add-user-form .add-button:hover {
+  background: #244565;
+  transform: translateY(-1px);
+}
+.add-user-form .add-button:active {
+  transform: translateY(0);
+}
+.add-user-form .add-button:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.add-user-form .cancel-button {
+  background: transparent;
+  color: #1f2937;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+.add-user-form .cancel-button:hover {
+  background: #f3f4f6;
+}
+
+/* Status inactive box */
+.add-user-form .tech-officer-status-display .status-display-inactive {
+  background: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.add-user-form .status-indicator .status-dot.inactive {
+  background: #f59e0b;
+}
+
+/* Inline message spacing */
+.add-user-form .message {
+  margin: 12px 0 8px 0;
+  border-radius: 8px;
+}
+
+/* Reduce input heights for specific fields in Add User form */
+.add-user-form input[type="text"],
+.add-user-form input[type="email"],
+.add-user-form input[type="password"],
+.add-user-form input[type="date"] {
+  height: 30px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 
 .message.warning {

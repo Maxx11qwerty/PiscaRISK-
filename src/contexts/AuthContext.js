@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.js
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { logActivity, logMessages } from '../utils/logger';
-import { auth, db } from '../firebase';
+import { auth, db, firebaseConfig } from '../firebase';
 import { fetchAllUsers } from '../services/accountService';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/functions';
@@ -24,7 +24,7 @@ import {
   EmailAuthProvider,
   applyActionCode
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
 export const AuthContext = createContext();
 
@@ -41,6 +41,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const suppressAuthUpdatesRef = useRef(false);
 
 
   // Somewhere in your initialization:
@@ -83,6 +84,10 @@ export const AuthProvider = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (suppressAuthUpdatesRef.current) {
+        console.log('AuthContext: Suppressing auth state update during provisioning');
+        return;
+      }
       if (user) {
         // Reload user to get latest verification status
         await user.reload();
@@ -596,60 +601,100 @@ export const AuthProvider = ({ children }) => {
   };
 
   
-  const createStaffAccount = async (userData, adminPassword) => {
+  const createStaffAccount = async (userData) => {
     try {
-      // 1. Store current admin user credentials
-      const currentAdmin = auth.currentUser;
-      if (!currentAdmin) throw new Error("Not authenticated");
-      
-      const currentAdminEmail = currentAdmin.email;
-      if (!adminPassword) throw new Error("Admin password required");
-      
-      console.log("Checking current admin UID:", currentAdmin.uid);
-      // 2. Verify admin status
-      const currentUserDoc = await getDoc(doc(db, 'users', currentAdmin.uid));
-      if (!currentUserDoc.exists()) {
-        throw new Error("User document not found");
+      console.log('=== STARTING USER CREATION (NO ADMIN PASSWORD) ===');
+      suppressAuthUpdatesRef.current = true;
+
+      // Ensure admin is logged in
+      let currentAdmin = auth.currentUser || currentUser;
+      if (!currentAdmin) {
+        // brief wait for auth
+        await new Promise(r => setTimeout(r, 500));
+        currentAdmin = auth.currentUser || currentUser;
+        if (!currentAdmin) throw new Error('No admin logged in');
       }
 
-      if (currentUserDoc.data().role !== "Admin") {
-        throw new Error("Admin privileges required");
+      console.log('Admin user creating account:', currentAdmin?.email);
+      console.log('Creating user with data:', userData);
+
+      const adminUID = currentAdmin.uid;
+
+      // Create auth user via secondary app (avoid switching session)
+      const secondaryName = 'admin-staff-create';
+      let secondaryApp;
+      let newUserUid = null;
+      try {
+        secondaryApp = firebase.apps?.find(a => a.name === secondaryName)
+          || firebase.initializeApp(firebaseConfig, secondaryName);
+        const secondaryAuth = secondaryApp.auth();
+        console.log('Creating user with secondary auth...');
+        const cred = await secondaryAuth.createUserWithEmailAndPassword(
+          userData.email,
+          userData.password
+        );
+        newUserUid = cred.user?.uid || null;
+        console.log('User created successfully, UID:', newUserUid);
+        await secondaryAuth.signOut();
+        console.log('Signed out from secondary auth');
+      } catch (e) {
+        console.error('Secondary auth create error:', e);
+        if (e.code === 'auth/email-already-in-use') {
+          throw new Error('Email already exists in system');
+        } else if (e.code === 'auth/weak-password') {
+          throw new Error('Password is too weak');
+        } else {
+          throw e;
+        }
+      } finally {
+        try { 
+          if (secondaryApp) { 
+            await secondaryApp.delete(); 
+            console.log('Secondary app deleted');
+          }
+        } catch (deleteError) { 
+          console.warn('Could not delete secondary app:', deleteError); 
+        }
       }
-  
-      // 3. Create the new user
-      const { user } = await createUserWithEmailAndPassword(
-        auth,
-        userData.email,
-        userData.password
-      );
-  
-      // 4. Immediately sign back in as admin
-      await signInWithEmailAndPassword(
-        auth,
-        currentAdminEmail,
-        adminPassword
-      );
-  
-      // 5. Create user document
-      await setDoc(doc(db, 'users', user.uid), {
+
+      if (!newUserUid) throw new Error('Failed to retrieve new user UID');
+
+      // Firestore permission test for admin
+      console.log('Testing Firestore write permissions...');
+      const testDocRef = doc(db, 'test_permission', 'test');
+      try {
+        await setDoc(testDocRef, { test: new Date().toISOString() });
+        console.log('Firestore write permission: OK');
+        await deleteDoc(testDocRef);
+      } catch (permError) {
+        console.error('Firestore permission error:', permError);
+        throw new Error("Admin doesn't have permission to create users. Check Firestore rules.");
+      }
+
+      // Write Firestore document
+      console.log('Creating Firestore document for UID:', newUserUid);
+      await setDoc(doc(db, 'users', newUserUid), {
         email: userData.email,
         username: userData.username,
         role: userData.role,
-        status: userData.status || "Active", // Use status from form data or fallback to Active
+        status: (userData.role === 'Admin' || userData.role === 'Tech Officer') ? 'Inactive' : (userData.status || 'Active'),
         createdAt: serverTimestamp(),
-        createdBy: currentAdmin.uid,
-        address: userData.address || "",
-        contactNumber: userData.contactNumber || "",
-        dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0], // Use provided date or fallback to current date
-        fullName: userData.fullName || "",
+        createdBy: adminUID,
+        address: userData.address || '',
+        contactNumber: userData.contactNumber || '',
+        dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+        fullName: userData.fullName || '',
         profileImage: userData.profileImage || null,
         isMobileUser: false
       });
-  
+      console.log('Firestore document created successfully');
+
       return { success: true };
     } catch (error) {
-      console.error("User creation failed:", error);
+      console.error('User creation failed:', error);
       return { success: false, error: error.message };
+    } finally {
+      suppressAuthUpdatesRef.current = false;
     }
   };
   

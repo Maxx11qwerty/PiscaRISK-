@@ -65,6 +65,17 @@ const AccountManagement = () => {
   const [useCustomPassword, setUseCustomPassword] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
 
+  // Auto-close the Add User form shortly after a successful creation
+  useEffect(() => {
+    if (showAddUserForm && message && message.type === 'success' && message.text) {
+      const timer = setTimeout(() => {
+        setShowAddUserForm(false);
+        setMessage({ text: '', type: '' });
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [message, showAddUserForm]);
+
   useEffect(() => {
     console.log("Current User Data:", currentUser);
     console.log("Is Admin:", isAdmin());
@@ -330,7 +341,7 @@ const AccountManagement = () => {
     
     // Special handling for role changes
     if (name === 'role') {
-      const newStatus = value === 'Tech Officer' ? 'Inactive' : 'Active';
+      const newStatus = (value === 'Tech Officer' || value === 'Admin') ? 'Inactive' : 'Active';
       console.log(`Role changed to: ${value}, setting status to: ${newStatus}`);
       
     setNewUser(prev => ({
@@ -413,9 +424,9 @@ const AccountManagement = () => {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
       }
-  
+
       setMessage({ text: 'Creating user...', type: 'info' });
-  
+
       const userData = {
         email: newUser.email,
         username: newUser.username,
@@ -425,20 +436,25 @@ const AccountManagement = () => {
         role: newUser.role,
         password: newUser.password,
         dateJoined: newUser.dateJoined,
-        status: newUser.status // Make sure status is included
+        status: newUser.status
       };
-      
-      console.log('Preparing to create user with data:', userData);
-      console.log('Status being sent:', userData.status);
-      console.log('Role being sent:', userData.role);
-      
-      // Store user data and show admin password modal
-      setPendingUserData(userData);
-      setShowAdminPasswordModal(true);
-      setAdminPassword('');
-      setAdminPasswordError('');
-      
+
+      console.log('Creating user with data:', userData);
+
+      // Directly call createStaffAccount without admin password modal
+      const result = await createStaffAccount(userData);
+
+      if (result.success) {
+        setMessage({ text: `${newUser.role} ${newUser.username} created successfully!`, type: 'success' });
+        // Keep form open so success is visible, clear inputs for next entry
+        resetForm();
+        await fetchUsers();
+      } else {
+        setMessage({ text: `Error: ${result.error}`, type: 'error' });
+      }
+
     } catch (error) {
+      console.error('Error in handleAddUser:', error);
       let errorMessage = error.message;
       if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
       else if (error.code === 'auth/weak-password') errorMessage = 'Password should be at least 6 characters';
@@ -1135,52 +1151,8 @@ The user can then login with this new password. Old password will become invalid
     setGeneratedPassword('');
   };
 
-  // Function to handle admin password confirmation
-  const handleAdminPasswordConfirm = async () => {
-    if (!adminPassword.trim()) {
-      setAdminPasswordError('Admin password is required');
-      return;
-    }
-
-    if (adminPassword.length < 6) {
-      setAdminPasswordError('Admin password must be at least 6 characters long');
-      return;
-    }
-
-    if (!pendingUserData) {
-      setAdminPasswordError('No pending user data found');
-      return;
-    }
-
-    setIsConfirming(true);
-    try {
-      setAdminPasswordError('');
-      setMessage({ text: 'Verifying admin credentials and creating user...', type: 'info' });
-
-      // Call createStaffAccount with admin password
-      const result = await createStaffAccount(pendingUserData, adminPassword);
-      
-      if (result.success) {
-        setMessage({ text: `${pendingUserData.role} ${pendingUserData.username} created successfully!`, type: 'success' });
-        
-        // Close modal and reset form
-        setShowAdminPasswordModal(false);
-        setPendingUserData(null);
-        setAdminPassword('');
-        resetForm();
-        
-        // Refresh users list
-        await fetchUsers();
-      } else {
-        setAdminPasswordError(result.error || 'Failed to create user');
-      }
-    } catch (error) {
-      console.error('Error creating user:', error);
-      setAdminPasswordError(error.message || 'An error occurred while creating the user');
-    } finally {
-      setIsConfirming(false);
-    }
-  };
+  // Admin password confirmation removed per requirement
+  // const handleAdminPasswordConfirm = async () => {};
 
   // Function to close admin password modal
   const closeAdminPasswordModal = () => {
@@ -1546,15 +1518,19 @@ The user can then login with this new password. Old password will become invalid
                   <button className="close-form-button" onClick={handleCancelAddUser}>&times;</button>
               </div>
                 {message.text && (<div className={`message ${message.type}`}>{message.text}</div>)}
-                {newUser.role === 'Tech Officer' && (
+                {(newUser.role === 'Tech Officer' || newUser.role === 'Admin') && (
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
                     <div className="role-notice-content">
-                      <strong>Tech Officer Account Notice:</strong>
-                      <p>New Tech Officer accounts start as Inactive and must be activated by an admin before login.</p>
+                      <strong>{newUser.role === 'Tech Officer' ? 'Tech Officer Account Notice:' : 'Admin Account Notice:'}</strong>
+                      {newUser.role === 'Tech Officer' ? (
+                        <p>New Tech Officer accounts start as Inactive and must be activated by an admin before login.</p>
+                      ) : (
+                        <p>New Admin accounts are set to Inactive. Admin must verify email on first login. Status is locked to Inactive.</p>
+                      )}
                     </div>
-                </div>
-              )}
+                  </div>
+                )}
               <div className="form-row">
                 <div className="form-group">
                   <label>Username*</label>
@@ -1602,14 +1578,14 @@ The user can then login with this new password. Old password will become invalid
                 </div>
                   <div className="form-group">
                     <label>Status</label>
-                    {newUser.role === 'Tech Officer' ? (
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
                           <span className="status-indicator">
                             <span className="status-dot inactive"></span>
                             <span className="status-text inactive">Inactive</span>
                           </span>
-              </div>
+                        </div>
                       </div>
                     ) : (
                       <select 
@@ -1841,52 +1817,7 @@ The user can then login with this new password. Old password will become invalid
             </div>
           )}
 
-          {/* Admin Password Confirmation Modal */}
-          {showAdminPasswordModal && pendingUserData && (
-            <div className="admin-password-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <h2>Confirm Admin Password</h2>
-                <p>Please enter your admin password to confirm the creation of this user.</p>
-                <div className="form-group">
-                  <label>Admin Password:</label>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setAdminPassword(e.target.value);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    onFocus={(e) => e.stopPropagation()}
-                    className="admin-password-input"
-                    placeholder="Enter admin password"
-                  />
-                  {adminPasswordError && <p className="error-message">{adminPasswordError}</p>}
-                </div>
-                <div className="modal-actions">
-                  <button 
-                    className="confirm-button" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAdminPasswordConfirm();
-                    }} 
-                    disabled={isConfirming}
-                  >
-                    {isConfirming ? 'Confirming...' : 'Confirm and Create User'}
-                  </button>
-                  <button 
-                    className="cancel-button" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeAdminPasswordModal();
-                    }}
-                  >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          {/* Admin Password Confirmation Modal removed per requirement */}
 
         <div className="user-grid-container">
             {paginatedUsers.length > 0 ? (

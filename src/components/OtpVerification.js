@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './OtpVerification.css';
+import './OTPVerification.css';
 import logo from '../assets/images/PISCARISK_LOGO.png';
 
 const OtpVerification = ({ open, code, onVerify, onClose }) => {
