@@ -24,7 +24,7 @@ import {
   EmailAuthProvider,
   applyActionCode
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc, addDoc } from 'firebase/firestore';
 
 export const AuthContext = createContext();
 
@@ -43,6 +43,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const suppressAuthUpdatesRef = useRef(false);
 
+  // OTP and authentication state
+  const [requiresOTP, setRequiresOTP] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   // Somewhere in your initialization:
   useEffect(() => {
@@ -81,6 +84,77 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Generate a 4-digit OTP
+  const generateOTP = () => {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  };
+
+  // Send OTP to user's email
+  const sendOTP = async (userEmail) => {
+    try {
+      const otpCode = generateOTP();
+      const otpData = {
+        code: otpCode,
+        createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        used: false
+      };
+
+      // Store OTP in Firestore
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const otpRef = collection(userRef, 'otp');
+      await addDoc(otpRef, otpData);
+
+      // In production, this would send an actual email
+      // For now, we'll log it to console
+      console.log(`OTP sent to ${userEmail}: ${otpCode}`);
+      
+      setOtpSent(true);
+      return { success: true, otp: otpCode };
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // Verify OTP
+  const verifyOTP = async (otpCode) => {
+    try {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const otpRef = collection(userRef, 'otp');
+      const otpQuery = query(
+        otpRef, 
+        where('code', '==', otpCode),
+        where('used', '==', false)
+      );
+      
+      const otpSnapshot = await getDocs(otpQuery);
+      
+      if (otpSnapshot.empty) {
+        return { success: false, error: 'Invalid OTP' };
+      }
+
+      const otpDoc = otpSnapshot.docs[0];
+      const otpData = otpDoc.data();
+
+      // Check if OTP is expired
+      if (otpData.expiresAt.toDate() < new Date()) {
+        return { success: false, error: 'OTP expired' };
+      }
+
+      // Mark OTP as used
+      await updateDoc(doc(otpRef, otpDoc.id), { used: true });
+
+      setRequiresOTP(false);
+      setOtpSent(false);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -104,6 +178,11 @@ export const AuthProvider = ({ children }) => {
           const userData = userDoc.data();
           console.log('AuthContext: User document data:', userData);
 
+          // Check if user needs OTP verification
+          if (user.emailVerified && userData.status === 'active') {
+            setRequiresOTP(true);
+          }
+
           setCurrentUser({
             uid: user.uid,
             email: user.email,
@@ -112,6 +191,7 @@ export const AuthProvider = ({ children }) => {
             profileImage: userData.profileImage || null,
             dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
             emailVerified: user.emailVerified,
+            status: userData.status,
             // Add data from main user document
             address: userData.address || '',
             fullName: userData.fullName || '',
@@ -128,6 +208,8 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         setCurrentUser(null);
+        setRequiresOTP(false);
+        setOtpSent(false);
       }
       setLoading(false);
     });
@@ -147,8 +229,9 @@ export const AuthProvider = ({ children }) => {
         username,
         dateJoined: new Date().toISOString().split('T')[0],
         profileImage: null,
-        role: 'Tech Officer',
-        status: 'Inactive',
+        role: 'tech_officer',
+        status: 'inactive',
+        emailVerified: false,
         createdBy: 'self',
         createdAt: serverTimestamp()
       };
@@ -158,6 +241,12 @@ export const AuthProvider = ({ children }) => {
       // Update profile with username
       await updateProfile(user, {
         displayName: username
+      });
+
+      // Send email verification
+      await sendEmailVerification(user, {
+        url: window.location.origin + '/verify-email',
+        handleCodeInApp: true
       });
 
       // Log the registration
@@ -205,14 +294,14 @@ export const AuthProvider = ({ children }) => {
         userData = userDoc.data();
         
         // Check if account is inactive or suspended
-        if (userData.status === 'Inactive') {
+        if (userData.status === 'inactive') {
           return { 
             success: false, 
             message: "Your account is pending admin approval. Please wait for activation." 
           };
         }
         
-        if (userData.status === 'Suspended') {
+        if (userData.status === 'suspended') {
           return {
             success: false,
             message: "Your account has been suspended. Please contact support for assistance."
@@ -242,21 +331,69 @@ export const AuthProvider = ({ children }) => {
       }
       
       if (userData) {
-        if (userData.status === 'Inactive') {
-          // Sign out the user if account is inactive
-          await signOut(auth);
-          return { 
-            success: false, 
-            message: "Your account is pending admin approval. Please wait for activation." 
-          };
-        }
-        if (userData.status === 'Suspended') {
-          // Sign out the user if account is suspended
+        // Handle existing users who might have different status values
+        console.log('User data found:', {
+          email: userData.email,
+          status: userData.status,
+          role: userData.role,
+          emailVerified: userCredential.user.emailVerified
+        });
+
+        // Check if account is suspended (always block suspended accounts)
+        if (userData.status === 'suspended') {
           await signOut(auth);
           return {
             success: false,
             message: "Your account has been suspended. Please contact support for assistance."
           };
+        }
+
+        // For existing users, check if they need email verification
+        if (!userCredential.user.emailVerified) {
+          console.log('User email not verified, blocking access');
+          await signOut(auth);
+          return {
+            success: false,
+            message: "Please verify your email before logging in. Check your inbox for a verification link."
+          };
+        }
+
+        // Handle status updates for existing users (auto-activate admins only)
+        if (userData.role === 'admin' && userData.status === 'inactive' && userCredential.user.emailVerified) {
+          console.log('Updating existing user status from inactive to active for:', userCredential.user.email);
+          
+          // Use the correct collection based on where we found the user
+          const updateRef = doc(db, collectionName, userCredential.user.uid);
+          await updateDoc(updateRef, {
+            status: 'active',
+            emailVerified: true,
+            lastModified: serverTimestamp()
+          });
+          
+          console.log('Successfully updated existing user status to active');
+          userData.status = 'active';
+        } else if (userData.status === 'active' && userCredential.user.emailVerified) {
+          // Existing active user with verified email - allow access
+          console.log('Existing active user with verified email - allowing access');
+        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
+          // Handle legacy users without proper status
+          console.log('Legacy user without proper status - evaluating role for:', userCredential.user.email);
+          if (userData.role === 'admin' && userCredential.user.emailVerified) {
+            const updateRef = doc(db, collectionName, userCredential.user.uid);
+            await updateDoc(updateRef, {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            console.log('Successfully updated legacy admin user status to active');
+            userData.status = 'active';
+          } else {
+            await signOut(auth);
+            return {
+              success: false,
+              message: "Your account is pending admin approval. Please wait for activation."
+            };
+          }
         }
       }
       
@@ -299,6 +436,8 @@ export const AuthProvider = ({ children }) => {
       // 1. Perform all cleanup first
       await signOut(auth);
       setCurrentUser(null);
+      setRequiresOTP(false);
+      setOtpSent(false);
       localStorage.clear();
       sessionStorage.clear();
       
@@ -500,6 +639,56 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Function to immediately update status after email verification
+  const updateStatusAfterVerification = async () => {
+    try {
+      if (!auth.currentUser) {
+        throw new Error("No user logged in");
+      }
+
+      // Reload user to get latest verification status
+      await auth.currentUser.reload();
+      
+      if (auth.currentUser.emailVerified) {
+        // Get user document from Firestore
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          
+          // If status is inactive and email is verified, update to active
+          if (userData.status === 'inactive') {
+            console.log('Email verified - immediately updating status to active for:', auth.currentUser.email);
+            
+            await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            
+            console.log('Status updated to active immediately after email verification');
+            
+            // Update local state
+            setCurrentUser(prev => ({
+              ...prev,
+              emailVerified: true,
+              status: 'active'
+            }));
+            
+            return { success: true, statusUpdated: true };
+          } else {
+            console.log('User status already active or different:', userData.status);
+            return { success: true, statusUpdated: false };
+          }
+        }
+      }
+      
+      return { success: true, statusUpdated: false };
+    } catch (error) {
+      console.error('Error updating status after verification:', error);
+      throw error;
+    }
+  };
+
   // Add function to check email verification status
   const checkEmailVerification = async () => {
     try {
@@ -516,11 +705,40 @@ export const AuthProvider = ({ children }) => {
         lastModified: serverTimestamp()
       });
 
-      // Update local state with new verification status
-      setCurrentUser(prev => ({
-        ...prev,
-        emailVerified: auth.currentUser.emailVerified
-      }));
+      // If email is now verified and status is inactive, update status to active based on role/activation
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.status === 'inactive' && auth.currentUser.emailVerified) {
+          const canActivate = (userData.role === 'admin') || (userData.role === 'tech_officer' && userData.adminActivated);
+          if (canActivate) {
+            console.log('Email verified - updating status from inactive to active for:', auth.currentUser.email);
+            await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+              status: 'active',
+              lastModified: serverTimestamp()
+            });
+            console.log('Successfully updated user status to active after email verification');
+            // Update local state
+            setCurrentUser(prev => ({
+              ...prev,
+              emailVerified: auth.currentUser.emailVerified,
+              status: 'active'
+            }));
+          } else {
+            // Update only emailVerified locally
+            setCurrentUser(prev => ({
+              ...prev,
+              emailVerified: auth.currentUser.emailVerified
+            }));
+          }
+        } else {
+          // Update local state with new verification status
+          setCurrentUser(prev => ({
+            ...prev,
+            emailVerified: auth.currentUser.emailVerified
+          }));
+        }
+      }
 
       return auth.currentUser.emailVerified;
     } catch (error) {
@@ -676,8 +894,9 @@ export const AuthProvider = ({ children }) => {
       await setDoc(doc(db, 'users', newUserUid), {
         email: userData.email,
         username: userData.username,
-        role: userData.role,
-        status: (userData.role === 'Admin' || userData.role === 'Tech Officer') ? 'Inactive' : (userData.status || 'Active'),
+        role: userData.role === 'Admin' ? 'admin' : 'tech_officer',
+        status: (userData.role === 'Admin' || userData.role === 'Tech Officer') ? 'inactive' : (userData.status || 'active'),
+        emailVerified: false,
         createdAt: serverTimestamp(),
         createdBy: adminUID,
         address: userData.address || '',
@@ -685,7 +904,9 @@ export const AuthProvider = ({ children }) => {
         dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
         fullName: userData.fullName || '',
         profileImage: userData.profileImage || null,
-        isMobileUser: false
+        isMobileUser: false,
+        // Admin activation flag for Tech Officers
+        adminActivated: (userData.role === 'Admin') ? true : false
       });
       console.log('Firestore document created successfully');
 
@@ -704,7 +925,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const docRef = doc(db, 'users', auth.currentUser.uid);
       const docSnap = await getDoc(docRef);
-      return docSnap.exists() && docSnap.data().role === "Admin";
+      return docSnap.exists() && docSnap.data().role === "admin";
     } catch (error) {
       console.error("Admin check error:", error);
       return false;
@@ -712,7 +933,7 @@ export const AuthProvider = ({ children }) => {
   };
   
   const isTechOfficer = () => {
-    return currentUser?.role === 'Tech Officer';
+    return currentUser?.role === 'tech_officer';
   };
 
   // Update user function
@@ -754,34 +975,174 @@ export const AuthProvider = ({ children }) => {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      // Check if user exists in Firestore
+      // First, check if this email already exists in Firestore (for newly added admins)
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', user.email));
+      const emailSnapshot = await getDocs(emailQuery);
+      
+      let existingUserData = null;
+      let isNewlyAddedAdmin = false;
+      let existingUserDoc = null;
+      
+      if (!emailSnapshot.empty) {
+        // Email exists in Firestore - check if it's a newly added admin
+        existingUserDoc = emailSnapshot.docs[0];
+        existingUserData = existingUserDoc.data();
+        
+        console.log('Google Sign-In: Found existing user in Firestore:', {
+          email: user.email,
+          role: existingUserData.role,
+          status: existingUserData.status,
+          isNewlyAddedAdmin: existingUserData.role === 'admin' && existingUserData.status === 'inactive'
+        });
+        
+        if (existingUserData.role === 'admin' && existingUserData.status === 'inactive') {
+          isNewlyAddedAdmin = true;
+        }
+      }
+      
+      // Check if user exists in Firestore by UID
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
-      let userRole = 'User'; // Default role
+      let userRole = 'tech_officer'; // Default role for new users
       
       if (!userDoc.exists()) {
-        // Create new user document if it doesn't exist
-        const userData = {
-          email: user.email,
-          username: user.displayName || user.email.split('@')[0],
-          dateJoined: new Date().toISOString().split('T')[0],
-          profileImage: user.photoURL,
-          role: 'User',
-          emailVerified: user.emailVerified
-        };
+        // User doesn't exist by UID - this could be a new user or a newly added admin
+        if (isNewlyAddedAdmin) {
+          // This is a newly added admin trying to log in with Google
+          // We need to link their Google account to the existing Firestore document
+          await updateDoc(doc(db, 'users', existingUserDoc.id), {
+            googleUid: user.uid,
+            lastModified: serverTimestamp()
+          });
+          
+          // Update the user document with Google profile info
+          await updateDoc(doc(db, 'users', existingUserDoc.id), {
+            profileImage: user.photoURL,
+            lastModified: serverTimestamp()
+          });
+          
+          userRole = existingUserData.role;
+          
+          // For newly added admins, they must verify their email before activation
+          if (!user.emailVerified) {
+            await signOut(auth);
+            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+          }
+          
+          // If email is verified, update status to active
+          if (user.emailVerified && existingUserData.status === 'inactive') {
+            await updateDoc(doc(db, 'users', existingUserDoc.id), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            existingUserData.status = 'active';
+          }
+          
+          setCurrentUser({
+            uid: existingUserDoc.id,
+            ...existingUserData,
+            emailVerified: user.emailVerified
+          });
+        } else {
+          // Create new user document if it doesn't exist
+          const userData = {
+            email: user.email,
+            username: user.displayName || user.email.split('@')[0],
+            dateJoined: new Date().toISOString().split('T')[0],
+            profileImage: user.photoURL,
+            role: 'tech_officer',
+            status: 'inactive',
+            emailVerified: user.emailVerified,
+            createdAt: serverTimestamp()
+          };
 
-        await setDoc(doc(db, 'users', user.uid), userData);
-        userRole = userData.role;
-        
-        // Update the current user state
-        setCurrentUser({
-          uid: user.uid,
-          ...userData
-        });
+          await setDoc(doc(db, 'users', user.uid), userData);
+          userRole = userData.role;
+          
+          // ALL users must verify email before accessing dashboard
+          if (!user.emailVerified) {
+            await signOut(auth);
+            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+          }
+          
+          // Do NOT auto-activate Tech Officers; require admin activation.
+          // Only admins may be auto-activated on verified email.
+          if (user.emailVerified && userData.status === 'inactive' && userData.role === 'admin') {
+            await updateDoc(doc(db, 'users', user.uid), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            userData.status = 'active';
+          } else if (userData.status === 'inactive') {
+            await signOut(auth);
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
+          }
+          
+          // Update the current user state
+          setCurrentUser({
+            uid: user.uid,
+            ...userData
+          });
+        }
       } else {
         // Update existing user's data
         const userData = userDoc.data();
-        userRole = userData.role || 'User';
+        userRole = userData.role || 'tech_officer';
+        
+        // Handle existing users who might have different status values
+        console.log('Google Sign-In: Existing user data:', {
+          email: userData.email,
+          status: userData.status,
+          role: userData.role,
+          emailVerified: user.emailVerified
+        });
+
+        // Check if account is suspended (always block suspended accounts)
+        if (userData.status === 'suspended') {
+          await signOut(auth);
+          throw new Error('Your account has been suspended. Please contact support for assistance.');
+        }
+
+        // For existing users, check if they need email verification
+        if (!user.emailVerified) {
+          console.log('Google Sign-In: User email not verified, blocking access');
+          await signOut(auth);
+          throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+        }
+
+        // Handle status updates for existing users (auto-activate admins only)
+        if (userData.role === 'admin' && userData.status === 'inactive' && user.emailVerified) {
+          console.log('Google Sign-In: Updating existing user status from inactive to active for:', user.email);
+          
+          await updateDoc(doc(db, 'users', user.uid), {
+            status: 'active',
+            emailVerified: true,
+            lastModified: serverTimestamp()
+          });
+          userData.status = 'active';
+        } else if (userData.status === 'active' && user.emailVerified) {
+          // Existing active user with verified email - allow access
+          console.log('Google Sign-In: Existing active user with verified email - allowing access');
+        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
+          // Handle legacy users without proper status
+          console.log('Google Sign-In: Legacy user without proper status - evaluating role for:', user.email);
+          if (userData.role === 'admin' && user.emailVerified) {
+            await updateDoc(doc(db, 'users', user.uid), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            console.log('Google Sign-In: Successfully updated legacy admin user status to active');
+            userData.status = 'active';
+          } else {
+            await signOut(auth);
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
+          }
+        }
+        
         setCurrentUser({
           uid: user.uid,
           ...userData
@@ -813,27 +1174,167 @@ export const AuthProvider = ({ children }) => {
       const provider = new FacebookAuthProvider();
       const result = await signInWithPopup(auth, provider);
       
-      // Check if user exists in Firestore
+      // First, check if this email already exists in Firestore (for newly added admins)
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', result.user.email));
+      const emailSnapshot = await getDocs(emailQuery);
+      
+      let existingUserData = null;
+      let isNewlyAddedAdmin = false;
+      let existingUserDoc = null;
+      
+      if (!emailSnapshot.empty) {
+        // Email exists in Firestore - check if it's a newly added admin
+        existingUserDoc = emailSnapshot.docs[0];
+        existingUserData = existingUserDoc.data();
+        
+        console.log('Facebook Sign-In: Found existing user in Firestore:', {
+          email: result.user.email,
+          role: existingUserData.role,
+          status: existingUserData.status,
+          isNewlyAddedAdmin: existingUserData.role === 'admin' && existingUserData.status === 'inactive'
+        });
+        
+        if (existingUserData.role === 'admin' && existingUserData.status === 'inactive') {
+          isNewlyAddedAdmin = true;
+        }
+      }
+      
+      // Check if user exists in Firestore by UID
       const userDoc = await getDoc(doc(db, 'users', result.user.uid));
       
-      let userRole = 'User'; // Default role
+      let userRole = 'tech_officer'; // Default role for new users
       
       if (!userDoc.exists()) {
-        // Create new user document if it doesn't exist
-        const userData = {
-          email: result.user.email,
-          username: result.user.displayName || result.user.email.split('@')[0],
-          dateJoined: new Date().toISOString().split('T')[0],
-          profileImage: result.user.photoURL,
-          role: 'User'
-        };
-        
-        await setDoc(doc(db, 'users', result.user.uid), userData);
-        userRole = userData.role;
+        // User doesn't exist by UID - this could be a new user or a newly added admin
+        if (isNewlyAddedAdmin) {
+          // This is a newly added admin trying to log in with Facebook
+          // We need to link their Facebook account to the existing Firestore document
+          await updateDoc(doc(db, 'users', existingUserDoc.id), {
+            facebookUid: result.user.uid,
+            lastModified: serverTimestamp()
+          });
+          
+          // Update the user document with Facebook profile info
+          await updateDoc(doc(db, 'users', existingUserDoc.id), {
+            profileImage: result.user.photoURL,
+            lastModified: serverTimestamp()
+          });
+          
+          userRole = existingUserData.role;
+          
+          // For newly added admins, they must verify their email before activation
+          if (!result.user.emailVerified) {
+            await signOut(auth);
+            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+          }
+          
+          // If email is verified, update status to active
+          if (result.user.emailVerified && existingUserData.status === 'inactive') {
+            await updateDoc(doc(db, 'users', existingUserDoc.id), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            existingUserData.status = 'active';
+          }
+          
+          setCurrentUser({
+            uid: existingUserDoc.id,
+            ...existingUserData,
+            emailVerified: result.user.emailVerified
+          });
+        } else {
+          // Create new user document if it doesn't exist
+          const userData = {
+            email: result.user.email,
+            username: result.user.displayName || result.user.email.split('@')[0],
+            dateJoined: new Date().toISOString().split('T')[0],
+            profileImage: result.user.photoURL,
+            role: 'tech_officer',
+            status: 'inactive',
+            emailVerified: result.user.emailVerified,
+            createdAt: serverTimestamp()
+          };
+          
+          await setDoc(doc(db, 'users', result.user.uid), userData);
+          userRole = userData.role;
+          
+          // ALL users must verify email before accessing dashboard
+          if (!result.user.emailVerified) {
+            await signOut(auth);
+            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+          }
+          
+          // Do NOT auto-activate Tech Officers; require admin activation.
+          if (result.user.emailVerified && userData.status === 'inactive' && userData.role === 'admin') {
+            await updateDoc(doc(db, 'users', result.user.uid), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            userData.status = 'active';
+          } else if (userData.status === 'inactive') {
+            await signOut(auth);
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
+          }
+        }
       } else {
         // Get existing user's role
         const userData = userDoc.data();
-        userRole = userData.role || 'User';
+        userRole = userData.role || 'tech_officer';
+        
+        // Handle existing users who might have different status values
+        console.log('Facebook Sign-In: Existing user data:', {
+          email: userData.email,
+          status: userData.status,
+          role: userData.role,
+          emailVerified: result.user.emailVerified
+        });
+
+        // Check if account is suspended (always block suspended accounts)
+        if (userData.status === 'suspended') {
+          await signOut(auth);
+          throw new Error('Your account has been suspended. Please contact support for assistance.');
+        }
+
+        // For existing users, check if they need email verification
+        if (!result.user.emailVerified) {
+          console.log('Facebook Sign-In: User email not verified, blocking access');
+          await signOut(auth);
+          throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+        }
+
+        // Handle status updates for existing users (auto-activate admins only)
+        if (userData.role === 'admin' && userData.status === 'inactive' && result.user.emailVerified) {
+          console.log('Facebook Sign-In: Updating existing user status from inactive to active for:', result.user.email);
+          
+          await updateDoc(doc(db, 'users', result.user.uid), {
+            status: 'active',
+            emailVerified: true,
+            lastModified: serverTimestamp()
+          });
+          userData.status = 'active';
+        } else if (userData.status === 'active' && result.user.emailVerified) {
+          // Existing active user with verified email - allow access
+          console.log('Facebook Sign-In: Existing active user with verified email - allowing access');
+        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
+          // Handle legacy users without proper status
+          console.log('Facebook Sign-In: Legacy user without proper status - evaluating role for:', result.user.email);
+          if (userData.role === 'admin' && result.user.emailVerified) {
+            await updateDoc(doc(db, 'users', result.user.uid), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            
+            console.log('Facebook Sign-In: Successfully updated legacy admin user status to active');
+            userData.status = 'active';
+          } else {
+            await signOut(auth);
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
+          }
+        }
       }
 
       logActivity('login', `User logged in with Facebook: ${result.user.email}`, result.user.email, null, userRole);
@@ -959,6 +1460,93 @@ const resetPassword = async (email) => {
     }
   };
 
+  // Function to migrate existing users to proper status
+  const migrateExistingUser = async (userId) => {
+    try {
+      if (!auth.currentUser) {
+        throw new Error("No user logged in");
+      }
+
+      // Get user document from Firestore
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        console.log('Migrating existing user:', {
+          email: userData.email,
+          currentStatus: userData.status,
+          emailVerified: auth.currentUser.emailVerified
+        });
+
+        // If user has no status or legacy status, set to active if email verified
+        if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
+          if (auth.currentUser.emailVerified) {
+            await updateDoc(doc(db, 'users', userId), {
+              status: 'active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            
+            console.log('Successfully migrated existing user to active status');
+            
+            // Update local state
+            setCurrentUser(prev => ({
+              ...prev,
+              status: 'active',
+              emailVerified: true
+            }));
+            
+            return { success: true, statusUpdated: true, newStatus: 'active' };
+          } else {
+            // Email not verified, set to inactive
+            await updateDoc(doc(db, 'users', userId), {
+              status: 'inactive',
+              emailVerified: false,
+              lastModified: serverTimestamp()
+            });
+            
+            console.log('Set existing user to inactive (email not verified)');
+            
+            // Update local state
+            setCurrentUser(prev => ({
+              ...prev,
+              status: 'inactive',
+              emailVerified: false
+            }));
+            
+            return { success: true, statusUpdated: true, newStatus: 'inactive' };
+          }
+        } else if (userData.status === 'inactive' && auth.currentUser.emailVerified) {
+          // Update inactive user to active if email is verified
+          await updateDoc(doc(db, 'users', userId), {
+            status: 'active',
+            emailVerified: true,
+            lastModified: serverTimestamp()
+          });
+          
+          console.log('Updated existing inactive user to active');
+          
+          // Update local state
+          setCurrentUser(prev => ({
+            ...prev,
+            status: 'active',
+            emailVerified: true
+          }));
+          
+          return { success: true, statusUpdated: true, newStatus: 'active' };
+        } else {
+          console.log('User already has proper status:', userData.status);
+          return { success: true, statusUpdated: false, currentStatus: userData.status };
+        }
+      }
+      
+      return { success: false, error: 'User document not found' };
+    } catch (error) {
+      console.error('Error migrating existing user:', error);
+      throw error;
+    }
+  };
+
   // Function to refresh current user data
   const refreshCurrentUser = async () => {
     try {
@@ -978,6 +1566,7 @@ const resetPassword = async (email) => {
           profileImage: userData.profileImage || null,
           dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
           emailVerified: auth.currentUser.emailVerified,
+          status: userData.status,
           // Add data from main user document
           address: userData.address || '',
           fullName: userData.fullName || '',
@@ -1001,6 +1590,7 @@ const resetPassword = async (email) => {
     fetchAllUsers,
     fetchUserSubcollectionData,
     refreshCurrentUser,
+    migrateExistingUser,
     createStaffAccount,
     isAdmin,
     isTechOfficer,
@@ -1010,9 +1600,15 @@ const resetPassword = async (email) => {
     resetPassword,
     sendVerificationEmail,
     checkEmailVerification,
+    updateStatusAfterVerification,
     handleLogout,
     forcePasswordChange,
-    checkPasswordChangeRequired
+    checkPasswordChangeRequired,
+    // OTP functionality
+    requiresOTP,
+    otpSent,
+    sendOTP,
+    verifyOTP
   };
 
   return (

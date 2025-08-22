@@ -5,7 +5,7 @@ import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import "./Login.css";
 import { logActivity } from './utils/logger';
-import OTPVerification from './components/OTPVerification';
+
 
 export default function Login() {
   // Custom hook for screen size tracking
@@ -49,20 +49,15 @@ export default function Login() {
     signInWithGoogle, 
     signInWithFacebook, 
     resetPassword, 
-    checkPasswordChangeRequired,
-    requiresOTP,
-    sendOTP
+    checkPasswordChangeRequired
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const errorTimeoutRef = useRef();
   const [showPassword, setShowPassword] = useState(false);
-  const [showOtp, setShowOtp] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const otpCode = "1234";
 
   useEffect(() => {
     if (error) {
@@ -86,7 +81,21 @@ export default function Login() {
         } catch (logError) {
           console.error('Failed to log activity:', logError);
         }
-        setShowOtp(true);
+        // Check if user needs to change password after admin reset
+        try {
+          const result = await checkPasswordChangeRequired();
+          if (result.requiresChange) {
+            // Navigate to homepage which will show the password change modal
+            navigate('/Homepage');
+          } else {
+            // Normal navigation to homepage
+            navigate('/Homepage');
+          }
+        } catch (error) {
+          console.error('Error checking password change requirements:', error);
+          // Fallback to normal navigation
+          navigate('/Homepage');
+        }
       } else {
         // Handle specific error cases
         if (result.code === 'auth/account-inactive') {
@@ -113,10 +122,7 @@ export default function Login() {
     }
   };
   
-  const handleOtpVerify = () => {
-    setShowOtp(false);
-    navigate('/Homepage');
-  };
+
 
   const handleGoogleLogin = async (e) => {
     e.preventDefault();
@@ -126,10 +132,20 @@ export default function Login() {
     try {
       const result = await signInWithGoogle();
       if (result.success) {
-        if (result.user.emailVerified) {
-          setShowOtp(true);
-        } else {
-          setError('Please verify your email before logging in');
+        // Check if user needs to change password after admin reset
+        try {
+          const result = await checkPasswordChangeRequired();
+          if (result.requiresChange) {
+            // Navigate to homepage which will show the password change modal
+            navigate('/Homepage');
+          } else {
+            // Normal navigation to homepage
+            navigate('/Homepage');
+          }
+        } catch (error) {
+          console.error('Error checking password change requirements:', error);
+          // Fallback to normal navigation
+          navigate('/Homepage');
         }
       }
     } catch (error) {
@@ -148,7 +164,21 @@ export default function Login() {
     try {
       const result = await signInWithFacebook();
       if (result.success) {
-        setShowOtp(true);
+        // Check if user needs to change password after admin reset
+        try {
+          const result = await checkPasswordChangeRequired();
+          if (result.requiresChange) {
+            // Navigate to homepage which will show the password change modal
+            navigate('/Homepage');
+          } else {
+            // Normal navigation to homepage
+            navigate('/Homepage');
+          }
+        } catch (error) {
+          console.error('Error checking password change requirements:', error);
+          // Fallback to normal navigation
+          navigate('/Homepage');
+        }
       }
     } catch (error) {
       setError(error.message || 'Failed to login with Facebook');
@@ -305,12 +335,7 @@ export default function Login() {
         </div>
       </div>
 
-      <OTPVerification
-        open={showOtp}
-        code={otpCode}
-        onVerify={handleOtpVerify}
-        onClose={() => setShowOtp(false)}
-      />
+
     </div>
   );
 }

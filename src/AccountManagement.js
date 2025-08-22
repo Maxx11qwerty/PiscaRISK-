@@ -243,18 +243,31 @@ const AccountManagement = () => {
     }
   };
 
+  // Normalize role values from DB to display values
+  const formatRoleForDisplay = (role) => {
+    if (!role) return '';
+    const lower = String(role).toLowerCase();
+    if (lower === 'tech_officer' || lower === 'tech officer') return 'Tech Officer';
+    if (lower === 'admin') return 'Admin';
+    if (lower === 'fish_farmer' || lower === 'fish farmer') return 'Fish Farmer';
+    return role;
+  };
+
+  const isInactive = (status) => String(status || '').toLowerCase() === 'inactive';
+
   const filteredUsers = AccountUsers.filter(user => {
     if (!user || !user.username) return false;
     
     // Basic search term filter
+    const roleDisplay = formatRoleForDisplay(user.role);
     const matchesSearch = (
       user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (user.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      (roleDisplay.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
     
     // Role filter
-    const matchesRole = selectedRole === 'All Roles' || user.role === selectedRole;
+    const matchesRole = selectedRole === 'All Roles' || roleDisplay === selectedRole;
     
     // Status filter
     const matchesStatus = selectedStatus === 'All Status' || user.status === selectedStatus;
@@ -548,7 +561,7 @@ const AccountManagement = () => {
 
   // Function to activate Tech Officer accounts
   const handleActivateTechOfficer = async (user) => {
-    if (user.role !== 'Tech Officer') {
+    if (formatRoleForDisplay(user.role) !== 'Tech Officer') {
       setMessage({ text: 'Only Tech Officer accounts can be activated', type: 'error' });
       return;
     }
@@ -578,17 +591,17 @@ const AccountManagement = () => {
       
       console.log(`Activating Tech Officer ${user.username} in ${collectionName} collection`);
       
-      // Update the user status
+      // Admin activation: set adminActivated flag; keep status Inactive until email verification
       await updateDoc(userDocRef, {
-        status: 'Active',
+        adminActivated: true,
         lastModified: new Date().toISOString()
       });
       
-      setMessage({ text: `Tech Officer ${user.username} activated successfully!`, type: 'success' });
+      setMessage({ text: `Tech Officer ${user.username} activated. Note: user must verify their email to become Active.`, type: 'success' });
       
-      // Update local state
+      // Update local state (optimistic)
       setAccountUsers(prev => prev.map(u => 
-        u.id === user.id ? { ...u, status: 'Active' } : u
+        u.id === user.id ? { ...u, adminActivated: true, _justActivated: true } : u
       ));
       
       // Refresh users list
@@ -1852,9 +1865,15 @@ The user can then login with this new password. Old password will become invalid
               </div>
                         </div>
                         <div className="user-cell role-cell">
-                          <span className={`role-badge role-${user.role?.toLowerCase().replace(' ', '-')}`}>
-                            {user.role || 'No role'}
-                          </span>
+                          {(() => {
+                            const roleDisplayValue = formatRoleForDisplay(user.role);
+                            const roleClassValue = (roleDisplayValue || '').toLowerCase().replace(' ', '-');
+                            return (
+                              <span className={`role-badge role-${roleClassValue}`}>
+                                {roleDisplayValue || 'No role'}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div className="user-cell status-cell">
                           <div className="status-indicator">
@@ -1866,7 +1885,7 @@ The user can then login with this new password. Old password will become invalid
                           {user.contactNumber || 'No contact'}
                         </div>
                         <div className="user-cell actions-cell">
-                          {user.role === 'Tech Officer' && user.status === 'Inactive' ? (
+                          {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && !(user.adminActivated || user._justActivated) ? (
                             <button className="activate-tech-officer-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking activate button
                               closeAllDropdowns(); // Close all other dropdowns first
@@ -1875,7 +1894,8 @@ The user can then login with this new password. Old password will become invalid
                               <FaUserCheck className="action-icon" />
                               Activate
                             </button>
-                          ) : (
+                          ) : null}
+                          {String(user.status || '').toLowerCase() === 'active' && (
                             <button className="reset-password-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking reset password button
                               closeAllDropdowns(); // Close all other dropdowns first
@@ -1884,6 +1904,11 @@ The user can then login with this new password. Old password will become invalid
                               <MdOutlineLockReset className="action-icon" />
                               Reset Password
                             </button>
+                          )}
+                          {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
+                            <div className="password-reset-pending">
+                              <span className="pending-indicator">ℹ️ Activated by Admin. User must verify email to become Active.</span>
+                            </div>
                           )}
                           {user.resetStatus === 'pending_manual_completion' && (
                             <div className="password-reset-pending">
