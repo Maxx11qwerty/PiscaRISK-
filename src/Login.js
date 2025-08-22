@@ -62,6 +62,7 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const otpCode = "1234";
 
   useEffect(() => {
     if (error) {
@@ -74,7 +75,8 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
+    setError(''); // Clear previous errors
+    
     try {
       const result = await login(formData.usernameOrEmail, formData.password);
       
@@ -84,16 +86,9 @@ export default function Login() {
         } catch (logError) {
           console.error('Failed to log activity:', logError);
         }
-        
-        // Send OTP after successful login
-        const otpResult = await sendOTP(result.user.email);
-        if (otpResult.success) {
-          setIsOtpSent(true);
-          setShowOtp(true);
-        } else {
-          setError('Failed to send OTP. Please try again.');
-        }
+        setShowOtp(true);
       } else {
+        // Handle specific error cases
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
         } else {
@@ -118,25 +113,9 @@ export default function Login() {
     }
   };
   
-  const handleOtpVerify = async () => {
+  const handleOtpVerify = () => {
     setShowOtp(false);
-    setIsOtpSent(false);
-    
-    // Check if user needs to change password after admin reset
-    try {
-      const result = await checkPasswordChangeRequired();
-      if (result.requiresChange) {
-        // Navigate to homepage which will show the password change modal
-        navigate('/Homepage');
-      } else {
-        // Normal navigation to homepage
-        navigate('/Homepage');
-      }
-    } catch (error) {
-      console.error('Error checking password change requirements:', error);
-      // Fallback to normal navigation
-      navigate('/Homepage');
-    }
+    navigate('/Homepage');
   };
 
   const handleGoogleLogin = async (e) => {
@@ -327,11 +306,10 @@ export default function Login() {
       </div>
 
       <OTPVerification
-        onVerificationComplete={handleOtpVerify}
-        onCancel={() => {
-          setShowOtp(false);
-          setIsOtpSent(false);
-        }}
+        open={showOtp}
+        code={otpCode}
+        onVerify={handleOtpVerify}
+        onClose={() => setShowOtp(false)}
       />
     </div>
   );
