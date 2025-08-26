@@ -293,12 +293,18 @@ export const AuthProvider = ({ children }) => {
         const userDoc = querySnapshot.docs[0];
         userData = userDoc.data();
         
-        // Check if account is inactive or suspended
-        if (userData.status === 'inactive') {
-          return { 
-            success: false, 
-            message: "Your account is pending admin approval. Please wait for activation." 
-          };
+        // Check if account is inactive or suspended (case-insensitive)
+        const statusLower = String(userData.status || '').toLowerCase();
+        if (statusLower === 'inactive') {
+          // Allow Admin accounts to login regardless of status
+          if (userData.role === 'Admin' || userData.role === 'admin') {
+            console.log('Admin account with inactive status - allowing login');
+          } else {
+            return { 
+              success: false, 
+              message: "Your account is pending admin approval. Please wait for activation." 
+            };
+          }
         }
         
         if (userData.status === 'suspended') {
@@ -347,6 +353,23 @@ export const AuthProvider = ({ children }) => {
             message: "Your account has been suspended. Please contact support for assistance."
           };
         }
+        
+        // Allow Admin accounts to login regardless of status (except suspended)
+        const roleLower = String(userData.role || '').toLowerCase();
+        if (roleLower === 'admin') {
+          console.log('Admin account detected - allowing login regardless of status');
+          // Auto-activate admin accounts if they're inactive
+          const statusLower = String(userData.status || '').toLowerCase();
+          if (statusLower === 'inactive' && userCredential.user.emailVerified) {
+            console.log('Auto-activating inactive admin account');
+            const updateRef = doc(db, collectionName, userCredential.user.uid);
+            await updateDoc(updateRef, {
+              status: 'Active',
+              lastModified: serverTimestamp()
+            });
+            userData.status = 'Active';
+          }
+        }
 
         // For existing users, check if they need email verification
         if (!userCredential.user.emailVerified) {
@@ -359,34 +382,36 @@ export const AuthProvider = ({ children }) => {
         }
 
         // Handle status updates for existing users (auto-activate admins only)
-        if (userData.role === 'admin' && userData.status === 'inactive' && userCredential.user.emailVerified) {
-          console.log('Updating existing user status from inactive to active for:', userCredential.user.email);
+        const statusLower = String(userData.status || '').toLowerCase();
+        
+        if ((roleLower === 'admin') && statusLower === 'inactive' && userCredential.user.emailVerified) {
+          console.log('Updating existing user status from inactive to Active for:', userCredential.user.email);
           
           // Use the correct collection based on where we found the user
           const updateRef = doc(db, collectionName, userCredential.user.uid);
           await updateDoc(updateRef, {
-            status: 'active',
+            status: 'Active',
             emailVerified: true,
             lastModified: serverTimestamp()
           });
           
-          console.log('Successfully updated existing user status to active');
-          userData.status = 'active';
-        } else if (userData.status === 'active' && userCredential.user.emailVerified) {
+          console.log('Successfully updated existing user status to Active');
+          userData.status = 'Active';
+        } else if (statusLower === 'active' && userCredential.user.emailVerified) {
           // Existing active user with verified email - allow access
           console.log('Existing active user with verified email - allowing access');
-        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
+        } else if (!userData.status || statusLower === 'pending' || statusLower === 'new') {
           // Handle legacy users without proper status
           console.log('Legacy user without proper status - evaluating role for:', userCredential.user.email);
-          if (userData.role === 'admin' && userCredential.user.emailVerified) {
+          if (roleLower === 'admin' && userCredential.user.emailVerified) {
             const updateRef = doc(db, collectionName, userCredential.user.uid);
             await updateDoc(updateRef, {
-              status: 'active',
+              status: 'Active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            console.log('Successfully updated legacy admin user status to active');
-            userData.status = 'active';
+            console.log('Successfully updated legacy admin user status to Active');
+            userData.status = 'Active';
           } else {
             await signOut(auth);
             return {
@@ -889,13 +914,32 @@ export const AuthProvider = ({ children }) => {
         throw new Error("Admin doesn't have permission to create users. Check Firestore rules.");
       }
 
-      // Write Firestore document
-      console.log('Creating Firestore document for UID:', newUserUid);
-      await setDoc(doc(db, 'users', newUserUid), {
+      // Determine target collection, canonical role and status
+      const requestedRole = userData.role;
+      const canonicalStatus = String(userData.status || ((requestedRole === 'Admin' || requestedRole === 'Tech Officer') ? 'Inactive' : 'Active')).toLowerCase();
+      let targetCollection = 'users';
+      let canonicalRole = 'tech_officer';
+      let isMobileUser = false;
+
+      if (requestedRole === 'Admin') {
+        targetCollection = 'users';
+        canonicalRole = 'admin';
+      } else if (requestedRole === 'Tech Officer') {
+        targetCollection = 'users';
+        canonicalRole = 'tech_officer';
+      } else if (requestedRole === 'Fish Farmer') {
+        // Fish Farmers belong to mobileUsers
+        targetCollection = 'mobileUsers';
+        canonicalRole = 'fish_farmer';
+        isMobileUser = true;
+      }
+
+      console.log('Creating Firestore document for UID:', newUserUid, 'collection:', targetCollection, 'role:', canonicalRole, 'status:', canonicalStatus);
+      await setDoc(doc(db, targetCollection, newUserUid), {
         email: userData.email,
         username: userData.username,
-        role: userData.role === 'Admin' ? 'admin' : 'tech_officer',
-        status: (userData.role === 'Admin' || userData.role === 'Tech Officer') ? 'inactive' : (userData.status || 'active'),
+        role: canonicalRole,
+        status: canonicalStatus,
         emailVerified: false,
         createdAt: serverTimestamp(),
         createdBy: adminUID,
@@ -904,9 +948,9 @@ export const AuthProvider = ({ children }) => {
         dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
         fullName: userData.fullName || '',
         profileImage: userData.profileImage || null,
-        isMobileUser: false,
+        isMobileUser,
         // Admin activation flag for Tech Officers
-        adminActivated: (userData.role === 'Admin') ? true : false
+        adminActivated: (requestedRole === 'Tech Officer') ? false : (requestedRole === 'Admin' ? true : undefined)
       });
       console.log('Firestore document created successfully');
 
@@ -993,10 +1037,10 @@ export const AuthProvider = ({ children }) => {
           email: user.email,
           role: existingUserData.role,
           status: existingUserData.status,
-          isNewlyAddedAdmin: existingUserData.role === 'admin' && existingUserData.status === 'inactive'
+          isNewlyAddedAdmin: existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive'
         });
         
-        if (existingUserData.role === 'admin' && existingUserData.status === 'inactive') {
+        if (existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive') {
           isNewlyAddedAdmin = true;
         }
       }
@@ -1030,14 +1074,14 @@ export const AuthProvider = ({ children }) => {
             throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
           }
           
-          // If email is verified, update status to active
-          if (user.emailVerified && existingUserData.status === 'inactive') {
+          // If email is verified, update status to Active
+          if (user.emailVerified && String(existingUserData.status || '').toLowerCase() === 'inactive') {
             await updateDoc(doc(db, 'users', existingUserDoc.id), {
-              status: 'active',
+              status: 'Active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            existingUserData.status = 'active';
+            existingUserData.status = 'Active';
           }
           
           setCurrentUser({
@@ -1069,14 +1113,14 @@ export const AuthProvider = ({ children }) => {
           
           // Do NOT auto-activate Tech Officers; require admin activation.
           // Only admins may be auto-activated on verified email.
-          if (user.emailVerified && userData.status === 'inactive' && userData.role === 'admin') {
+          if (user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
             await updateDoc(doc(db, 'users', user.uid), {
-              status: 'active',
+              status: 'Active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            userData.status = 'active';
-          } else if (userData.status === 'inactive') {
+            userData.status = 'Active';
+          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
             await signOut(auth);
             throw new Error('Your account is pending admin approval. Please wait for activation.');
           }
@@ -1192,10 +1236,10 @@ export const AuthProvider = ({ children }) => {
           email: result.user.email,
           role: existingUserData.role,
           status: existingUserData.status,
-          isNewlyAddedAdmin: existingUserData.role === 'admin' && existingUserData.status === 'inactive'
+          isNewlyAddedAdmin: existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive'
         });
         
-        if (existingUserData.role === 'admin' && existingUserData.status === 'inactive') {
+        if (existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive') {
           isNewlyAddedAdmin = true;
         }
       }
@@ -1229,14 +1273,14 @@ export const AuthProvider = ({ children }) => {
             throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
           }
           
-          // If email is verified, update status to active
-          if (result.user.emailVerified && existingUserData.status === 'inactive') {
+          // If email is verified, update status to Active
+          if (result.user.emailVerified && String(existingUserData.status || '').toLowerCase() === 'inactive') {
             await updateDoc(doc(db, 'users', existingUserDoc.id), {
-              status: 'active',
+              status: 'Active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            existingUserData.status = 'active';
+            existingUserData.status = 'Active';
           }
           
           setCurrentUser({
@@ -1267,14 +1311,14 @@ export const AuthProvider = ({ children }) => {
           }
           
           // Do NOT auto-activate Tech Officers; require admin activation.
-          if (result.user.emailVerified && userData.status === 'inactive' && userData.role === 'admin') {
+          if (result.user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
             await updateDoc(doc(db, 'users', result.user.uid), {
-              status: 'active',
+              status: 'Active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            userData.status = 'active';
-          } else if (userData.status === 'inactive') {
+            userData.status = 'Active';
+          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
             await signOut(auth);
             throw new Error('Your account is pending admin approval. Please wait for activation.');
           }
@@ -1578,6 +1622,98 @@ const resetPassword = async (email) => {
     }
   }
 
+  // Function to manually activate Admin account
+  const activateAdminAccount = async (email) => {
+    try {
+      console.log('Attempting to activate Admin account for:', email);
+      
+      // Search in users collection first
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', email));
+      const emailSnapshot = await getDocs(emailQuery);
+      
+      if (!emailSnapshot.empty) {
+        const userDoc = emailSnapshot.docs[0];
+        const userData = userDoc.data();
+        
+        if (userData.role === 'Admin' || userData.role === 'admin') {
+          console.log('Found Admin account, updating status to Active');
+          
+          await updateDoc(doc(db, 'users', userDoc.id), {
+            status: 'Active',
+            lastModified: serverTimestamp()
+          });
+          
+          console.log('Admin account activated successfully');
+          return { success: true, message: 'Admin account activated successfully' };
+        } else {
+          return { success: false, message: 'Account is not an Admin account' };
+        }
+      }
+      
+      return { success: false, message: 'Admin account not found' };
+    } catch (error) {
+      console.error('Error activating Admin account:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Function to reset Admin password
+  const resetAdminPassword = async (email, newPassword) => {
+    try {
+      console.log('Attempting to reset Admin password for:', email);
+      
+      // Search in users collection first
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', email));
+      const emailSnapshot = await getDocs(emailQuery);
+      
+      if (!emailSnapshot.empty) {
+        const userDoc = emailSnapshot.docs[0];
+        const userData = userDoc.data();
+        
+        if (userData.role === 'Admin' || userData.role === 'admin') {
+          console.log('Found Admin account, resetting password...');
+          
+          // Use Firebase Admin SDK via Cloud Function to reset password
+          try {
+            const { getFunctions, httpsCallable } = await import('firebase/functions');
+            const { app } = await import('./firebase');
+            
+            const functions = getFunctions(app);
+            const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
+            
+            const result = await adminResetPassword({
+              userEmail: email,
+              newPassword: newPassword
+            });
+            
+            if (result.data.success) {
+              console.log('Admin password reset successfully');
+              return { success: true, message: 'Admin password reset successfully. New password: ' + newPassword };
+            } else {
+              throw new Error(result.data.error || 'Failed to reset password');
+            }
+          } catch (cloudError) {
+            console.warn('Cloud Function not available, using manual instructions');
+            return { 
+              success: false, 
+              message: `Password reset initiated. To complete: 1) Go to Firebase Console > Authentication > Users, 2) Find user with email: ${email}, 3) Click "Edit" and set password to: ${newPassword}, 4) Save changes.`,
+              manualPassword: newPassword
+            };
+          }
+        } else {
+          return { success: false, message: 'Account is not an Admin account' };
+        }
+      }
+      
+      return { success: false, message: 'Admin account not found' };
+    } catch (error) {
+      console.error('Error resetting Admin password:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
   const value = {
     currentUser,
     allUsers,
@@ -1604,6 +1740,8 @@ const resetPassword = async (email) => {
     handleLogout,
     forcePasswordChange,
     checkPasswordChangeRequired,
+    activateAdminAccount,
+    resetAdminPassword,
     // OTP functionality
     requiresOTP,
     otpSent,

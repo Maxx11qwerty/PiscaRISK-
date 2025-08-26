@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
-import { fetchAllUsers} from './services/accountService';
+import { fetchAllUsers, updateUserStatus } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, generateAccountCSVFilename, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
 
@@ -22,7 +22,7 @@ const AccountManagement = () => {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [AccountUsers, setAccountUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
-  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, resetPassword } = useContext(AuthContext);
+  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, resetPassword, activateAdminAccount, resetAdminPassword } = useContext(AuthContext);
   const [csvFilename, setCsvFilename] = useState('piscarisk_useraccounts.csv');
   const [errors, setErrors] = useState({ email: '' });
   const navigate = useNavigate();
@@ -253,7 +253,17 @@ const AccountManagement = () => {
     return role;
   };
 
-  const isInactive = (status) => String(status || '').toLowerCase() === 'inactive';
+  const isInactive = (status) => {
+    const result = String(status || '').toLowerCase() === 'inactive';
+    console.log('[isInactive] Status:', status, 'Result:', result);
+    return result;
+  };
+  const getStatusDisplay = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s === 'active') return 'Active';
+    if (s === 'inactive') return 'Inactive';
+    return status || 'Unknown';
+  };
 
   const filteredUsers = AccountUsers.filter(user => {
     if (!user || !user.username) return false;
@@ -270,7 +280,7 @@ const AccountManagement = () => {
     const matchesRole = selectedRole === 'All Roles' || roleDisplay === selectedRole;
     
     // Status filter
-    const matchesStatus = selectedStatus === 'All Status' || user.status === selectedStatus;
+    const matchesStatus = selectedStatus === 'All Status' || (String(user.status || '').toLowerCase() === String(selectedStatus || '').toLowerCase());
     
     // Custom filter type
     let matchesCustomFilter = true;
@@ -567,6 +577,20 @@ const AccountManagement = () => {
     }
 
     try {
+      // Reconcile with Firestore first
+      const live = await fetchLiveUserStatus(user.id);
+      if (live && typeof live.status === 'string') {
+        const liveStatus = live.status.toLowerCase();
+        const localStatus = String(user.status || '').toLowerCase();
+        if (liveStatus !== localStatus) {
+          setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: liveStatus } : u));
+          if (liveStatus === 'active') {
+            setMessage({ text: `User ${user.username} is already Active in Firestore. UI has been updated.`, type: 'info' });
+            return;
+          }
+        }
+      }
+
       setMessage({ text: `Activating Tech Officer ${user.username}...`, type: 'info' });
       
       // Update user status to Active in Firebase
@@ -610,6 +634,76 @@ const AccountManagement = () => {
     } catch (error) {
       console.error('Error activating Tech Officer:', error);
       setMessage({ text: `Error activating Tech Officer: ${error.message}`, type: 'error' });
+    }
+  };
+
+  // Function to activate Fish Farmer accounts
+  const handleActivateFishFarmer = async (user) => {
+    console.log('[handleActivateFishFarmer] Starting activation for:', user);
+    if (formatRoleForDisplay(user.role) !== 'Fish Farmer') {
+      setMessage({ text: 'Only Fish Farmer accounts can be activated here', type: 'error' });
+      return;
+    }
+
+    try {
+      // Reconcile with Firestore first
+      const live = await fetchLiveUserStatus(user.id);
+      if (live && typeof live.status === 'string') {
+        const liveStatus = live.status.toLowerCase();
+        const localStatus = String(user.status || '').toLowerCase();
+        if (liveStatus !== localStatus) {
+          setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: liveStatus } : u));
+          if (liveStatus === 'active') {
+            setMessage({ text: `User ${user.username} is already Active in Firestore. UI has been updated.`, type: 'info' });
+            return;
+          }
+        }
+      }
+
+      setMessage({ text: `Activating Fish Farmer ${user.username}...`, type: 'info' });
+      console.log('[Activate] User data:', { id: user.id, email: user.email, collection: user._collection });
+      console.log('[Activate] Calling updateUserStatus with userId:', user.id);
+      const result = await updateUserStatus(user.id, 'active', 'Fish Farmer', user._collection || 'mobileUsers', user.email);
+      console.log('[Activate] Result:', result);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update status');
+      }
+
+      setAccountUsers(prev => prev.map(u =>
+        u.id === user.id ? { ...u, status: 'active' } : u
+      ));
+
+      setMessage({ text: `Fish Farmer ${user.username} activated successfully`, type: 'success' });
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error activating Fish Farmer:', error);
+      setMessage({ text: `Error activating Fish Farmer: ${error.message}`, type: 'error' });
+    }
+  };
+
+  // Fetch live status from Firestore for reconciliation
+  const fetchLiveUserStatus = async (userId) => {
+    try {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      // try users first
+      let userDocRef = doc(db, 'users', userId);
+      let userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return { status: String(data.status || '').toLowerCase(), collection: 'users' };
+      }
+      // then mobileUsers
+      userDocRef = doc(db, 'mobileUsers', userId);
+      userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        return { status: String(data.status || '').toLowerCase(), collection: 'mobileUsers' };
+      }
+      return null;
+    } catch (e) {
+      console.warn('Failed to fetch live user status:', e);
+      return null;
     }
   };
 
@@ -1275,18 +1369,20 @@ The user can then login with this new password. Old password will become invalid
         language={language}
         setLanguage={setLanguage}
       />
-          <div className={`add-user-button-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} onClick={closeAllDropdowns}>
-            {/* Filter Button */}
-            <button 
-              className="filter-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowFilterDropdown(!showFilterDropdown);
-              }}
-            >
-              <FaFilter className="filter-icon" />
-              Filter
-            </button>
+                <div className={`add-user-button-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} onClick={closeAllDropdowns}>
+
+        
+        {/* Filter Button */}
+        <button 
+          className="filter-button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowFilterDropdown(!showFilterDropdown);
+          }}
+        >
+          <FaFilter className="filter-icon" />
+          Filter
+        </button>
             
             {showFilterDropdown && (
               <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
@@ -1878,7 +1974,7 @@ The user can then login with this new password. Old password will become invalid
                         <div className="user-cell status-cell">
                           <div className="status-indicator">
                             <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
-                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{user.status || 'Unknown'}</span>
+                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
                           </div>
                         </div>
                         <div className="user-cell contact-cell">
@@ -1890,6 +1986,17 @@ The user can then login with this new password. Old password will become invalid
                               e.stopPropagation(); // Prevent closing dropdowns when clicking activate button
                               closeAllDropdowns(); // Close all other dropdowns first
                               handleActivateTechOfficer(user);
+                            }}>
+                              <FaUserCheck className="action-icon" />
+                              Activate
+                            </button>
+                          ) : null}
+                          {formatRoleForDisplay(user.role) === 'Fish Farmer' && isInactive(user.status) ? (
+                            <button className="activate-tech-officer-btn" onClick={(e) => {
+                              console.log('[Activate Button] Clicked for user:', user);
+                              e.stopPropagation();
+                              closeAllDropdowns();
+                              handleActivateFishFarmer(user);
                             }}>
                               <FaUserCheck className="action-icon" />
                               Activate
