@@ -3,6 +3,7 @@ import { FaEye, FaEyeSlash,FaEnvelope,FaLock, FaGoogle, FaFacebook } from "react
 import { useNavigate } from "react-router-dom";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
+import EmailVerificationModal from './components/EmailVerificationModal';
 import "./Login.css";
 import { logActivity } from './utils/logger';
 
@@ -49,7 +50,11 @@ export default function Login() {
     signInWithGoogle, 
     signInWithFacebook, 
     resetPassword, 
-    checkPasswordChangeRequired
+    checkPasswordChangeRequired,
+    emailVerificationModal,
+    openEmailVerificationModal,
+    resendVerificationEmail,
+    closeEmailVerificationModal
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -97,6 +102,13 @@ export default function Login() {
           navigate('/Homepage');
         }
       } else {
+        if (result.code === 'show_verification_modal') {
+          // Show the verification modal
+          setError('');
+          // Open the email verification modal with the user's email and password
+          openEmailVerificationModal(result.email, result.password);
+          return;
+        }
         // Handle specific error cases
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
@@ -259,8 +271,8 @@ export default function Login() {
             </p>
             <div className="rounded-line"></div>
 
-            <div className={`login-error-message ${error ? 'visible' : ''}`}>
-              {error}
+            <div className={`login-error-message ${error && !(emailVerificationModal && emailVerificationModal.open) ? 'visible' : ''}`}>
+              {emailVerificationModal && emailVerificationModal.open ? '' : error}
             </div>
 
             {resetMessage && (
@@ -334,6 +346,22 @@ export default function Login() {
           </form>
         </div>
       </div>
+
+      {/* Render email verification modal when needed */}
+      {emailVerificationModal && emailVerificationModal.open && (
+        <EmailVerificationModal
+          email={emailVerificationModal.email}
+          onResend={() => {
+            // Trigger resend in context
+            resendVerificationEmail();
+          }}
+          onReturn={() => {
+            closeEmailVerificationModal();
+            // Redirect back to login page
+            setError('');
+          }}
+        />
+      )}
 
 
     </div>

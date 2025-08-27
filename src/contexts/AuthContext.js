@@ -43,6 +43,57 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const suppressAuthUpdatesRef = useRef(false);
 
+  // Email verification modal state
+  const [emailVerificationModal, setEmailVerificationModal] = useState({ 
+    open: false, 
+    email: '', 
+    autoSent: false,
+    tempPassword: '' // Store password temporarily for resend
+  });
+
+  const openEmailVerificationModal = (email, tempPassword = '') => {
+    setEmailVerificationModal(prev => ({ 
+      open: true, 
+      email, 
+      autoSent: prev.autoSent,
+      tempPassword 
+    }));
+  };
+
+  const closeEmailVerificationModal = () => {
+    setEmailVerificationModal({ open: false, email: '', autoSent: false, tempPassword: '' });
+  };
+
+  const resendVerificationEmail = async () => {
+    try {
+      if (!emailVerificationModal.email || !emailVerificationModal.tempPassword) {
+        throw new Error('No credentials available for verification');
+      }
+      
+      // Temporarily sign in to resend verification email
+      const userCredential = await signInWithEmailAndPassword(auth, emailVerificationModal.email, emailVerificationModal.tempPassword);
+      
+      try {
+        await sendEmailVerification(userCredential.user, {
+          url: window.location.origin + '/login',
+          handleCodeInApp: true
+        });
+        
+        // Sign out immediately after sending
+        await signOut(auth);
+        
+        return { success: true, message: 'Verification email sent!' };
+      } catch (verificationError) {
+        // Sign out even if verification fails
+        await signOut(auth);
+        throw verificationError;
+      }
+    } catch (e) {
+      console.error('Resend verification error:', e);
+      return { success: false, message: e.message };
+    }
+  };
+
   // OTP and authentication state
   const [requiresOTP, setRequiresOTP] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -293,20 +344,7 @@ export const AuthProvider = ({ children }) => {
         const userDoc = querySnapshot.docs[0];
         userData = userDoc.data();
         
-        // Check if account is inactive or suspended (case-insensitive)
-        const statusLower = String(userData.status || '').toLowerCase();
-        if (statusLower === 'inactive') {
-          // Allow Admin accounts to login regardless of status
-          if (userData.role === 'Admin' || userData.role === 'admin') {
-            console.log('Admin account with inactive status - allowing login');
-          } else {
-            return { 
-              success: false, 
-              message: "Your account is pending admin approval. Please wait for activation." 
-            };
-          }
-        }
-        
+        // Check if account is suspended (always block suspended accounts)
         if (userData.status === 'suspended') {
           return {
             success: false,
@@ -314,7 +352,69 @@ export const AuthProvider = ({ children }) => {
           };
         }
         
+        // Check adminActivated status first (this is the key fix)
+        const roleLower = String(userData.role || '').toLowerCase();
+        const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+        
+        if (!isAdminActivated) {
+          return { 
+            success: false, 
+            message: "Your account is pending admin approval. Please wait for activation." 
+          };
+        }
+        
+        // If adminActivated is true, allow the login to proceed to Firebase Auth
+        // We'll check email verification after successful Firebase Auth login
+        
         email = userData.email;
+      } else {
+        // If input is an email, we need to check adminActivated before proceeding
+        // Query both collections to find user with this email
+        const usersRef = collection(db, 'users');
+        const mobileUsersRef = collection(db, 'mobileUsers');
+        
+        // Check users collection first
+        let q = query(usersRef, where('email', '==', usernameOrEmail));
+        let querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          // Check mobileUsers collection
+          q = query(mobileUsersRef, where('email', '==', usernameOrEmail));
+          querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            collectionName = 'mobileUsers';
+          }
+        }
+        
+        if (querySnapshot.empty) {
+          return { success: false, message: "Invalid username or password" };
+        }
+
+        // Get the user data from the document
+        const userDoc = querySnapshot.docs[0];
+        userData = userDoc.data();
+        
+        // Check if account is suspended (always block suspended accounts)
+        if (userData.status === 'suspended') {
+          return {
+            success: false,
+            message: "Your account has been suspended. Please contact support for assistance."
+          };
+        }
+        
+        // Check adminActivated status first (this is the key fix)
+        const roleLower = String(userData.role || '').toLowerCase();
+        const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+        
+        if (!isAdminActivated) {
+          return { 
+            success: false, 
+            message: "Your account is pending admin approval. Please wait for activation." 
+          };
+        }
+        
+        // If adminActivated is true, allow the login to proceed to Firebase Auth
+        // We'll check email verification after successful Firebase Auth login
       }
 
       // Now login with the email
@@ -371,54 +471,52 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        // For existing users, check if they need email verification
+        // For existing users, if email not verified: trigger verification flow instead of plain error
         if (!userCredential.user.emailVerified) {
-          console.log('User email not verified, blocking access');
+          try {
+            await sendEmailVerification(userCredential.user, {
+              url: window.location.origin + '/login',
+              handleCodeInApp: true
+            });
+          } catch (e) {
+            console.warn('Auto-send verification failed:', e);
+          }
           await signOut(auth);
           return {
             success: false,
-            message: "Please verify your email before logging in. Check your inbox for a verification link."
+            code: 'show_verification_modal',
+            email: email,
+            password: password, // Pass password for resend functionality
+            message: ''
           };
         }
 
-        // Handle status updates for existing users (auto-activate admins only)
+        // Now handle status updates and auto-activation
         const statusLower = String(userData.status || '').toLowerCase();
         
-        if ((roleLower === 'admin') && statusLower === 'inactive' && userCredential.user.emailVerified) {
-          console.log('Updating existing user status from inactive to Active for:', userCredential.user.email);
-          
-          // Use the correct collection based on where we found the user
+        // Auto-activate admin accounts if they're inactive and email verified
+        if (roleLower === 'admin' && statusLower === 'inactive' && userCredential.user.emailVerified) {
+          console.log('Auto-activating inactive admin account');
           const updateRef = doc(db, collectionName, userCredential.user.uid);
           await updateDoc(updateRef, {
             status: 'Active',
             emailVerified: true,
             lastModified: serverTimestamp()
           });
-          
-          console.log('Successfully updated existing user status to Active');
           userData.status = 'Active';
-        } else if (statusLower === 'active' && userCredential.user.emailVerified) {
-          // Existing active user with verified email - allow access
-          console.log('Existing active user with verified email - allowing access');
-        } else if (!userData.status || statusLower === 'pending' || statusLower === 'new') {
-          // Handle legacy users without proper status
-          console.log('Legacy user without proper status - evaluating role for:', userCredential.user.email);
-          if (roleLower === 'admin' && userCredential.user.emailVerified) {
-            const updateRef = doc(db, collectionName, userCredential.user.uid);
-            await updateDoc(updateRef, {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            console.log('Successfully updated legacy admin user status to Active');
-            userData.status = 'Active';
-          } else {
-            await signOut(auth);
-            return {
-              success: false,
-              message: "Your account is pending admin approval. Please wait for activation."
-            };
-          }
+        }
+        
+        // For non-admin users with adminActivated=true and emailVerified=true, 
+        // update status to Active if it's not already
+        if (roleLower !== 'admin' && userData.adminActivated && userCredential.user.emailVerified && statusLower !== 'active') {
+          console.log('Auto-activating non-admin user with adminActivated=true and emailVerified=true');
+          const updateRef = doc(db, collectionName, userCredential.user.uid);
+          await updateDoc(updateRef, {
+            status: 'Active',
+            emailVerified: true,
+            lastModified: serverTimestamp()
+          });
+          userData.status = 'Active';
         }
       }
       
@@ -1720,6 +1818,11 @@ const resetPassword = async (email) => {
     signup,
     login,
     logout,
+    // email verification modal controls
+    emailVerificationModal,
+    openEmailVerificationModal,
+    resendVerificationEmail,
+    closeEmailVerificationModal,
     updateEmail,
     changePassword,
     updateProfileImage,

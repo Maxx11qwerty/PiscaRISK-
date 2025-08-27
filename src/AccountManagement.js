@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import './AccountManagement.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
@@ -334,15 +334,42 @@ const AccountManagement = () => {
   
   console.log('Sorted users result:', sortedUsers.map(u => ({ username: u.username, dateJoined: u.dateJoined })));
 
-  // Pagination (5 users per page)
-  const pageSize = 5;
+  // Pagination (exactly 5 users per page)
+  const PAGE_SIZE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const [showPageNumbers, setShowPageNumbers] = useState(false);
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth > 1600);
   const [selectedUsers, setSelectedUsers] = useState(new Set());
-  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / (isLargeScreen ? 5 : 4)));
-  const startIndex = (currentPage - 1) * (isLargeScreen ? 5 : 4);
-  const paginatedUsers = sortedUsers.slice(startIndex, startIndex + (isLargeScreen ? 5 : 4));
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
+  // Clamp current page if data changes
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (currentPage < 1) {
+      setCurrentPage(1);
+    }
+  }, [totalPages]);
+
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const paginatedUsers = useMemo(() => {
+    const slice = sortedUsers.slice(startIndex, startIndex + PAGE_SIZE);
+    return slice;
+  }, [sortedUsers, startIndex]);
+  console.log('[Pagination]', {
+    PAGE_SIZE,
+    currentPage,
+    totalUsers: sortedUsers.length,
+    totalPages,
+    startIndex,
+    endIndex: startIndex + PAGE_SIZE,
+    paginatedCount: paginatedUsers.length
+  });
+
+  // Debug actual DOM rows rendered to detect duplication
+  useEffect(() => {
+    const rows = document.querySelectorAll('.user-row');
+    console.log('[DOM] .user-row count:', rows.length, 'on page', currentPage);
+  }, [paginatedUsers, currentPage]);
 
   useEffect(() => {
     // Reset to first page when filters/search change
@@ -1931,11 +1958,16 @@ The user can then login with this new password. Old password will become invalid
         <div className="user-grid-container">
             {paginatedUsers.length > 0 ? (
             <>
-                <div className="user-table" onClick={closeAllDropdowns}>
-                  {paginatedUsers
+                <div className="user-table" key={`table-${currentPage}-${startIndex}`} onClick={closeAllDropdowns}>
+                  {paginatedUsers.slice(0, PAGE_SIZE)
                   .filter(user => user && user.username)
-                    .map((user, index) => (
-                      <div key={user.id} className="user-row">
+                    .map((user, index) => {
+                      const reactKey = `${user._collection || 'users'}:${user.id || user.email || user.username || index}`;
+                      if (!user.id && !user.email && !user.username) {
+                        console.warn('[UserRow] Missing unique identifier for key. Using index fallback.', { index, user });
+                      }
+                      return (
+                      <div key={reactKey} className="user-row">
                         <div className="user-cell checkbox-cell">
                           <input 
                             type="checkbox" 
@@ -2041,7 +2073,7 @@ The user can then login with this new password. Old password will become invalid
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );})}
                 </div>
                 <div className="pagination-bar" onClick={closeAllDropdowns}>
                   <button
