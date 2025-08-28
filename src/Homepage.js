@@ -319,13 +319,6 @@ const PiscaRiskHome = () => {
       content: (
         <RiskReportModal />
       ),
-      modalContent: (
-        <div className="coming-soon-content modal-view">
-          <div className="coming-soon-badge">Coming Soon</div>
-          <p>Risk analysis and emergency reports will be available here once the system is fully integrated.</p>
-          <p>This section will highlight alerts and potential threats detected in the fish pond environment and weather.</p>
-        </div>
-      )
     }
   ];
 

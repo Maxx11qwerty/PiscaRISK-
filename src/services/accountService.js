@@ -1,4 +1,5 @@
 import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebase';
 import { logActivity, logMessages } from '../utils/logger';
 
@@ -212,3 +213,121 @@ export const deleteUser = async (userId, role, username, currentUser) => {
     throw error;
   }
 }; 
+
+// Fetch live status (users -> mobileUsers)
+export const fetchLiveUserStatus = async (userId) => {
+  try {
+    let ref = doc(db, 'users', userId);
+    let snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return { status: String(data.status || '').toLowerCase(), collection: 'users' };
+    }
+    ref = doc(db, 'mobileUsers', userId);
+    snap = await getDoc(ref);
+    if (snap.exists()) {
+      const data = snap.data();
+      return { status: String(data.status || '').toLowerCase(), collection: 'mobileUsers' };
+    }
+    return null;
+  } catch (e) {
+    console.warn('Failed to fetch live user status:', e);
+    return null;
+  }
+};
+
+// Activate Tech Officer: set adminActivated=true on the located doc
+export const activateTechOfficer = async (userId) => {
+  try {
+    let ref = doc(db, 'users', userId);
+    let snap = await getDoc(ref);
+    let collectionName = 'users';
+    if (!snap.exists()) {
+      ref = doc(db, 'mobileUsers', userId);
+      snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error('User not found in any collection');
+      collectionName = 'mobileUsers';
+    }
+    await updateDoc(ref, {
+      adminActivated: true,
+      lastModified: new Date().toISOString()
+    });
+    return { success: true, collection: collectionName };
+  } catch (error) {
+    console.error('Error activating Tech Officer:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Activate Fish Farmer using shared status updater
+export const activateFishFarmer = async (userId, email, collectionHint) => {
+  return updateUserStatus(userId, 'Active', 'Fish Farmer', collectionHint || 'mobileUsers', email);
+};
+
+// Delete user: resolve collection, delete doc, then try deleting from Auth via Cloud Function
+export const deleteUserById = async (userId) => {
+  try {
+    let ref = doc(db, 'users', userId);
+    let snap = await getDoc(ref);
+    let collectionName = 'users';
+    if (!snap.exists()) {
+      ref = doc(db, 'mobileUsers', userId);
+      snap = await getDoc(ref);
+      if (!snap.exists()) {
+        return { success: false, error: 'User not found in any collection' };
+      }
+      collectionName = 'mobileUsers';
+    }
+    const data = snap.data();
+    await deleteDoc(ref);
+    try {
+      const functions = getFunctions();
+      const deleteAuthUser = httpsCallable(functions, 'deleteAuthUser');
+      if (data?.email) await deleteAuthUser({ email: data.email });
+    } catch (authErr) {
+      console.warn('Could not delete from Firebase Auth:', authErr?.message || authErr);
+    }
+    return { success: true, collection: collectionName };
+  } catch (error) {
+    console.error('Firebase delete error:', error);
+    return { success: false, error: error.message || 'Failed to delete user from database' };
+  }
+};
+
+// Cloud Functions helpers
+export const checkUserLoginStatus = async (userEmail) => {
+  try {
+    const functions = getFunctions();
+    const checkFn = httpsCallable(functions, 'checkUserLoginStatus');
+    const result = await checkFn({ userEmail });
+    return result.data;
+  } catch (error) {
+    console.warn('Could not check user login status:', error);
+    return { isLoggedIn: false, error: error.message };
+  }
+};
+
+export const forceLogoutUser = async (userEmail) => {
+  try {
+    const functions = getFunctions();
+    const forceFn = httpsCallable(functions, 'forceLogoutUser');
+    const result = await forceFn({ userEmail });
+    return result.data;
+  } catch (error) {
+    console.warn('Could not force logout user:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Reset password via Cloud Function, return {success, message}
+export const resetUserPassword = async (userEmail, newPassword) => {
+  try {
+    const functions = getFunctions();
+    const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
+    const result = await adminResetPassword({ userEmail, newPassword });
+    return result.data;
+  } catch (error) {
+    console.warn('adminResetPassword function failed:', error);
+    return { success: false, error: error.message };
+  }
+};

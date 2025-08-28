@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { logActivity, logMessages } from '../utils/logger';
+import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle } from 'react-icons/fa';
 import './PondCondition.css';
 
 const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [selectedPond, setSelectedPond] = useState(propSelectedPond || 1);
+  const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');
+  const [selectedFarmId, setSelectedFarmId] = useState('all');
+  const [pondOptions, setPondOptions] = useState([1,2,3,4,5,6,7,8,9,10]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [reportFilter, setReportFilter] = useState('today');
   const [customDate, setCustomDate] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [reports, setReports] = useState([]);
+  const [farms, setFarms] = useState([]);
+  const [reportsByFarm, setReportsByFarm] = useState({});
   const [loading, setLoading] = useState(true);
+  const [expandedFarms, setExpandedFarms] = useState(new Set());
 
   // Handle navigation state from notifications
   useEffect(() => {
@@ -35,83 +41,83 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     }
   }, [selectedPond, propSetSelectedPond]);
 
-  // Fetch reports from Firebase
+  // Load farms and their reports (grouped by farm)
   useEffect(() => {
     const fetchReports = async () => {
       try {
         setLoading(true);
-        const reportsRef = collection(db, 'reports');
-        
-        // Create base query with sorting
-        let q = query(
-          reportsRef,
-          orderBy('timestamp', 'desc')
-        );
-  
-        // Only add pond filter if a specific pond is selected (and not "all")
-        if (selectedPond && selectedPond !== 'all') {
-          // Convert numeric selection to "Fish Pond X" format
-          const pondFilter = `Fish Pond ${selectedPond}`;
-          console.log("Filtering for pond:", pondFilter);
-          
-          q = query(
-            reportsRef,
-            where('fish_pond', '==', pondFilter),
-            orderBy('timestamp', 'desc')
-          );
+        // Load farms
+        const farmsSnap = await getDocs(collection(db, 'farms'));
+        const farmItems = farmsSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        setFarms(farmItems);
+
+        // For each farm, load its reports subcollection
+        const nextReportsByFarm = {};
+        let totalReports = [];
+        for (const farm of farmItems) {
+          if (selectedFarmId !== 'all' && farm.id !== selectedFarmId) continue;
+          const farmReportsRef = collection(db, 'farms', farm.id, 'reports');
+
+          const rsnap = await getDocs(farmReportsRef);
+          const items = rsnap.docs.map(doc => {
+            const data = doc.data();
+
+            // Normalize timestamp to Date regardless of Firestore Timestamp or stored string/number
+            let normalizedDate = null;
+            if (data.timestamp?.toDate) {
+              normalizedDate = data.timestamp.toDate();
+            } else if (typeof data.timestamp === 'number') {
+              normalizedDate = new Date(data.timestamp);
+            } else if (typeof data.timestamp === 'string') {
+              const tryDate = new Date(data.timestamp);
+              normalizedDate = isNaN(tryDate.getTime()) ? new Date() : tryDate;
+            } else if (data.timestamp?.seconds) {
+              normalizedDate = new Date(data.timestamp.seconds * 1000);
+            } else {
+              normalizedDate = new Date();
+            }
+
+            return {
+              id: doc.id,
+              date: normalizedDate,
+              farm: data.farm,
+              pond: data.fish_pond,
+              fish: data.fish_condition,
+              water: data.water_condition,
+              weather: data.weather,
+              harvest: data.ready_for_harvest ? 'Ready' : 'Not Ready',
+              notes: data.additional_notes,
+              uid: data.uid,
+              submittedBy: data.submitted_by,
+              userRole: data.user_role,
+              contact: data.user_contact,
+              email: data.user_email,
+              status: data.status,
+              source: data.source || 'web'
+            };
+          });
+
+          nextReportsByFarm[farm.id] = { farm, reports: items };
+          totalReports = totalReports.concat(items.map(r => ({ ...r, __farmId: farm.id })));
         }
-  
-        const querySnapshot = await getDocs(q);
-        const fetchedReports = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          
-          // Note: Report logging should happen when reports are submitted, not when fetched
-          // Logging here creates duplicate entries with wrong timestamps
-          
-          return {
-            id: doc.id,
-            date: data.timestamp.toDate(),
-            fish: data.fish_condition,
-            water: data.water_condition,
-            weather: data.weather,
-            harvest: data.ready_for_harvest ? 'Ready' : 'Not Ready',
-            notes: data.additional_notes,
-            uid: data.uid,
-            pond: data.fish_pond,
-            submittedBy: data.submitted_by,
-            source: data.source || 'web'
-          };
-        });
-  
-        setReports(fetchedReports);
-        
-        // Debug output
-        console.log(`Fetched ${fetchedReports.length} reports for pond ${selectedPond}`);
-        if (fetchedReports.length > 0) {
-          console.log("First report pond value:", fetchedReports[0].pond);
-        }
+
+        setReportsByFarm(nextReportsByFarm);
+        setReports(totalReports);
       } catch (error) {
         console.error('Error fetching reports:', error);
         logActivity('error', logMessages.error.database(`Error fetching reports: ${error.message}`), 'System');
-        
-        // Handle specific error for missing index
-        if (error.code === 'failed-precondition') {
-          console.error('Missing Firestore index. Please create a composite index for fish_pond and timestamp');
-          alert('Please create a Firestore index for fish_pond and timestamp to enable pond filtering');
-        }
       } finally {
         setLoading(false);
       }
     };
   
     fetchReports();
-  }, [selectedPond]);
-  
+  }, [selectedPond, selectedFarmId]);
 
   // Get and sort reports
   const allReports = [...reports].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Filter reports based on selected filter
+  // Filter reports based on selected filter and pond selection
   const getFilteredReports = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -120,14 +126,16 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
+    const pondFilterVal = (selectedPond && selectedPond !== 'all') ? `Fish Pond ${selectedPond}` : null;
+
     switch(reportFilter) {
       case 'today':
         return allReports.filter(report => 
-          new Date(report.date).toDateString() === today.toDateString()
+          new Date(report.date).toDateString() === today.toDateString() && (!pondFilterVal || report.pond === pondFilterVal)
         );
       case 'last7days':
         return allReports.filter(report => 
-          new Date(report.date) >= sevenDaysAgo
+          new Date(report.date) >= sevenDaysAgo && (!pondFilterVal || report.pond === pondFilterVal)
         );
       case 'custom':
         if (!customDate) return [];
@@ -137,225 +145,291 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         nextDay.setDate(nextDay.getDate() + 1);
         return allReports.filter(report => {
           const reportDate = new Date(report.date);
-          return reportDate >= selectedCustomDate && reportDate < nextDay;
+          return reportDate >= selectedCustomDate && reportDate < nextDay && (!pondFilterVal || report.pond === pondFilterVal);
         });
       default:
-        return allReports;
+        return allReports.filter(report => (!pondFilterVal || report.pond === pondFilterVal));
     }
   };
 
   const filteredReports = getFilteredReports();
 
-  // Group reports by date
-  const groupReportsByDate = (reports) => {
-    const grouped = {};
-    reports.forEach(report => {
-      const dateStr = new Date(report.date).toLocaleDateString();
-      if (!grouped[dateStr]) {
-        grouped[dateStr] = [];
-      }
-      grouped[dateStr].push(report);
-    });
-    return grouped;
+  const toggleExpanded = (farmId) => {
+    const newExpanded = new Set(expandedFarms);
+    if (newExpanded.has(farmId)) {
+      newExpanded.delete(farmId);
+    } else {
+      newExpanded.add(farmId);
+    }
+    setExpandedFarms(newExpanded);
   };
 
-  const groupedReports = groupReportsByDate(filteredReports);
-  const groupedDates = Object.keys(groupedReports).sort((a, b) => new Date(b) - new Date(a));
+  const getConditionIcon = (condition) => {
+    if (condition?.toLowerCase().includes('good') || condition?.toLowerCase().includes('healthy')) {
+      return <span className="condition-icon healthy">✓</span>;
+    } else if (condition?.toLowerCase().includes('fair') || condition?.toLowerCase().includes('moderate')) {
+      return <span className="condition-icon moderate">~</span>;
+    } else if (condition?.toLowerCase().includes('poor') || condition?.toLowerCase().includes('unhealthy')) {
+      return <span className="condition-icon poor">⚠</span>;
+    }
+    return <span className="condition-icon">-</span>;
+  };
 
-  // Get current report (most recent)
-  const currentReport = allReports[0] || {};
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Unknown';
+    
+    try {
+      if (timestamp.toDate) {
+        return timestamp.toDate().toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } else if (timestamp instanceof Date) {
+        return timestamp.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } else {
+        return new Date(timestamp).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
 
   if (loading) {
-    return <div className="loading-reports">Loading reports...</div>;
+    return (
+      <div className="pond-condition-container">
+        <div className="loading-state">
+          <FaExclamationTriangle className="loading-icon" />
+          <h3>Loading Pond Reports...</h3>
+          <p>Fetching latest data from the system</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className={`pond-condition-container ${isModal ? 'modal-view' : ''}`}>
       <div className="pond-report-header">
-        <h3>{isModal ? 'Detailed Pond Report' : 'Latest Pond Reports'}</h3>
-        <div className="header-controls">
-          <div className="date-selector" onClick={() => setShowDatePicker(!showDatePicker)}>
-            {selectedDate.toLocaleDateString()}
+        <div className="header-content">
+          <FaWater className="header-icon" />
+          <h2>Pond Condition Reports</h2>
+          <p className="header-subtitle">Comprehensive overview of fishpond conditions and reports</p>
+        </div>
+        
+        <div className="report-summary">
+          <div className="summary-item">
+            <FaFish className="summary-icon" />
+            <span className="summary-count">{allReports.length}</span>
+            <span className="summary-label">Total Reports</span>
           </div>
         </div>
       </div>
 
-      <div className="dashboard-grid">
-          {/* Pond Selector Card */}
-        <div className="pond-selector-card">
-          <div className="condition-label">Select Pond</div>
-          <div className="pond-options-grid">
-            {/* Numeric pond options */}
-            {[1,2,3,4,5,6,7,8,9,10].map(num => (
-              <div 
-                key={num} 
-                className={`pond-option ${num === selectedPond ? 'active' : ''}`}
-                onClick={() => setSelectedPond(num)}
-              >
-                {num}
-              </div>
+      <div className="filter-section">
+        <div className="filter-group">
+          <label>Farm:</label>
+          <select 
+            value={selectedFarmId} 
+            onChange={(e) => setSelectedFarmId(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">All Farms</option>
+            {farms.map(f => (
+              <option key={f.id} value={f.id}>{f.name || 'Unnamed Farm'}{f.location ? ` — ${f.location}` : ''}</option>
             ))}
-          </div>
+          </select>
         </div>
-
-        {/* Current Report Summary */}
-        <div className="current-report-summary">
-          <div className="condition-label">Current Report Summary</div>
-          <div className="summary-grid">
-            <div className="summary-item">
-              <span className="summary-label">Fish Condition</span>
-              <span className={`summary-value ${currentReport.fish ? currentReport.fish.toLowerCase().replace(' ', '-') : 'no-data'}`}>
-                {currentReport.fish || 'No data available'}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Water Condition</span>
-              <span className={`summary-value ${currentReport.water ? currentReport.water.toLowerCase().replace(' ', '-') : 'no-data'}`}>
-                {currentReport.water || 'No data available'}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Weather</span>
-              <span className={`summary-value ${currentReport.weather ? currentReport.weather.toLowerCase().replace(' ', '-') : 'no-data'}`}>
-                {currentReport.weather || 'No data available'}
-              </span>
-            </div>
-            <div className="summary-item">
-              <span className="summary-label">Harvest Status</span>
-              <span className={`summary-value ${currentReport.harvest ? currentReport.harvest.toLowerCase() : 'no-data'}`}>
-                {currentReport.harvest || 'No data available'}
-              </span>
-            </div>
-          </div>
+        
+        <div className="filter-group">
+          <label>Pond:</label>
+          <select 
+            value={selectedPond} 
+            onChange={(e) => setSelectedPond(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            className="filter-select"
+          >
+            <option value="all">All Ponds</option>
+            {pondOptions.map(n => (
+              <option key={n} value={n}>{`Pond ${n}`}</option>
+            ))}
+          </select>
         </div>
-
-        {/* Notes */}
-        <div className="notes-card">
-          <div className="condition-label">Additional Notes</div>
-          <div className="notes-content">
-            {currentReport.notes || "No notes available"}
-          </div>
+        
+        <div className="filter-group">
+          <label>Date Range:</label>
+          <select 
+            value={reportFilter} 
+            onChange={(e) => setReportFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="today">Today</option>
+            <option value="last7days">Last 7 Days</option>
+            <option value="custom">Custom Date</option>
+          </select>
         </div>
+        
+        {reportFilter === 'custom' && (
+          <div className="filter-group">
+            <label>Select Date:</label>
+            <input 
+              type="date" 
+              value={customDate} 
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="filter-select"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Report History */}
-      <div className="pond-history">
-        <div className="history-header">
-          <h4>Report History for Pond {selectedPond}</h4>
-          <div className="filter-container">
-            <div className="report-filter-new">
-              <div className="filter-dropdown-new">
-                <button 
-                  className="filter-toggle-new" 
-                  onClick={() => setIsDropdownOpen(prev => !prev)}
-                >
-                  Filter Reports
-                  <span className="dropdown-arrow-new">▼</span>
-                </button>
+      <div className="farm-cards-list">
+        {farms.length === 0 ? (
+          <div className="no-reports">
+            <FaExclamationTriangle className="no-reports-icon" />
+            <h3>No Farms Found</h3>
+            <p>No farms match the current filter criteria.</p>
+          </div>
+        ) : (
+          farms.map((farm) => {
+            const group = reportsByFarm[farm.id];
+            const farmReports = group?.reports || [];
+            
+            // Apply filters to farm reports
+            const visibleReports = (() => {
+              const today = new Date(); today.setHours(0,0,0,0);
+              const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); sevenDaysAgo.setHours(0,0,0,0);
+              const pondFilterVal = (selectedPond && selectedPond !== 'all') ? `Fish Pond ${selectedPond}` : null;
+              
+              switch (reportFilter) {
+                case 'today':
+                  return farmReports.filter(r => new Date(r.date).toDateString() === today.toDateString() && (!pondFilterVal || r.pond === pondFilterVal));
+                case 'last7days':
+                  return farmReports.filter(r => new Date(r.date) >= sevenDaysAgo && (!pondFilterVal || r.pond === pondFilterVal));
+                case 'custom':
+                  if (!customDate) return [];
+                  const d0 = new Date(customDate); d0.setHours(0,0,0,0);
+                  const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+                  return farmReports.filter(r => new Date(r.date) >= d0 && new Date(r.date) < d1 && (!pondFilterVal || r.pond === pondFilterVal));
+                default:
+                  return pondFilterVal ? farmReports.filter(r => r.pond === pondFilterVal) : farmReports;
+              }
+            })();
 
-                {isDropdownOpen && (
-                  <div className="filter-options-new">
-                    <label className="filter-option-new">
-                      <input 
-                        type="radio" 
-                        name="reportFilter" 
-                        value="today" 
-                        checked={reportFilter === 'today'}
-                        onChange={() => setReportFilter('today')}
-                      />
-                      <span>Today's Reports</span>
-                    </label>
-                    <label className="filter-option-new">
-                      <input 
-                        type="radio" 
-                        name="reportFilter" 
-                        value="last7days" 
-                        checked={reportFilter === 'last7days'}
-                        onChange={() => setReportFilter('last7days')}
-                      />
-                      <span>Last 7 Days</span>
-                    </label>
-                    <label className="filter-option-new">
-                      <input 
-                        type="radio" 
-                        name="reportFilter" 
-                        value="custom" 
-                        checked={reportFilter === 'custom'}
-                        onChange={() => setReportFilter('custom')}
-                      />
-                      <span>Custom Date</span>
-                      {reportFilter === 'custom' && (
-                        <div className="custom-date-picker-new">
-                          <input 
-                            type="date" 
-                            value={customDate}
-                            onChange={(e) => setCustomDate(e.target.value)}
-                          />
+            if (visibleReports.length === 0 && selectedFarmId !== 'all') return null;
+
+            return (
+              <div key={farm.id} className="farm-report-card">
+                <div className={`farm-summary-view ${expandedFarms.has(farm.id) ? 'expanded' : ''}`} onClick={() => toggleExpanded(farm.id)}>
+                  <div className="summary-content">
+                    <div className="summary-title">
+                      <h3 className="farm-title">
+                        {farm.name || 'Unnamed Farm'} 
+                        <span className="farm-location">{farm.location ? ` — ${farm.location}` : ''}</span>
+                      </h3>
+                      <div className="summary-meta">
+                        <span className="report-count">{visibleReports.length} report(s)</span>
+                        <span className="timestamp">
+                          <FaCalendarAlt className="time-icon" />
+                          Latest: {visibleReports.length > 0 ? formatTimestamp(visibleReports[0].date) : 'No reports'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="summary-indicators">
+                      <div className="expand-icon">
+                        {expandedFarms.has(farm.id) ? <FaChevronDown /> : <FaChevronRight />}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {expandedFarms.has(farm.id) && (
+                  <div className="farm-detail-view">
+                    {visibleReports.length === 0 ? (
+                      <div className="no-reports">No reports for selected filters</div>
+                    ) : (
+                      visibleReports.map((report) => (
+                        <div key={report.id} className="report-detail-card">
+                          <div className="report-header">
+                            <div className="report-header-left">
+                              <span className="pond-badge">{report.pond || 'Unknown Pond'}</span>
+                              <span className={`status-badge ${String(report.status||'').toLowerCase().replace(/\s+/g,'-')}`}>{report.status || '—'}</span>
+                              <span className={`harvest-badge ${report.harvest === 'Ready' ? 'ready' : 'not-ready'}`}>{report.harvest === 'Ready' ? 'Harvest Ready' : 'Not Ready'}</span>
+                            </div>
+                            <span className="report-date">{formatTimestamp(report.date)}</span>
+                          </div>
+                          
+                          <div className="report-content">
+                            <div className="condition-grid">
+                              <div className="condition-item">
+                                <span className="condition-label">Fish Condition</span>
+                                <span className="condition-value">
+                                  {getConditionIcon(report.fish)}
+                                  {report.fish || '—'}
+                                </span>
+                              </div>
+                              <div className="condition-item">
+                                <span className="condition-label">Water Condition</span>
+                                <span className="condition-value">
+                                  {getConditionIcon(report.water)}
+                                  {report.water || '—'}
+                                </span>
+                              </div>
+                              <div className="condition-item">
+                                <span className="condition-label">Weather</span>
+                                <span className="condition-value">
+                                  <FaCloud className="weather-icon" />
+                                  {report.weather || '—'}
+                                </span>
+                              </div>
+                              <div className="condition-item">
+                                <span className="condition-label">Harvest</span>
+                                <span className="condition-value">
+                                  {report.harvest === 'Ready' ? 'Yes' : 'No'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="report-meta">
+                              <div className="meta-item">
+                                <span className="meta-label">Submitted by</span>
+                                <span className="meta-value">{report.submittedBy || '—'}{report.userRole ? ` (${report.userRole})` : ''}</span>
+                              </div>
+                              {report.contact || report.email ? (
+                                <div className="meta-item">
+                                  <span className="meta-label">Contact</span>
+                                  <span className="meta-value">{[report.contact, report.email].filter(Boolean).join(' | ') || '—'}</span>
+                                </div>
+                              ) : null}
+                            </div>
+                            
+                            {report.notes && (
+                              <div className="report-notes">
+                                <span className="notes-label">Additional Notes:</span>
+                                <p className="notes-content">{report.notes}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </label>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="history-list">
-          {groupedDates.length > 0 ? (
-            groupedDates.map((dateStr) => (
-              <div key={dateStr} className="date-group">
-                <div className="date-header">
-                  {new Date(dateStr).toLocaleDateString([], { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </div>
-                {groupedReports[dateStr].map((report, index) => (
-                  <div key={index} className="history-item">
-                    <span className="time">
-                      {new Date(report.date).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                    <span className={`status ${report.fish.toLowerCase().replace(' ', '-')}`}>
-                      Fish: {report.fish}
-                    </span>
-                    <span className={`status ${report.water.toLowerCase().replace(' ', '-')}`}>
-                      Water: {report.water}
-                    </span>
-                    {report.weather && (
-                      <span className={`status ${report.weather.toLowerCase().replace(' ', '-')}`}>
-                        Weather: {report.weather}
-                      </span>
-                    )}
-                    {report.harvest && (
-                      <span className={`status ${report.harvest.toLowerCase()}`}>
-                        Harvest: {report.harvest}
-                      </span>
-                    )}
-                    {report.notes && (
-                      <div className="report-notes">
-                        <span className="notes-content">{report.notes}</span>
-                      </div>
-                    )}
-                    {report.submittedBy && (
-                      <div className="report-submitter">
-                        <span className="submitter-label">Submitted by: </span>
-                        <span className="submitter-name">{report.submittedBy}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))
-          ) : (
-            <div className="no-reports">No reports available for the selected filter</div>
-          )}
-        </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
-import { fetchAllUsers, updateUserStatus } from './services/accountService';
+import { fetchAllUsers, updateUserStatus, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, resetUserPassword as serviceResetUserPassword } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, generateAccountCSVFilename, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
 
@@ -605,7 +605,7 @@ const AccountManagement = () => {
 
     try {
       // Reconcile with Firestore first
-      const live = await fetchLiveUserStatus(user.id);
+      const live = await serviceFetchLiveUserStatus(user.id);
       if (live && typeof live.status === 'string') {
         const liveStatus = live.status.toLowerCase();
         const localStatus = String(user.status || '').toLowerCase();
@@ -619,34 +619,8 @@ const AccountManagement = () => {
       }
 
       setMessage({ text: `Activating Tech Officer ${user.username}...`, type: 'info' });
-      
-      // Update user status to Active in Firebase
-      const { updateDoc, doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
-      
-      // Determine which collection the user belongs to
-      let userDocRef = doc(db, 'users', user.id);
-      let userDoc = await getDoc(userDocRef);
-      let collectionName = 'users';
-      
-      if (!userDoc.exists()) {
-        // Check mobileUsers collection
-        userDocRef = doc(db, 'mobileUsers', user.id);
-        userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          collectionName = 'mobileUsers';
-        } else {
-          throw new Error('User not found in any collection');
-        }
-      }
-      
-      console.log(`Activating Tech Officer ${user.username} in ${collectionName} collection`);
-      
-      // Admin activation: set adminActivated flag; keep status Inactive until email verification
-      await updateDoc(userDocRef, {
-        adminActivated: true,
-        lastModified: new Date().toISOString()
-      });
+      const result = await serviceActivateTechOfficer(user.id);
+      if (!result.success) throw new Error(result.error || 'Failed to activate Tech Officer');
       
       setMessage({ text: `Tech Officer ${user.username} activated. Note: user must verify their email to become Active.`, type: 'success' });
       
@@ -674,7 +648,7 @@ const AccountManagement = () => {
 
     try {
       // Reconcile with Firestore first
-      const live = await fetchLiveUserStatus(user.id);
+      const live = await serviceFetchLiveUserStatus(user.id);
       if (live && typeof live.status === 'string') {
         const liveStatus = live.status.toLowerCase();
         const localStatus = String(user.status || '').toLowerCase();
@@ -689,8 +663,8 @@ const AccountManagement = () => {
 
       setMessage({ text: `Activating Fish Farmer ${user.username}...`, type: 'info' });
       console.log('[Activate] User data:', { id: user.id, email: user.email, collection: user._collection });
-      console.log('[Activate] Calling updateUserStatus with userId:', user.id);
-      const result = await updateUserStatus(user.id, 'active', 'Fish Farmer', user._collection || 'mobileUsers', user.email);
+      console.log('[Activate] Calling serviceActivateFishFarmer with userId:', user.id);
+      const result = await serviceActivateFishFarmer(user.id, user.email, user._collection || 'mobileUsers');
       console.log('[Activate] Result:', result);
       if (!result.success) {
         throw new Error(result.error || 'Failed to update status');
@@ -781,75 +755,13 @@ const AccountManagement = () => {
 
   // Function to delete user from Firebase
   const deleteUserFromFirebase = async (userId) => {
-    try {
-      // Import Firebase functions
-      const { deleteDoc, doc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
-      
-      // First, check which collection the user belongs to
-      let userDocRef = doc(db, 'users', userId);
-      let userDoc = await getDoc(userDocRef);
-      
-      // If not in 'users' collection, check 'mobileUsers'
-      if (!userDoc.exists()) {
-        userDocRef = doc(db, 'mobileUsers', userId);
-        userDoc = await getDoc(userDocRef);
-        
-        if (!userDoc.exists()) {
-          return { 
-            success: false, 
-            error: 'User not found in any collection' 
-          };
-        }
-      }
-      
-      // Get user data to determine collection and email for Auth deletion
-      const userData = userDoc.data();
-      const collectionName = userData.isMobileUser ? 'mobileUsers' : 'users';
-      
-      // Delete user document from the correct collection
-      const finalUserDocRef = doc(db, collectionName, userId);
-      await deleteDoc(finalUserDocRef);
-      
-      console.log(`User ${userId} deleted successfully from ${collectionName} collection`);
-      
-      // Try to delete from Firebase Auth using Cloud Function
-      if (userData.email) {
-        try {
-          await deleteUserFromAuth(userData.email);
-          console.log(`Firebase Auth user with email ${userData.email} deleted successfully`);
-        } catch (authError) {
-          console.warn('Could not delete from Firebase Auth:', authError.message);
-          // This is not critical - the Firestore document deletion is the main goal
-        }
-      }
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Firebase delete error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Failed to delete user from database' 
-      };
-    }
+    return serviceDeleteUserById(userId);
   };
 
   // Function to delete user from Firebase Auth via Cloud Function
   const deleteUserFromAuth = async (userEmail) => {
-    try {
-      // Import Firebase Functions
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('./firebase');
-      
-      const functions = getFunctions(app);
-      const deleteAuthUser = httpsCallable(functions, 'deleteAuthUser');
-      
-      const result = await deleteAuthUser({ email: userEmail });
-      return result.data;
-    } catch (error) {
-      console.error('Error calling deleteAuthUser function:', error);
-      throw error;
-    }
+    // Kept for backward compatibility if referenced elsewhere
+    return { success: true };
   };
 
   // Bulk delete selected users
@@ -945,11 +857,7 @@ const AccountManagement = () => {
 
   const accountCSVData = prepareAccountCSVData(AccountUsers);
 
-  const handleCSVExportClick = () => {
-    const filename = generateAccountCSVFilename();
-    setCsvFilename(filename);
-    handleAccountCSVExport(currentUser);
-  };
+
 
   // Sidebar export handler for this page
   const handleSidebarExport = (format) => {
@@ -971,55 +879,7 @@ const AccountManagement = () => {
     }
   };
 
-  // Function to debug user status across collections
-  const debugUserStatus = async (username) => {
-    try {
-      const { getDocs, query, where, collection } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
-      
-      console.log(`=== Debugging user status for: ${username} ===`);
-      
-      // Check users collection
-      const usersRef = collection(db, 'users');
-      let q = query(usersRef, where('username', '==', username));
-      let querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        console.log('Found in users collection:', {
-          id: userDoc.id,
-          username: userData.username,
-          email: userData.email,
-          role: userData.role,
-          status: userData.status,
-          collection: 'users'
-        });
-      }
-      
-      // Check mobileUsers collection
-      const mobileUsersRef = collection(db, 'mobileUsers');
-      q = query(mobileUsersRef, where('username', '==', username));
-      querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-        console.log('Found in mobileUsers collection:', {
-          id: userDoc.id,
-          username: userData.username,
-          email: userData.email,
-          role: userData.role,
-          status: userData.status,
-          collection: 'mobileUsers'
-        });
-      }
-      
-      console.log('=== End Debug ===');
-    } catch (error) {
-      console.error('Error debugging user status:', error);
-    }
-  };
+
 
   const isPasswordValid = (password) => {
     const hasUppercase = /[A-Z]/.test(password);
@@ -1080,26 +940,6 @@ const AccountManagement = () => {
     } catch (error) {
       console.warn('Could not check user login status:', error);
       return { isLoggedIn: false, error: error.message };
-    }
-  };
-
-  // Function to force logout user after password reset
-  const forceLogoutUser = async (userEmail) => {
-    try {
-      // Import Firebase Functions
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('./firebase');
-      
-      const functions = getFunctions(app);
-      const forceLogoutUserFunction = httpsCallable(functions, 'forceLogoutUser');
-      
-      // Call the Cloud Function to force logout user
-      const result = await forceLogoutUserFunction({ userEmail });
-      return result.data;
-    } catch (error) {
-      console.warn('Could not force logout user:', error);
-      // This is not critical - the password reset is the main goal
-      return { success: false, error: error.message };
     }
   };
 
