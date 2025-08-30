@@ -8,6 +8,8 @@
     margin-bottom: 15px;
     margin-left: 1rem;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    /* Ensure container doesn't show content during transitions */
+    background: #f0f0f0;
   }
   
   .weather-display-background {
@@ -18,9 +20,14 @@
     height: 100%;
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     opacity: 0.9;
-    transition: opacity 0.3s ease;
+    transition: all 0.3s ease-in-out;
     z-index: 1;
+    /* Prevent background image flickering */
+    will-change: background-image;
+    transform: translateZ(0);
+    backface-visibility: hidden;
   }
   
   .weather-display-content {
@@ -170,6 +177,8 @@
   .weather-display-container.night .weather-display-background {
     filter: brightness(0.7) contrast(1.2) hue-rotate(5deg);
   }
+
+
   
   /* Modal-specific adjustments */
   .weather-main-modal {

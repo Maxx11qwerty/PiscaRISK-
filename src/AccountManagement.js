@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useTranslation } from 'react-i18next'; // Add this import
 import './AccountManagement.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
@@ -10,11 +11,12 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
-import { fetchAllUsers, updateUserStatus, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, resetUserPassword as serviceResetUserPassword } from './services/accountService';
-import { exportAccountToPDF, prepareAccountCSVData, generateAccountCSVFilename, handleAccountCSVExport } from './utils/exportAccounts';
+import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser } from './services/accountService';
+import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
 
 const AccountManagement = () => {
+  const { t } = useTranslation(); // Add translation hook
   const [isMobile, setIsMobile] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,7 +24,7 @@ const AccountManagement = () => {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [AccountUsers, setAccountUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
-  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, resetPassword, activateAdminAccount, resetAdminPassword } = useContext(AuthContext);
+  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, activateAdminAccount, resetAdminPassword } = useContext(AuthContext);
   const [csvFilename, setCsvFilename] = useState('piscarisk_useraccounts.csv');
   const [errors, setErrors] = useState({ email: '' });
   const navigate = useNavigate();
@@ -58,12 +60,8 @@ const AccountManagement = () => {
   const [showNameDropdown, setShowNameDropdown] = useState(false);
   const [selectedNameSort, setSelectedNameSort] = useState('None');
 
-  // Password reset form states
-  const [showPasswordResetForm, setShowPasswordResetForm] = useState(false);
-  const [selectedUserForReset, setSelectedUserForReset] = useState(null);
-  const [customPassword, setCustomPassword] = useState('');
-  const [useCustomPassword, setUseCustomPassword] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState('');
+  // Password reset states
+  const [resettingPasswordUserId, setResettingPasswordUserId] = useState(null);
 
   // Auto-close the Add User form shortly after a successful creation
   useEffect(() => {
@@ -155,7 +153,7 @@ const AccountManagement = () => {
     setShowNameDropdown(false);
     setShowFilterDropdown(false);
     // Note: add user form and admin password modal are NOT closed here to prevent interference
-    setShowPasswordResetForm(false);
+
     setShowMenu(false);
   };
 
@@ -558,43 +556,53 @@ const AccountManagement = () => {
   };
 
   const handleResetPassword = async (user) => {
-    setSelectedUserForReset(user);
-    setShowPasswordResetForm(true);
-    setCustomPassword('');
-    setUseCustomPassword(false);
-    setGeneratedPassword(''); // Clear any previously generated password
-  };
+    if (!user || !user.email) {
+      setMessage({ text: 'User email not found', type: 'error' });
+      return;
+    }
 
-  // Function to handle password option changes
-  const handlePasswordOptionChange = (useCustom) => {
-    setUseCustomPassword(useCustom);
-    if (useCustom) {
-      setGeneratedPassword(''); // Clear generated password when switching to custom
-    } else {
-      setCustomPassword(''); // Clear custom password when switching to random
+    try {
+      setResettingPasswordUserId(user.id);
+      setMessage({ text: `Sending password reset email to ${user.username}...`, type: 'info' });
+
+      // Import Firebase Auth functions
+      const { getAuth, sendPasswordResetEmail } = await import('firebase/auth');
+      const { app } = await import('./firebase');
+      
+      const auth = getAuth(app);
+      
+      // Send password reset email
+      await sendPasswordResetEmail(auth, user.email);
+      
+      setMessage({ 
+        text: `Password reset email sent successfully to ${user.username}! Check your email for reset instructions.`, 
+        type: 'success' 
+      });
+      
+      // Log the password reset email sent
+      console.log(`Password reset email sent to user ${user.username} (${user.email})`);
+      
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      let errorMessage = 'Failed to send password reset email';
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'User not found in authentication system';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many password reset attempts. Please try again later.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      setMessage({ text: `Error: ${errorMessage}`, type: 'error' });
+    } finally {
+      setResettingPasswordUserId(null);
     }
   };
 
-  // Function to generate a secure password
-  const generateSecurePassword = () => {
-    const length = 12;
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let password = "";
-    
-    // Ensure at least one character from each category
-    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)]; // Uppercase
-    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)]; // Lowercase
-    password += "0123456789"[Math.floor(Math.random() * 10)]; // Number
-    password += "!@#$%^&*"[Math.floor(Math.random() * 8)]; // Special character
-    
-    // Fill the rest randomly
-    for (let i = 4; i < length; i++) {
-      password += charset[Math.floor(Math.random() * charset.length)];
-    }
-    
-    // Shuffle the password to make it more random
-    return password.split('').sort(() => Math.random() - 0.5).join('');
-  };
+
 
   // Function to activate Tech Officer accounts
   const handleActivateTechOfficer = async (user) => {
@@ -881,48 +889,9 @@ const AccountManagement = () => {
 
 
 
-  const isPasswordValid = (password) => {
-    const hasUppercase = /[A-Z]/.test(password);
-    const hasLowercase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-    return password.length >= 8 && hasUppercase && hasLowercase && hasNumber && hasSpecialChar;
-  };
 
-  const getPasswordStrength = (password) => {
-    if (!password) return { score: 0, label: '', color: '' };
-    
-    let score = 0;
-    let feedback = [];
-    
-    // Length check
-    if (password.length >= 8) score += 1;
-    if (password.length >= 12) score += 1;
-    
-    // Character variety checks
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[a-z]/.test(password)) score += 1;
-    if (/[0-9]/.test(password)) score += 1;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score += 1;
-    
-    // Determine strength level
-    let label, color;
-    if (score <= 2) {
-      label = 'Weak';
-      color = '#dc3545';
-    } else if (score <= 4) {
-      label = 'Fair';
-      color = '#ffc107';
-    } else if (score <= 5) {
-      label = 'Good';
-      color = '#17a2b8';
-    } else {
-      label = 'Strong';
-      color = '#28a745';
-    }
-    
-    return { score, label, color };
-  };
+
+
 
   // Function to check if user is currently logged in
   const checkUserLoginStatus = async (userEmail) => {
@@ -943,187 +912,11 @@ const AccountManagement = () => {
     }
   };
 
-  const handleConfirmPasswordReset = async () => {
-    if (!selectedUserForReset) return;
 
-    try {
-      setMessage({ text: 'Resetting password...', type: 'info' });
 
-      let newPassword = '';
-      if (useCustomPassword) {
-        if (customPassword.length < 8 || !isPasswordValid(customPassword)) {
-          setMessage({ text: 'Custom password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.', type: 'error' });
-          return;
-        }
-        newPassword = customPassword;
-      } else {
-        if (!generatedPassword) {
-          setMessage({ text: 'Please generate a random password first by clicking the "Generate Random Password" button.', type: 'error' });
-          return;
-        }
-        newPassword = generatedPassword;
-      }
 
-      // Try to use Cloud Function first
-      try {
-        const { getFunctions, httpsCallable } = await import('firebase/functions');
-        const { app } = await import('./firebase');
-        
-        const functions = getFunctions(app);
-        const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
-        
-        // Call the Cloud Function to reset the password
-        const result = await adminResetPassword({
-          userEmail: selectedUserForReset.email,
-          newPassword: newPassword
-        });
-        
-        if (result.data.success) {
-          setMessage({ 
-            text: `Password reset successful for ${selectedUserForReset.username}! New password: ${newPassword}. The user can now login with this new password.`, 
-            type: 'success' 
-          });
-          
-          // Log the password reset
-          console.log(`Password reset for user ${selectedUserForReset.username}. New password: ${newPassword}`);
-          
-          // Update the user's last modified timestamp in Firestore
-          try {
-            const { doc, updateDoc, getDoc } = await import('firebase/firestore');
-            const { db } = await import('./firebase');
-            
-            // Check both collections to find the user document
-            let userDocRef = doc(db, 'users', selectedUserForReset.id);
-            let userDoc = await getDoc(userDocRef);
-            let collectionName = 'users';
-            
-            if (!userDoc.exists()) {
-              // Check mobileUsers collection
-              userDocRef = doc(db, 'mobileUsers', selectedUserForReset.id);
-              userDoc = await getDoc(userDocRef);
-              if (userDoc.exists()) {
-                collectionName = 'mobileUsers';
-              }
-            }
-            
-            if (userDoc.exists()) {
-              await updateDoc(userDocRef, {
-                lastPasswordReset: new Date().toISOString(),
-                passwordResetBy: currentUser.uid,
-                requiresPasswordChange: true
-              });
-              console.log(`Updated ${collectionName} collection for user ${selectedUserForReset.username}`);
-            }
-          } catch (firestoreError) {
-            console.warn('Could not update Firestore timestamp:', firestoreError);
-          }
-          
-          setShowPasswordResetForm(false);
-          setSelectedUserForReset(null);
-          setGeneratedPassword(''); // Clear generated password
-          return;
-        }
-      } catch (cloudFunctionError) {
-        console.warn('Cloud Function not available, using fallback method:', cloudFunctionError);
-      }
-      
-      // FALLBACK METHOD: Use Firebase Auth directly from frontend
-      try {
-        // Import Firebase Auth functions
-        const { getAuth, signInWithEmailAndPassword, updatePassword } = await import('firebase/auth');
-        const { app } = await import('./firebase');
-        
-        const auth = getAuth(app);
-        
-        // First, try to sign in as the user to get their current session
-        // This is a fallback method - in production, use Cloud Functions
-        setMessage({ 
-          text: `Attempting to reset password for ${selectedUserForReset.username}...`, 
-          type: 'info' 
-        });
-        
-        // Note: This fallback method has limitations and should only be used for testing
-        // In production, the Cloud Function should be deployed and used
-        setMessage({ 
-          text: `⚠️ IMPORTANT: Password reset initiated for ${selectedUserForReset.username}. New password: ${newPassword}. 
 
-To complete the password reset:
-1. Go to Firebase Console > Authentication > Users
-2. Find user with email: ${selectedUserForReset.email}
-3. Click "Edit" and set password to: ${newPassword}
-4. Save changes
 
-The user can then login with this new password. Old password will become invalid.`, 
-          type: 'warning' 
-        });
-        
-        // Log the password reset attempt
-        console.log(`Password reset initiated for user ${selectedUserForReset.username}. New password: ${newPassword}`);
-        console.log('Note: Cloud Function not available. Admin should manually update password in Firebase Console.');
-        
-        // Update Firestore to track the reset attempt
-        try {
-          const { doc, updateDoc, getDoc } = await import('firebase/firestore');
-          const { db } = await import('./firebase');
-          
-          // Check both collections to find the user document
-          let userDocRef = doc(db, 'users', selectedUserForReset.id);
-          let userDoc = await getDoc(userDocRef);
-          let collectionName = 'users';
-          
-          if (!userDoc.exists()) {
-            // Check mobileUsers collection
-            userDocRef = doc(db, 'mobileUsers', selectedUserForReset.id);
-            userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-              collectionName = 'mobileUsers';
-            }
-          }
-          
-          if (userDoc.exists()) {
-            await updateDoc(userDocRef, {
-              lastPasswordReset: new Date().toISOString(),
-              passwordResetBy: currentUser.uid,
-              requiresPasswordChange: true,
-              resetMethod: 'manual_fallback',
-              adminGeneratedPassword: newPassword,
-              resetStatus: 'pending_manual_completion'
-            });
-            console.log(`Updated ${collectionName} collection for user ${selectedUserForReset.username}`);
-          }
-        } catch (firestoreError) {
-          console.warn('Could not update Firestore timestamp:', firestoreError);
-        }
-        
-        setShowPasswordResetForm(false);
-        setSelectedUserForReset(null);
-        setGeneratedPassword(''); // Clear generated password
-        
-        // Refresh users list to show updated status
-        await fetchUsers();
-        
-      } catch (fallbackError) {
-        console.error('Fallback password reset failed:', fallbackError);
-        setMessage({ 
-          text: `Password reset failed: ${fallbackError.message}. Please try again or contact support.`, 
-          type: 'error' 
-        });
-      }
-      
-    } catch (error) {
-      console.error('Error during password reset:', error);
-      setMessage({ text: `Error resetting password: ${error.message}`, type: 'error' });
-    }
-  };
-
-  // Function to close password reset form and clear state
-  const closePasswordResetForm = () => {
-    setShowPasswordResetForm(false);
-    setSelectedUserForReset(null);
-    setCustomPassword('');
-    setUseCustomPassword(false);
-    setGeneratedPassword('');
-  };
 
   // Admin password confirmation removed per requirement
   // const handleAdminPasswordConfirm = async () => {};
@@ -1208,11 +1001,11 @@ The user can then login with this new password. Old password will become invalid
                 <div className="header-dropdown-menu">
                   <button onClick={() => navigate("/ProfileSettings")}>
                     <FaUser className="dropdown-icon" />
-                    Profile
+                    {t('common.profile')}
                   </button>
                   <button onClick={() => handleLogout(navigate)}>
                     <FaSignOutAlt className="dropdown-icon" />
-                    Logout
+                    {t('sidebar.logout')}
                   </button> 
               </div>
             )}
@@ -1248,13 +1041,13 @@ The user can then login with this new password. Old password will become invalid
           }}
         >
           <FaFilter className="filter-icon" />
-          Filter
+          {t('accountManagement.filters.filter_button')}
         </button>
             
             {showFilterDropdown && (
               <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
                 <div className="filter-section">
-                  <label>Filter Type:</label>
+                  <label>{t('accountManagement.filters.filter_type_label')}</label>
                   <select 
                     value={selectedFilterType} 
                     onChange={(e) => {
@@ -1262,19 +1055,19 @@ The user can then login with this new password. Old password will become invalid
                       setSelectedFilterType(e.target.value);
                     }}
                   >
-                    <option value="All">All</option>
-                    <option value="Role">Role</option>
-                    <option value="Status">Status</option>
-                    <option value="Name">Name</option>
+                    <option value="All">{t('accountManagement.filters.all_option')}</option>
+                    <option value="Role">{t('accountManagement.filters.role_option')}</option>
+                    <option value="Status">{t('accountManagement.filters.status_option')}</option>
+                    <option value="Name">{t('accountManagement.filters.name_option')}</option>
                   </select>
           </div>
 
                 {selectedFilterType !== 'All' && (
                   <div className="filter-section">
-                    <label>Filter Value:</label>
+                    <label>{t('accountManagement.filters.filter_value_label')}</label>
                     <input
                       type="text"
-                      placeholder={`Enter ${selectedFilterType.toLowerCase()}...`}
+                      placeholder={t('accountManagement.filters.enter_filter_placeholder', { filterType: selectedFilterType.toLowerCase() })}
                       value={filterValue}
                       onChange={(e) => {
                         e.stopPropagation();
@@ -1293,7 +1086,7 @@ The user can then login with this new password. Old password will become invalid
                       setShowFilterDropdown(false);
                     }}
                   >
-                    Apply
+                    {t('accountManagement.filters.apply_button')}
                   </button>
                   <button 
                     className="clear-filter-btn"
@@ -1304,7 +1097,7 @@ The user can then login with this new password. Old password will become invalid
                       setShowFilterDropdown(false);
                     }}
                   >
-                    Clear
+                    {t('accountManagement.filters.clear_button')}
           </button>
         </div>
               </div>
@@ -1398,7 +1191,7 @@ The user can then login with this new password. Old password will become invalid
               )}
             </div>
             <div className="header-cell role-cell">
-              <span>ROLE</span>
+              <span>{t('accountManagement.table_headers.role')}</span>
               <IoMdArrowDropdown 
                 className="dropdown-arrow" 
                 onClick={(e) => {
@@ -1413,31 +1206,31 @@ The user can then login with this new password. Old password will become invalid
                     setSelectedRole('All Roles'); 
                     setShowRoleDropdown(false); 
                   }}>
-                    All Roles
+                    {t('accountManagement.dropdown_options.all_roles')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Admin'); 
                     setShowRoleDropdown(false); 
                   }}>
-                    Admin
+                    {t('accountManagement.dropdown_options.admin')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Tech Officer'); 
                     setShowRoleDropdown(false); 
                   }}>
-                    Tech Officer
+                    {t('accountManagement.dropdown_options.tech_officer')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Fish Farmer'); 
                     setShowRoleDropdown(false); 
                   }}>
-                    Fish Farmer
+                    {t('accountManagement.dropdown_options.fish_farmer')}
                   </div>
                 </div>
               )}
             </div>
             <div className="header-cell status-cell">
-              <span>STATUS</span>
+              <span>{t('accountManagement.table_headers.status')}</span>
               <IoMdArrowDropdown 
                 className="dropdown-arrow" 
                 onClick={(e) => {
@@ -1452,31 +1245,31 @@ The user can then login with this new password. Old password will become invalid
                     setSelectedStatus('All Status'); 
                     setShowStatusDropdown(false); 
                   }}>
-                    All Status
+                    {t('accountManagement.dropdown_options.all_status')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedStatus('Active'); 
                     setShowStatusDropdown(false); 
                   }}>
-                    Active
+                    {t('accountManagement.dropdown_options.active')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedStatus('Inactive'); 
                     setShowStatusDropdown(false); 
                   }}>
-                    Inactive
+                    {t('accountManagement.dropdown_options.inactive')}
                   </div>
                 </div>
               )}
             </div>
             <div className="header-cell contact-cell">
-              <span>CONTACT</span>
+              <span>{t('accountManagement.table_headers.contact')}</span>
             </div>
             <div className="header-cell actions-cell">
-              <span>ACTIONS</span>
+              <span>{t('accountManagement.table_headers.actions')}</span>
             </div>
             <div className="header-cell joined-cell">
-              <span>JOINED</span>
+              <span>{t('accountManagement.table_headers.joined')}</span>
             </div>
             <div className="header-cell delete-cell">
               <span></span>
@@ -1490,7 +1283,7 @@ The user can then login with this new password. Old password will become invalid
             <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
               <div className="add-user-form" onClick={(e) => e.stopPropagation()}>
               <div className="form-header">
-                <h3>Add New Employee</h3>
+                <h3>{t('accountManagement.add_user_form.title')}</h3>
                   <button className="close-form-button" onClick={handleCancelAddUser}>&times;</button>
               </div>
                 {message.text && (<div className={`message ${message.type}`}>{message.text}</div>)}
@@ -1498,18 +1291,18 @@ The user can then login with this new password. Old password will become invalid
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
                     <div className="role-notice-content">
-                      <strong>{newUser.role === 'Tech Officer' ? 'Tech Officer Account Notice:' : 'Admin Account Notice:'}</strong>
+                      <strong>{newUser.role === 'Tech Officer' ? t('accountManagement.add_user_form.tech_officer_notice_title') : t('accountManagement.add_user_form.admin_notice_title')}</strong>
                       {newUser.role === 'Tech Officer' ? (
-                        <p>New Tech Officer accounts start as Inactive and must be activated by an admin before login.</p>
+                        <p>{t('accountManagement.add_user_form.tech_officer_notice')}</p>
                       ) : (
-                        <p>New Admin accounts are set to Inactive. Admin must verify email on first login. Status is locked to Inactive.</p>
+                        <p>{t('accountManagement.add_user_form.admin_notice')}</p>
                       )}
                     </div>
                   </div>
                 )}
               <div className="form-row">
                 <div className="form-group">
-                  <label>Username*</label>
+                  <label>{t('accountManagement.add_user_form.username_label')}</label>
                   <input 
                     type="text" 
                     name="username" 
@@ -1517,12 +1310,12 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange} 
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder='Enter Username'
+                                          placeholder={t('accountManagement.add_user_form.username_placeholder')}
                     required 
                   />
                 </div>
                 <div className="form-group">
-                  <label>Full Name*</label>
+                  <label>{t('accountManagement.add_user_form.full_name_label')}</label>
                   <input 
                     type="text" 
                     name="fullName" 
@@ -1530,14 +1323,14 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange} 
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder='Enter full name'
+                                          placeholder={t('accountManagement.add_user_form.full_name_placeholder')}
                     required 
                   />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Job Position</label>
+                  <label>{t('accountManagement.add_user_form.job_position_label')}</label>
                   <select 
                     name="role" 
                     value={newUser.role} 
@@ -1546,20 +1339,20 @@ The user can then login with this new password. Old password will become invalid
                       onFocus={(e) => e.stopPropagation()}
                     required
                   >
-                    <option value="">Select Position</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Tech Officer">Tech Officer</option>
-                    <option value="Fish Farmer">Fish Farmer</option>
+                                          <option value="">{t('accountManagement.add_user_form.select_position_option')}</option>
+                                          <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
+                      <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
+                      <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
                   </select>
                 </div>
                   <div className="form-group">
-                    <label>Status</label>
+                    <label>{t('accountManagement.add_user_form.status_label')}</label>
                     {(newUser.role === 'Tech Officer' || newUser.role === 'Admin') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
                           <span className="status-indicator">
                             <span className="status-dot inactive"></span>
-                            <span className="status-text inactive">Inactive</span>
+                            <span className="status-text inactive">{t('accountManagement.add_user_form.inactive_status')}</span>
                           </span>
                         </div>
                       </div>
@@ -1572,15 +1365,15 @@ The user can then login with this new password. Old password will become invalid
                         onFocus={(e) => e.stopPropagation()}
                         required
                       >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
+                        <option value="Active">{t('accountManagement.add_user_form.active_option')}</option>
+                        <option value="Inactive">{t('accountManagement.add_user_form.inactive_option')}</option>
                       </select>
                     )}
                   </div>
                 </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Email</label>
+                  <label>{t('accountManagement.add_user_form.email_label')}</label>
                   <input 
                     type="email" 
                     name="email" 
@@ -1588,14 +1381,14 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange}  
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder='Enter Email Address'
+                                          placeholder={t('accountManagement.add_user_form.email_placeholder')}
                     className={errors.email ? 'input-error' : ''}
                   />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Address*</label>
+                  <label>{t('accountManagement.add_user_form.address_label')}</label>
                   <input 
                     type="text" 
                     name="address" 
@@ -1603,12 +1396,12 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange} 
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder='Enter Address'
+                                          placeholder={t('accountManagement.add_user_form.address_placeholder')}
                     required 
                   />
                 </div>
                 <div className="form-group">
-                  <label>Contact Number*</label>
+                  <label>{t('accountManagement.add_user_form.contact_number_label')}</label>
                   <input 
                     type="text" 
                     name="contactNumber" 
@@ -1616,13 +1409,13 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange} 
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder="Enter Phone Number"
+                                          placeholder={t('accountManagement.add_user_form.contact_number_placeholder')}
                   />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Password</label>
+                  <label>{t('accountManagement.add_user_form.password_label')}</label>
                   <input 
                     type="password" 
                     name="password" 
@@ -1630,12 +1423,12 @@ The user can then login with this new password. Old password will become invalid
                     onChange={handleInputChange} 
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
-                    placeholder='Enter Password'
+                                          placeholder={t('accountManagement.add_user_form.password_placeholder')}
                     required 
                   />
                 </div>
                 <div className="form-group">
-                  <label>Date Joined</label>
+                  <label>{t('accountManagement.add_user_form.date_joined_label')}</label>
                   <input 
                     type="date" 
                     name="dateJoined" 
@@ -1654,7 +1447,7 @@ The user can then login with this new password. Old password will become invalid
                       handleAddUser();
                     }}
                   >
-                  Add User
+                  {t('accountManagement.add_user_form.add_user_button')}
                 </button>
                   <button 
                     className="cancel-button" 
@@ -1663,135 +1456,14 @@ The user can then login with this new password. Old password will become invalid
                       handleCancelAddUser();
                     }}
                   >
-                    Cancel
+                    {t('accountManagement.add_user_form.cancel_button')}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Password Reset Form */}
-          {showPasswordResetForm && selectedUserForReset && (
-            <div className="add-user-form-container">
-              <div className="add-user-form">
-                <div className="form-header">
-                  <h3>Reset Password for {selectedUserForReset.username}</h3>
-                  <button className="close-form-button" onClick={closePasswordResetForm}>&times;</button>
-                </div>
-                
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>User Information</label>
-                    <div className="user-info-display">
-                      <p><strong>Username:</strong> {selectedUserForReset.username}</p>
-                      <p><strong>Email:</strong> {selectedUserForReset.email}</p>
-                      <p><strong>Role:</strong> {selectedUserForReset.role}</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Password Options</label>
-                    <div className="password-options">
-                      <label className="radio-option">
-                        <input
-                          type="radio"
-                          name="passwordType"
-                          checked={!useCustomPassword}
-                          onChange={() => handlePasswordOptionChange(false)}
-                        />
-                        <span>Generate Random Secure Password</span>
-                      </label>
-                      <label className="radio-option">
-                        <input
-                          type="radio"
-                          name="passwordType"
-                          checked={useCustomPassword}
-                          onChange={() => handlePasswordOptionChange(true)}
-                        />
-                        <span>Set Custom Password</span>
-                      </label>
-                    </div>
-                    
-                    {!useCustomPassword && (
-                      <div className="generated-password-display">
-                        <div className="password-preview">
-                          {generatedPassword ? (
-                            <>
-                              <label>Generated Password:</label>
-                              <input
-                                type="text"
-                                value={generatedPassword}
-                                readOnly
-                                className="generated-password-input"
-                              />
-                            </>
-                          ) : (
-                            <div className="no-password-message">
-                              <span>No password generated yet</span>
-                            </div>
-                          )}
-                          <button
-                            type="button"
-                            className="generate-random-password-btn"
-                            onClick={() => setGeneratedPassword(generateSecurePassword())}
-                          >
-                            Generate Random Password
-                          </button>
-                          <small>Click the button above to generate a secure random password</small>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {useCustomPassword && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Custom Password</label>
-                      <div className="custom-password-container">
-                        <input
-                          type="text"
-                          value={customPassword}
-                          onChange={(e) => setCustomPassword(e.target.value)}
-                          placeholder="Enter custom password"
-                          className="custom-password-input"
-                        />
-                        <button
-                          type="button"
-                          className="generate-password-btn"
-                          onClick={() => setCustomPassword(generateSecurePassword())}
-                        >
-                          Generate
-                        </button>
-                      </div>
-                      <small className="password-requirements">
-                        Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.
-                      </small>
-                      <div className="password-strength-indicator">
-                        <div className="strength-bar" style={{ width: `${getPasswordStrength(customPassword).score * 20}%`, backgroundColor: getPasswordStrength(customPassword).color }}></div>
-                        <span className="strength-label">{getPasswordStrength(customPassword).label}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="form-buttons">
-                  <button 
-                    className="add-button" 
-                    onClick={() => handleConfirmPasswordReset()}
-                    disabled={useCustomPassword && (customPassword.length < 8 || !isPasswordValid(customPassword))}
-                  >
-                    Reset Password
-                  </button>
-                  <button className="cancel-button" onClick={closePasswordResetForm}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Admin Password Confirmation Modal removed per requirement */}
 
@@ -1828,7 +1500,7 @@ The user can then login with this new password. Old password will become invalid
                             )}
                             <div className="user-details">
                               <div className="username">{user.username}</div>
-                              <div className="user-email">{user.email || 'No email'}</div>
+                              <div className="user-email">{user.email || t('accountManagement.user_list.no_email')}</div>
                     </div>
               </div>
                         </div>
@@ -1838,7 +1510,7 @@ The user can then login with this new password. Old password will become invalid
                             const roleClassValue = (roleDisplayValue || '').toLowerCase().replace(' ', '-');
                             return (
                               <span className={`role-badge role-${roleClassValue}`}>
-                                {roleDisplayValue || 'No role'}
+                                {roleDisplayValue || t('accountManagement.user_list.no_role')}
                               </span>
                             );
                           })()}
@@ -1850,7 +1522,7 @@ The user can then login with this new password. Old password will become invalid
                           </div>
                         </div>
                         <div className="user-cell contact-cell">
-                          {user.contactNumber || 'No contact'}
+                          {user.contactNumber || t('accountManagement.user_list.no_contact')}
                         </div>
                         <div className="user-cell actions-cell">
                           {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && !(user.adminActivated || user._justActivated) ? (
@@ -1860,7 +1532,7 @@ The user can then login with this new password. Old password will become invalid
                               handleActivateTechOfficer(user);
                             }}>
                               <FaUserCheck className="action-icon" />
-                              Activate
+                              {t('accountManagement.user_list.activate_button')}
                             </button>
                           ) : null}
                           {formatRoleForDisplay(user.role) === 'Fish Farmer' && isInactive(user.status) ? (
@@ -1871,27 +1543,26 @@ The user can then login with this new password. Old password will become invalid
                               handleActivateFishFarmer(user);
                             }}>
                               <FaUserCheck className="action-icon" />
-                              Activate
+                              {t('accountManagement.user_list.activate_button')}
                             </button>
                           ) : null}
                           {String(user.status || '').toLowerCase() === 'active' && (
-                            <button className="reset-password-btn" onClick={(e) => {
-                              e.stopPropagation(); // Prevent closing dropdowns when clicking reset password button
-                              closeAllDropdowns(); // Close all other dropdowns first
-                              handleResetPassword(user);
-                            }}>
+                            <button 
+                              className="reset-password-btn" 
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent closing dropdowns when clicking reset password button
+                                closeAllDropdowns(); // Close all other dropdowns first
+                                handleResetPassword(user);
+                              }}
+                              disabled={resettingPasswordUserId === user.id}
+                            >
                               <MdOutlineLockReset className="action-icon" />
-                              Reset Password
+                              {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
                             </button>
                           )}
                           {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
                             <div className="password-reset-pending">
-                              <span className="pending-indicator">ℹ️ Activated by Admin. User must verify email to become Active.</span>
-                            </div>
-                          )}
-                          {user.resetStatus === 'pending_manual_completion' && (
-                            <div className="password-reset-pending">
-                              <span className="pending-indicator">⚠️ Password Reset Pending</span>
+                              <span className="pending-indicator">{t('accountManagement.user_list.activated_by_admin_notice')}</span>
                             </div>
                           )}
                         </div>
@@ -1900,7 +1571,7 @@ The user can then login with this new password. Old password will become invalid
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric'
-                          }) : 'Unknown'}
+                          }) : t('accountManagement.user_list.unknown_date')}
                         </div>
                         <div className="user-cell delete-cell">
                           <button className="delete-user-btn" onClick={(e) => {
@@ -1909,7 +1580,7 @@ The user can then login with this new password. Old password will become invalid
                             handleDeleteUser(user);
                           }}>
                             <RiDeleteBin6Line className="action-icon" />
-                            Delete
+                            {t('accountManagement.user_list.delete_button')}
                           </button>
                         </div>
                       </div>
@@ -1924,7 +1595,7 @@ The user can then login with this new password. Old password will become invalid
                       setCurrentPage(p => Math.max(1, p - 1));
                     }}
                   >
-                    Prev
+                    {t('accountManagement.pagination.prev_button')}
                   </button>
                   {currentPage > 1 && (
                     <div className="pagination-pages">
@@ -1940,7 +1611,7 @@ The user can then login with this new password. Old password will become invalid
                       setCurrentPage(p => Math.min(totalPages, p + 1));
                     }}
                   >
-                    Next
+                    {t('accountManagement.pagination.next_button')}
                   </button>
                 </div>
               {selectedUser && (
@@ -1956,7 +1627,7 @@ The user can then login with this new password. Old password will become invalid
               )}
             </>
           ) : (
-              <div className="loading-users-message">Loading User Accounts...</div>
+              <div className="loading-users-message">{t('accountManagement.user_list.loading_message')}</div>
           )}
       </div>
         </div>

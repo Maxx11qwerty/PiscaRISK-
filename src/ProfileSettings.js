@@ -2,6 +2,8 @@ import React, { useState, useRef, useContext, useEffect } from "react";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import "./ProfileSettings.css";
 import { AuthContext } from './contexts/AuthContext';
+import { useLanguage } from './contexts/LanguageContext';
+import { useTranslation } from 'react-i18next';
 import { FaEllipsisV, FaCamera, FaUpload, FaTimes, FaCheck, FaEye, FaEyeSlash, FaUserCircle, FaUser, FaSignOutAlt, FaBars } from "react-icons/fa";
 import { LiaEdit } from "react-icons/lia";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +17,8 @@ import { auth } from './firebase';
 
 export default function AccountSettings() {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const { t } = useTranslation();
   const [newPassword, setNewPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
@@ -50,7 +54,6 @@ export default function AccountSettings() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [nightMode, setNightMode] = useState(false);
-  const [language, setLanguage] = useState('en');
   
   // Form state variables
   const [showFullNameChangeForm, setShowFullNameChangeForm] = useState(false);
@@ -95,7 +98,7 @@ const uploadImage = (file) => {
   return new Promise((resolve, reject) => {
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      reject(new Error('File size too large. Maximum size is 5MB.'));
+      reject(new Error(t('profileSettings.fileSizeTooLarge')));
       return;
     }
 
@@ -118,7 +121,7 @@ const uploadImage = (file) => {
 
   const handleUsernameChange = () => {
     if (!newUsername.trim()) {
-      setUsernameError('Username cannot be empty');
+      setUsernameError(t('profileSettings.usernameCannotBeEmpty'));
       return;
     }
     
@@ -361,10 +364,10 @@ const uploadImage = (file) => {
       setShowRemoveButton(true);
       
       // Show success message
-      setSuccess('Profile picture updated successfully!');
+      setSuccess(t('profileSettings.profilePictureUpdated'));
     } catch (error) {
       console.error('Error confirming image:', error);
-      setError('Failed to save profile picture. Please try again.');
+      setError(t('profileSettings.failedToSaveProfilePicture'));
       // Revert local state if save failed
       setProfileImage(currentUser?.profileImage || null);
     }
@@ -511,10 +514,10 @@ const uploadImage = (file) => {
       // Log the activity
       logActivity('profile', `Profile picture removed by ${currentUser.username}`, currentUser.username);
       
-      setSuccess('Profile picture removed successfully!');
+      setSuccess(t('profileSettings.profilePictureRemoved'));
     } catch (error) {
       console.error('Error removing image:', error);
-      setError('Failed to remove profile picture. Please try again.');
+      setError(t('profileSettings.failedToRemoveProfilePicture'));
     }
   };
 
@@ -525,7 +528,7 @@ const uploadImage = (file) => {
 
       // Validate new password
       if (newPassword.length < 6) {
-        setError('New password must be at least 6 characters long');
+        setError(t('profileSettings.passwordTooShort'));
         return;
       }
 
@@ -557,7 +560,7 @@ const uploadImage = (file) => {
       if (isVerified) {
         // Only show success message if we haven't shown it before
         if (!verificationCheckInterval) {
-          setSuccess('Email verified successfully!');
+          setSuccess(t('profileSettings.emailVerified'));
         }
         // Clear the interval if email is verified
         if (verificationCheckInterval) {
@@ -566,7 +569,7 @@ const uploadImage = (file) => {
         }
       }
     } catch (error) {
-      setError('Failed to check email verification status');
+      setError(t('profileSettings.failedToCheckVerification'));
     } finally {
       setIsCheckingVerification(false);
     }
@@ -591,7 +594,7 @@ const handleSendVerificationEmail = async () => {
       setError(result.message);
     }
   } catch (error) {
-    setError('Failed to send verification email. Please try again.');
+    setError(t('profileSettings.failedToSendVerification'));
   } finally {
     setIsSendingVerification(false);
   }
@@ -732,11 +735,11 @@ const handleSendVerificationEmail = async () => {
       setShowContactChangeForm(false);
       setShowEmailChangeForm(false);
       
-      setSuccess('All changes saved successfully!');
+      setSuccess(t('profileSettings.allChangesSaved'));
       
     } catch (error) {
       console.error('Error saving changes:', error);
-      setError('Failed to save changes. Please try again.');
+      setError(t('profileSettings.failedToSaveChanges'));
     }
   };
 
@@ -775,11 +778,11 @@ const handleSendVerificationEmail = async () => {
                 <div className="header-dropdown-menu">
                   <button onClick={() => navigate("/ProfileSettings")}>
                     <FaUser className="dropdown-icon" />
-                    Profile
+                    {t('common.profile')}
                   </button>
                   <button onClick={() => handleLogout(navigate)}>
                     <FaSignOutAlt className="dropdown-icon" />
-                    Logout
+                    {t('sidebar.logout')}
                   </button> 
                 </div>
               )}
@@ -801,7 +804,6 @@ const handleSendVerificationEmail = async () => {
         nightMode={nightMode}
         setNightMode={setNightMode}
         language={language}
-        setLanguage={setLanguage}
       />
 
       {/* Error and Success Messages */}
@@ -818,7 +820,7 @@ const handleSendVerificationEmail = async () => {
 
       {/* Account Settings Box */}
       <div className="account-wrapper">
-        <p className="accounts-title">My Account</p>
+        <p className="accounts-title">{t('profileSettings.myAccount')}</p>
       </div>
 
       <div className="profile-settings-box">
@@ -855,8 +857,8 @@ const handleSendVerificationEmail = async () => {
               </div>
             </div>
             <div className="user-info-display">
-              <h3 className="display-username">{currentUser?.username || 'Username'}</h3>
-              <p className="display-email">{currentUser?.email || 'username@gmail.com'}</p>
+              <h3 className="display-username">{currentUser?.username || t('profileSettings.defaultUsername')}</h3>
+              <p className="display-email">{currentUser?.email || t('profileSettings.defaultEmail')}</p>
             </div>
           </div>
 
@@ -865,7 +867,7 @@ const handleSendVerificationEmail = async () => {
             {/* Row 1: Username and Full Name */}
             <div className="fields-row">
               <div className="profile-field">
-                <label>Username:</label>
+                <label>{t('profileSettings.username')}</label>
                 <div className="field-input-container">
                   <input
                     type="text"
@@ -873,7 +875,7 @@ const handleSendVerificationEmail = async () => {
                     onChange={(e) => setNewUsername(e.target.value)}
                     readOnly={!showUsernameChangeForm}
                     className={`field-input ${showUsernameChangeForm ? 'editing' : ''}`}
-                    placeholder="Enter username"
+                    placeholder={t('profileSettings.usernamePlaceholder')}
                   />
                   <LiaEdit 
                     className="edit-icon-inside clickable-edit-icon" 
@@ -894,13 +896,13 @@ const handleSendVerificationEmail = async () => {
                 </div>
                 {showUsernameChangeForm && (
                   <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem' }}>
-                    ⚠️ Warning: If you change your username, your old username will no longer work for login. You can still log in using your email address.
+                    {t('profileSettings.usernameWarning')}
                   </small>
                 )}
               </div>
 
               <div className="profile-field">
-                <label>Full name:</label>
+                <label>{t('profileSettings.fullName')}</label>
                 <div className="field-input-container">
                   <input
                     type="text"
@@ -908,7 +910,7 @@ const handleSendVerificationEmail = async () => {
                     onChange={(e) => setNewFullName(e.target.value)}
                     readOnly={!showFullNameChangeForm}
                     className={`field-input ${showFullNameChangeForm ? 'editing' : ''}`}
-                    placeholder="Enter full name"
+                    placeholder={t('profileSettings.fullNamePlaceholder')}
                   />
                   <LiaEdit 
                     className="edit-icon-inside clickable-edit-icon" 
@@ -933,7 +935,7 @@ const handleSendVerificationEmail = async () => {
             {/* Row 2: Address and Contact */}
             <div className="fields-row">
               <div className="profile-field">
-                <label>Address:</label>
+                <label>{t('profileSettings.address')}</label>
                 <div className="field-input-container">
                   <input
                     type="text"
@@ -941,7 +943,7 @@ const handleSendVerificationEmail = async () => {
                     onChange={(e) => setNewAddress(e.target.value)}
                     readOnly={!showAddressChangeForm}
                     className={`field-input ${showAddressChangeForm ? 'editing' : ''}`}
-                    placeholder="Enter address"
+                    placeholder={t('profileSettings.addressPlaceholder')}
                   />
                   <LiaEdit 
                     className="edit-icon-inside clickable-edit-icon" 
@@ -963,7 +965,7 @@ const handleSendVerificationEmail = async () => {
               </div>
 
               <div className="profile-field">
-                <label>Contact:</label>
+                <label>{t('profileSettings.contact')}</label>
                 <div className="field-input-container">
                   <input
                     type="text"
@@ -971,7 +973,7 @@ const handleSendVerificationEmail = async () => {
                     onChange={(e) => setNewContact(e.target.value)}
                     readOnly={!showContactChangeForm}
                     className={`field-input ${showContactChangeForm ? 'editing' : ''}`}
-                    placeholder="Enter contact"
+                    placeholder={t('profileSettings.contactPlaceholder')}
                   />
                   <LiaEdit 
                     className="edit-icon-inside clickable-edit-icon" 
@@ -996,7 +998,7 @@ const handleSendVerificationEmail = async () => {
             {/* Row 3: Email */}
             <div className="fields-row">
               <div className="profile-field email-field">
-                <label>E-mail:</label>
+                <label>{t('profileSettings.email')}</label>
                 <div className="field-input-container">
                   <input
                     type="email"
@@ -1004,7 +1006,7 @@ const handleSendVerificationEmail = async () => {
                     onChange={(e) => setNewEmail(e.target.value)}
                     readOnly={!showEmailChangeForm}
                     className={`field-input ${showEmailChangeForm ? 'editing' : ''}`}
-                    placeholder="Enter email"
+                    placeholder={t('profileSettings.emailPlaceholder')}
                   />
                   <LiaEdit 
                     className="edit-icon-inside clickable-edit-icon" 
@@ -1029,7 +1031,7 @@ const handleSendVerificationEmail = async () => {
             {/* Row 4: Password */}
             <div className="fields-row">
               <div className="profile-field password-field">
-                <label>Password:</label>
+                <label>{t('profileSettings.password')}</label>
                 <div className="field-input-container">
                   <input
                     type="password"
@@ -1051,14 +1053,14 @@ const handleSendVerificationEmail = async () => {
             {/* Row 5: Change Password Button */}
             <div className="fields-row">
               <div className="profile-field">
-                <button className="change-password-btn">Change Password</button>
+                <button className="change-password-btn">{t('profileSettings.changePassword')}</button>
               </div>
             </div>
 
             {/* Row 6: Save Changes Button - Centered */}
             <div className="fields-row save-changes-row">
               <div className="profile-field">
-                <button className="save-changes-btn" onClick={handleSaveChanges}>Save Changes</button>
+                <button className="save-changes-btn" onClick={handleSaveChanges}>{t('profileSettings.saveChanges')}</button>
               </div>
             </div>
           </div>
@@ -1070,7 +1072,7 @@ const handleSendVerificationEmail = async () => {
         {showImageOptions && !showImagePreview && (
           <div className="image-options-modal">
             <div className="image-options-content">
-              <h3>Update Profile Picture</h3>
+              <h3>{t('profileSettings.updateProfilePicture')}</h3>
               {isCameraActive ? (
                 <div className="camera-preview">
                   <video 
@@ -1088,7 +1090,7 @@ const handleSendVerificationEmail = async () => {
                   />
                   {!isCameraReady && (
                     <div className="camera-loading">
-                      Initializing camera...
+                      {t('profileSettings.initializingCamera')}
                     </div>
                   )}
                   <button 
@@ -1096,22 +1098,22 @@ const handleSendVerificationEmail = async () => {
                     onClick={captureImage}
                     disabled={!isCameraReady}
                   >
-                    <FaCamera /> Capture
+                    <FaCamera /> {t('profileSettings.capture')}
                   </button>
                   <button className="cancel-btn" onClick={stopCamera}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </div>
               ) : (
                 <>
                   <button className="option-btn" onClick={openCamera}>
-                    <FaCamera /> Take Photo
+                    <FaCamera /> {t('profileSettings.takePhoto')}
                   </button>
                   <button 
                     className="option-btn" 
                     onClick={() => fileInputRef.current.click()}
                   >
-                    <FaUpload /> Upload Photo
+                    <FaUpload /> {t('profileSettings.uploadPhoto')}
                   </button>
                   <input
                     type="file"
@@ -1124,7 +1126,7 @@ const handleSendVerificationEmail = async () => {
                     className="cancel-btn" 
                     onClick={() => setShowImageOptions(false)}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </>
               )}
@@ -1136,16 +1138,16 @@ const handleSendVerificationEmail = async () => {
         {showImagePreview && (
           <div className="image-preview-modal">
             <div className="image-preview-content">
-              <h3>Preview Profile Picture</h3>
+              <h3>{t('profileSettings.previewProfilePicture')}</h3>
               <div className="preview-circle">
                 <img src={tempProfileImage} alt="Preview" className="preview-image" />
               </div>
               <div className="preview-actions">
                 <button className="confirm-btn" onClick={confirmImage}>
-                  <FaCheck /> Confirm
+                  <FaCheck /> {t('profileSettings.confirm')}
                 </button>
                 <button className="cancel-btn" onClick={cancelImage}>
-                  <FaTimes /> Cancel
+                  <FaTimes /> {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -1156,20 +1158,20 @@ const handleSendVerificationEmail = async () => {
         {showProfileImageModal && (
           <div className="image-options-modal">
             <div className="image-options-content">
-              <h3>Profile Picture Options</h3>
+              <h3>{t('profileSettings.profilePictureOptions')}</h3>
               {profileImage ? (
                 <>
                   <button className="option-btn" onClick={() => {
                     setShowProfileImageModal(false);
                     setShowImageOptions(true);
                   }}>
-                    <FaUpload /> Change Picture
+                    <FaUpload /> {t('profileSettings.changePicture')}
                   </button>
                   <button className="option-btn remove-btn" onClick={() => {
                     removeImage();
                     setShowProfileImageModal(false);
                   }}>
-                    <FaTimes /> Remove Picture
+                    <FaTimes /> {t('profileSettings.removePicture')}
                   </button>
                 </>
               ) : (
@@ -1178,12 +1180,12 @@ const handleSendVerificationEmail = async () => {
                     setShowProfileImageModal(false);
                     setShowImageOptions(true);
                   }}>
-                    <FaUpload /> Add Picture
+                    <FaUpload /> {t('profileSettings.addPicture')}
                   </button>
                 </>
               )}
               <button className="cancel-btn" onClick={() => setShowProfileImageModal(false)}>
-                Close
+                {t('profileSettings.close')}
               </button>
             </div>
           </div>

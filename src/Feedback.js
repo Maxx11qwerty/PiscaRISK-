@@ -7,6 +7,8 @@ import { MdOutlineMarkChatRead, MdOutlineMarkChatUnread } from "react-icons/md";
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
+import { useLanguage } from './contexts/LanguageContext';
+import { useTranslation } from 'react-i18next';
 import { logActivity, logMessages } from './utils/logger';
 import { exportToCSV, exportToPDF } from './utils/exportFeedback';
 import NotificationBox from './components/NotificationBox';
@@ -56,6 +58,8 @@ const formatFirestoreTimestamp = (timestamp) => {
 
 const Feedback = () => {
   const { currentUser, handleLogout } = useContext(AuthContext);
+  const { language } = useLanguage();
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -77,7 +81,6 @@ const Feedback = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [nightMode, setNightMode] = useState(false);
-  const [language, setLanguage] = useState('en');
   const [activeTab, setActiveTab] = useState('inbox');
   const [feedbackFilterValue, setFeedbackFilterValue] = useState('');
   const navigate = useNavigate();
@@ -579,7 +582,7 @@ const Feedback = () => {
   };
 
   const handleDeleteFeedback = async (feedbackId) => {
-    if (!window.confirm('Are you sure you want to delete this feedback? This action cannot be undone.')) {
+    if (!window.confirm(t('feedback.confirmDelete'))) {
       return;
     }
 
@@ -696,7 +699,7 @@ const Feedback = () => {
       <header className="feedback-header-bar">
         <div className="header-logo-container">
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-          <div className="header-title">PiscaRISK</div>
+          <div className="header-title">{t('login.title')}</div>
           <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
         </div>
 
@@ -706,7 +709,7 @@ const Feedback = () => {
               <FaSearch className="header-search-icon" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder={t('common.search')}
                 className="header-search-input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -731,11 +734,11 @@ const Feedback = () => {
                 <div className="header-dropdown-menu">
                 <button onClick={() => navigate("/ProfileSettings")}>
                   <FaUser className="dropdown-icon" />
-                  Profile
+                  {t('common.profile')}
                 </button>
                 <button onClick={() => handleLogout(navigate)}>
                   <FaSignOutAlt className="dropdown-icon" />
-                  Logout
+                  {t('sidebar.logout')}
                 </button> 
             </div>
             )}
@@ -765,15 +768,13 @@ const Feedback = () => {
         onFeedbackClick={handleSidebarFeedbackClick}
         nightMode={nightMode}
         setNightMode={setNightMode}
-        language={language}
-        setLanguage={setLanguage}
       />
 
       <div className="feedback-wrapper" onClick={() => {
         closeAllDropdowns();
         closeSidebar();
       }}>
-        <h1 className="feedback-title">Feedback Inbox</h1>
+        <h1 className="feedback-title">{t('feedback.title')} {t('feedback.inbox')}</h1>
       </div>
 
       <div className="feedback-tabs">
@@ -782,21 +783,21 @@ const Feedback = () => {
           onClick={() => setActiveTab('inbox')}
           data-count={feedbacks.filter(f => !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
-          Inbox
+          {t('feedback.inbox')}
         </button>
         <button 
           className={`feedback-tab ${activeTab === 'response' ? 'active' : ''}`}
           onClick={() => setActiveTab('response')}
           data-count={feedbacks.filter(f => f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
-          Response
+          {t('feedback.response')}
         </button>
         <button 
           className={`feedback-tab ${activeTab === 'archive' ? 'active' : ''}`}
           onClick={() => setActiveTab('archive')}
           data-count={feedbacks.filter(f => f.status === 'archived').length}
         >
-          Archive
+          {t('feedback.archive')}
         </button>
 
         <div className="feedback-filter-container">
@@ -805,18 +806,18 @@ const Feedback = () => {
             onClick={() => setShowSearchFilters(!showSearchFilters)}
           >
             <FaFilter className="filter-icon" />
-            Filter
+            {t('common.filter')}
           </button>
           {showSearchFilters && (
             <div className="feedback-filter-dropdown">
               <div className="feedback-filter-header">
-                <label>Category:</label>
+                <label>{t('feedback.category')}:</label>
                 <div className="feedback-category-options">
                   <button
                     className={`feedback-category-option ${activeCategory === 'All' ? 'active' : ''}`}
                     onClick={() => setActiveCategory('All')}
                   >
-                    All
+                    {t('common.all')}
                   </button>
                   {feedbackTypes.map(type => (
                     <button
@@ -832,25 +833,25 @@ const Feedback = () => {
               </div>
               
               <div className="feedback-filter-header">
-                <label>Filter Type:</label>
+                <label>{t('feedback.filterType')}:</label>
                 <select
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   className="feedback-filter-select"
                 >
-                  <option value="all">All</option>
-                  <option value="message">Message</option>
-                  <option value="username">Username</option>
-                  <option value="type">Type</option>
+                  <option value="all">{t('common.all')}</option>
+                  <option value="message">{t('feedback.message')}</option>
+                  <option value="username">{t('feedback.username')}</option>
+                  <option value="type">{t('feedback.type')}</option>
                 </select>
               </div>
               
               {searchFilter !== 'all' && (
                 <div className="feedback-filter-section">
-                  <label>Filter Value:</label>
+                  <label>{t('feedback.filterValue')}:</label>
                   <input
                     type="text"
-                    placeholder={`Enter ${searchFilter}...`}
+                    placeholder={t('feedback.enterFilterValue', { filterType: t(`feedback.${searchFilter}`) })}
                     value={feedbackFilterValue}
                     onChange={(e) => setFeedbackFilterValue(e.target.value)}
                     className="feedback-filter-input"
@@ -863,7 +864,7 @@ const Feedback = () => {
                   className="feedback-apply-filter-btn"
                   onClick={() => setShowSearchFilters(false)}
                 >
-                  Apply
+                  {t('common.apply')}
                 </button>
                 <button 
                   className="feedback-clear-filter-btn"
@@ -874,7 +875,7 @@ const Feedback = () => {
                     setShowSearchFilters(false);
                   }}
                 >
-                  Clear
+                  {t('common.clear')}
                 </button>
               </div>
             </div>
@@ -892,7 +893,7 @@ const Feedback = () => {
             {loading ? (
               <div className="loading-feedback">
                 <div className="loading-spinner"></div>
-                <p>Loading feedback...</p>
+                <p>{t('feedback.loading')}</p>
               </div>
             ) : filteredFeedbacks.length > 0 ? (
               filteredFeedbacks.map(feedback => (
@@ -906,12 +907,12 @@ const Feedback = () => {
                       <span className="user-name">{feedback.userName || feedback.user}</span>
                       {!feedback.isRead && !feedback.hasResponse && (
                         <span className="unread-badge">
-                          <FaComment /> Unread
+                          <FaComment /> {t('feedback.unread')}
                         </span>
                       )}
                       {feedback.hasResponse && (
                         <span className="response-badge">
-                          <FaPaperPlane /> Responded
+                          <FaPaperPlane /> {t('feedback.responded')}
                         </span>
                       )}
                     </div>
@@ -938,7 +939,7 @@ const Feedback = () => {
                               handleMarkAsUnread(feedback.id);
                             }}
                             disabled={isMarkingUnread}
-                            title="Mark as unread"
+                            title={t('feedback.markAsUnread')}
                           >
                             <MdOutlineMarkChatUnread />
                           </button>
@@ -950,7 +951,7 @@ const Feedback = () => {
                               handleMarkAsRead(feedback.id);
                             }}
                             disabled={isMarkingRead}
-                            title="Mark as read"
+                            title={t('feedback.markAsRead')}
                           >
                             <MdOutlineMarkChatRead />
                           </button>
@@ -975,7 +976,7 @@ const Feedback = () => {
                                 }}
                                 disabled={isUnarchiving}
                               >
-                                {isUnarchiving ? 'Unarchiving...' : 'Unarchive'}
+                                {isUnarchiving ? t('feedback.unarchiving') : t('feedback.unarchive')}
                               </button>
                             ) : (
                               <button 
@@ -985,7 +986,7 @@ const Feedback = () => {
                                 }}
                                 disabled={isArchiving}
                               >
-                                {isArchiving ? 'Archiving...' : 'Archive'}
+                                {isArchiving ? t('feedback.archiving') : t('feedback.archive')}
                               </button>
                             )}
                             <button 
@@ -996,7 +997,7 @@ const Feedback = () => {
                               disabled={isDeleting}
                               className="delete-button"
                             >
-                              {isDeleting ? 'Deleting...' : 'Delete'}
+                              {isDeleting ? t('feedback.deleting') : t('feedback.delete')}
                             </button>
                           </div>
                         )}
@@ -1007,7 +1008,7 @@ const Feedback = () => {
               ))
             ) : (
               <div className="no-feedback">
-                <p>No feedback found</p>
+                <p>{t('feedback.noFeedback')}</p>
               </div>
             )}
           </div>
@@ -1034,12 +1035,12 @@ const Feedback = () => {
                 </div>
 
               <div className="original-message">
-                <h3>Feedback:</h3>
+                <h3>{t('feedback.title')}:</h3>
                 <p>{selectedFeedback.message}</p>
               </div>
 
               <div className="replies-container">
-                <h3>Responses:</h3>
+                <h3>{t('feedback.responses')}:</h3>
                 {selectedFeedback?.replies?.length > 0 ? (
                   selectedFeedback.replies.map(reply => (
                     <div key={reply.id} className="reply-message admin-reply">
@@ -1052,13 +1053,13 @@ const Feedback = () => {
                     </div>
                   ))
                 ) : (
-                  <p className="no-replies">No responses yet</p>
+                  <p className="no-replies">{t('feedback.noResponses')}</p>
                 )}
               </div>
 
               <div className="reply-box">
                 <textarea
-                  placeholder="Type your response here..."
+                  placeholder={t('feedback.typeResponse')}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   disabled={isReplying}
@@ -1068,7 +1069,7 @@ const Feedback = () => {
                   onClick={() => handleReplySubmit(selectedFeedback.id)}
                   disabled={isReplying || !replyText.trim()}
                 >
-                  {isReplying ? 'Sending...' : <><FaPaperPlane /> Send Response</>}
+                  {isReplying ? t('feedback.sending') : <><FaPaperPlane /> {t('feedback.sendResponse')}</>}
                 </button>
               </div>
             </div>

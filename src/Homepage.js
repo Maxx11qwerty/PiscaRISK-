@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useContext  } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import {FaUserCircle,FaImage,FaCloudSun,FaFish,
         FaExclamationTriangle,FaUser,FaDatabase,FaSignOutAlt,
         FaSearch,FaBars,FaCalendarAlt} from "react-icons/fa";
+import { useTranslation } from 'react-i18next'; // Add this import
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthContext } from './contexts/AuthContext';
 import { fetchWeatherData } from './services/weatherService';
+import { getTimeOfDay, getWeatherImage, getWeatherIcon } from './utils/weatherUtils';
 import WeatherBox from './components/WeatherBox';
 import WeatherDisplay from './components/WeatherDisplay';
 import { exportBoxData } from './utils/exportBoxData';
@@ -33,6 +35,7 @@ const getInitialData = () => {
 const PiscaRiskHome = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation(); // Add translation hook
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({
     title: "",
@@ -250,7 +253,7 @@ const PiscaRiskHome = () => {
 
   const handleLogsClick = async () => {
     if (currentUser?.role === 'Tech Officer') {
-      setErrorMessage('Access Denied: Only Admins are allowed to access');
+      setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
       return;
     }
@@ -259,7 +262,7 @@ const PiscaRiskHome = () => {
 
   const handleAccountManagementClick = async () => {
     if (currentUser?.role === 'Tech Officer') {
-      setErrorMessage('Access Denied: Only Admins are allowed to access');
+      setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
       return;
     }
@@ -269,7 +272,7 @@ const PiscaRiskHome = () => {
   const boxData = [
     {
       id: 1,
-      title: "Weather Condition",
+      title: t('dashboard.weatherCondition'),
       icon: <FaCloudSun className="box-icon" />,
       content: (
         <WeatherBox 
@@ -283,7 +286,7 @@ const PiscaRiskHome = () => {
     },
     {
       id: 2,
-      title: "Fish Pond Condition",
+      title: t('dashboard.fishPondCondition'),
       icon: <FaFish className="box-icon" />,
       content: (selectedPond, setSelectedPond) => (
         <PondConditionDashboard 
@@ -294,27 +297,27 @@ const PiscaRiskHome = () => {
     },
     {
       id: 3,
-      title: "PiscaRISK Data",
+      title: t('dashboard.piscaRiskData'),
       icon: <FaDatabase className="box-icon" />,
       content: (
         <div className="coming-soon-content">
-          <div className="coming-soon-badge">Coming Soon</div>
-          <p>Real-time data weather and pond condition will appear here.</p>
-          <p>Stay tuned! This section will display detailed data collected from pond reports.</p>
+          <div className="coming-soon-badge">{t('dashboard.comingSoon')}</div>
+          <p>{t('dashboard.realTimeDataDescription')}</p>
+          <p>{t('dashboard.stayTunedDescription')}</p>
         </div>
       ),
       modalContent: (
         <div className="coming-soon-content modal-view">
-          <div className="coming-soon-badge">Coming Soon</div>
-          <p>Real-time data weather and pond condition will appear here.</p>
-          <p>Stay tuned! This section will display detailed data collected from pond reports.</p>
-          <p>PiscaRISK will soon provide actionable data to optimize aquaculture performance.</p>
+          <div className="coming-soon-badge">{t('dashboard.comingSoon')}</div>
+          <p>{t('dashboard.realTimeDataDescription')}</p>
+          <p>{t('dashboard.stayTunedDescription')}</p>
+          <p>{t('dashboard.optimizePerformance')}</p>
         </div>
       )
     },
     {
       id: 4,
-      title: "Risk Reports",
+      title: t('dashboard.riskReports'),
       icon: <FaExclamationTriangle className="box-icon" />,
       content: (
         <RiskReportModal />
@@ -325,6 +328,7 @@ const PiscaRiskHome = () => {
   const handleBoxClick = (boxId) => {
     const selectedBox = boxData.find(box => box.id === boxId);
     setModalContent({
+      id: boxId, // Store the box ID for stable content rendering
       title: selectedBox.title,
       content: selectedBox.content,
       icon: selectedBox.icon
@@ -342,15 +346,114 @@ const PiscaRiskHome = () => {
       if (result.success) {
         setShowPasswordChangeModal(false);
         // Show success message
-        setErrorMessage('Password changed successfully!');
+        setErrorMessage(t('common.passwordChangedSuccess'));
         setTimeout(() => setErrorMessage(''), 3000);
       }
     } catch (error) {
       console.error('Password change error:', error);
-      setErrorMessage(`Password change failed: ${error.message}`);
+      setErrorMessage(`${t('common.passwordChangeFailed')}: ${error.message}`);
       setTimeout(() => setErrorMessage(''), 5000);
     }
   };
+
+  // Memoize weather modal content to prevent re-renders on language change
+  const weatherModalContent = useMemo(() => {
+    if (!weatherData) return null;
+    
+    const timeOfDay = getTimeOfDay(new Date());
+    const weatherImage = getWeatherImage(weatherData);
+    const weatherIconData = getWeatherIcon(weatherData.weather[0].main, new Date(), weatherData);
+    const weatherIcon = weatherIconData.icon;
+    const isNight = weatherIconData.isNight;
+    const weatherCondition = weatherData.weather[0].main.toLowerCase();
+    
+    return (
+      <div className="weather-main-modal">
+        <div className={`weather-display-container ${timeOfDay}`}>
+          <div 
+            className="weather-display-background" 
+            style={{ 
+              backgroundImage: `url(${weatherImage})`,
+              transition: 'background-image 0.3s ease-in-out'
+            }}
+          />
+          <div className="weather-display-content">
+            <div className="weather-time-info">
+              <div className="location-name">
+                {weatherData.locationName}
+              </div>
+              <div className="current-date-time">
+                <div className="current-date">
+                  {new Date().toLocaleDateString([], { 
+                    weekday: 'long', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </div>
+                <div className="time-temp-container">
+                  <div className="current-time">
+                    {new Date().toLocaleTimeString([], { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
+                  <div className="current-temp">
+                    {Math.round(weatherData.main.temp)}°C
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <img 
+              src={weatherIcon} 
+              alt={weatherCondition} 
+              className={`weather-condition-icon ${weatherCondition.replace(/\s+/g, '-')} ${
+                isNight ? 'night' : 'day'
+              }`}
+            />
+            <p className={`weather-condition-text ${timeOfDay}`}>
+              {weatherData.weather[0].description}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }, [weatherData]); // Only re-render when weather data changes, not language
+
+  // Create stable modal content based on box ID instead of translated titles
+  const getModalContent = useMemo(() => {
+    return (boxId) => {
+      switch (boxId) {
+        case 1: // Weather Condition
+          return weatherModalContent;
+        case 2: // Fish Pond Condition
+          return (
+            <div className="pond-modal-content">
+              <PondConditionDashboard 
+                isModal={true} 
+                selectedPond={selectedPond}
+                setSelectedPond={setSelectedPond}
+              />
+            </div>
+          );
+        case 3: // PiscaRISK Data
+          return (
+            <div className="image-placeholder">
+              <FaImage className="placeholder-icon" />
+              <span>{t('dashboard.piscaRiskData')} visualization</span>
+            </div>
+          );
+        case 4: // Risk Reports
+          return (
+            <div className="risk-modal-content">
+              <RiskReportModal isModal={true} />
+            </div>
+          );
+        default:
+          return null;
+      }
+    };
+  }, [weatherModalContent, selectedPond, t]);
 
   return (
     <PageTransition>
@@ -383,7 +486,7 @@ const PiscaRiskHome = () => {
                 <FaSearch className="header-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder={t('common.search')}
                   className="header-search-input"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -407,11 +510,11 @@ const PiscaRiskHome = () => {
                 <div className="header-dropdown-menu">
                   <button onClick={() => navigate("/ProfileSettings")}>
                     <FaUser className="dropdown-icon" />
-                    Profile
+                    {t('common.profile')}
                   </button>
                   <button onClick={() => handleLogout(navigate)}>
                     <FaSignOutAlt className="dropdown-icon" />
-                    Logout
+                    {t('sidebar.logout')}
                   </button> 
                 </div>
               )}
@@ -462,10 +565,10 @@ const PiscaRiskHome = () => {
                 </div>
                 
                 <div className="calendar-box">
-                  <h3>Calendar</h3>
+                  <h3>{t('common.calendar')}</h3>
                   <div className="chart-placeholder">
                     <FaCalendarAlt className="chart-icon" />
-                    <span>Calendar View</span>
+                    <span>{t('dashboard.calendarView')}</span>
                   </div>
                 </div>
               </div>
@@ -492,35 +595,9 @@ const PiscaRiskHome = () => {
               title={modalContent.title}
               icon={modalContent.icon}
             >
-              {modalContent.title === "Weather Condition" ? (
-                <div className="weather-main-modal">
-                  <WeatherDisplay 
-                    isModal={true}
-                    weatherData={weatherData}
-                    currentTime={new Date()}
-                    onRefresh={fetchWeatherData}
-                  />
-                </div>
-              ) : modalContent.title === "Fish Pond Condition" ? (
-                <div className="pond-modal-content">
-                  <PondConditionDashboard 
-                    isModal={true} 
-                    selectedPond={selectedPond}
-                    setSelectedPond={setSelectedPond}
-                  />
-                </div>
-              ) : modalContent.title === "Risk Reports" ? (
-                <div className="risk-modal-content">
-                  <RiskReportModal isModal={true} />
-                </div>
-              ) : (
-                <div className="image-placeholder">
-                  <FaImage className="placeholder-icon" />
-                  <span>{modalContent.title} visualization</span>
-                </div>
-              )}
+              {modalContent.id ? getModalContent(modalContent.id) : null}
 
-              {modalContent.title !== "Fish Pond Condition" && modalContent.title !== "Risk Reports" && (
+              {modalContent.id !== 2 && modalContent.id !== 4 && (
                 <div className="modal-text-content">
                   {typeof modalContent.content === "string"
                     ? modalContent.content.split("\n").map((line, index) => (

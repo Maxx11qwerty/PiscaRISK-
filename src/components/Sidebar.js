@@ -1,7 +1,19 @@
-import React from 'react';
-import './Sidebar.css';
-import { FaUserCircle, FaHome, FaClipboardList, FaComment, FaMoon, FaGlobe, FaFileExport, FaFilePdf, FaFileCsv } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { 
+  FaUserCircle, 
+  FaHome, 
+  FaClipboardList, 
+  FaComment, 
+  FaGlobe, 
+  FaFileExport, 
+  FaFilePdf, 
+  FaFileCsv 
+} from 'react-icons/fa';
 import { MdManageAccounts } from 'react-icons/md';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../contexts/LanguageContext';
+import './Sidebar.css';
 
 const Sidebar = ({
   sidebarOpen,
@@ -14,11 +26,21 @@ const Sidebar = ({
   onAccountManagementClick,
   onLogsClick,
   onFeedbackClick,
-  nightMode,
-  setNightMode,
-  language,
-  setLanguage,
 }) => {
+  const { t, i18n } = useTranslation();
+  const { language, setLanguage } = useLanguage();
+
+  // Update language when it changes
+  useEffect(() => {
+    i18n.changeLanguage(language);
+  }, [language, i18n]);
+
+  const handleLanguageChange = () => {
+    const newLanguage = language === 'en' ? 'tl' : 'en';
+    setLanguage(newLanguage);
+    i18n.changeLanguage(newLanguage);
+  };
+
   // Determine which classes to apply based on screen size and state
   const getSidebarClasses = () => {
     const classes = ['sidebar-wrapper'];
@@ -63,19 +85,19 @@ const Sidebar = ({
           <div className="sidebar-buttons">
             <div className="sidebar-nav-item" onClick={onDashboardClick}>
               <FaHome className="sidebar-nav-icon" />
-              <span>Dashboard</span>
+              <span>{t('sidebar.dashboard')}</span>
             </div>
             <div className="sidebar-nav-item" onClick={onAccountManagementClick}>
               <MdManageAccounts className="sidebar-nav-icon" />
-              <span>Accounts</span>
+              <span>{t('sidebar.accountManagement')}</span>
             </div>
             <div className="sidebar-nav-item" onClick={onLogsClick}>
               <FaClipboardList className="sidebar-nav-icon" />
-              <span>Logs</span>
+              <span>{t('sidebar.logs')}</span>
             </div>
             <div className="sidebar-nav-item" onClick={onFeedbackClick}>
               <FaComment className="sidebar-nav-icon" />
-              <span>Feedback</span>
+              <span>{t('sidebar.feedback')}</span>
             </div>
 
             <div className="sidebar-export-container">
@@ -84,7 +106,7 @@ const Sidebar = ({
                 onClick={() => setShowDownloadOptions(!showDownloadOptions)}
               >
                 <FaFileExport className="sidebar-nav-icon" />
-                <span>Export Data</span>
+                <span>{t('common.export')}</span>
               </div>
 
               {showDownloadOptions && (
@@ -94,14 +116,14 @@ const Sidebar = ({
                     onClick={() => handleExport && handleExport('pdf')}
                   >
                     <FaFilePdf className="homeDLpdf-icon" />
-                    <span>Export Data (PDF)</span>
+                    <span>{t('common.export')} (PDF)</span>
                   </div>
                   <div
                     className="sidebar-download-option"
                     onClick={() => handleExport && handleExport('csv')}
                   >
                     <FaFileCsv className="homeDLcsv-icon" />
-                    <span>Export Data (CSV)</span>
+                    <span>{t('common.export')} (CSV)</span>
                   </div>
                 </div>
               )}
@@ -110,9 +132,9 @@ const Sidebar = ({
         </div>
 
         <div className="sidebar-bottom-options">
-          <div className="sidebar-nav-item" onClick={() => setLanguage(language === 'en' ? 'tl' : 'en')}>
+          <div className="sidebar-nav-item" onClick={handleLanguageChange}>
             <FaGlobe className="sidebar-nav-icon" />
-            <span>{language === 'en' ? 'Tagalog' : 'English'}</span>
+            <span>{t(language === 'en' ? 'sidebar.english' : 'sidebar.tagalog' )}</span>
           </div>
         </div>
       </aside>

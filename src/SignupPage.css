@@ -76,7 +76,7 @@
   
   .sign-form-section {
     background-color: #ffffff;
-    padding: 3rem;
+    padding: 4rem;
     border-radius: 1rem;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     height: 35rem;
@@ -102,7 +102,7 @@
     margin: 1rem 0;
     font-weight: 500;
     font-size: 0.9rem;
-    color: #666;
+    color: #000000;
     font-family: 'customfont2';
   }
 
@@ -122,7 +122,7 @@
 
   .social-sign-section {
     text-align: center;
-    margin: -.5rem 0;
+    margin: -2rem 0;
   }
   
   .social-sign-buttons {
@@ -184,6 +184,35 @@
     box-shadow: 0 2px 8px rgba(25, 118, 210, 0.08);
   }
 
+  /* OR Divider Styles */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: .5rem 0;
+    position: relative;
+  }
+
+  .or-divider::before,
+  .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #e5e7eb;
+    margin: 0 1rem;
+  }
+
+  .or-text {
+    background-color: #ffffff;
+    color: #6b7280;
+    font-family: 'customfont2';
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
   .sign-rounded-line {
     height: 5px;
     width: 89%;
@@ -198,7 +227,7 @@
     width: 80%;
     max-width: 300px;
     padding: 15px 20px 15px 40px;
-    margin: -1rem auto 1.75rem auto; /* Added 1rem top margin */
+    margin: -1rem auto 1.5rem auto; /* Adjusted to move username field up slightly */
     border-radius: 1rem;
     outline: none;
     border: none;
@@ -218,6 +247,51 @@
     border-color: #3B82F6;
     background-color: #FFFFFF;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Farm Selection Styles */
+.farm-selection-wrapper {
+  width: 100%;
+  max-width: 420px;
+  margin: -1rem auto 1.5rem auto; /* Consistent spacing with input fields */
+  position: relative;
+}
+
+.farm-select-field {
+  width: 100%;
+  max-width: 350px;
+  padding: 10px 10px 15px 10px;
+  border-radius: 1rem;
+  outline: none;
+  border: 0.2rem solid #1A4375;
+  background-color: #ffffff;
+  font-family: 'customfont2';
+  font-size: .90rem;
+  color: #333;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 16px;
+  padding-right: 45px;
+}
+
+.farm-select-field:focus {
+  outline: none;
+  border-color: #3B82F6;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.farm-select-field option {
+  padding: 10px;
+  font-family: 'customfont2';
+  font-size: .80rem;
+}
+
+.farm-select-field:invalid {
+  color: #6b7280;
 }
   
 .sign-checkbox-row {
@@ -312,12 +386,41 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* OR Divider Styles */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2rem ;
+    position: relative;
+  }
+
+  .or-divider::before,
+  .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #e5e7eb;
+    margin: 0 1rem;
+  }
+
+  .or-text {
+    background-color: #ffffff;
+    color: #6b7280;
+    font-family: 'customfont2';
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
   /* password style */
 .signup-password-wrapper {
   position: relative;
   width: 100%;
   max-width: 320px;
-  margin: 0 auto .2rem;
+  margin: 0.5rem auto 1.5rem auto; /* Consistent spacing with other fields */
 }
 
 .signup-password-input {

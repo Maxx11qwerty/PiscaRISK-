@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
@@ -7,6 +8,7 @@ import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight,
 import './PondCondition.css';
 
 const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond }) => {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');
@@ -214,8 +216,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
       <div className="pond-condition-container">
         <div className="loading-state">
           <FaExclamationTriangle className="loading-icon" />
-          <h3>Loading Pond Reports...</h3>
-          <p>Fetching latest data from the system</p>
+          <h3>{t('pondCondition.loading_reports')}</h3>
+          <p>{t('pondCondition.fetching_latest_data')}</p>
         </div>
       </div>
     );
@@ -226,64 +228,64 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
       <div className="pond-report-header">
         <div className="header-content">
           <FaWater className="header-icon" />
-          <h2>Pond Condition Reports</h2>
-          <p className="header-subtitle">Comprehensive overview of fishpond conditions and reports</p>
+          <h2>{t('pondCondition.pond_condition_reports')}</h2>
+          <p className="header-subtitle">{t('pondCondition.comprehensive_overview')}</p>
         </div>
         
         <div className="report-summary">
           <div className="summary-item">
             <FaFish className="summary-icon" />
             <span className="summary-count">{allReports.length}</span>
-            <span className="summary-label">Total Reports</span>
+            <span className="summary-label">{t('pondCondition.total_reports')}</span>
           </div>
         </div>
       </div>
 
       <div className="filter-section">
         <div className="filter-group">
-          <label>Farm:</label>
+          <label>{t('pondCondition.farm')}:</label>
           <select 
             value={selectedFarmId} 
             onChange={(e) => setSelectedFarmId(e.target.value)}
             className="filter-select"
           >
-            <option value="all">All Farms</option>
+            <option value="all">{t('pondCondition.all_farms')}</option>
             {farms.map(f => (
-              <option key={f.id} value={f.id}>{f.name || 'Unnamed Farm'}{f.location ? ` — ${f.location}` : ''}</option>
+              <option key={f.id} value={f.id}>{f.name || t('pondCondition.unnamed_farm')}{f.location ? ` — ${f.location}` : ''}</option>
             ))}
           </select>
         </div>
         
         <div className="filter-group">
-          <label>Pond:</label>
+          <label>{t('pondCondition.pond')}:</label>
           <select 
             value={selectedPond} 
             onChange={(e) => setSelectedPond(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             className="filter-select"
           >
-            <option value="all">All Ponds</option>
+            <option value="all">{t('pondCondition.all_ponds')}</option>
             {pondOptions.map(n => (
-              <option key={n} value={n}>{`Pond ${n}`}</option>
+              <option key={n} value={n}>{`${t('pondCondition.pond')} ${n}`}</option>
             ))}
           </select>
         </div>
         
         <div className="filter-group">
-          <label>Date Range:</label>
+          <label>{t('pondCondition.date_range')}:</label>
           <select 
             value={reportFilter} 
             onChange={(e) => setReportFilter(e.target.value)}
             className="filter-select"
           >
-            <option value="today">Today</option>
-            <option value="last7days">Last 7 Days</option>
-            <option value="custom">Custom Date</option>
+            <option value="today">{t('pondCondition.today')}</option>
+            <option value="last7days">{t('pondCondition.last_7_days')}</option>
+            <option value="custom">{t('pondCondition.custom_date')}</option>
           </select>
         </div>
         
         {reportFilter === 'custom' && (
           <div className="filter-group">
-            <label>Select Date:</label>
+            <label>{t('pondCondition.select_date')}:</label>
             <input 
               type="date" 
               value={customDate} 
@@ -298,8 +300,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         {farms.length === 0 ? (
           <div className="no-reports">
             <FaExclamationTriangle className="no-reports-icon" />
-            <h3>No Farms Found</h3>
-            <p>No farms match the current filter criteria.</p>
+            <h3>{t('pondCondition.no_farms_found')}</h3>
+            <p>{t('pondCondition.no_farms_match_criteria')}</p>
           </div>
         ) : (
           farms.map((farm) => {
@@ -335,14 +337,14 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   <div className="summary-content">
                     <div className="summary-title">
                       <h3 className="farm-title">
-                        {farm.name || 'Unnamed Farm'} 
+                        {farm.name || t('pondCondition.unnamed_farm')} 
                         <span className="farm-location">{farm.location ? ` — ${farm.location}` : ''}</span>
                       </h3>
                       <div className="summary-meta">
-                        <span className="report-count">{visibleReports.length} report(s)</span>
+                        <span className="report-count">{visibleReports.length} {t('pondCondition.report_s')}</span>
                         <span className="timestamp">
                           <FaCalendarAlt className="time-icon" />
-                          Latest: {visibleReports.length > 0 ? formatTimestamp(visibleReports[0].date) : 'No reports'}
+                          {t('pondCondition.latest')}: {visibleReports.length > 0 ? formatTimestamp(visibleReports[0].date) : t('pondCondition.no_reports')}
                         </span>
                       </div>
                     </div>
@@ -357,15 +359,15 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 {expandedFarms.has(farm.id) && (
                   <div className="farm-detail-view">
                     {visibleReports.length === 0 ? (
-                      <div className="no-reports">No reports for selected filters</div>
+                      <div className="no-reports">{t('pondCondition.no_reports_for_selected_filters')}</div>
                     ) : (
                       visibleReports.map((report) => (
                         <div key={report.id} className="report-detail-card">
                           <div className="report-header">
                             <div className="report-header-left">
-                              <span className="pond-badge">{report.pond || 'Unknown Pond'}</span>
+                              <span className="pond-badge">{report.pond || t('pondCondition.unknown_pond')}</span>
                               <span className={`status-badge ${String(report.status||'').toLowerCase().replace(/\s+/g,'-')}`}>{report.status || '—'}</span>
-                              <span className={`harvest-badge ${report.harvest === 'Ready' ? 'ready' : 'not-ready'}`}>{report.harvest === 'Ready' ? 'Harvest Ready' : 'Not Ready'}</span>
+                              <span className={`harvest-badge ${report.harvest === 'Ready' ? 'ready' : 'not-ready'}`}>{report.harvest === 'Ready' ? t('pondCondition.harvest_ready') : t('pondCondition.not_ready')}</span>
                             </div>
                             <span className="report-date">{formatTimestamp(report.date)}</span>
                           </div>
@@ -373,42 +375,41 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                           <div className="report-content">
                             <div className="condition-grid">
                               <div className="condition-item">
-                                <span className="condition-label">Fish Condition</span>
+                                <span className="condition-label">{t('pondCondition.fish_condition')}</span>
                                 <span className="condition-value">
                                   {getConditionIcon(report.fish)}
                                   {report.fish || '—'}
                                 </span>
                               </div>
                               <div className="condition-item">
-                                <span className="condition-label">Water Condition</span>
+                                <span className="condition-label">{t('pondCondition.water_condition')}</span>
                                 <span className="condition-value">
                                   {getConditionIcon(report.water)}
                                   {report.water || '—'}
                                 </span>
                               </div>
                               <div className="condition-item">
-                                <span className="condition-label">Weather</span>
+                                <span className="condition-label">{t('pondCondition.weather')}</span>
                                 <span className="condition-value">
                                   <FaCloud className="weather-icon" />
                                   {report.weather || '—'}
                                 </span>
                               </div>
                               <div className="condition-item">
-                                <span className="condition-label">Harvest</span>
+                                <span className="condition-label">{t('pondCondition.harvest')}</span>
                                 <span className="condition-value">
-                                  {report.harvest === 'Ready' ? 'Yes' : 'No'}
-                                </span>
+                                  {report.harvest === 'Ready' ? t('pondCondition.yes') : t('pondCondition.no')}</span>
                               </div>
                             </div>
                             
                             <div className="report-meta">
                               <div className="meta-item">
-                                <span className="meta-label">Submitted by</span>
+                                <span className="meta-label">{t('pondCondition.submitted_by')}</span>
                                 <span className="meta-value">{report.submittedBy || '—'}{report.userRole ? ` (${report.userRole})` : ''}</span>
                               </div>
                               {report.contact || report.email ? (
                                 <div className="meta-item">
-                                  <span className="meta-label">Contact</span>
+                                  <span className="meta-label">{t('pondCondition.contact')}</span>
                                   <span className="meta-value">{[report.contact, report.email].filter(Boolean).join(' | ') || '—'}</span>
                                 </div>
                               ) : null}
@@ -416,7 +417,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                             
                             {report.notes && (
                               <div className="report-notes">
-                                <span className="notes-label">Additional Notes:</span>
+                                <span className="notes-label">{t('pondCondition.additional_notes')}:</span>
                                 <p className="notes-content">{report.notes}</p>
                               </div>
                             )}

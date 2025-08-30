@@ -268,7 +268,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Signup function
-  const signup = async (email, username, password) => {
+  const signup = async (email, username, contactNumber, farmId, password) => {
     try {
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -278,6 +278,8 @@ export const AuthProvider = ({ children }) => {
       const userData = {
         email,
         username,
+        contactNumber,
+        farmId,
         dateJoined: new Date().toISOString().split('T')[0],
         profileImage: null,
         role: 'tech_officer',
@@ -310,249 +312,249 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login function
-  const login = async (usernameOrEmail, password) => {
-    try {
-      let email = usernameOrEmail;
-      let userData = null;
-      let collectionName = 'users';
+// Login function
+const login = async (emailOrContact, password) => {
+  try {
+    let email = emailOrContact;
+    let userData = null;
+    let collectionName = 'users';
 
-      // If input is not an email (doesn't contain @), treat it as username
-      if (!usernameOrEmail.includes('@')) {
-        // Query both collections to find user with this username
-        const usersRef = collection(db, 'users');
-        const mobileUsersRef = collection(db, 'mobileUsers');
-        
-        // Check users collection first
-        let q = query(usersRef, where('username', '==', usernameOrEmail));
-        let querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          // Check mobileUsers collection
-          q = query(mobileUsersRef, where('username', '==', usernameOrEmail));
-          querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            collectionName = 'mobileUsers';
-          }
+    // If input is not an email (doesn't contain @), treat it as contact number
+    if (!emailOrContact.includes('@')) {
+      // Query both collections to find user with this contact number
+      const usersRef = collection(db, 'users');
+      const mobileUsersRef = collection(db, 'mobileUsers');
+      
+      // Check users collection first for contact number
+      let q = query(usersRef, where('contactNumber', '==', emailOrContact));
+      let querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        // Check mobileUsers collection for contact number
+        q = query(mobileUsersRef, where('contactNumber', '==', emailOrContact));
+        querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          collectionName = 'mobileUsers';
         }
-        
-        if (querySnapshot.empty) {
-          return { success: false, message: "Invalid username or password" };
-        }
-
-        // Get the email from the user document
-        const userDoc = querySnapshot.docs[0];
-        userData = userDoc.data();
-        
-        // Check if account is suspended (always block suspended accounts)
-        if (userData.status === 'suspended') {
-          return {
-            success: false,
-            message: "Your account has been suspended. Please contact support for assistance."
-          };
-        }
-        
-        // Check adminActivated status first (this is the key fix)
-        const roleLower = String(userData.role || '').toLowerCase();
-        const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
-        
-        if (!isAdminActivated) {
-          return { 
-            success: false, 
-            message: "Your account is pending admin approval. Please wait for activation." 
-          };
-        }
-        
-        // If adminActivated is true, allow the login to proceed to Firebase Auth
-        // We'll check email verification after successful Firebase Auth login
-        
-        email = userData.email;
-      } else {
-        // If input is an email, we need to check adminActivated before proceeding
-        // Query both collections to find user with this email
-        const usersRef = collection(db, 'users');
-        const mobileUsersRef = collection(db, 'mobileUsers');
-        
-        // Check users collection first
-        let q = query(usersRef, where('email', '==', usernameOrEmail));
-        let querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          // Check mobileUsers collection
-          q = query(mobileUsersRef, where('email', '==', usernameOrEmail));
-          querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            collectionName = 'mobileUsers';
-          }
-        }
-        
-        if (querySnapshot.empty) {
-          return { success: false, message: "Invalid username or password" };
-        }
-
-        // Get the user data from the document
-        const userDoc = querySnapshot.docs[0];
-        userData = userDoc.data();
-        
-        // Check if account is suspended (always block suspended accounts)
-        if (userData.status === 'suspended') {
-          return {
-            success: false,
-            message: "Your account has been suspended. Please contact support for assistance."
-          };
-        }
-        
-        // Check adminActivated status first (this is the key fix)
-        const roleLower = String(userData.role || '').toLowerCase();
-        const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
-        
-        if (!isAdminActivated) {
-          return { 
-            success: false, 
-            message: "Your account is pending admin approval. Please wait for activation." 
-          };
-        }
-        
-        // If adminActivated is true, allow the login to proceed to Firebase Auth
-        // We'll check email verification after successful Firebase Auth login
+      }
+      
+      if (querySnapshot.empty) {
+        return { success: false, message: "Invalid email/contact number or password" };
       }
 
-      // Now login with the email
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Get the email from the user document
+      const userDoc = querySnapshot.docs[0];
+      userData = userDoc.data();
       
-      // Double check status in case email was used directly
-      if (!userData) {
-        // Try to find user document by UID in both collections
-        let userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      // Check if account is suspended (always block suspended accounts)
+      if (userData.status === 'suspended') {
+        return {
+          success: false,
+          message: "Your account has been suspended. Please contact support for assistance."
+        };
+      }
+      
+      // Check adminActivated status first (this is the key fix)
+      const roleLower = String(userData.role || '').toLowerCase();
+      const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+      
+      if (!isAdminActivated) {
+        return { 
+          success: false, 
+          message: "Your account is pending admin approval. Please wait for activation." 
+        };
+      }
+      
+      // If adminActivated is true, allow the login to proceed to Firebase Auth
+      // We'll check email verification after successful Firebase Auth login
+      
+      email = userData.email;
+    } else {
+      // If input is an email, we need to check adminActivated before proceeding
+      // Query both collections to find user with this email
+      const usersRef = collection(db, 'users');
+      const mobileUsersRef = collection(db, 'mobileUsers');
+      
+      // Check users collection first
+      let q = query(usersRef, where('email', '==', emailOrContact));
+      let querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        // Check mobileUsers collection
+        q = query(mobileUsersRef, where('email', '==', emailOrContact));
+        querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          collectionName = 'mobileUsers';
+        }
+      }
+      
+      if (querySnapshot.empty) {
+        return { success: false, message: "Invalid email/contact number or password" };
+      }
+
+      // Get the user data from the document
+      const userDoc = querySnapshot.docs[0];
+      userData = userDoc.data();
+      
+      // Check if account is suspended (always block suspended accounts)
+      if (userData.status === 'suspended') {
+        return {
+          success: false,
+          message: "Your account has been suspended. Please contact support for assistance."
+        };
+      }
+      
+      // Check adminActivated status first (this is the key fix)
+      const roleLower = String(userData.role || '').toLowerCase();
+      const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+      
+      if (!isAdminActivated) {
+        return { 
+          success: false, 
+          message: "Your account is pending admin approval. Please wait for activation." 
+        };
+      }
+      
+      // If adminActivated is true, allow the login to proceed to Firebase Auth
+      // We'll check email verification after successful Firebase Auth login
+    }
+
+    // Now login with the email
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Double check status in case email was used directly
+    if (!userData) {
+      // Try to find user document by UID in both collections
+      let userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      if (userDoc.exists()) {
+        userData = userDoc.data();
+        collectionName = 'users';
+      } else {
+        userDoc = await getDoc(doc(db, 'mobileUsers', userCredential.user.uid));
         if (userDoc.exists()) {
           userData = userDoc.data();
-          collectionName = 'users';
-        } else {
-          userDoc = await getDoc(doc(db, 'mobileUsers', userCredential.user.uid));
-          if (userDoc.exists()) {
-            userData = userDoc.data();
-            collectionName = 'mobileUsers';
-          }
+          collectionName = 'mobileUsers';
         }
       }
+    }
+    
+    if (userData) {
+      // Handle existing users who might have different status values
+      console.log('User data found:', {
+        email: userData.email,
+        status: userData.status,
+        role: userData.role,
+        emailVerified: userCredential.user.emailVerified
+      });
+
+      // Check if account is suspended (always block suspended accounts)
+      if (userData.status === 'suspended') {
+        await signOut(auth);
+        return {
+          success: false,
+          message: "Your account has been suspended. Please contact support for assistance."
+        };
+      }
       
-      if (userData) {
-        // Handle existing users who might have different status values
-        console.log('User data found:', {
-          email: userData.email,
-          status: userData.status,
-          role: userData.role,
-          emailVerified: userCredential.user.emailVerified
-        });
-
-        // Check if account is suspended (always block suspended accounts)
-        if (userData.status === 'suspended') {
-          await signOut(auth);
-          return {
-            success: false,
-            message: "Your account has been suspended. Please contact support for assistance."
-          };
-        }
-        
-        // Allow Admin accounts to login regardless of status (except suspended)
-        const roleLower = String(userData.role || '').toLowerCase();
-        if (roleLower === 'admin') {
-          console.log('Admin account detected - allowing login regardless of status');
-          // Auto-activate admin accounts if they're inactive
-          const statusLower = String(userData.status || '').toLowerCase();
-          if (statusLower === 'inactive' && userCredential.user.emailVerified) {
-            console.log('Auto-activating inactive admin account');
-            const updateRef = doc(db, collectionName, userCredential.user.uid);
-            await updateDoc(updateRef, {
-              status: 'Active',
-              lastModified: serverTimestamp()
-            });
-            userData.status = 'Active';
-          }
-        }
-
-        // For existing users, if email not verified: trigger verification flow instead of plain error
-        if (!userCredential.user.emailVerified) {
-          try {
-            await sendEmailVerification(userCredential.user, {
-              url: window.location.origin + '/login',
-              handleCodeInApp: true
-            });
-          } catch (e) {
-            console.warn('Auto-send verification failed:', e);
-          }
-          await signOut(auth);
-          return {
-            success: false,
-            code: 'show_verification_modal',
-            email: email,
-            password: password, // Pass password for resend functionality
-            message: ''
-          };
-        }
-
-        // Now handle status updates and auto-activation
+      // Allow Admin accounts to login regardless of status (except suspended)
+      const roleLower = String(userData.role || '').toLowerCase();
+      if (roleLower === 'admin') {
+        console.log('Admin account detected - allowing login regardless of status');
+        // Auto-activate admin accounts if they're inactive
         const statusLower = String(userData.status || '').toLowerCase();
-        
-        // Auto-activate admin accounts if they're inactive and email verified
-        if (roleLower === 'admin' && statusLower === 'inactive' && userCredential.user.emailVerified) {
+        if (statusLower === 'inactive' && userCredential.user.emailVerified) {
           console.log('Auto-activating inactive admin account');
           const updateRef = doc(db, collectionName, userCredential.user.uid);
           await updateDoc(updateRef, {
             status: 'Active',
-            emailVerified: true,
-            lastModified: serverTimestamp()
-          });
-          userData.status = 'Active';
-        }
-        
-        // For non-admin users with adminActivated=true and emailVerified=true, 
-        // update status to Active if it's not already
-        if (roleLower !== 'admin' && userData.adminActivated && userCredential.user.emailVerified && statusLower !== 'active') {
-          console.log('Auto-activating non-admin user with adminActivated=true and emailVerified=true');
-          const updateRef = doc(db, collectionName, userCredential.user.uid);
-          await updateDoc(updateRef, {
-            status: 'Active',
-            emailVerified: true,
             lastModified: serverTimestamp()
           });
           userData.status = 'Active';
         }
       }
-      
-      return { success: true, user: userCredential.user };
-    } catch (error) {
-      console.error('Login error:', error);
-      
-      // Handle specific Firebase Auth errors
-      if (error.code === 'auth/invalid-credential') {
-        return { 
-          success: false, 
-          message: "Invalid username/email or password. Please check your credentials." 
-        };
-      } else if (error.code === 'auth/user-not-found') {
-        return { 
-          success: false, 
-          message: "User account not found. Please check your username/email." 
-        };
-      } else if (error.code === 'auth/wrong-password') {
-        return { 
-          success: false, 
-          message: "Invalid username/email or password. Please check your credentials." 
-        };
-      } else if (error.code === 'auth/too-many-requests') {
-        return { 
-          success: false, 
-          message: "Too many failed login attempts. Please try again later." 
+
+      // For existing users, if email not verified: trigger verification flow instead of plain error
+      if (!userCredential.user.emailVerified) {
+        try {
+          await sendEmailVerification(userCredential.user, {
+            url: window.location.origin + '/login',
+            handleCodeInApp: true
+          });
+        } catch (e) {
+          console.warn('Auto-send verification failed:', e);
+        }
+        await signOut(auth);
+        return {
+          success: false,
+          code: 'show_verification_modal',
+          email: email,
+          password: password, // Pass password for resend functionality
+          message: ''
         };
       }
+
+      // Now handle status updates and auto-activation
+      const statusLower = String(userData.status || '').toLowerCase();
       
+      // Auto-activate admin accounts if they're inactive and email verified
+      if (roleLower === 'admin' && statusLower === 'inactive' && userCredential.user.emailVerified) {
+        console.log('Auto-activating inactive admin account');
+        const updateRef = doc(db, collectionName, userCredential.user.uid);
+        await updateDoc(updateRef, {
+          status: 'Active',
+          emailVerified: true,
+          lastModified: serverTimestamp()
+        });
+        userData.status = 'Active';
+      }
+      
+      // For non-admin users with adminActivated=true and emailVerified=true, 
+      // update status to Active if it's not already
+      if (roleLower !== 'admin' && userData.adminActivated && userCredential.user.emailVerified && statusLower !== 'active') {
+        console.log('Auto-activating non-admin user with adminActivated=true and emailVerified=true');
+        const updateRef = doc(db, collectionName, userCredential.user.uid);
+        await updateDoc(updateRef, {
+          status: 'Active',
+          emailVerified: true,
+          lastModified: serverTimestamp()
+        });
+        userData.status = 'Active';
+      }
+    }
+    
+    return { success: true, user: userCredential.user };
+  } catch (error) {
+    console.error('Login error:', error);
+    
+    // Handle specific Firebase Auth errors
+    if (error.code === 'auth/invalid-credential') {
       return { 
         success: false, 
-        message: error.message || "An error occurred during login. Please try again." 
+        message: "Invalid email/contact number or password. Please check your credentials." 
+      };
+    } else if (error.code === 'auth/user-not-found') {
+      return { 
+        success: false, 
+        message: "User account not found. Please check your email/contact number." 
+      };
+    } else if (error.code === 'auth/wrong-password') {
+      return { 
+        success: false, 
+        message: "Invalid email/contact number or password. Please check your credentials." 
+      };
+    } else if (error.code === 'auth/too-many-requests') {
+      return { 
+        success: false, 
+        message: "Too many failed login attempts. Please try again later." 
       };
     }
-  };
+    
+    return { 
+      success: false, 
+      message: error.message || "An error occurred during login. Please try again." 
+    };
+  }
+};
 
   const logout = async () => {
     try {
@@ -1310,183 +1312,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Facebook Sign In
-  const signInWithFacebook = async () => {
-    try {
-      const provider = new FacebookAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      
-      // First, check if this email already exists in Firestore (for newly added admins)
-      const usersRef = collection(db, 'users');
-      const emailQuery = query(usersRef, where('email', '==', result.user.email));
-      const emailSnapshot = await getDocs(emailQuery);
-      
-      let existingUserData = null;
-      let isNewlyAddedAdmin = false;
-      let existingUserDoc = null;
-      
-      if (!emailSnapshot.empty) {
-        // Email exists in Firestore - check if it's a newly added admin
-        existingUserDoc = emailSnapshot.docs[0];
-        existingUserData = existingUserDoc.data();
-        
-        console.log('Facebook Sign-In: Found existing user in Firestore:', {
-          email: result.user.email,
-          role: existingUserData.role,
-          status: existingUserData.status,
-          isNewlyAddedAdmin: existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive'
-        });
-        
-        if (existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive') {
-          isNewlyAddedAdmin = true;
-        }
-      }
-      
-      // Check if user exists in Firestore by UID
-      const userDoc = await getDoc(doc(db, 'users', result.user.uid));
-      
-      let userRole = 'tech_officer'; // Default role for new users
-      
-      if (!userDoc.exists()) {
-        // User doesn't exist by UID - this could be a new user or a newly added admin
-        if (isNewlyAddedAdmin) {
-          // This is a newly added admin trying to log in with Facebook
-          // We need to link their Facebook account to the existing Firestore document
-          await updateDoc(doc(db, 'users', existingUserDoc.id), {
-            facebookUid: result.user.uid,
-            lastModified: serverTimestamp()
-          });
-          
-          // Update the user document with Facebook profile info
-          await updateDoc(doc(db, 'users', existingUserDoc.id), {
-            profileImage: result.user.photoURL,
-            lastModified: serverTimestamp()
-          });
-          
-          userRole = existingUserData.role;
-          
-          // For newly added admins, they must verify their email before activation
-          if (!result.user.emailVerified) {
-            await signOut(auth);
-            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-          }
-          
-          // If email is verified, update status to Active
-          if (result.user.emailVerified && String(existingUserData.status || '').toLowerCase() === 'inactive') {
-            await updateDoc(doc(db, 'users', existingUserDoc.id), {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            existingUserData.status = 'Active';
-          }
-          
-          setCurrentUser({
-            uid: existingUserDoc.id,
-            ...existingUserData,
-            emailVerified: result.user.emailVerified
-          });
-        } else {
-          // Create new user document if it doesn't exist
-          const userData = {
-            email: result.user.email,
-            username: result.user.displayName || result.user.email.split('@')[0],
-            dateJoined: new Date().toISOString().split('T')[0],
-            profileImage: result.user.photoURL,
-            role: 'tech_officer',
-            status: 'inactive',
-            emailVerified: result.user.emailVerified,
-            createdAt: serverTimestamp()
-          };
-          
-          await setDoc(doc(db, 'users', result.user.uid), userData);
-          userRole = userData.role;
-          
-          // ALL users must verify email before accessing dashboard
-          if (!result.user.emailVerified) {
-            await signOut(auth);
-            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-          }
-          
-          // Do NOT auto-activate Tech Officers; require admin activation.
-          if (result.user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
-            await updateDoc(doc(db, 'users', result.user.uid), {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            userData.status = 'Active';
-          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          }
-        }
-      } else {
-        // Get existing user's role
-        const userData = userDoc.data();
-        userRole = userData.role || 'tech_officer';
-        
-        // Handle existing users who might have different status values
-        console.log('Facebook Sign-In: Existing user data:', {
-          email: userData.email,
-          status: userData.status,
-          role: userData.role,
-          emailVerified: result.user.emailVerified
-        });
-
-        // Check if account is suspended (always block suspended accounts)
-        if (userData.status === 'suspended') {
-          await signOut(auth);
-          throw new Error('Your account has been suspended. Please contact support for assistance.');
-        }
-
-        // For existing users, check if they need email verification
-        if (!result.user.emailVerified) {
-          console.log('Facebook Sign-In: User email not verified, blocking access');
-          await signOut(auth);
-          throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-        }
-
-        // Handle status updates for existing users (auto-activate admins only)
-        if (userData.role === 'admin' && userData.status === 'inactive' && result.user.emailVerified) {
-          console.log('Facebook Sign-In: Updating existing user status from inactive to active for:', result.user.email);
-          
-          await updateDoc(doc(db, 'users', result.user.uid), {
-            status: 'active',
-            emailVerified: true,
-            lastModified: serverTimestamp()
-          });
-          userData.status = 'active';
-        } else if (userData.status === 'active' && result.user.emailVerified) {
-          // Existing active user with verified email - allow access
-          console.log('Facebook Sign-In: Existing active user with verified email - allowing access');
-        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
-          // Handle legacy users without proper status
-          console.log('Facebook Sign-In: Legacy user without proper status - evaluating role for:', result.user.email);
-          if (userData.role === 'admin' && result.user.emailVerified) {
-            await updateDoc(doc(db, 'users', result.user.uid), {
-              status: 'active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            
-            console.log('Facebook Sign-In: Successfully updated legacy admin user status to active');
-            userData.status = 'active';
-          } else {
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          }
-        }
-      }
-
-      logActivity('login', `User logged in with Facebook: ${result.user.email}`, result.user.email, null, userRole);
-      return { success: true, user: result.user };
-    } catch (error) {
-      logActivity('error', logMessages.error.system(`Facebook login failed: ${error.message}`), 'anonymous');
-      throw error;
-    }
-  };
-
 // Add this to your AuthContext provider functions
 const resetPassword = async (email) => {
   try {
@@ -1835,7 +1660,6 @@ const resetPassword = async (email) => {
     isTechOfficer,
     updateUser,
     signInWithGoogle,
-    signInWithFacebook,
     resetPassword,
     sendVerificationEmail,
     checkEmailVerification,

@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchWeatherData } from '../services/weatherService';
 import { getTimeOfDay, getWeatherImage, getWeatherIcon } from '../utils/weatherUtils';
 import './WeatherDisplay.css';
 
 const WeatherDisplay = ({ }) => {
+  const { t } = useTranslation();
   const [weatherData, setWeatherData] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -28,21 +30,37 @@ const WeatherDisplay = ({ }) => {
     };
   }, []);
 
-  if (loading) return <div>Loading weather data...</div>;
-  if (!weatherData) return <div>Failed to load weather data</div>;
+  // Memoize expensive calculations to prevent re-computation on language change
+  const weatherDisplayData = useMemo(() => {
+    if (!weatherData) return null;
+    
+    const timeOfDay = getTimeOfDay(currentTime);
+    const weatherImage = getWeatherImage(weatherData);
+    const weatherIconData = getWeatherIcon(weatherData.weather[0].main, currentTime, weatherData);
+    
+    return {
+      timeOfDay,
+      weatherImage,
+      weatherIcon: weatherIconData.icon,
+      isNight: weatherIconData.isNight,
+      weatherCondition: weatherData.weather[0].main.toLowerCase()
+    };
+  }, [weatherData, currentTime]); // Only recalculate when weather data or time changes, not language
 
-  const timeOfDay = getTimeOfDay(currentTime);
-  const weatherImage = getWeatherImage(weatherData);
-  const weatherIconData = getWeatherIcon(weatherData.weather[0].main, currentTime, weatherData);
-  const weatherIcon = weatherIconData.icon;
-  const isNight = weatherIconData.isNight;
-  const weatherCondition = weatherData.weather[0].main.toLowerCase();
+  if (loading) return <div>{t('weather.loading')}</div>;
+  if (!weatherData || !weatherDisplayData) return <div>{t('weather.failedToLoad')}</div>;
+
+  const { timeOfDay, weatherImage, weatherIcon, isNight, weatherCondition } = weatherDisplayData;
 
   return (
     <div className={`weather-display-container ${timeOfDay}`}>
       <div 
         className="weather-display-background" 
-        style={{ backgroundImage: `url(${weatherImage})` }}
+        style={{ 
+          backgroundImage: `url(${weatherImage})`,
+          // Add smooth transition to prevent flickering
+          transition: 'background-image 0.3s ease-in-out'
+        }}
       />
       <div className="weather-display-content">
         <div className="weather-time-info">

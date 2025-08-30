@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext  } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaEnvelope, FaUser, FaLock, FaGoogle, FaFacebook } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaEnvelope, FaUser, FaLock, FaGoogle, FaPhone } from "react-icons/fa";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import { logActivity, logMessages } from './utils/logger';
@@ -42,6 +42,8 @@ export default function SignupPage() {
   const [formData, setFormData] = useState({
     email: "",
     username: "",
+    contactNumber: "",
+    farmId: "", // Add farm selection
     password: "",
     confirmPassword: "",
     agree: false,
@@ -55,6 +57,8 @@ export default function SignupPage() {
   const [showOtp, setShowOtp] = useState(false);
   const otpCode = "1234";
   const [success, setSuccess] = useState("");
+  const [farms, setFarms] = useState([]);
+  const [loadingFarms, setLoadingFarms] = useState(true);
 
   // Clear localStorage when component mounts (for development only)
   useEffect(() => {
@@ -63,7 +67,34 @@ export default function SignupPage() {
     localStorage.removeItem('userData');
     localStorage.removeItem('currentUser');
     console.log('LocalStorage cleared for development');
+    
+    // Fetch farms from Firebase
+    fetchFarms();
   }, []);
+
+  // Function to fetch farms from Firebase
+  const fetchFarms = async () => {
+    try {
+      setLoadingFarms(true);
+      const { collection, getDocs } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      
+      const farmsCollection = collection(db, 'farms');
+      const farmsSnapshot = await getDocs(farmsCollection);
+      
+      const farmsList = farmsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setFarms(farmsList);
+    } catch (error) {
+      console.error('Error fetching farms:', error);
+      setError('Failed to load farms. Please try again.');
+    } finally {
+      setLoadingFarms(false);
+    }
+  };
 
   useEffect(() => {
     if (error) {
@@ -85,7 +116,7 @@ export default function SignupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     // Check for empty fields
-    if (!formData.email.trim() || !formData.username.trim() || !formData.password.trim() || !formData.confirmPassword.trim()) {
+    if (!formData.email.trim() || !formData.username.trim() || !formData.contactNumber.trim() || !formData.farmId || !formData.password.trim() || !formData.confirmPassword.trim()) {
       const errorMsg = "All fields are required";
       setError(errorMsg);
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
@@ -95,6 +126,14 @@ export default function SignupPage() {
     const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(formData.email)) {
       const errorMsg = "Please enter a valid email address.";
+      setError(errorMsg);
+      logActivity('error', logMessages.error.validation(errorMsg), formData.username);
+      return;
+    }
+    // Contact number validation (11 digits)
+    const contactRegex = /^\d{11}$/;
+    if (!contactRegex.test(formData.contactNumber)) {
+      const errorMsg = "Contact number must be exactly 11 digits.";
       setError(errorMsg);
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
       return;
@@ -115,6 +154,8 @@ export default function SignupPage() {
       await signup(
         formData.email,
         formData.username,
+        formData.contactNumber,
+        formData.farmId,
         formData.password
       );
       logActivity('account', logMessages.account.userCreated('system', formData.username), formData.username);
@@ -136,11 +177,6 @@ export default function SignupPage() {
   const handleRegisterGoogle = () => {
     // Implement Google login
     console.log('Google login clicked');
-  };
-
-  const handleRegisterFacebook = () => {
-    // Implement Facebook login
-    console.log('Facebook login clicked');
   };
 
   const handleOtpVerify = () => {
@@ -186,17 +222,15 @@ export default function SignupPage() {
                 <FaGoogle className="social-icon" />
                 <span className="social-sign-text">Sign in with Gmail</span>
               </button>
-              <button 
-                className="social-sign-button facebook"
-                onClick={handleRegisterFacebook}
-              >
-                <FaFacebook className="social-icon" />
-                <span className="social-sign-text">Sign in with Facebook</span>
-              </button>
             </div>
           </div>
-            <p className="sign-register-text">
-            Register with your email address account
+            
+            <div className="or-divider">
+              <span className="or-text">or</span>
+            </div>
+            
+            <p className="sign-login-text">
+              Continue with an existing email account
             </p>
             <div className="sign-rounded-line"></div>
             <div className={`sign-error-message ${error ? 'visible' : ''}`}> {error} </div>
@@ -224,6 +258,39 @@ export default function SignupPage() {
               className="sign-input-field"
               required
             />
+          </div>
+          <div className="input-with-icon">
+            <FaPhone className="input-icon" />
+            <input
+              type="text"
+              name="contactNumber"
+              placeholder="Contact Number"
+              value={formData.contactNumber}
+              onChange={handleChange}
+              className="sign-input-field"
+              required
+            />
+          </div>
+
+          <div className="farm-selection-wrapper">
+            <select
+              name="farmId"
+              value={formData.farmId}
+              onChange={handleChange}
+              className="farm-select-field"
+              required
+            >
+              <option value="">Select a Farm</option>
+              {loadingFarms ? (
+                <option value="" disabled>Loading farms...</option>
+              ) : (
+                farms.map(farm => (
+                  <option key={farm.id} value={farm.id}>
+                    {farm.name} - {farm.location}
+                  </option>
+                ))
+              )}
+            </select>
           </div>
 
             <div className="signup-password-wrapper">

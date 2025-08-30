@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import SignupPage from "./SignupPage";
 import Login from "./Login";
 import Homepage from "./Homepage";
@@ -11,6 +11,7 @@ import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthProvider } from './contexts/AuthContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -33,9 +34,13 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <BrowserRouter>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </LanguageProvider>
+    </BrowserRouter>
   );
 }
 

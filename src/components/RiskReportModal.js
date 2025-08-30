@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next'; // Add this import
 import { FaExclamationTriangle, FaShieldAlt, FaThermometerHalf, FaWater, FaFish, FaClock, FaExclamationCircle, FaCloudRain, FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import { db } from '../firebase';
 import { collection, getDocs, orderBy, query, where, Timestamp } from 'firebase/firestore';
 import './RiskReportModal.css';
 
 const RiskReportModal = ({ isModal = false }) => {
+  const { t } = useTranslation(); // Add translation hook
   const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDateRange, setSelectedDateRange] = useState('last7days');
@@ -496,8 +498,8 @@ const RiskReportModal = ({ isModal = false }) => {
       <div className="risk-report-container">
         <div className="loading-state">
           <FaExclamationTriangle className="loading-icon" />
-          <h3>Loading Risk Predictions...</h3>
-          <p>Fetching latest data from the system</p>
+          <h3>{t('riskReports.loading_predictions')}</h3>
+          <p>{t('riskReports.fetching_latest_data')}</p>
         </div>
       </div>
     );
@@ -508,65 +510,65 @@ const RiskReportModal = ({ isModal = false }) => {
       <div className="risk-report-header">
         <div className="header-content">
           <FaExclamationTriangle className="header-icon" />
-          <h2>Risk Analysis & Predictions</h2>
-          <p className="header-subtitle">Predictive risk analysis leveraging Machine Learning techniques for pond conditions.</p>
+          <h2>{t('riskReports.risk_analysis_predictions')}</h2>
+          <p className="header-subtitle">{t('riskReports.predictive_analysis_subtitle')}</p>
         </div>
         
         <div className="risk-summary">
           <div className="summary-item">
             <FaExclamationCircle className="summary-icon high" />
             <span className="summary-count">{getRiskCount('High')}</span>
-            <span className="summary-label">High Risk</span>
+            <span className="summary-label">{t('riskReports.high_risk')}</span>
           </div>
           <div className="summary-item">
             <FaExclamationCircle className="summary-icon medium" />
             <span className="summary-count">{getRiskCount('Medium')}</span>
-            <span className="summary-label">Medium Risk</span>
+            <span className="summary-label">{t('riskReports.medium_risk')}</span>
           </div>
           <div className="summary-item">
             <FaExclamationCircle className="summary-icon low" />
             <span className="summary-count">{getRiskCount('Low')}</span>
-            <span className="summary-label">Low Risk</span>
+            <span className="summary-label">{t('riskReports.low_risk')}</span>
           </div>
         </div>
       </div>
 
       <div className="filter-section">
         <div className="filter-group">
-          <label>Date Range:</label>
+          <label>{t('riskReports.date_range')}:</label>
           <select 
             value={selectedDateRange} 
             onChange={(e) => setSelectedDateRange(e.target.value)}
             className="filter-select"
           >
-            <option value="today">Today</option>
-            <option value="last7days">Last 7 Days</option>
-            <option value="thisMonth">This Month</option>
+            <option value="today">{t('riskReports.today')}</option>
+            <option value="last7days">{t('riskReports.last_7_days')}</option>
+            <option value="thisMonth">{t('riskReports.this_month')}</option>
           </select>
         </div>
         
         <div className="filter-group">
-          <label>Risk Level:</label>
+          <label>{t('riskReports.risk_level')}:</label>
           <select 
             value={selectedRiskLevel} 
             onChange={(e) => setSelectedRiskLevel(e.target.value)}
             className="filter-select"
           >
-            <option value="all">All Levels</option>
-            <option value="High Risk">High Risk</option>
-            <option value="Medium Risk">Medium Risk</option>
-            <option value="Low Risk">Low Risk</option>
+            <option value="all">{t('riskReports.all_levels')}</option>
+            <option value="High Risk">{t('riskReports.high_risk')}</option>
+            <option value="Medium Risk">{t('riskReports.medium_risk')}</option>
+            <option value="Low Risk">{t('riskReports.low_risk')}</option>
           </select>
         </div>
         
         <div className="filter-group">
-          <label>Weather:</label>
+          <label>{t('riskReports.weather')}:</label>
           <select 
             value={selectedCategory} 
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="filter-select"
           >
-            <option value="all">All Weather</option>
+            <option value="all">{t('riskReports.all_weather')}</option>
             {availableWeatherOptions.map((weather, index) => (
               <option key={index} value={weather}>{weather}</option>
             ))}
@@ -574,23 +576,23 @@ const RiskReportModal = ({ isModal = false }) => {
         </div>
         
         <div className="filter-group">
-          <label>Pond Number:</label>
+          <label>{t('riskReports.pond_number')}:</label>
           <select 
             value={selectedPond} 
             onChange={(e) => setSelectedPond(e.target.value)}
             className="filter-select"
           >
-            <option value="all">All Ponds</option>
-            <option value="1">Fish Pond 1</option>
-            <option value="2">Fish Pond 2</option>
-            <option value="3">Fish Pond 3</option>
-            <option value="4">Fish Pond 4</option>
-            <option value="5">Fish Pond 5</option>
-            <option value="6">Fish Pond 6</option>
-            <option value="7">Fish Pond 7</option>
-            <option value="8">Fish Pond 8</option>
-            <option value="9">Fish Pond 9</option>
-            <option value="10">Fish Pond 10</option>
+            <option value="all">{t('riskReports.all_ponds')}</option>
+            <option value="1">{t('riskReports.fish_pond')} 1</option>
+            <option value="2">{t('riskReports.fish_pond')} 2</option>
+            <option value="3">{t('riskReports.fish_pond')} 3</option>
+            <option value="4">{t('riskReports.fish_pond')} 4</option>
+            <option value="5">{t('riskReports.fish_pond')} 5</option>
+            <option value="6">{t('riskReports.fish_pond')} 6</option>
+            <option value="7">{t('riskReports.fish_pond')} 7</option>
+            <option value="8">{t('riskReports.fish_pond')} 8</option>
+            <option value="9">{t('riskReports.fish_pond')} 9</option>
+            <option value="10">{t('riskReports.fish_pond')} 10</option>
           </select>
         </div>
       </div>
@@ -643,17 +645,17 @@ const RiskReportModal = ({ isModal = false }) => {
                     </h3>
                     <div className="summary-meta">
                       <span className="confidence-badge">
-                        {prediction.confidence}% confidence
+                        {prediction.confidence}% {t('riskReports.confidence')}
                       </span>
                       <span className="timestamp">
                         <FaClock className="time-icon" />
                         {formatTimestamp(prediction.timestamp)}
                       </span>
-                      <span className="user-badge">{nearestReport?.submitted_by || uid || 'Unknown User'}{nearestReport?.user_role ? ` (${nearestReport.user_role})` : ''}</span>
+                      <span className="user-badge">{nearestReport?.submitted_by || uid || t('riskReports.unknown_user')}{nearestReport?.user_role ? ` (${nearestReport.user_role})` : ''}</span>
                     </div>
-                    <div className="reported-conditions">
-                      Water: {nearestReport?.water_condition || '—'} | Fish: {nearestReport?.fish_condition || '—'} | Weather: {nearestReport?.weather || prediction.weather || '—'}
-                    </div>
+                                          <div className="reported-conditions">
+                        {t('riskReports.water')}: {nearestReport?.water_condition || '—'} | {t('riskReports.fish')}: {nearestReport?.fish_condition || '—'} | {t('riskReports.weather')}: {nearestReport?.weather || prediction.weather || '—'}
+                      </div>
                   </div>
                   <div className="summary-indicators">
                     <span 
@@ -675,15 +677,15 @@ const RiskReportModal = ({ isModal = false }) => {
                   <div className="risk-content">
                     <div className="grid-two-cols">
                       <div className="ml-section">
-                        <h4>ML Prediction</h4>
-                        <div className="kv"><span>Risk Level:</span><strong>{prediction.risk_level || '—'}</strong></div>
-                        <div className="kv"><span>Confidence:</span><strong>{typeof prediction.confidence === 'number' ? `${prediction.confidence}%` : (prediction.confidence || '—')}</strong></div>
-                        {prediction.title && <div className="kv"><span>Title:</span><strong>{prediction.title}</strong></div>}
+                        <h4>{t('riskReports.ml_prediction')}</h4>
+                        <div className="kv"><span>{t('riskReports.risk_level')}:</span><strong>{prediction.risk_level || '—'}</strong></div>
+                        <div className="kv"><span>{t('riskReports.confidence')}:</span><strong>{typeof prediction.confidence === 'number' ? `${prediction.confidence}%` : (prediction.confidence || '—')}</strong></div>
+                        {prediction.title && <div className="kv"><span>{t('riskReports.title')}:</span><strong>{prediction.title}</strong></div>}
                         {prediction.description && (
-                          <div className="kv wrap"><span>Description:</span><p>{prediction.description}</p></div>
+                          <div className="kv wrap"><span>{t('riskReports.description')}:</span><p>{prediction.description}</p></div>
                         )}
                         {!!prediction.actions?.length && (
-                          <div className="kv wrap"><span>Actions:</span>
+                          <div className="kv wrap"><span>{t('riskReports.actions')}:</span>
                             <ol className="actions-list">
                               {prediction.actions.map((a, i) => <li key={i}>{a}</li>)}
                             </ol>
@@ -691,33 +693,33 @@ const RiskReportModal = ({ isModal = false }) => {
                         )}
                       </div>
                       <div className="ml-section">
-                        <h4>ML Feedback (Aggregate)</h4>
-                        <div className="kv"><span>Original Risk:</span><strong>{prediction.risk_level || '—'}</strong></div>
-                        <div className="kv"><span>Aggregate Correction:</span><strong>{correctedText}</strong></div>
+                        <h4>{t('riskReports.ml_feedback_aggregate')}</h4>
+                        <div className="kv"><span>{t('riskReports.original_risk')}:</span><strong>{prediction.risk_level || '—'}</strong></div>
+                        <div className="kv"><span>{t('riskReports.aggregate_correction')}:</span><strong>{correctedText}</strong></div>
                         {feedback?.is_aggregate !== undefined && (
-                          <div className="kv"><span>Aggregated:</span><strong>{feedback.is_aggregate ? 'Yes' : 'No'}</strong></div>
+                          <div className="kv"><span>{t('riskReports.aggregated')}:</span><strong>{feedback.is_aggregate ? t('riskReports.yes') : t('riskReports.no')}</strong></div>
                         )}
                         {feedback?.diagnostics && (
-                          <div className="kv"><span>Diagnostics:</span>
-                            <strong>{`High ${feedback.diagnostics.high || 0}, Medium ${feedback.diagnostics.medium || 0}, Low ${feedback.diagnostics.low || 0}`}</strong>
+                          <div className="kv"><span>{t('riskReports.diagnostics')}:</span>
+                            <strong>{`${t('riskReports.high')} ${feedback.diagnostics.high || 0}, ${t('riskReports.medium')} ${feedback.diagnostics.medium || 0}, ${t('riskReports.low')} ${feedback.diagnostics.low || 0}`}</strong>
                           </div>
                         )}
                         {feedback?.model_version && (
-                          <div className="kv"><span>Model Version:</span><strong>{feedback.model_version}</strong></div>
+                          <div className="kv"><span>{t('riskReports.model_version')}:</span><strong>{feedback.model_version}</strong></div>
                         )}
                         {feedback?.confidence !== undefined && (
-                          <div className="kv"><span>Final Confidence:</span><strong>{typeof feedback.confidence === 'number' ? `${feedback.confidence}%` : feedback.confidence}</strong></div>
+                          <div className="kv"><span>{t('riskReports.final_confidence')}:</span><strong>{typeof feedback.confidence === 'number' ? `${feedback.confidence}%` : feedback.confidence}</strong></div>
                         )}
                       </div>
                     </div>
 
                     <div className="report-section">
-                      <h4>Report Details</h4>
-                      <div className="kv"><span>Submitted By:</span><strong>{nearestReport?.submitted_by || '—'}</strong></div>
-                      <div className="kv"><span>Role:</span><strong>{nearestReport?.user_role || '—'}</strong></div>
-                      <div className="kv"><span>Contact:</span><strong>{nearestReport?.user_contact || '—'}</strong></div>
-                      <div className="kv"><span>Ready for Harvest:</span><strong>{nearestReport?.ready_for_harvest === true ? 'Yes' : nearestReport?.ready_for_harvest === false ? 'No' : '—'}</strong></div>
-                      <div className="kv wrap"><span>Additional Notes:</span><p>{nearestReport?.additional_notes || '—'}</p></div>
+                      <h4>{t('riskReports.report_details')}</h4>
+                      <div className="kv"><span>{t('riskReports.submitted_by')}:</span><strong>{nearestReport?.submitted_by || '—'}</strong></div>
+                      <div className="kv"><span>{t('riskReports.role')}:</span><strong>{nearestReport?.user_role || '—'}</strong></div>
+                      <div className="kv"><span>{t('riskReports.contact')}:</span><strong>{nearestReport?.user_contact || '—'}</strong></div>
+                      <div className="kv"><span>{t('riskReports.ready_for_harvest')}:</span><strong>{nearestReport?.ready_for_harvest === true ? t('riskReports.yes') : nearestReport?.ready_for_harvest === false ? t('riskReports.no') : '—'}</strong></div>
+                      <div className="kv wrap"><span>{t('riskReports.additional_notes')}:</span><p>{nearestReport?.additional_notes || '—'}</p></div>
                     </div>
                   </div>
                 </div>
@@ -728,8 +730,8 @@ const RiskReportModal = ({ isModal = false }) => {
         ) : (
           <div className="no-risks">
             <FaShieldAlt className="no-risks-icon" />
-            <h3>No Predictions Found</h3>
-            <p>No predictions match the current filter criteria. All systems are operating normally.</p>
+            <h3>{t('riskReports.no_predictions_found')}</h3>
+            <p>{t('riskReports.no_predictions_message')}</p>
           </div>
         )}
       </div>

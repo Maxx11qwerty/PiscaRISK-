@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from './contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FaEllipsisV, FaBars, FaSearch, FaUserCircle, FaUser, FaSignOutAlt, FaFilter } from 'react-icons/fa';
@@ -11,6 +12,7 @@ import Sidebar from './components/Sidebar';
 import './Logs.css';
 
 const Logs = () => {
+  const { t } = useTranslation();
   const { currentUser, handleLogout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
@@ -198,16 +200,16 @@ const Logs = () => {
   };
 
   const categories = [
-    { id: 'all', label: 'All Logs' },
-    { id: 'login', label: 'Login' },
-    { id: 'logout', label: 'Logout' },
-    { id: 'profile', label: 'Profile' },
-    { id: 'feedback', label: 'Feedback' },
-    { id: 'error', label: 'Error' },
-    { id: 'account', label: 'Account' },
-    { id: 'reward', label: 'Reward' },
-    { id: 'export', label: 'Export' },
-    { id: 'report', label: 'Reports' }
+    { id: 'all', label: t('logs.categories.all_logs') },
+    { id: 'login', label: t('logs.categories.login') },
+    { id: 'logout', label: t('logs.categories.logout') },
+    { id: 'profile', label: t('logs.categories.profile') },
+    { id: 'feedback', label: t('logs.categories.feedback') },
+    { id: 'error', label: t('logs.categories.error') },
+    { id: 'account', label: t('logs.categories.account') },
+    { id: 'reward', label: t('logs.categories.reward') },
+    { id: 'export', label: t('logs.categories.export') },
+    { id: 'report', label: t('logs.categories.report') }
   ];
 
   const formatDate = (dateString) => {
@@ -253,7 +255,7 @@ const Logs = () => {
                 <FaSearch className="header-search-icon" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('common.search')}
                   className="header-search-input"
               value={searchTerm}
                   onChange={(e) => {
@@ -285,11 +287,11 @@ const Logs = () => {
                 <div className="header-dropdown-menu">
                   <button onClick={() => navigate("/ProfileSettings")}>
                     <FaUser className="dropdown-icon" />
-                    Profile
+                    {t('common.profile')}
                   </button>
                   <button onClick={() => handleLogout(navigate)}>
                     <FaSignOutAlt className="dropdown-icon" />
-                    Logout
+                    {t('sidebar.logout')}
                   </button> 
               </div>
             )}
@@ -335,13 +337,13 @@ const Logs = () => {
           }}
         >
           <FaFilter className="filter-icon" />
-          Filter
+          {t('logs.filter_button')}
         </button>
         
         {showFilterDropdown && (
           <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
             <div className="logs-filter-section">
-              <label>Filter Type:</label>
+              <label>{t('logs.filter_type_label')}</label>
               <select 
                 value={selectedFilterType} 
                 onChange={(e) => {
@@ -349,19 +351,19 @@ const Logs = () => {
                   setSelectedFilterType(e.target.value);
                 }}
               >
-                <option value="All">All</option>
-                <option value="Category">Category</option>
-                <option value="Username">Username</option>
-                <option value="Message">Message</option>
+                <option value="All">{t('logs.all_option')}</option>
+                <option value="Category">{t('logs.category_option')}</option>
+                <option value="Username">{t('logs.username_option')}</option>
+                <option value="Message">{t('logs.message_option')}</option>
               </select>
             </div>
 
             {selectedFilterType !== 'All' && (
               <div className="logs-value-section">
-                <label>Filter Value:</label>
+                <label>{t('logs.filter_value_label')}</label>
                 <input
                   type="text"
-                  placeholder={`Enter ${selectedFilterType.toLowerCase()}...`}
+                  placeholder={t('logs.enter_filter_placeholder', { filterType: selectedFilterType })}
                   value={filterValue}
                   onChange={(e) => {
                     e.stopPropagation();
@@ -380,7 +382,7 @@ const Logs = () => {
                   setShowFilterDropdown(false);
                 }}
               >
-                Apply
+                {t('logs.apply_button')}
               </button>
               <button 
                 className="logs-clear-filter-btn"
@@ -391,7 +393,7 @@ const Logs = () => {
                   setShowFilterDropdown(false);
                 }}
               >
-                Clear
+                {t('logs.clear_button')}
               </button>
             </div>
           </div>
@@ -405,19 +407,19 @@ const Logs = () => {
         }}>
           <div className="logs-header-row">
             <div className="header-cell time-cell">
-              <span>TIMESTAMP</span>
+              <span>{t('logs.table_headers.timestamp')}</span>
             </div>
             <div className="header-cell performed-cell">
-              <span>PERFORMED BY</span>
+              <span>{t('logs.table_headers.performed_by')}</span>
             </div>
             <div className="header-cell actions-cell">
-              <span>ACTIONS</span>
+              <span>{t('logs.table_headers.actions')}</span>
             </div>
             <div className="header-cell target-cell">
-              <span>ACTION TARGET</span>
+              <span>{t('logs.table_headers.action_target')}</span>
             </div>
             <div className="header-cell source-cell">
-              <span>SOURCE</span>
+              <span>{t('logs.table_headers.source')}</span>
             </div>
           </div>
         </div>
@@ -425,11 +427,15 @@ const Logs = () => {
         {/* Pagination Controls */}
         <div className="logs-pagination-controls">
           <div className="pagination-info">
-            <span>Showing {indexOfFirstLog + 1}-{Math.min(indexOfLastLog, filteredLogs.length)} of {filteredLogs.length} logs</span>
+            <span>{t('logs.pagination.showing_logs', { 
+              start: indexOfFirstLog + 1, 
+              end: Math.min(indexOfLastLog, filteredLogs.length), 
+              total: filteredLogs.length 
+            })}</span>
           </div>
           
           <div className="pagination-settings">
-            <label>Logs per page:</label>
+            <label>{t('logs.pagination.logs_per_page_label')}</label>
             <select 
               value={logsPerPage} 
               onChange={(e) => handleLogsPerPageChange(Number(e.target.value))}
@@ -448,14 +454,14 @@ const Logs = () => {
               disabled={currentPage === 1}
               className="pagination-btn"
             >
-              First
+              {t('logs.pagination.first_button')}
             </button>
             <button 
               onClick={() => handlePageChange(currentPage - 1)} 
               disabled={currentPage === 1}
               className="pagination-btn"
             >
-              Previous
+              {t('logs.pagination.previous_button')}
             </button>
             
             <span className="page-numbers">
@@ -488,14 +494,14 @@ const Logs = () => {
               disabled={currentPage === totalPages}
               className="pagination-btn"
             >
-              Next
+              {t('logs.pagination.next_button')}
             </button>
             <button 
               onClick={() => handlePageChange(totalPages)} 
               disabled={currentPage === totalPages}
               className="pagination-btn"
             >
-              Last
+              {t('logs.pagination.last_button')}
             </button>
           </div>
         </div>
@@ -508,7 +514,7 @@ const Logs = () => {
         <div className="logs-container">
           <div className="logs-list">
             {isLoading ? (
-              <div className="loading-logs">Loading logs...</div>
+              <div className="loading-logs">{t('logs.loading_message')}</div>
             ) : currentLogs.length > 0 ? (
               currentLogs.map((log, index) => (
                 <div key={index} className="log-row">
@@ -527,7 +533,7 @@ const Logs = () => {
                           })}
                         </>
                       ) : (
-                        <span style={{ color: '#dc3545', fontStyle: 'italic' }}>Invalid timestamp</span>
+                        <span style={{ color: '#dc3545', fontStyle: 'italic' }}>{t('logs.invalid_timestamp')}</span>
                       )}
                     </div>
                   </div>
@@ -550,7 +556,7 @@ const Logs = () => {
                 </div>
               ))
             ) : (
-              <div className="no-logs">No logs found</div>
+              <div className="no-logs">{t('logs.no_logs_found')}</div>
             )}
           </div>
         </div>
