@@ -246,7 +246,9 @@ export const AuthProvider = ({ children }) => {
             // Add data from main user document
             address: userData.address || '',
             fullName: userData.fullName || '',
-            contact: userData.contactNumber || ''
+            contact: userData.contactNumber || '',
+            // Add farm information
+            farm: userData.farm || null
           });
           console.log('AuthContext: Set currentUser with data:', {
             uid: user.uid,
@@ -254,7 +256,8 @@ export const AuthProvider = ({ children }) => {
             username: userData.username,
             address: userData.address || '',
             fullName: userData.fullName || '',
-            contact: userData.contactNumber || ''
+            contact: userData.contactNumber || '',
+            farm: userData.farm || null
           });
         }
       } else {
@@ -279,7 +282,7 @@ export const AuthProvider = ({ children }) => {
         email,
         username,
         contactNumber,
-        farmId,
+        farm: farmId, // Store as 'farm' to match the field name used in filtering
         dateJoined: new Date().toISOString().split('T')[0],
         profileImage: null,
         role: 'tech_officer',
@@ -1016,7 +1019,13 @@ const login = async (emailOrContact, password) => {
 
       // Determine target collection, canonical role and status
       const requestedRole = userData.role;
-      const canonicalStatus = String(userData.status || ((requestedRole === 'Admin' || requestedRole === 'Tech Officer') ? 'Inactive' : 'Active')).toLowerCase();
+      const canonicalStatus = String(
+        userData.status || (
+          (requestedRole === 'Admin' || requestedRole === 'Tech Officer' || requestedRole === 'Fish Farmer')
+            ? 'Inactive'
+            : 'Active'
+        )
+      ).toLowerCase();
       let targetCollection = 'users';
       let canonicalRole = 'tech_officer';
       let isMobileUser = false;
@@ -1049,8 +1058,10 @@ const login = async (emailOrContact, password) => {
         fullName: userData.fullName || '',
         profileImage: userData.profileImage || null,
         isMobileUser,
-        // Admin activation flag for Tech Officers
-        adminActivated: (requestedRole === 'Tech Officer') ? false : (requestedRole === 'Admin' ? true : undefined)
+        // Add farm assignment if provided
+        farm: userData.farm || null,
+        // Admin activation flag (Firestore does not allow undefined)
+        adminActivated: (requestedRole === 'Admin') ? true : false
       });
       console.log('Firestore document created successfully');
 
@@ -1187,7 +1198,8 @@ const login = async (emailOrContact, password) => {
           setCurrentUser({
             uid: existingUserDoc.id,
             ...existingUserData,
-            emailVerified: user.emailVerified
+            emailVerified: user.emailVerified,
+            farm: existingUserData.farm || null
           });
         } else {
           // Create new user document if it doesn't exist
@@ -1228,7 +1240,8 @@ const login = async (emailOrContact, password) => {
           // Update the current user state
           setCurrentUser({
             uid: user.uid,
-            ...userData
+            ...userData,
+            farm: userData.farm || null
           });
         }
       } else {
@@ -1289,7 +1302,8 @@ const login = async (emailOrContact, password) => {
         
         setCurrentUser({
           uid: user.uid,
-          ...userData
+          ...userData,
+          farm: userData.farm || null
         });
       }
 
@@ -1537,7 +1551,9 @@ const resetPassword = async (email) => {
           // Add data from main user document
           address: userData.address || '',
           fullName: userData.fullName || '',
-          contact: userData.contactNumber || ''
+          contact: userData.contactNumber || '',
+          // Add farm information
+          farm: userData.farm || null
         });
       }
     } catch (error) {

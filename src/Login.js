@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
-import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaGoogle, FaChevronDown } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaGoogle } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next'; // Add this import
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import EmailVerificationModal from './components/EmailVerificationModal';
 import "./Login.css";
+import "./Login.responsive.css";
 import { logActivity } from './utils/logger';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from './firebase'; // Import your Firebase config
 
 export default function Login() {
   const { t } = useTranslation(); // Add this hook
@@ -43,14 +42,6 @@ export default function Login() {
   // Use the hook
   const screen = useScreenSize();
   
-  // State for farm selection and login fields
-  const [selectedFarm, setSelectedFarm] = useState("");
-  const [showLoginFields, setShowLoginFields] = useState(false);
-  const [farms, setFarms] = useState([]);
-  const [loadingFarms, setLoadingFarms] = useState(true);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [farmSelected, setFarmSelected] = useState(false); // New state to track if farm is selected
-  
   const [formData, setFormData] = useState({
     emailOrContact: "",
     password: "",
@@ -75,29 +66,6 @@ export default function Login() {
   const [resetMessage, setResetMessage] = useState("");
   const [contactError, setContactError] = useState("");
 
-  // Fetch farms from Firebase
-  useEffect(() => {
-    const fetchFarms = async () => {
-      try {
-        setLoadingFarms(true);
-        const farmsCollection = collection(db, 'farms');
-        const farmSnapshot = await getDocs(farmsCollection);
-        const farmsList = farmSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setFarms(farmsList);
-        setLoadingFarms(false);
-      } catch (error) {
-        console.error('Error fetching farms:', error);
-        setError(t('login.failedToLoadFarms'));
-        setLoadingFarms(false);
-      }
-    };
-
-    fetchFarms();
-  }, []);
-
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => {
@@ -112,17 +80,6 @@ export default function Login() {
     if (!contact) return t('login.contactNumberRequired');
     if (!/^\d{11}$/.test(contact)) return t('login.contactNumberInvalid');
     return "";
-  };
-
-  const handleFarmSelect = (farmId) => {
-    setSelectedFarm(farmId);
-    setFarmSelected(true); // Set farm selected to true
-    setShowLoginFields(true);
-    setIsDropdownOpen(false);
-  };
-
-  const handleFarmDropdownToggle = () => {
-    setIsDropdownOpen(!isDropdownOpen);
   };
 
   const handleInputChange = (e) => {
@@ -141,12 +98,6 @@ export default function Login() {
     e.preventDefault();
     setError('');
     
-    // Validate that a farm is selected
-    if (!selectedFarm) {
-      setError(t('login.pleaseSelectFarm'));
-      return;
-    }
-    
     // Validate contact number if it's all digits
     if (/^\d+$/.test(formData.emailOrContact)) {
       const contactError = validateContactNumber(formData.emailOrContact);
@@ -161,8 +112,7 @@ export default function Login() {
       
       if (result.success) {
         try {
-          const selectedFarmData = farms.find(farm => farm.id === selectedFarm);
-          await logActivity('login', `Successful login for ${formData.emailOrContact} at ${selectedFarmData.name} (${selectedFarmData.location})`, formData.emailOrContact);
+          await logActivity('login', `Successful login for ${formData.emailOrContact}`, formData.emailOrContact);
         } catch (logError) {
           console.error('Failed to log activity:', logError);
         }
@@ -213,12 +163,6 @@ export default function Login() {
     e.preventDefault();
     e.stopPropagation();
     setError('');
-    
-    // Validate that a farm is selected
-    if (!selectedFarm) {
-      setError(t('login.pleaseSelectFarm'));
-      return;
-    }
     
     try {
       const result = await signInWithGoogle();
@@ -296,149 +240,107 @@ export default function Login() {
 
         <div className="form-section">
           <form onSubmit={handleLogin}>
-            {/* Farm Selection Dropdown - Conditionally positioned */}
-            <div className={`farm-selection-section ${farmSelected ? 'farm-selected' : ''}`}>
-              <h3 className="farm-selection-title">{t('login.selectFarm')}</h3>
-              <div className="farm-dropdown-container">
-                <button
-                  type="button"
-                  className={`farm-dropdown-toggle ${isDropdownOpen ? 'open' : ''}`}
-                  onClick={handleFarmDropdownToggle}
-                  disabled={loadingFarms}
-                >
-                  {loadingFarms ? t('login.loadingFarms') : 
-                   selectedFarm ? farms.find(farm => farm.id === selectedFarm)?.name : t('login.selectAFarm')}
-                  <FaChevronDown className={`dropdown-arrow ${isDropdownOpen ? 'rotate' : ''}`} />
-                </button>
-                
-                {isDropdownOpen && !loadingFarms && (
-                  <div className="farm-dropdown-menu">
-                    {farms.length > 0 ? (
-                      farms.map(farm => (
-                        <button
-                          key={farm.id}
-                          type="button"
-                          className="farm-dropdown-item"
-                          onClick={() => handleFarmSelect(farm.id)}
-                        >
-                          <div className="farm-item-name">{farm.name}</div>
-                          <div className="farm-item-location">{farm.location}</div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="farm-dropdown-empty">
-                        {t('login.noFarmsAvailable')}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Login Fields (only shown after farm selection) */}
-            {showLoginFields && (
-              <div className="login-fields-container">
-                <div className="social-login-section">
-                  <div className="social-login-buttons">
-                    <button 
-                      type="button"
-                      className="social-login-button google"
-                      onClick={handleGoogleLogin}
-                    >
-                      <FaGoogle className="social-icon" />
-                      <span className="social-login-button-text">{t('login.continueWithGmail')}</span>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="login-or-divider">
-                  <span className="login-or-text">{t('login.or')}</span>
-                </div>
-                
-                <p className="login-text">
-                  {t('login.continueWithExistingAccount')}
-                </p>
-                <div className="rounded-line"></div>
-
-                <div className={`login-error-message ${error && !(emailVerificationModal && emailVerificationModal.open) ? 'visible' : ''}`}>
-                  {emailVerificationModal && emailVerificationModal.open ? '' : error}
-                </div>
-
-                {resetMessage && (
-                  <div className="reset-success-message">
-                    {resetMessage}
-                  </div>
-                )}
-
-                <div className="input-with-icon">
-                  <FaEnvelope className="input-icon" />
-                  <input
-                    type="text"
-                    name="emailOrContact"
-                    placeholder={t('login.emailPhonePlaceholder')}
-                    value={formData.emailOrContact}
-                    onChange={handleInputChange}
-                    className="input-field"
-                    required
-                  />
-                </div>
-                {contactError && (
-                  <div className="contact-error-message">
-                    {contactError}
-                  </div>
-                )}
-
-                <div className="login-password-wrapper">
-                  <FaLock className="login-lock-icon" />
-                                      <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      placeholder={t('login.passwordPlaceholder')}
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="login-password-input"
-                      required
-                    />
+            <div className="login-fields-container">
+              <div className="social-login-section">
+                <div className="social-login-buttons">
                   <button 
                     type="button"
-                    className="login-password-toggle"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="social-login-button google"
+                    onClick={handleGoogleLogin}
                   >
-                    {showPassword ? (
-                      <FaEyeSlash className="login-eye-icon" />
-                    ) : (
-                      <FaEye className="login-eye-icon" />
-                    )}
+                    <FaGoogle className="social-icon" />
+                    <span className="social-login-button-text">{t('login.continueWithGmail')}</span>
                   </button>
                 </div>
-
-                <div className="login-btn-container">
-                  <button type="submit" className="login-btn">
-                    {t('login.login')}
-                  </button>
-                </div>
-
-                <p className="forgot-password-text">
-                  <span
-                    className="forgot-password-link"
-                    onClick={() => navigate('/forgot-password')}
-                  >
-                    {t('login.forgotPassword')}
-                  </span>
-                </p>
-
-                <p className="belowlogin-text">
-                  {t('login.dontHaveAccount')}{' '}
-                  <span
-                    className="register-link"
-                    onClick={() => navigate("/signup")}
-                  >
-                    {t('login.register')}
-                  </span>
-                </p>
               </div>
-            )}
+              
+              <div className="login-or-divider">
+                <span className="login-or-text">{t('login.or')}</span>
+              </div>
+              
+              <p className="login-text">
+                {t('login.continueWithExistingAccount')}
+              </p>
+              <div className="rounded-line"></div>
+
+              <div className={`login-error-message ${error && !(emailVerificationModal && emailVerificationModal.open) ? 'visible' : ''}`}>
+                {emailVerificationModal && emailVerificationModal.open ? '' : error}
+              </div>
+
+              {resetMessage && (
+                <div className="reset-success-message">
+                  {resetMessage}
+                </div>
+              )}
+
+              <div className="input-with-icon">
+                <FaEnvelope className="input-icon" />
+                <input
+                  type="text"
+                  name="emailOrContact"
+                  placeholder={t('login.emailPhonePlaceholder')}
+                  value={formData.emailOrContact}
+                  onChange={handleInputChange}
+                  className="input-field"
+                  required
+                />
+              </div>
+              {contactError && (
+                <div className="contact-error-message">
+                  {contactError}
+                </div>
+              )}
+
+              <div className="login-password-wrapper">
+                <FaLock className="login-lock-icon" />
+                                    <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder={t('login.passwordPlaceholder')}
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="login-password-input"
+                    required
+                  />
+                <button 
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <FaEyeSlash className="login-eye-icon" />
+                  ) : (
+                    <FaEye className="login-eye-icon" />
+                  )}
+                </button>
+              </div>
+
+              <div className="login-btn-container">
+                <button type="submit" className="login-btn">
+                  {t('login.login')}
+                </button>
+              </div>
+
+              <p className="forgot-password-text">
+                <span
+                  className="forgot-password-link"
+                  onClick={() => navigate('/forgot-password')}
+                >
+                  {t('login.forgotPassword')}
+                </span>
+              </p>
+
+              <p className="belowlogin-text">
+                {t('login.dontHaveAccount')}{' '}
+                <span
+                  className="register-link"
+                  onClick={() => navigate("/signup")}
+                >
+                  {t('login.register')}
+                </span>
+              </p>
+            </div>
           </form>
         </div>
       </div>

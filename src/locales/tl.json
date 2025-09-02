@@ -35,6 +35,32 @@
     "failedToLoadFarms": "Hindi ma-load ang mga sakahan. Subukan ulit.",
     "failedToLoginWithGoogle": "Hindi makapag-login gamit ang Google"
   },
+  "forgotPassword": {
+    "title": "I-reset ang Iyong Password",
+    "description": "Ilagay ang iyong email address at magpapadala kami ng link para i-reset ang iyong password.",
+    "emailLabel": "Email Address",
+    "emailPlaceholder": "Ilagay ang iyong email address",
+    "sendResetLink": "Ipadala ang Reset Link",
+    "sending": "Nagpapadala...",
+    "backToLogin": "Bumalik sa Login",
+    "checkYourEmail": "Tingnan ang Iyong Email",
+    "resetLinkSent": "Nagpadala kami ng password reset link sa:",
+    "whatToDoNext": "Ano ang susunod na gagawin:",
+    "step1": "Tingnan ang iyong email inbox",
+    "step2": "I-click ang password reset link sa email",
+    "step3": "Gumawa ng bagong password",
+    "dontSeeEmail": "💡 Hindi mo nakikita ang email?",
+    "checkSpam": "Tingnan ang iyong spam/junk folder. Minsan ang mga password reset email ay napupunta doon.",
+    "tryAnotherEmail": "Subukan ang Ibang Email",
+    "successMessage": "Matagumpay na naipadala ang password reset email sa {{email}}!",
+    "errors": {
+      "failedToSend": "Nabigo ang pagpapadala ng password reset email",
+      "userNotFound": "Walang nahanap na account gamit ang email address na ito",
+      "invalidEmail": "Hindi valid na format ng email address",
+      "tooManyRequests": "Masyadong maraming password reset attempts. Subukan ulit mamaya.",
+      "networkError": "Network error. Tingnan ang iyong connection at subukan ulit."
+    }
+  },
   "signup": {
     "title": "Gumawa ng Account",
     "continueWithGmail": "Magpatuloy gamit ang Gmail",
@@ -477,6 +503,7 @@
     },
     "table_headers": {
       "role": "TUNGKULIN",
+      "farm": "SAKAHAN",
       "status": "KATAYUAN",
       "contact": "KONTAK",
       "actions": "MGA AKSYON",

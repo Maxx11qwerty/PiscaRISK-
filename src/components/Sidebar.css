@@ -141,12 +141,46 @@
   line-height: 1.2;
 }
 
-.username {
+.sidebar-username {
   font-family: 'ReadexPro-Light';
   font-size: 0.9rem;
   color: #000000;
   opacity: 0.9;
   line-height: 1.2;
+}
+
+/* Role-specific styling */
+.sidebar-username[data-role="Admin"] {
+  color: #1a4375;
+  font-weight: 600;
+  font-family: 'ReadexPro-Regular';
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #2196f3;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+}
+
+.sidebar-username[data-role="Tech Officer"] {
+  color: #2e7d32;
+  font-weight: 600;
+  font-family: 'ReadexPro-Regular';
+  background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #4caf50;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
+}
+
+.sidebar-username[data-role="Fish Farmer"] {
+  color: #f57c00;
+  font-weight: 600;
+  font-family: 'ReadexPro-Regular';
+  background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #ff9800;
+  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.2);
 }
 
 .sidebar {

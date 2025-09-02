@@ -5,6 +5,7 @@ import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import { logActivity, logMessages } from './utils/logger';
 import "./SignupPage.css";
+import "./SignupPage.responsive.css";
 import OTPVerification from './components/OtpVerification';
 
 export default function SignupPage() {

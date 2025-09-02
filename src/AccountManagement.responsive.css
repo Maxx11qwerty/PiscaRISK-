@@ -1,0 +1,99 @@
+/* Responsive adjustments for Account Management */
+
+@media (max-width: 1600px) {
+  .manage-wrapper { max-width: 78.4%; margin: 9rem 0 0 18.3rem; margin-bottom: -5rem; }
+  .header-row { grid-template-columns: 20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 70px; gap: 1rem; padding: 0.50rem; }
+  .user-row { grid-template-columns: 50px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 70px; gap: 1rem; padding: 0.75rem 0.5rem; margin-right: 2rem; margin-left: -1.5rem; margin-top: -2.4rem; }
+  .user-cell { padding: 1.3rem; font-size: 0.85rem; }
+  .role-badge { padding: 0.5rem 1rem; font-size: 0.8rem; }
+  .reset-password-btn, .delete-user-btn { padding: 0.5rem 1rem; font-size: 0.8rem; }
+  .account-main-content { margin-left: 18%; }
+  .user-table { margin-top: -0.5rem; }
+  .pagination-bar { padding: 0.75rem 0; margin-top: 1.5rem; }
+  .pagination-btn { padding: 0.75rem 0; margin-top: .5rem; }
+  .export-button, .filter-button { padding: 15px 40px; font-size: 14px; }
+  .add-user-button-container { gap: 0.8rem; }
+}
+
+@media (max-width: 1300px) {
+  .manage-wrapper { max-width: 80%; margin: 9rem 0 0 15rem; margin-bottom: -5rem; }
+  .header-row { grid-template-columns: 20px 2fr 1fr 1fr 1fr 1fr 1.2fr 1fr 50px; gap: .5rem; padding: -2rem; }
+  .user-row { grid-template-columns: 50px 2fr 1fr 1fr 1fr 1.2fr 1fr 70px; gap: .5rem; padding: 0.70rem 0.5rem; margin-right: 2rem; margin-left: -2.5rem; }
+  .user-cell { padding: .5rem; font-size: 0.80rem; }
+  .role-badge { padding: 0.5rem 1rem; font-size: 0.8rem; }
+  .reset-password-btn, .delete-user-btn { padding: 0.3rem .5rem; font-size: 0.8rem; }
+  .account-main-content { margin-left: 18%; }
+  .user-table { margin-top: -2rem; }
+  .pagination-bar { padding: 0.75rem 0; margin-top: 0.5rem; }
+  .export-button, .filter-button { padding: 12px 35px; font-size: 13px; }
+  .add-user-button-container { gap: 0.6rem; }
+}
+
+/* Tablet/narrow desktop fine-tuning (769px–982px) */
+@media (min-width: 769px) and (max-width: 982px) {
+  .manage-wrapper { max-width: 90%; margin: 9rem 0 0 10rem; margin-bottom: -5rem; }
+  .account-main-content { margin-left: 12%; }
+  .account-container { overflow-x: auto; }
+
+  .header-row { grid-template-columns: 28px 1.2fr 0.8fr 0.7fr 0.7fr 0.8fr 0.8fr 0.7fr 44px; gap: 0.4rem; padding: 0.35rem; }
+  .user-row { grid-template-columns: 28px 1.2fr 0.8fr 0.7fr 0.7fr 0.8fr 0.8fr 0.7fr 44px; gap: 0.4rem; margin-right: 0.5rem; margin-left: -0.5rem; }
+  .user-cell { padding: 0.35rem; font-size: 0.8rem; }
+  .header-cell span { font-size: 0.8rem; }
+  .role-badge { padding: 0.3rem 0.6rem; font-size: 0.7rem; }
+
+  .filter-button, .add-user-button, .bulk-delete-button { padding: 10px 16px; font-size: 13px; }
+  .user-table { margin-top: -0.75rem; }
+  .pagination-bar { padding: 0.5rem 0; margin-top: 1rem; }
+}
+
+@media (max-width: 768px) {
+  .manage-wrapper { max-width: 95%; margin: 9rem 0 0 10rem; }
+  .header-row { grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px; gap: 0.4rem; }
+  .user-row { grid-template-columns: 30px 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 0.8fr 0.7fr 45px; gap: 0.4rem; margin-right: 1rem; margin-left: -0.5rem; }
+  .user-cell { padding: 0.25rem; font-size: 0.75rem; }
+  .username { font-size: 0.85rem; }
+  .user-email { font-size: 0.7rem; }
+  .role-badge { padding: 0.25rem 0.5rem; font-size: 0.65rem; }
+  .reset-password-btn, .delete-user-btn { padding: 0.25rem 0.5rem; font-size: 0.65rem; }
+  .account-main-content { margin-left: 12%; }
+  .add-user-button { margin: 1.5rem 1.5rem 0 1.5rem; margin-bottom: -7rem; padding: 8px 14px; font-size: 13px; }
+  .bulk-delete-button { padding: 8px 14px; font-size: 13px; margin: 0; }
+  .pagination-bar { gap: 0.5rem; padding: 0.75rem 0; }
+  .pagination-btn { padding: 0.4rem 0.7rem; font-size: 14px; }
+  .pagination-page { padding: 0.3rem 0.6rem; font-size: 13px; }
+}
+
+@media (max-width: 576px) {
+  .manage-wrapper { max-width: 98%; margin: 9rem 0 0 5rem; }
+  .header-row { grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px; gap: 0.3rem; }
+  .user-row { grid-template-columns: 25px 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.7fr 0.6fr 40px; gap: 0.3rem; margin-right: 0.5rem; margin-left: 0; }
+  .user-cell { padding: 0.2rem; font-size: 0.7rem; }
+  .username { font-size: 0.8rem; }
+  .user-email { font-size: 0.65rem; }
+  .role-badge { padding: 0.2rem 0.4rem; font-size: 0.6rem; }
+  .reset-password-btn, .delete-user-btn { padding: 0.2rem 0.4rem; font-size: 0.6rem; }
+  .account-main-content { margin-left: 8%; }
+  .add-user-button { margin: 1rem 1rem 0 1rem; margin-bottom: -7rem; padding: 6px 12px; font-size: 12px; }
+  .bulk-delete-button { padding: 6px 12px; font-size: 12px; margin: 0; }
+  .pagination-bar { gap: 0.4rem; padding: 0.5rem 0; }
+  .pagination-btn { padding: 0.3rem 0.6rem; font-size: 13px; }
+  .pagination-page { padding: 0.25rem 0.5rem; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .manage-wrapper { max-width: 100%; margin: 9rem 0 0 2rem; }
+  .header-row { grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px; gap: 0.25rem; }
+  .user-row { grid-template-columns: 20px 0.8fr 0.5fr 0.5fr 0.5fr 0.5fr 0.6fr 0.5fr 35px; gap: 0.25rem; margin-right: 0.25rem; margin-left: 0; }
+  .user-cell { padding: 0.15rem; font-size: 0.65rem; }
+  .username { font-size: 0.75rem; }
+  .user-email { font-size: 0.6rem; }
+  .role-badge { padding: 0.15rem 0.3rem; font-size: 0.55rem; }
+  .reset-password-btn, .delete-user-btn { padding: 0.15rem 0.3rem; font-size: 0.55rem; }
+  .account-main-content { margin-left: 5%; }
+  .add-user-button { margin: 0.75rem 0.75rem 0 0.75rem; margin-bottom: -7rem; padding: 5px 10px; font-size: 11px; }
+  .bulk-delete-button { padding: 5px 10px; font-size: 11px; margin: 0; }
+  .pagination-bar { gap: 0.3rem; padding: 0.4rem 0; }
+  .pagination-btn { padding: 0.25rem 0.5rem; font-size: 12px; }
+  .pagination-page { padding: 0.2rem 0.4rem; font-size: 11px; }
+}
+

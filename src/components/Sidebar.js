@@ -30,6 +30,15 @@ const Sidebar = ({
   const { t, i18n } = useTranslation();
   const { language, setLanguage } = useLanguage();
 
+  const formatRole = (role) => {
+    if (!role) return 'User';
+    const r = String(role).toLowerCase();
+    if (r === 'tech_officer' || r === 'tech officer') return 'Tech Officer';
+    if (r === 'fish_farmer' || r === 'fish farmer') return 'Fish Farmer';
+    if (r === 'admin') return 'Admin';
+    return role;
+  };
+
   // Update language when it changes
   useEffect(() => {
     i18n.changeLanguage(language);
@@ -75,7 +84,9 @@ const Sidebar = ({
           )}
           <div className="welcome-text">
             <h2>{currentUser?.username || 'User'}</h2>
-            <span className="username">{currentUser?.username || 'User'}</span>
+            <span className="sidebar-username" data-role={formatRole(currentUser?.role)}>
+              {formatRole(currentUser?.role)}
+            </span>
           </div>
         </div>
       </div>

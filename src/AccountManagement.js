@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next'; // Add this import
 import './AccountManagement.css';
+import './AccountManagement.responsive.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
 import { IoMdArrowDropdown } from "react-icons/io";
@@ -14,6 +15,8 @@ import UserPopup from './components/UserPopup';
 import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
@@ -62,6 +65,18 @@ const AccountManagement = () => {
 
   // Password reset states
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState(null);
+  
+  // Farms for assignment when creator has no assigned farm
+  const [farms, setFarms] = useState([]); // { id, name }
+  const [selectedFarmId, setSelectedFarmId] = useState('');
+  const [assignedFarmName, setAssignedFarmName] = useState('');
+  const farmIdToName = useMemo(() => {
+    const map = {};
+    for (const f of farms) {
+      if (f && f.id) map[f.id] = f.name || f.id;
+    }
+    return map;
+  }, [farms]);
 
   // Auto-close the Add User form shortly after a successful creation
   useEffect(() => {
@@ -79,6 +94,40 @@ const AccountManagement = () => {
     console.log("Is Admin:", isAdmin());
   }, [currentUser]);
   
+  // Load farms list and resolve assigned farm name (if any)
+  useEffect(() => {
+    const loadFarms = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'farms'));
+        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+        const sorted = list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+        setFarms(sorted);
+      } catch (e) {
+        console.warn('Failed to load farms list:', e);
+      }
+    };
+
+    const resolveAssignedFarmName = async () => {
+      try {
+        if (currentUser?.farm) {
+          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (farmDoc.exists()) {
+            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+          } else {
+            setAssignedFarmName(currentUser.farm);
+          }
+        } else {
+          setAssignedFarmName('');
+        }
+      } catch (e) {
+        setAssignedFarmName(String(currentUser?.farm || ''));
+      }
+    };
+
+    loadFarms();
+    resolveAssignedFarmName();
+  }, [currentUser?.farm]);
+
   
   const useScreenSize = () => {
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
@@ -109,6 +158,9 @@ const AccountManagement = () => {
 
   // Use the hook
   const screen = useScreenSize();
+
+  // Permissions
+  const isAdminUser = String(currentUser?.role || '').toLowerCase() === 'admin';
 
   useEffect(() => {
     const handleResize = () => {
@@ -389,7 +441,7 @@ const AccountManagement = () => {
     
     // Special handling for role changes
     if (name === 'role') {
-      const newStatus = (value === 'Tech Officer' || value === 'Admin') ? 'Inactive' : 'Active';
+      const newStatus = (value === 'Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
       console.log(`Role changed to: ${value}, setting status to: ${newStatus}`);
       
     setNewUser(prev => ({
@@ -437,6 +489,10 @@ const AccountManagement = () => {
 
   const handleAddUser = async () => {
     try {
+      if (!isAdminUser) {
+        setMessage({ text: 'Only Admins can add new users', type: 'error' });
+        return;
+      }
       if (newUser.password.length < 6) {
         setMessage({ text: 'Password must be at least 6 characters', type: 'error' });
         return;
@@ -475,6 +531,17 @@ const AccountManagement = () => {
 
       setMessage({ text: 'Creating user...', type: 'info' });
 
+      // Determine farm assignment
+      const farmForNewUser = currentUser?.farm ? currentUser.farm : selectedFarmId;
+      if (!currentUser?.farm && !farmForNewUser) {
+        setMessage({ text: 'Please select a farm for the user', type: 'error' });
+        return;
+      }
+
+      const enforcedStatus = (newUser.role === 'Admin' || newUser.role === 'Tech Officer' || newUser.role === 'Fish Farmer')
+        ? 'Inactive'
+        : newUser.status;
+
       const userData = {
         email: newUser.email,
         username: newUser.username,
@@ -484,7 +551,8 @@ const AccountManagement = () => {
         role: newUser.role,
         password: newUser.password,
         dateJoined: newUser.dateJoined,
-        status: newUser.status
+        status: enforcedStatus,
+        farm: farmForNewUser || null
       };
 
       console.log('Creating user with data:', userData);
@@ -537,6 +605,10 @@ const AccountManagement = () => {
 
   // Function to open Add New User form with current date
   const handleOpenAddUserForm = () => {
+    if (!isAdminUser) {
+      setMessage({ text: 'Only Admins can add new users', type: 'error' });
+      return;
+    }
     const todayDate = getTodayDate();
     console.log('Setting today\'s date:', todayDate);
     
@@ -553,6 +625,12 @@ const AccountManagement = () => {
     });
     setShowAddUserForm(true);
     setMessage({ text: '', type: '' });
+    // Preselect farm if creator has assigned farm; otherwise clear selection
+    if (currentUser?.farm) {
+      setSelectedFarmId(currentUser.farm);
+    } else {
+      setSelectedFarmId('');
+    }
   };
 
   const handleResetPassword = async (user) => {
@@ -717,6 +795,10 @@ const AccountManagement = () => {
   };
 
   const handleDeleteUser = async (user) => {
+    if (!isAdminUser) {
+      setMessage({ text: 'Only Admins can delete users', type: 'error' });
+      return;
+    }
     // Show confirmation dialog
     if (window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
       try {
@@ -774,6 +856,10 @@ const AccountManagement = () => {
 
   // Bulk delete selected users
   const handleBulkDelete = async () => {
+    if (!isAdminUser) {
+      setMessage({ text: 'Only Admins can bulk delete users', type: 'error' });
+      return;
+    }
     if (selectedUsers.size === 0) {
       setMessage({ text: 'No users selected for deletion', type: 'error' });
       return;
@@ -1103,16 +1189,23 @@ const AccountManagement = () => {
               </div>
             )}
             
-            <button className="add-user-button" onClick={(e) => {
-              e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
-              closeAllDropdowns(); // Close all other dropdowns first
-              handleOpenAddUserForm();
-            }}>
-              <FaUserPlus className="button-icon" />
-              Add New User
-            </button>
+            {isAdminUser ? (
+              <button className="add-user-button" onClick={(e) => {
+                e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
+                closeAllDropdowns(); // Close all other dropdowns first
+                handleOpenAddUserForm();
+              }}>
+                <FaUserPlus className="button-icon" />
+                Add New User
+              </button>
+            ) : (
+              <button className="add-user-button" style={{ visibility: 'hidden' }} aria-hidden="true" tabIndex={-1}>
+                <FaUserPlus className="button-icon" />
+                Add New User
+              </button>
+            )}
             
-            {selectedUsers.size > 0 && (
+            {isAdminUser && selectedUsers.size > 0 && (
               <button className="bulk-delete-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking bulk delete button
                 closeAllDropdowns(); // Close all other dropdowns first
@@ -1229,6 +1322,9 @@ const AccountManagement = () => {
                 </div>
               )}
             </div>
+            <div className="header-cell farm-cell">
+              <span>{t('accountManagement.table_headers.farm')}</span>
+            </div>
             <div className="header-cell status-cell">
               <span>{t('accountManagement.table_headers.status')}</span>
               <IoMdArrowDropdown 
@@ -1279,7 +1375,7 @@ const AccountManagement = () => {
       </div>
       <div className={`account-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <div className="account-container">
-        {showAddUserForm && (
+        {isAdminUser && showAddUserForm && (
             <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
               <div className="add-user-form" onClick={(e) => e.stopPropagation()}>
               <div className="form-header">
@@ -1297,6 +1393,15 @@ const AccountManagement = () => {
                       ) : (
                         <p>{t('accountManagement.add_user_form.admin_notice')}</p>
                       )}
+                    </div>
+                  </div>
+                )}
+                {newUser.role === 'Fish Farmer' && (
+                  <div className="form-role-notice">
+                    <div className="role-notice-icon">ℹ️</div>
+                    <div className="role-notice-content">
+                      <strong>Fish Farmer account requires admin activation</strong>
+                      <p>After creating this user, an Admin must activate the account before it can log in.</p>
                     </div>
                   </div>
                 )}
@@ -1385,6 +1490,32 @@ const AccountManagement = () => {
                     className={errors.email ? 'input-error' : ''}
                   />
                 </div>
+              </div>
+              <div className="form-row">
+                {/* Conditional Farm Selector */}
+                {!currentUser?.farm ? (
+                  <div className="form-group" style={{ width: '100%' }}>
+                    <label>Farm</label>
+                    <select
+                      name="farm"
+                      value={selectedFarmId}
+                      onChange={(e) => setSelectedFarmId(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                      required
+                    >
+                      <option value="">Select farm</option>
+                      {farms.map(f => (
+                        <option key={f.id} value={f.id}>{f.name || f.id}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="form-group" style={{ width: '100%' }}>
+                    <label>Farm</label>
+                    <input type="text" value={assignedFarmName || currentUser.farm} readOnly />
+                  </div>
+                )}
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -1498,11 +1629,11 @@ const AccountManagement = () => {
                             ) : (
                               <FaUserCircle className="user-avatar-icon" />
                             )}
-                            <div className="user-details">
-                              <div className="username">{user.username}</div>
-                              <div className="user-email">{user.email || t('accountManagement.user_list.no_email')}</div>
-                    </div>
-              </div>
+                            <div className="account-management-user-details">
+                              <div className="account-management-username">{user.username}</div>
+                              <div className="account-management-user-email">{user.email || t('accountManagement.user_list.no_email')}</div>
+                            </div>
+                      </div>
                         </div>
                         <div className="user-cell role-cell">
                           {(() => {
@@ -1514,6 +1645,9 @@ const AccountManagement = () => {
                               </span>
                             );
                           })()}
+                        </div>
+                        <div className="user-cell farm-cell">
+                          {user.farmName || farmIdToName[user.farm] || user.farm || 'N/A'}
                         </div>
                         <div className="user-cell status-cell">
                           <div className="status-indicator">
@@ -1573,16 +1707,18 @@ const AccountManagement = () => {
                             year: 'numeric'
                           }) : t('accountManagement.user_list.unknown_date')}
                         </div>
-                        <div className="user-cell delete-cell">
-                          <button className="delete-user-btn" onClick={(e) => {
-                            e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
-                            closeAllDropdowns(); // Close all other dropdowns first
-                            handleDeleteUser(user);
-                          }}>
-                            <RiDeleteBin6Line className="action-icon" />
-                            {t('accountManagement.user_list.delete_button')}
-                          </button>
-                        </div>
+                        {isAdminUser && (
+                          <div className="user-cell delete-cell">
+                            <button className="delete-user-btn" onClick={(e) => {
+                              e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
+                              closeAllDropdowns(); // Close all other dropdowns first
+                              handleDeleteUser(user);
+                            }}>
+                              <RiDeleteBin6Line className="action-icon" />
+                              {t('accountManagement.user_list.delete_button')}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );})}
                 </div>

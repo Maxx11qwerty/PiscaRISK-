@@ -35,6 +35,32 @@
     "failedToLoadFarms": "Failed to load farms. Please try again.",
     "failedToLoginWithGoogle": "Failed to login with Google"
   },
+  "forgotPassword": {
+    "title": "Reset Your Password",
+    "description": "Enter your email address and we'll send you a link to reset your password.",
+    "emailLabel": "Email Address",
+    "emailPlaceholder": "Enter your email address",
+    "sendResetLink": "Send Reset Link",
+    "sending": "Sending...",
+    "backToLogin": "Back to Login",
+    "checkYourEmail": "Check Your Email",
+    "resetLinkSent": "We've sent a password reset link to:",
+    "whatToDoNext": "What to do next:",
+    "step1": "Check your email inbox",
+    "step2": "Click the password reset link in the email",
+    "step3": "Create a new password",
+    "dontSeeEmail": "💡 Don't see the email?",
+    "checkSpam": "Check your spam/junk folder. Sometimes password reset emails end up there.",
+    "tryAnotherEmail": "Try Another Email",
+    "successMessage": "Password reset email sent successfully to {{email}}!",
+    "errors": {
+      "failedToSend": "Failed to send password reset email",
+      "userNotFound": "No account found with this email address",
+      "invalidEmail": "Invalid email address format",
+      "tooManyRequests": "Too many password reset attempts. Please try again later.",
+      "networkError": "Network error. Please check your connection and try again."
+    }
+  },
   "signup": {
     "title": "Create Account",
     "continueWithGmail": "Continue with Gmail",
@@ -413,6 +439,7 @@
       "fish_farmer_option": "Fish Farmer",
       "status_label": "Status",
       "inactive_status": "Inactive",
+      "inactive_option": "Inactive",
       "active_option": "Active",
       "email_label": "Email",
       "email_placeholder": "Enter Email Address",
@@ -476,6 +503,7 @@
     },
     "table_headers": {
       "role": "ROLE",
+      "farm": "FARM",
       "status": "STATUS",
       "contact": "CONTACT",
       "actions": "ACTIONS",

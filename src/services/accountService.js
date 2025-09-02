@@ -143,7 +143,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       // Try mobileUsers collection
       const mobileUsersRef = collection(db, 'mobileUsers');
       const mobileUsersQuery = query(mobileUsersRef, where('email', '==', email));
-      const mobileUsersSnapshot = await getDocs(mobileUsersRef);
+      const mobileUsersSnapshot = await getDocs(mobileUsersQuery);
       
       if (!mobileUsersSnapshot.empty) {
         const doc = mobileUsersSnapshot.docs[0];
@@ -161,6 +161,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       if (!snap.exists()) return false;
       await updateDoc(ref, {
         status: 'Active',
+        adminActivated: true,
         lastModified: new Date().toISOString()
       });
       console.log(`[tryUpdate] Successfully updated ${coll} collection`);
