@@ -1,17 +1,24 @@
 .bar-chart-container {
-  background: linear-gradient(160deg, #1A4375, #3087F2 99%);
+  background: #244a73;
   border-radius: 24px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.18);
   padding: 24px;
   margin: 1.5rem auto;
   width: 100%;
-  max-width: 600px;
-  height: 18.75rem;
+  max-width: 95%;
+  height: 75%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.chart-title {
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
 }
 
 @keyframes fadeIn {
@@ -28,23 +35,107 @@
 /* Bar Chart Specific Styles */
 .bar-chart-container .recharts-wrapper {
   width: 100% !important;
-  height: 270px !important;
+  height: 85% !important;
   margin-top: 1rem;
+}
+
+/* =============================
+  Laptop - 1536px wide screens
+  ============================= */
+@media (min-width: 1536px) {
+  .bar-chart-container {
+    max-width: 90%;
+    height: 78%;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 88% !important;
+  }
+  .chart-title {
+    font-size: 1.35rem;
+  }
+}
+
+/* =============================
+  Small Monitor - 1280px wide screens
+  ============================= */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .bar-chart-container {
+    max-width: 92%;
+    height: 76%;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 86% !important;
+  }
+}
+
+/*
+  =============================
+  Mobile Responsiveness
+  - up to 360px: Small phones
+  - 361px to 480px: Standard phones
+  - 481px to 575px: Large phones / small phablets
+  - 576px to 767px: Phablets / small tablets (portrait)
+  =============================
+*/
+
+/* up to 360px: Small phones */
+@media (max-width: 360px) {
+  .bar-chart-container {
+    max-width: 100%;
+    height: 65%;
+    padding: 16px;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 80% !important;
+  }
+  .chart-title {
+    font-size: 1rem;
+  }
+}
+
+/* 361px to 480px: Standard phones */
+@media (min-width: 361px) and (max-width: 480px) {
+  .bar-chart-container {
+    height: 66%;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 80% !important;
+  }
+}
+
+/* 481px to 575px: Large phones / small phablets */
+@media (min-width: 481px) and (max-width: 575px) {
+  .bar-chart-container {
+    height: 68%;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 82% !important;
+  }
+}
+
+/* 576px to 767px: Phablets / small tablets (portrait) */
+@media (min-width: 576px) and (max-width: 767px) {
+  .bar-chart-container {
+    height: 70%;
+  }
+  .bar-chart-container .recharts-wrapper {
+    height: 84% !important;
+  }
 }
 
 .bar-chart-container .recharts-cartesian-grid-horizontal line,
 .bar-chart-container .recharts-cartesian-grid-vertical line {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.12);
 }
 
 .bar-chart-container .recharts-cartesian-axis-tick tspan {
-  fill: #7ffcff;
+  fill: #ffffff;
   font-family: 'customfont1';
   font-size: 12px;
   background: #1a4375e6;
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid #7ffcff;
+  border: 1px solid rgba(255,255,255,0.7);
 }
 
 .bar-chart-container .recharts-xAxis .recharts-cartesian-axis-tick-line {
@@ -56,11 +147,11 @@
 }
 
 .bar-chart-container .recharts-cartesian-axis-line {
-  stroke: #7ffcff;
+  stroke: rgba(127, 252, 255, 0.7);
 }
 
 .bar-chart-container .recharts-yAxis .recharts-label {
-  fill: #7ffcff;
+  fill: #ffffff;
   font-family: 'customfont1';
   font-weight: bold;
   transform: translate(-120px, 150px) rotate(-90deg);
@@ -105,8 +196,8 @@
 
 .time-filter {
   background: transparent;
-  border: 1px solid #7ffcff;
-  color: #7ffcff;
+  border: 1px solid rgba(255,255,255,0.7);
+  color: #ffffff;
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-family: 'customfont1';
@@ -115,24 +206,57 @@
 }
 
 .time-filter:hover {
-  background: rgba(127, 252, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .time-filter option {
   background: #1a4375e6;
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   padding: 8px;
 }
 
 .time-filter:focus {
   outline: none;
-  border-color: #7ffcff;
-  box-shadow: 0 0 0 2px rgba(127, 252, 255, 0.2);
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+/* Toggle group for grouping modes */
+.toggle-group {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+.toggle-segment {
+  background: transparent;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: 'customfont1';
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.toggle-segment:hover { 
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.toggle-segment.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
 }
 
 .loading-reports {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   text-align: center;
@@ -140,7 +264,7 @@
 }
 
 .harvest-label {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 1.2rem;
   margin-bottom: 1rem;
@@ -149,7 +273,7 @@
 
 .custom-tooltip {
   background: #1a4375e6;
-  border: 1px solid #7ffcff;
+  border: 1px solid rgba(255,255,255,0.7);
   border-radius: 4px;
   padding: 10px;
   color: #ffffff;
@@ -159,7 +283,7 @@
 }
 
 .reports-last-updated {
-  color: #7ffcff;
+  color: #ffffff;
   font-family: 'customfont1';
   font-size: 0.8rem;
   text-align: center;
@@ -174,13 +298,13 @@
 /* Recharts Default Styles Override */
 .recharts-default-tooltip {
   background-color: rgba(26, 67, 117, 0.9) !important;
-  border: 1px solid #7ffcff !important;
+  border: 1px solid rgba(255,255,255,0.7) !important;
   border-radius: 4px !important;
   padding: 10px !important;
 }
 
 .recharts-tooltip-label {
-  color: #7ffcff !important;
+  color: #ffffff !important;
   font-family: 'customfont1' !important;
   font-size: 0.9rem !important;
 }

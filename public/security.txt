@@ -1,0 +1,17 @@
+# Security.txt file for PiscaRisk
+# This file provides security contact information and policies
+
+Contact: mailto:security@piscarisk.onrender.com
+Contact: https://piscarisk.onrender.com/security
+Expires: 2025-12-31T23:59:59.000Z
+Encryption: https://piscarisk.onrender.com/pgp-key.txt
+Acknowledgments: https://piscarisk.onrender.com/security/acknowledgments
+Preferred-Languages: en, tl
+Canonical: https://piscarisk.onrender.com/.well-known/security.txt
+Policy: https://piscarisk.onrender.com/security-policy
+
+# Security Policy
+# - We take security seriously
+# - Please report vulnerabilities responsibly
+# - We will respond within 48 hours
+# - We follow responsible disclosure practices

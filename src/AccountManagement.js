@@ -1044,9 +1044,9 @@ const AccountManagement = () => {
       )}
       <header className="account-header-bar">
         <div className="header-logo-container">
+        <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
           <div className="header-title">PiscaRISK</div>
-          <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
         </div>
 
         <div className="header-right">

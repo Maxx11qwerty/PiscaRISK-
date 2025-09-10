@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getSecureItem, setSecureItem } from '../utils/secureStorage';
 
 const LanguageContext = createContext();
 
@@ -12,13 +13,13 @@ export const useLanguage = () => {
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(() => {
-    // Get language from localStorage or default to English
-    return localStorage.getItem('language') || 'en';
+    // Get language from secure storage or default to English
+    return getSecureItem('language') || 'en';
   });
 
   useEffect(() => {
-    // Save language preference to localStorage
-    localStorage.setItem('language', language);
+    // Save language preference to secure storage
+    setSecureItem('language', language);
   }, [language]);
 
   const value = {

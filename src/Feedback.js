@@ -698,9 +698,9 @@ const Feedback = () => {
     <div className={`feedback ${ (sidebarOpen || !sidebarCollapsed) ? 'sidebar-open' : '' }`}>
       <header className="feedback-header-bar">
         <div className="header-logo-container">
+        <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
           <div className="header-title">{t('login.title')}</div>
-          <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
         </div>
 
         <div className="header-right">

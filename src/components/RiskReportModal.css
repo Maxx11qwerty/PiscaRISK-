@@ -1,6 +1,28 @@
 /* RiskReportModal.css */
+@font-face {
+  font-family: 'customfont1';
+  src: url('../assets/fonts/ReadexPro-bold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ReadexPro-Regular';
+  src: url('../assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ReadexPro-Regular2';
+  src: url('../assets/fonts/ReadexPro-Regular.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+
 .risk-report-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'ReadexPro-Regular';
   background-color: #f8fafc;
   border-radius: 12px;
   padding: 24px;
@@ -727,5 +749,828 @@
 .aggregate-correction-banner .aggregate-note {
   font-size: 12px;
   opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Farm Overview Styles */
+.farm-overview-section {
+  margin-bottom: 25px;
+}
+
+.farm-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.farm-risk-card {
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.farm-risk-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.farm-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.farm-info .farm-name {
+  margin: 0;
+}
+
+.farm-info .farm-location {
+  margin: 2px 0 0 0;
+}
+
+.farm-risk-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #eef2f7;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.farm-meta-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.meta-chip,
+.confidence-info {
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+}
+
+.meta-chip.alert {
+  background: #fff7ed;
+  border-color: #fde68a;
+}
+
+.meta-chip.ready {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.risk-counts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.risk-badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.risk-level-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.risk-level-badge.high-risk {
+  background: #ef4444;
+}
+
+.risk-level-badge.medium-risk {
+  background: #f59e0b;
+}
+
+.risk-level-badge.low-risk {
+  background: #10b981;
+}
+
+.confidence-info {
+  color: #374151;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.farm-risk-card .farm-info .farm-location {
+  margin-top: 2px;
+}
+
+.farm-risk-card.no-reports {
+  opacity: 0.95;
+}
+
+.farm-stats {
+  margin-bottom: 12px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border-radius: 3px;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-label {
+  color: #6b7280;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stat-value {
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.risk-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.risk-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.risk-item.high {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.risk-item.medium {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.risk-item.low {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.risk-count {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+.risk-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.farm-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.view-details-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #1f2937;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.view-details-btn:hover {
+  background: #374151;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.view-details-btn .btn-icon {
+  font-size: 0.8rem;
+}
+
+.suggested-actions-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.suggested-actions-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggested-actions-btn .btn-icon {
+  font-size: 0.8rem;
+}
+
+.corrected-indicator {
+  color: #059669;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #f0fdf4;
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid #bbf7d0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Pond Details Table Styles */
+.pond-details-table {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.pond-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pond-table thead {
+  background: #f8fafc;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.pond-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pond-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+
+.pond-table-row:hover {
+  background: #f9fafb;
+}
+
+.pond-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.fish-condition {
+  color: #374151;
+}
+
+.risk-confidence {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.risk-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-block;
+  width: fit-content;
+}
+
+.risk-badge.high-risk {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.risk-badge.medium-risk {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fed7aa;
+}
+
+.risk-badge.low-risk {
+  background: #f0fdf4;
+  color: #059669;
+  border: 1px solid #bbf7d0;
+}
+
+.risk-badge.normal {
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.confidence-value {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.corrected-badge {
+  font-size: 0.7rem;
+  color: #059669;
+  background: #f0fdf4;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #bbf7d0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: fit-content;
+}
+
+.water-condition, .weather {
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.pending {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fed7aa;
+}
+
+.status-badge.processed {
+  background: #d1fae5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.review-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.review-btn:hover {
+  background: #2563eb;
+}
+
+.acknowledge-btn {
+  background: #10b981;
+  color: white;
+}
+
+.acknowledge-btn:hover {
+  background: #059669;
+}
+
+.no-farm-data {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+}
+
+.no-farm-data .no-data-icon {
+  font-size: 3rem;
+  color: #059669;
+  margin-bottom: 20px;
+}
+
+.no-farm-data h3 {
+  color: #374151;
+  margin: 0 0 10px 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.no-farm-data p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Farm Details Modal */
+.farm-details-modal-overlay {
+  position: fixed;
+  top: 44px; /* offset below header bar */
+  left: 0;
+  right: 0;
+  height: calc(100vh - 64px);
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.farm-details-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #e5e7eb;
+  display: flex;
+    flex-direction: column;
+  }
+  
+.farm-details-header {
+  display: flex;
+    justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.farm-details-header h3 {
+  color: #111827;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.close-modal-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.close-modal-btn:hover {
+  background: #eef2f7;
+  color: #374151;
+}
+
+.farm-details-content {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Summary badges at top of modal */
+.farm-details-content .farm-risk-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #ffffff;
+  border: none;
+  padding: 0 0 12px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+/* Pond table aesthetics */
+.pond-details-table { margin-top: 8px; }
+
+.pond-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pond-table thead th {
+  background: #f9fafb;
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pond-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  color: #111827;
+  font-size: 0.9rem;
+}
+
+.pond-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+  .farm-details-modal { max-width: 100%; }
+  .farm-details-content { padding: 12px 14px 16px; }
+  .pond-table thead th, .pond-table tbody td { padding: 10px 12px; }
+}
+
+/* Headings slightly bold; avoid bold font file for body */
+.header-content h2,
+.farm-info .farm-name,
+.ml-section h4,
+.report-section h4 {
+  font-family: 'ReadexPro-Regular2', 'ReadexPro-Regular', Arial, sans-serif;
+  font-weight: 600;
+}
+
+/* Body/meta text normal weight */
+.farm-info .farm-location,
+.meta-chip,
+.confidence-info,
+.risk-badge,
+.risk-label,
+.pond-name,
+.fish-condition,
+.water-condition,
+.weather,
+.view-details-btn,
+.suggested-actions-btn,
+.farm-risk-summary,
+.risk-counts span,
+.no-reports-note,
+.no-reports-message p,
+.pond-table td,
+.pond-table th {
+  font-family: 'ReadexPro-Regular', Arial, sans-serif;
+  font-weight: 400;
+}
+
+/* Risk count badges a bit heavier but not bold */
+.risk-badge {
+  font-weight: 500;
+}
+
+/* Keep only the main risk-level badge with bold appearance via color, not heavy font */
+.risk-level-badge {
+  font-weight: 600;
+}
+
+/* Neutralize farm card accent borders */
+.farm-risk-card.high-risk,
+.farm-risk-card.medium-risk,
+.farm-risk-card.low-risk {
+  border-left: 1px solid #e5e7eb;
+}
+
+/* Neutral summary background */
+.farm-risk-summary {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+/* Chips neutral */
+.meta-chip,
+.confidence-info {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.meta-chip.alert,
+.meta-chip.ready {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+/* Risk counts shown as neutral chips (no level colors) */
+.risk-counts .risk-badge,
+.pond-table .risk-badge {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #111827;
+}
+
+/* Remove level-based colors from count badges */
+.risk-counts .risk-badge.high-risk,
+.risk-counts .risk-badge.medium-risk,
+.risk-counts .risk-badge.low-risk,
+.risk-counts .risk-badge.normal {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+/* Keep color ONLY for the main risk-level badge used in headers */
+.risk-level-badge.high-risk {
+  background: #ef4444;
+}
+.risk-level-badge.medium-risk {
+  background: #f59e0b;
+}
+.risk-level-badge.low-risk {
+  background: #10b981;
+}
+.risk-level-badge.normal {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+/* Buttons neutral */
+.view-details-btn,
+.suggested-actions-btn {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+.view-details-btn:hover,
+.suggested-actions-btn:hover {
+  background: #f9fafb;
+}
+
+/* Suggested Actions - Clean style */
+.recommended-actions {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.recommended-actions h4 {
+  margin: 0 0 10px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.actions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.action-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.action-icon {
+  font-size: 0.9rem;
+  color: #10b981;
+}
+
+.action-item span:last-child {
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Remove priority colors to keep risk indicator as main color source */
+.action-item.high-priority,
+.action-item.medium-priority {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+/* No-risks icon neutral */
+.no-risks-icon {
+  color: #6b7280;
+}
+
+/* Remove colored table badges */
+.pond-table .risk-badge.high-risk,
+.pond-table .risk-badge.medium-risk,
+.pond-table .risk-badge.low-risk,
+.pond-table .risk-badge.normal {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+/* Default normal weight */
+.risk-report-container,
+.farm-info .farm-location,
+.meta-chip,
+.confidence-info,
+.risk-badge,
+.risk-label,
+.pond-name,
+.fish-condition,
+.water-condition,
+.weather,
+.view-details-btn,
+.suggested-actions-btn,
+.farm-risk-summary,
+.risk-counts span,
+.no-reports-note,
+.no-reports-message p,
+.pond-table td,
+.pond-table th {
+  font-weight: 400;
+}
+
+/* Bold ONLY farm name, main risk badge text, and avg confidence */
+.farm-info .farm-name {
+  font-weight: 700;
+}
+.risk-level-badge {
+  font-weight: 700;
+}
+
+/* Risk count chips normal */
+.risk-counts .risk-badge {
   font-weight: 400;
 }

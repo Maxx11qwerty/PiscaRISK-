@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from "react";
 import {FaUserCircle,FaImage,FaCloudSun,FaFish,
         FaExclamationTriangle,FaUser,FaDatabase,FaSignOutAlt,
         FaSearch,FaBars,FaCalendarAlt} from "react-icons/fa";
-import { useTranslation } from 'react-i18next'; // Add this import
+import { useTranslation } from 'react-i18next';
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
@@ -15,12 +15,15 @@ import WeatherDisplay from './components/WeatherDisplay';
 import { exportBoxData } from './utils/exportBoxData';
 import NotificationBox from './components/NotificationBox';
 import ReportsChart from './components/ReportsChart';
-import HarvestChart from './components/HarvestChart';
+import FarmHealthGauge from './components/FarmHealthGauge';
+import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
+import { fetchRiskReportData } from './services/riskDataService';
 import PageTransition from './components/PageTransition';
 import AnimatedModal from './components/AnimatedModal';
 import PasswordChangeModal from './components/PasswordChangeModal';
 import Sidebar from './components/Sidebar';
 import RiskReportModal from './components/RiskReportModal';
+import ConditionInsights from './components/ConditionInsights';
 
 // Import data from localStorage or use default values
 const getInitialData = () => {
@@ -37,6 +40,7 @@ const PiscaRiskHome = () => {
   const location = useLocation();
   const { t } = useTranslation(); // Add translation hook
   const [showModal, setShowModal] = useState(false);
+  const [modalKey, setModalKey] = useState(0); // Key to force component remount
   const [modalContent, setModalContent] = useState({
     title: "",
     content: "",
@@ -153,22 +157,32 @@ const PiscaRiskHome = () => {
 
   // Handle navigation state from notifications
   useEffect(() => {
+    console.log('Homepage navigation state effect triggered:', location.state);
     if (location.state?.fromNotification) {
+      console.log('Homepage processing notification state:', {
+        openPondModal: location.state.openPondModal,
+        selectedPond: location.state.selectedPond,
+        farmFilter: location.state.farmFilter,
+        farmName: location.state.farmName
+      });
       if (location.state.openPondModal) {
         // Set the modal content to show pond conditions
         setModalContent({
+          id: 2, // Fish Pond Condition box ID
           title: "Fish Pond Condition",
           content: null,
           icon: <FaFish className="box-icon" />
         });
         // Open the modal
         setShowModal(true);
+        console.log('Homepage opened pond modal');
       }
       if (location.state.selectedPond) {
         setSelectedPond(location.state.selectedPond);
+        console.log('Homepage set selected pond:', location.state.selectedPond);
       }
-      // Clear the navigation state
-      window.history.replaceState({}, document.title);
+      // Don't clear the navigation state immediately - let PondConditionDashboard read it first
+      // The state will be cleared by PondConditionDashboard after it processes it
     }
   }, [location.state]);
 
@@ -338,7 +352,66 @@ const PiscaRiskHome = () => {
       fetchWeatherData();
     }
   };
-  const closeModal = () => setShowModal(false);
+  const closeModal = () => {
+    setShowModal(false);
+    // Reset selected pond to default when closing modal
+    setSelectedPond(1);
+    // Clear navigation state to ensure fresh start
+    navigate('/Homepage', { replace: true, state: {} });
+    // Increment modal key to force component remount on next open
+    setModalKey(prev => prev + 1);
+  };
+
+  // Chart carousel state (ReportsChart default -> PondsAtRisk next)
+  const [chartIndex, setChartIndex] = useState(1); // 0: Reports, 1: Ponds at Risk
+  const nextChart = () => setChartIndex((prev) => (prev + 1) % 2);
+
+  // Drilldown modal for stacked chart
+  const [showDrilldown, setShowDrilldown] = useState(false);
+  const [drilldownTitle, setDrilldownTitle] = useState('');
+  const [drilldownItems, setDrilldownItems] = useState([]);
+  const [allFarmsRiskData, setAllFarmsRiskData] = useState([]);
+
+  useEffect(() => {
+    // Prefetch farms risk data to power drilldowns
+    (async () => {
+      try {
+        const farms = await fetchRiskReportData();
+        setAllFarmsRiskData(Array.isArray(farms) ? farms : []);
+      } catch (_) {}
+    })();
+  }, []);
+
+  const openDrilldown = ({ type, farmKey, risk, farms }) => {
+    let items = [];
+    if (type === 'farm' && farmKey) {
+      const farm = allFarmsRiskData.find(f => f.key === farmKey);
+      if (farm) {
+        const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
+        items = preds.map(p => ({
+          pond: p.fish_pond || 'Unknown Pond',
+          risk: p.risk_level || 'Normal',
+          farm: farm.name,
+        }));
+        setDrilldownTitle(`Ponds at Risk — ${farm.name}`);
+      }
+    } else if (type === 'risk' && risk) {
+      const farmKeys = Array.isArray(farms) && farms.length ? new Set(farms) : null;
+      const relevantFarms = farmKeys ? allFarmsRiskData.filter(f => farmKeys.has(f.key)) : allFarmsRiskData;
+      relevantFarms.forEach(f => {
+        const preds = Array.isArray(f.predictions) ? f.predictions : [];
+        preds.forEach(p => {
+          const lvl = (p.risk_level || 'Normal');
+          if (lvl === risk) {
+            items.push({ pond: p.fish_pond || 'Unknown Pond', risk: lvl, farm: f.name });
+          }
+        });
+      });
+      setDrilldownTitle(`Ponds at ${risk} Risk`);
+    }
+    setDrilldownItems(items);
+    setShowDrilldown(true);
+  };
 
   const handlePasswordChange = async (newPassword) => {
     try {
@@ -428,11 +501,12 @@ const PiscaRiskHome = () => {
           return weatherModalContent;
         case 2: // Fish Pond Condition
           return (
-            <div className="pond-modal-content">
+            <div className="pond-modal-content" key={modalKey}>
               <PondConditionDashboard 
                 isModal={true} 
                 selectedPond={selectedPond}
                 setSelectedPond={setSelectedPond}
+                navigationState={location.state}
               />
             </div>
           );
@@ -453,7 +527,7 @@ const PiscaRiskHome = () => {
           return null;
       }
     };
-  }, [weatherModalContent, selectedPond, t]);
+  }, [weatherModalContent, selectedPond, t, location.state, modalKey]);
 
   return (
     <PageTransition>
@@ -473,25 +547,15 @@ const PiscaRiskHome = () => {
       )}
         <header className="homepage-header-bar">
           <div className="header-logo-container">
-            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-            <div className="header-title">PiscaRISK</div>
-            <FaBars 
+          <FaBars 
               className="header-hamburger-icon" 
               onClick={handleSidebarToggle}
             />
+            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
+            <div className="header-title">PiscaRISK</div>
           </div>
           <div className="header-right">
           <div className="header-search-container">
-              <div className="header-search-input-wrapper">
-                <FaSearch className="header-search-icon" />
-                <input
-                  type="text"
-                  placeholder={t('common.search')}
-                  className="header-search-input"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
             </div>
             <NotificationBox />
             <div className="user-menu">
@@ -556,20 +620,22 @@ const PiscaRiskHome = () => {
           <section className="dashboard">
             <div className="dashboard-top-row">
               <div className="main-box">
-                <ReportsChart />
+                {chartIndex === 0 ? (
+                  <ReportsChart />
+                ) : (
+                  <PondsAtRiskStackedChart onDrilldown={openDrilldown} />
+                )}
+                <button className="next-chart-btn" onClick={nextChart} aria-label="Next chart">→</button>
               </div>
 
               <div className="right-sidebar">
                 <div className="pie-chart-box">
-                <HarvestChart />
+                <FarmHealthGauge />
                 </div>
                 
                 <div className="calendar-box">
-                  <h3>{t('common.calendar')}</h3>
-                  <div className="chart-placeholder">
-                    <FaCalendarAlt className="chart-icon" />
-                    <span>{t('dashboard.calendarView')}</span>
-                  </div>
+                    <ConditionInsights 
+                    />
                 </div>
               </div>
             </div>
@@ -606,6 +672,36 @@ const PiscaRiskHome = () => {
                     : modalContent.content}
                 </div>
               )}
+            </AnimatedModal>
+          )}
+
+          {showDrilldown && (
+            <AnimatedModal
+              isOpen={showDrilldown}
+              onClose={() => setShowDrilldown(false)}
+              title={drilldownTitle}
+              icon={<FaExclamationTriangle className="box-icon" />}
+            >
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: '0 8px' }}>
+                {drilldownItems && drilldownItems.length > 0 ? (
+                  <div style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', fontWeight: 600, marginBottom: 8 }}>
+                      <div style={{ flex: 2 }}>Pond</div>
+                      <div style={{ flex: 1 }}>Risk</div>
+                      <div style={{ flex: 2 }}>Farm</div>
+                    </div>
+                    {drilldownItems.map((it, idx) => (
+                      <div key={idx} style={{ display: 'flex', padding: '6px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                        <div style={{ flex: 2 }}>{it.pond}</div>
+                        <div style={{ flex: 1 }}>{it.risk}</div>
+                        <div style={{ flex: 2 }}>{it.farm}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>No data available.</div>
+                )}
+              </div>
             </AnimatedModal>
           )}
 

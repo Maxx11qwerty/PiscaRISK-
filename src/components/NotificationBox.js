@@ -28,9 +28,10 @@ const extractPondId = (fishPond) => {
 
 const generateMessage = (report, pondId) => {
   const user = report.submitted_by || report.user || 'A user';
+  const farmName = report.farm || 'Unknown Farm';
   return report.source === 'mobile'
-    ? `${user} submitted a new report for Fish Pond ${pondId}`
-    : `${user} submitted a new report for Fish Pond ${pondId}`;
+    ? `${user} submitted a new report for Fish Pond ${pondId} from ${farmName}`
+    : `${user} submitted a new report for Fish Pond ${pondId} from ${farmName}`;
 };
 
 const generateDetails = (report) => {
@@ -84,11 +85,12 @@ const initializeNotifications = async () => {
         type: 'fishpond',
         message: generateMessage(report, pondId),
         details: generateDetails(report),
-        username: report.user || 'Unknown User',
+        username: report.submitted_by || report.user || 'Unknown User',
         timestamp: timestamp, // Use the processed timestamp
         read: false,
         iconKey: "pond",
         pondId,
+        farmName: report.farm || 'Unknown Farm',
         reportData: report,
         avatar: report.avatar || null,
         source: report.source || 'web'
@@ -174,10 +176,11 @@ export const addFishpondReportNotification = (pondId, reportData) => {
   const storedNotifications = localStorage.getItem('notifications');
   let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
   
-  // Create notification message
+  // Create notification message with farm name
+  const farmName = reportData.farm || 'Unknown Farm';
   const message = reportData.source === 'mobile'
-    ? `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId}`
-    : `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId}`;
+    ? `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId} from ${farmName}`
+    : `${reportData.submitted_by || reportData.user || 'A user'} submitted a new report for Fish Pond ${pondId} from ${farmName}`;
   
   const newNotification = {
     type: 'fishpond',
@@ -187,6 +190,7 @@ export const addFishpondReportNotification = (pondId, reportData) => {
     read: false,
     iconKey: "pond",
     pondId: pondId,
+    farmName: farmName,
     reportData: reportData,
     avatar: reportData.avatar || null,
     source: reportData.source || 'web'
@@ -338,19 +342,26 @@ const NotificationBox = () => {
       // Handle based on notification type
       switch (notification.type) {
         case 'fishpond':
-          // Navigate to homepage and trigger modal with specific pond
+          // Navigate to homepage and trigger modal with specific pond and farm
           if (notification.pondId) {
             // Extract pond number from the notification
             const pondNumber = parseInt(notification.pondId);
             if (!isNaN(pondNumber)) {
-              navigate('/Homepage', { 
-                state: { 
-                  openPondModal: true,
-                  selectedPond: pondNumber,
-                  fromNotification: true,
-                  reportData: notification.reportData
-                }
+              const navigationState = {
+                openPondModal: true,
+                selectedPond: pondNumber,
+                fromNotification: true,
+                reportData: notification.reportData,
+                farmName: notification.farmName,
+                farmFilter: notification.farmName
+              };
+              console.log('Notification click - navigating with state:', navigationState);
+              console.log('Notification data:', {
+                pondId: notification.pondId,
+                farmName: notification.farmName,
+                reportData: notification.reportData
               });
+              navigate('/Homepage', { state: navigationState });
             } else {
               console.warn('Invalid pond number in notification:', notification.pondId);
             }

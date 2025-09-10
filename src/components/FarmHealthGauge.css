@@ -1,0 +1,266 @@
+.health-gauge-container {
+  background: transparent;
+  margin: -10rem auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.gauge-controls {
+  margin-bottom: 8px;
+  margin-top: -1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gauge-controls .time-filter {
+  margin: 0 auto;
+}
+
+.gauge-area {
+  transform: scale(1.3);
+  margin-top: 1rem;
+  width: 100%;
+  position: relative;
+}
+
+.health-gauge-container .chart-title {
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 1.2rem;
+  margin-top: -2rem;
+}
+
+.center-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.gauge-percent {
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 1.4rem;
+}
+
+.gauge-status {
+  font-family: 'customfont1';
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.health-legend {
+  display: flex;
+  gap: 1.2%;
+  justify-content: center;
+  align-items: center;
+  margin-top: -10%;
+  flex-wrap: wrap;
+}
+
+.health-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.health-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-good .health-legend-dot { background: #2ecc71; }
+.legend-caution .health-legend-dot { background: #f1c40f; }
+.legend-critical .health-legend-dot { background: #e74c3c; }
+
+.health-legend-text {
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 11px;
+}
+
+/* Laptop - 1536px to 1919px */
+@media (min-width: 1536px) and (max-width: 1919px) {
+  .health-gauge-container {
+    max-width: 100%;
+    height: 100%;
+  }
+  .health-gauge-container .chart-title {
+    font-size: 1.3rem;
+    margin-top: -.5rem;
+  }
+  .gauge-controls {
+    margin-bottom: 8px;
+    margin-top: -1rem;
+  }
+  .health-gauge-container .gauge-area { 
+    transform: scale(1.5);
+    height: 55%; 
+    margin-top: .2rem;
+  }
+  .gauge-percent {
+    font-size: 1.5rem;
+  }
+  .gauge-status {
+    font-size: 15px;
+  }
+  .health-legend { 
+    margin-top: -1rem;
+  }
+}
+
+/* Larger screens 1920px and above */
+@media (min-width: 1920px) {
+  .health-gauge-container { 
+    height: 100%; 
+  }
+  .health-gauge-container .chart-title {
+    font-size: 1.4rem;
+    margin-top: -2rem;
+  }
+  .gauge-controls {
+    margin-bottom: 10px;
+    margin-top: -1rem;
+  }
+  .health-gauge-container .gauge-area { 
+    height: 50%; 
+  }
+  .gauge-percent {
+    font-size: 1.6rem;
+  }
+  .gauge-status {
+    font-size: 16px;
+  }
+  .health-legend { 
+    margin-top: -8%; 
+  }
+}
+
+/* Small Monitor - 1280px */
+@media (min-width: 1280px) and (max-width: 1535px) {
+  .health-gauge-container {
+    max-width: 100%;
+    height: 100%;
+  }
+  .health-gauge-container .chart-title {
+    font-size: 1.2rem;
+    margin-top: -2rem;
+  }
+  .gauge-controls {
+    margin-bottom: 8px;
+    margin-top: -1rem;
+  }
+  .health-gauge-container .gauge-area { height: 58%; }
+  .gauge-percent {
+    font-size: 1.4rem;
+  }
+  .gauge-status {
+    font-size: 14px;
+  }
+  .health-legend { margin-top: -9.5%; }
+}
+
+/*
+  =============================
+  Mobile Responsiveness
+  - up to 360px: Small phones
+  - 361px to 480px: Standard phones
+  - 481px to 575px: Large phones / small phablets
+  - 576px to 767px: Phablets / small tablets (portrait)
+  =============================
+*/
+
+/* up to 360px */
+@media (max-width: 360px) {
+  .health-gauge-container { height: 100%; }
+  .health-gauge-container .chart-title {
+    font-size: 1rem;
+    margin-top: -1.5rem;
+  }
+  .gauge-controls {
+    margin-bottom: 6px;
+    margin-top: -0.8rem;
+  }
+  .health-gauge-container .gauge-area { height: 65%; }
+  .gauge-percent {
+    font-size: 1.2rem;
+  }
+  .gauge-status {
+    font-size: 12px;
+  }
+  .health-legend { margin-top: -12%; }
+}
+
+/* 361px to 480px */
+@media (min-width: 361px) and (max-width: 480px) {
+  .health-gauge-container { height: 100%; }
+  .health-gauge-container .chart-title {
+    font-size: 1.1rem;
+    margin-top: -1.8rem;
+  }
+  .gauge-controls {
+    margin-bottom: 6px;
+    margin-top: -0.8rem;
+  }
+  .health-gauge-container .gauge-area { height: 64%; }
+  .gauge-percent {
+    font-size: 1.3rem;
+  }
+  .gauge-status {
+    font-size: 13px;
+  }
+  .health-legend { margin-top: -11%; }
+}
+
+/* 481px to 575px */
+@media (min-width: 481px) and (max-width: 575px) {
+  .health-gauge-container { height: 100%; }
+  .health-gauge-container .chart-title {
+    font-size: 1.15rem;
+    margin-top: -1.9rem;
+  }
+  .gauge-controls {
+    margin-bottom: 7px;
+    margin-top: -0.9rem;
+  }
+  .health-gauge-container .gauge-area { height: 63%; }
+  .gauge-percent {
+    font-size: 1.35rem;
+  }
+  .gauge-status {
+    font-size: 13px;
+  }
+  .health-legend { margin-top: -10.5%; }
+}
+
+/* 576px to 767px */
+@media (min-width: 576px) and (max-width: 767px) {
+  .health-gauge-container { height: 100%; }
+  .health-gauge-container .chart-title {
+    font-size: 1.2rem;
+    margin-top: -2rem;
+  }
+  .gauge-controls {
+    margin-bottom: 7px;
+    margin-top: -0.9rem;
+  }
+  .health-gauge-container .gauge-area { height: 60%; }
+  .gauge-percent {
+    font-size: 1.4rem;
+  }
+  .gauge-status {
+    font-size: 14px;
+  }
+  .health-legend { margin-top: -10%; }
+}
+
+

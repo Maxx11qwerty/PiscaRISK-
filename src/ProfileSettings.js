@@ -13,6 +13,7 @@ import Sidebar from './components/Sidebar';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { auth } from './firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 
 export default function AccountSettings() {
@@ -547,6 +548,39 @@ const uploadImage = (file) => {
     }
   };
 
+  const handlePasswordReset = async () => {
+    try {
+      setError('');
+      setSuccess('');
+
+      if (!currentUser?.email) {
+        setError(t('profileSettings.noEmailForReset'));
+        return;
+      }
+
+      // Send password reset email
+      await sendPasswordResetEmail(auth, currentUser.email);
+      
+      // Log the activity
+      logActivity('profile', `Password reset email sent to ${currentUser.email}`, currentUser.username);
+      
+      setSuccess(t('profileSettings.passwordResetEmailSent'));
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      let errorMessage = t('profileSettings.failedToSendPasswordReset');
+      
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = t('profileSettings.userNotFound');
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = t('profileSettings.invalidEmail');
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = t('profileSettings.tooManyRequests');
+      }
+      
+      setError(errorMessage);
+    }
+  };
+
   const handleUsernameClick = () => {
     setShowUsernameOptions(!showUsernameOptions);
   };
@@ -747,9 +781,7 @@ const handleSendVerificationEmail = async () => {
     <div className="profile-settings">
       <header className="profile-header-bar">
           <div className="header-logo-container">
-            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
-            <div className="header-title">PiscaRISK</div>
-            <FaBars 
+          <FaBars 
               className="header-hamburger-icon" 
               onClick={() => {
                 if (window.innerWidth <= 1023) {
@@ -759,6 +791,8 @@ const handleSendVerificationEmail = async () => {
                 }
               }}
             />
+            <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
+            <div className="header-title">PiscaRISK</div>
           </div>
           <div className="header-right">
             <NotificationBox />
@@ -1053,7 +1087,7 @@ const handleSendVerificationEmail = async () => {
             {/* Row 5: Change Password Button */}
             <div className="fields-row">
               <div className="profile-field">
-                <button className="change-password-btn">{t('profileSettings.changePassword')}</button>
+                <button className="change-password-btn" onClick={handlePasswordReset}>{t('profileSettings.changePassword')}</button>
               </div>
             </div>
 

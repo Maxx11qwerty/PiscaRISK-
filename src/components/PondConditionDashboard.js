@@ -8,13 +8,22 @@ import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight,
 import { AuthContext } from '../contexts/AuthContext';
 import './PondCondition.css';
 
-const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond }) => {
+const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond, navigationState = null }) => {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
+  
+  console.log('PondConditionDashboard rendered with props:', {
+    isModal,
+    propSelectedPond,
+    navigationState,
+    locationState: location.state
+  });
   const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');
   const [selectedFarmId, setSelectedFarmId] = useState('all');
+  const [notificationFarmFilter, setNotificationFarmFilter] = useState(null);
+  const [isProcessingNotification, setIsProcessingNotification] = useState(false);
   const [pondOptions, setPondOptions] = useState([1,2,3,4,5,6,7,8,9,10]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -29,14 +38,59 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
   // Handle navigation state from notifications
   useEffect(() => {
-    if (location.state?.fromNotification) {
-      if (location.state.selectedPond) {
-        setSelectedPond(location.state.selectedPond);
+    const state = navigationState || location.state;
+    console.log('Navigation state effect triggered:', state);
+    if (state?.fromNotification) {
+      console.log('Processing notification state:', {
+        selectedPond: state.selectedPond,
+        farmFilter: state.farmFilter,
+        farmName: state.farmName
+      });
+      setIsProcessingNotification(true);
+      if (state.selectedPond) {
+        setSelectedPond(state.selectedPond);
       }
+      if (state.farmFilter) {
+        setNotificationFarmFilter(state.farmFilter);
+        console.log('Stored notification farm filter:', state.farmFilter);
+      }
+      // Set a broader date filter when coming from notification to show more reports
+      setReportFilter('last7days');
+      console.log('Set report filter to last7days for notification');
       // Clear the navigation state
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [navigationState, location.state]);
+
+  // Handle farm filter from notification after farms are loaded
+  useEffect(() => {
+    console.log('Farm filter effect triggered:', {
+      notificationFarmFilter,
+      farmsLength: farms.length,
+      farms: farms.map(f => ({ id: f.id, name: f.name }))
+    });
+    
+    if (notificationFarmFilter && farms.length > 0) {
+      // Find the farm by name and set the selectedFarmId
+      const targetFarm = farms.find(farm => 
+        farm.name === notificationFarmFilter || 
+        farm.id === notificationFarmFilter
+      );
+      if (targetFarm) {
+        setSelectedFarmId(targetFarm.id);
+        console.log('Setting farm filter from notification:', targetFarm.name, targetFarm.id);
+        // Clear the notification farm filter after applying
+        setNotificationFarmFilter(null);
+        // Mark notification processing as complete
+        setIsProcessingNotification(false);
+        console.log('Notification processing complete');
+      } else {
+        console.warn('Farm not found for filter:', notificationFarmFilter, 'Available farms:', farms.map(f => f.name));
+        // Mark notification processing as complete even if farm not found
+        setIsProcessingNotification(false);
+      }
+    }
+  }, [farms, notificationFarmFilter]);
 
   // Update parent component if props are provided
   useEffect(() => {
@@ -46,11 +100,13 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   }, [selectedPond, propSetSelectedPond]);
 
   // Ensure selectedFarmId is set to user's assigned farm when available
+  // But don't override if it's already set from a notification
   useEffect(() => {
-    if (currentUser?.farm) {
+    if (currentUser?.farm && !notificationFarmFilter) {
       setSelectedFarmId(currentUser.farm);
     }
-  }, [currentUser?.farm]);
+  }, [currentUser?.farm, notificationFarmFilter]);
+
 
   // Monitor farms state changes
   useEffect(() => {
@@ -68,8 +124,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         // Determine which farms to load based on user's farm assignment
         let farmsToLoad = [];
         
-        if (currentUser?.farm) {
-          // User has a specific farm assigned - ONLY load that farm
+        if (currentUser?.farm && !notificationFarmFilter) {
+          // User has a specific farm assigned - ONLY load that farm (unless coming from notification)
           console.log('User has assigned farm:', currentUser.farm);
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
           if (farmDoc.exists()) {
@@ -87,8 +143,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             console.log('Created placeholder farm:', farmsToLoad[0]);
           }
         } else {
-          // User has no farm assigned or is admin - load all farms
-          console.log('User has no farm assignment - loading all farms');
+          // User has no farm assigned, is admin, or coming from notification - load all farms
+          console.log('Loading all farms - user farm:', currentUser?.farm, 'notification farm filter:', notificationFarmFilter);
           const farmsSnap = await getDocs(collection(db, 'farms'));
           farmsToLoad = farmsSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
         }
@@ -287,7 +343,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     };
   
     fetchReports();
-  }, [selectedPond, selectedFarmId, currentUser?.farm]);
+  }, [selectedPond, selectedFarmId, currentUser?.farm, notificationFarmFilter]);
 
   // Get and sort reports
   const allReports = [...reports].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -453,13 +509,13 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     return farmReports.length;
   };
 
-  if (loading) {
+  if (loading || isProcessingNotification) {
     return (
       <div className="pond-condition-container">
         <div className="loading-state">
           <FaExclamationTriangle className="loading-icon" />
-          <h3>{t('pondCondition.loading_reports')}</h3>
-          <p>{t('pondCondition.fetching_latest_data')}</p>
+          <h3>{isProcessingNotification ? 'Processing notification...' : t('pondCondition.loading_reports')}</h3>
+          <p>{isProcessingNotification ? 'Setting up farm and pond filters...' : t('pondCondition.fetching_latest_data')}</p>
         </div>
       </div>
     );
@@ -569,11 +625,21 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         ) : (
           farms
             .filter(farm => {
+              console.log('Filtering farm:', farm.name, 'selectedFarmId:', selectedFarmId, 'currentUser.farm:', currentUser?.farm);
+              // If selectedFarmId is set (e.g., from notification), filter by that first
+              if (selectedFarmId && selectedFarmId !== 'all') {
+                const matches = farm.id === selectedFarmId;
+                console.log('Farm', farm.name, 'matches selectedFarmId:', matches);
+                return matches;
+              }
               // If user has a farm assignment, only show that farm
               if (currentUser?.farm) {
-                return farm.id === currentUser.farm;
+                const matches = farm.id === currentUser.farm;
+                console.log('Farm', farm.name, 'matches user farm:', matches);
+                return matches;
               }
               // If user has no farm assignment, show all farms
+              console.log('Farm', farm.name, 'showing all farms');
               return true;
             })
             .map((farm) => {

@@ -124,6 +124,7 @@ function ReportsChart() {
 
   return (
     <div className="bar-chart-container">
+      <h3 className="chart-title">Reports Submitted</h3>
       <div className="chart-controls">
         <select 
           value={timeFilter} 
@@ -135,7 +136,7 @@ function ReportsChart() {
           <option value="monthly">Monthly</option>
         </select>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart data={data}>
           <CartesianGrid vertical={false} />
           <XAxis 
@@ -151,7 +152,7 @@ function ReportsChart() {
           <Tooltip />
           <Bar 
             dataKey="reports" 
-            fill="#7ffcff" 
+            fill="#FFB74D" 
             radius={[8, 8, 0, 0]}
             animationDuration={2000}
             animationBegin={0}
