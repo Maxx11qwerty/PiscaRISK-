@@ -21,7 +21,7 @@ This document outlines the security measures implemented to address OWASP securi
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: https: blob:;
-  connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com;
+  connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org;
   frame-src 'self' https://*.google.com;
   object-src 'none';
   base-uri 'self';
@@ -29,6 +29,8 @@ This document outlines the security measures implemented to address OWASP securi
   frame-ancestors 'none';
 " />
 ```
+
+**Note**: The CSP includes `https://api.openweathermap.org` in the `connect-src` directive to allow weather data fetching.
 
 ### 2. Anti-clickjacking Headers ✅
 **Issue**: Missing X-Frame-Options header allows clickjacking attacks.
@@ -105,7 +107,7 @@ This document outlines the security measures implemented to address OWASP securi
 The following headers should be configured on your web server:
 
 ```http
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: strict-origin-when-cross-origin

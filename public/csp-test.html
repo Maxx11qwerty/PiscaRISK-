@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSP Test</title>
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob:;
+      connect-src 'self' https: wss:;
+      frame-src 'self' https://*.google.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-ancestors 'none';
+    " />
+</head>
+<body>
+    <h1>CSP Test Page</h1>
+    <button onclick="testWeatherAPI()">Test Weather API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testWeatherAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch('https://api.openweathermap.org/data/2.5/weather?lat=14.1104&lon=121.1446&appid=d2ac047010bdc4eb7a196d94bf69cd27&units=metric');
+                const data = await response.json();
+                resultDiv.innerHTML = '✅ Weather API call successful!<br>Temperature: ' + data.main.temp + '°C';
+            } catch (error) {
+                resultDiv.innerHTML = '❌ Weather API call failed: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
