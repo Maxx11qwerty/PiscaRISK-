@@ -431,13 +431,6 @@ const login = async (emailOrContact, password) => {
     }
     
     if (userData) {
-      // Handle existing users who might have different status values
-      console.log('User data found:', {
-        email: userData.email,
-        status: userData.status,
-        role: userData.role,
-        emailVerified: userCredential.user.emailVerified
-      });
 
       // Check if account is suspended (always block suspended accounts)
       if (userData.status === 'suspended') {
@@ -451,11 +444,9 @@ const login = async (emailOrContact, password) => {
       // Allow Admin accounts to login regardless of status (except suspended)
       const roleLower = String(userData.role || '').toLowerCase();
       if (roleLower === 'admin') {
-        console.log('Admin account detected - allowing login regardless of status');
         // Auto-activate admin accounts if they're inactive
         const statusLower = String(userData.status || '').toLowerCase();
         if (statusLower === 'inactive' && userCredential.user.emailVerified) {
-          console.log('Auto-activating inactive admin account');
           const updateRef = doc(db, collectionName, userCredential.user.uid);
           await updateDoc(updateRef, {
             status: 'Active',
@@ -473,7 +464,6 @@ const login = async (emailOrContact, password) => {
             handleCodeInApp: true
           });
         } catch (e) {
-          console.warn('Auto-send verification failed:', e);
         }
         await signOut(auth);
         return {
@@ -490,7 +480,6 @@ const login = async (emailOrContact, password) => {
       
       // Auto-activate admin accounts if they're inactive and email verified
       if (roleLower === 'admin' && statusLower === 'inactive' && userCredential.user.emailVerified) {
-        console.log('Auto-activating inactive admin account');
         const updateRef = doc(db, collectionName, userCredential.user.uid);
         await updateDoc(updateRef, {
           status: 'Active',
@@ -503,7 +492,6 @@ const login = async (emailOrContact, password) => {
       // For non-admin users with adminActivated=true and emailVerified=true, 
       // update status to Active if it's not already
       if (roleLower !== 'admin' && userData.adminActivated && userCredential.user.emailVerified && statusLower !== 'active') {
-        console.log('Auto-activating non-admin user with adminActivated=true and emailVerified=true');
         const updateRef = doc(db, collectionName, userCredential.user.uid);
         await updateDoc(updateRef, {
           status: 'Active',
@@ -676,7 +664,6 @@ const login = async (emailOrContact, password) => {
 
       // Reload user to get latest verification status
       await auth.currentUser.reload();
-      console.log('Current user verification status:', auth.currentUser.emailVerified);
 
       // Validate email format
       if (!/^\S+@\S+\.\S+$/.test(newEmail)) {
