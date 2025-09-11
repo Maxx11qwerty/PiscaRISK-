@@ -108,8 +108,6 @@ const initializeNotifications = async () => {
       // Handle timestamp conversion safely for feedback
       let timestamp;
       try {
-        // Log the raw timestamp for debugging
-        console.log('Raw feedback timestamp:', feedback.timestamp);
         
         // First try to handle Firestore Timestamp
         if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
@@ -137,17 +135,12 @@ const initializeNotifications = async () => {
         }
         // If no valid timestamp found, use current date
         else {
-          console.warn('No valid timestamp found for feedback, using current date');
           timestamp = new Date().toISOString();
         }
       } catch (error) {
-        console.warn('Error processing feedback timestamp:', error, 'Feedback data:', feedback);
         // Use current date as fallback
         timestamp = new Date().toISOString();
       }
-
-      // Log the processed timestamp for debugging
-      console.log('Processed timestamp:', timestamp);
 
       notifications.push({
         id: doc.id,

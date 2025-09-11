@@ -74,12 +74,7 @@ export const fetchAllUsers = async () => {
       
       // Check if dates are valid
       if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
-        console.warn('Invalid date found during sorting:', { 
-          userA: a.username, 
-          dateA: a.dateJoined, 
-          userB: b.username, 
-          dateB: b.dateJoined 
-        });
+
         return 0; // Don't sort if dates are invalid
       }
       

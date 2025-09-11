@@ -657,7 +657,6 @@ const handleSendVerificationEmail = async () => {
   // Initialize form state with current user data when currentUser changes
   useEffect(() => {
     if (currentUser) {
-      console.log('Current user data:', currentUser);
       setNewFullName(currentUser.fullName || '');
       setNewAddress(currentUser.address || '');
       setNewContact(currentUser.contact || '');

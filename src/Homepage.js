@@ -20,7 +20,7 @@ import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
 import { fetchRiskReportData } from './services/riskDataService';
 import PageTransition from './components/PageTransition';
 import AnimatedModal from './components/AnimatedModal';
-import PasswordChangeModal from './components/PasswordChangeModal';
+// PasswordChangeModal removed - using ProfileSettings password reset instead
 import Sidebar from './components/Sidebar';
 import RiskReportModal from './components/RiskReportModal';
 import ConditionInsights from './components/ConditionInsights';
@@ -54,12 +54,12 @@ const PiscaRiskHome = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [selectedPond, setSelectedPond] = useState(1);
-  const { currentUser, handleLogout, checkPasswordChangeRequired, forcePasswordChange } = useContext(AuthContext);
+  const { currentUser, handleLogout } = useContext(AuthContext);
   const [errorMessage, setErrorMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
-  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  // Password change modal removed - using ProfileSettings password reset instead
   const [setPasswordChangeRequirements] = useState({
     minLength: 8,
     requireUppercase: true,
@@ -130,23 +130,7 @@ const PiscaRiskHome = () => {
     handleInitialState();
   }, []);
 
-  // Check for password change requirements when user logs in
-  useEffect(() => {
-    const checkPasswordChange = async () => {
-      if (currentUser) {
-        try {
-          const result = await checkPasswordChangeRequired();
-          if (result.requiresChange) {
-            setShowPasswordChangeModal(true);
-          }
-        } catch (error) {
-          console.error('Error checking password change requirements:', error);
-        }
-      }
-    };
-
-    checkPasswordChange();
-  }, [currentUser, checkPasswordChangeRequired]);
+  // Password change check removed - using ProfileSettings password reset instead
 
   useEffect(() => {
     const storedRequirements = localStorage.getItem('passwordChangeRequirements');
@@ -157,14 +141,8 @@ const PiscaRiskHome = () => {
 
   // Handle navigation state from notifications
   useEffect(() => {
-    console.log('Homepage navigation state effect triggered:', location.state);
     if (location.state?.fromNotification) {
-      console.log('Homepage processing notification state:', {
-        openPondModal: location.state.openPondModal,
-        selectedPond: location.state.selectedPond,
-        farmFilter: location.state.farmFilter,
-        farmName: location.state.farmName
-      });
+
       if (location.state.openPondModal) {
         // Set the modal content to show pond conditions
         setModalContent({
@@ -413,21 +391,7 @@ const PiscaRiskHome = () => {
     setShowDrilldown(true);
   };
 
-  const handlePasswordChange = async (newPassword) => {
-    try {
-      const result = await forcePasswordChange(newPassword);
-      if (result.success) {
-        setShowPasswordChangeModal(false);
-        // Show success message
-        setErrorMessage(t('common.passwordChangedSuccess'));
-        setTimeout(() => setErrorMessage(''), 3000);
-      }
-    } catch (error) {
-      console.error('Password change error:', error);
-      setErrorMessage(`${t('common.passwordChangeFailed')}: ${error.message}`);
-      setTimeout(() => setErrorMessage(''), 5000);
-    }
-  };
+  // handlePasswordChange removed - using ProfileSettings password reset instead
 
   // Memoize weather modal content to prevent re-renders on language change
   const weatherModalContent = useMemo(() => {
@@ -705,13 +669,7 @@ const PiscaRiskHome = () => {
             </AnimatedModal>
           )}
 
-          {/* Password Change Modal */}
-          <PasswordChangeModal
-            isOpen={showPasswordChangeModal}
-            onClose={() => setShowPasswordChangeModal(false)}
-            onPasswordChange={handlePasswordChange}
-            userInfo={currentUser}
-          />
+          {/* Password Change Modal removed - using ProfileSettings password reset instead */}
         </div>
       </div>
     </PageTransition>

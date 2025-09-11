@@ -210,7 +210,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (suppressAuthUpdatesRef.current) {
-        console.log('AuthContext: Suppressing auth state update during provisioning');
         return;
       }
       if (user) {
@@ -227,7 +226,6 @@ export const AuthProvider = ({ children }) => {
 
           // Get data from main user document
           const userData = userDoc.data();
-          console.log('AuthContext: User document data:', userData);
 
           // Check if user needs OTP verification
           if (user.emailVerified && userData.status === 'active') {
@@ -248,15 +246,6 @@ export const AuthProvider = ({ children }) => {
             fullName: userData.fullName || '',
             contact: userData.contactNumber || '',
             // Add farm information
-            farm: userData.farm || null
-          });
-          console.log('AuthContext: Set currentUser with data:', {
-            uid: user.uid,
-            email: user.email,
-            username: userData.username,
-            address: userData.address || '',
-            fullName: userData.fullName || '',
-            contact: userData.contactNumber || '',
             farm: userData.farm || null
           });
         }
@@ -1427,7 +1416,7 @@ const resetPassword = async (email) => {
       
       if (result.data.success) {
         return {
-          requiresChange: result.data.requiresPasswordChange,
+          requiresChange: result.data.requiresPasswordChange || false,
           lastPasswordReset: result.data.lastPasswordReset,
           passwordResetBy: result.data.passwordResetBy
         };
@@ -1437,6 +1426,11 @@ const resetPassword = async (email) => {
       }
     } catch (error) {
       console.error('Check password change required error:', error);
+      // If there's a CORS error, just return false to prevent blocking the app
+      if (error.message && error.message.includes('CORS')) {
+        console.warn('CORS error detected, skipping password change check');
+        return { requiresChange: false };
+      }
       return { requiresChange: false };
     }
   };
