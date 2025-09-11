@@ -67,8 +67,6 @@ export default function SignupPage() {
     localStorage.removeItem('allUsers');
     localStorage.removeItem('userData');
     localStorage.removeItem('currentUser');
-    console.log('LocalStorage cleared for development');
-    
     // Fetch farms from Firebase
     fetchFarms();
   }, []);

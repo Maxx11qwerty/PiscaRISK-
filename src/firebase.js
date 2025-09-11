@@ -19,13 +19,30 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Only initialize analytics if in browser
+// Only initialize analytics if in browser and network is available
 defineAnalytics();
 function defineAnalytics() {
   if (typeof window !== "undefined") {
+    // Check if we're in development mode
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // Skip analytics in development to avoid DNS issues
+    if (isDevelopment) {
+      return;
+    }
+    
     import("firebase/analytics").then(({ getAnalytics }) => {
       try {
-        getAnalytics(app);
+        // Test network connectivity first
+        fetch('https://www.google-analytics.com/g/collect', {
+          method: 'HEAD',
+          mode: 'no-cors'
+        }).then(() => {
+          getAnalytics(app);
+          console.log('Analytics initialized successfully');
+        }).catch((error) => {
+          console.warn('Analytics network test failed, skipping initialization:', error);
+        });
       } catch (error) {
         console.warn('Analytics initialization failed:', error);
       }

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Headers Test - PiscaRisk</title>
+    <!-- Test CSP -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()" />
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains; preload" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .header-info { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .error { color: #dc3545; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔒 Security Headers Test Page</h1>
+    
+    <div class="header-info">
+        <h2>✅ Headers Implemented:</h2>
+        <ul>
+            <li><strong>Content-Security-Policy:</strong> Configured with frame-ancestors 'none'</li>
+            <li><strong>X-Frame-Options:</strong> DENY</li>
+            <li><strong>X-Content-Type-Options:</strong> nosniff</li>
+            <li><strong>Referrer-Policy:</strong> strict-origin-when-cross-origin</li>
+            <li><strong>Permissions-Policy:</strong> Restricted camera, microphone, geolocation</li>
+            <li><strong>Strict-Transport-Security:</strong> max-age=31536000; includeSubDomains; preload</li>
+        </ul>
+    </div>
+
+    <div class="header-info">
+        <h2>📋 CSP Configuration:</h2>
+        <div class="code">
+            Content-Security-Policy: default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
+        </div>
+    </div>
+
+    <div class="header-info">
+        <h2>⚠️ Security Scanner Notes:</h2>
+        <p><strong>If scanner shows -20 score:</strong></p>
+        <ul>
+            <li>Scanner may not detect meta tag headers properly</li>
+            <li>Server-side headers are required for production</li>
+            <li>Deploy to Firebase Hosting for proper header detection</li>
+        </ul>
+    </div>
+
+    <div class="header-info">
+        <h2>🚀 Deployment Instructions:</h2>
+        <ol>
+            <li><strong>Build the app:</strong> <code>npm run build</code></li>
+            <li><strong>Deploy to Firebase:</strong> <code>firebase deploy --only hosting</code></li>
+            <li><strong>Test the deployed URL:</strong> Use the Firebase Hosting URL for security testing</li>
+        </ol>
+    </div>
+
+    <div class="header-info">
+        <h2>🔍 Test External Resources:</h2>
+        <button onclick="testResources()">Test API Connections</button>
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        function testResources() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<p>Testing external resources...</p>';
+            
+            // Test Google Analytics
+            fetch('https://www.google-analytics.com/g/collect', {
+                method: 'POST',
+                mode: 'no-cors',
+                body: 'test=1'
+            }).then(() => {
+                results.innerHTML += '<p class="success">✅ Google Analytics: Working</p>';
+            }).catch(error => {
+                results.innerHTML += '<p class="error">❌ Google Analytics: ' + error.message + '</p>';
+            });
+
+            // Test OpenWeather API
+            fetch('https://api.openweathermap.org/data/2.5/weather?lat=14.1104&lon=121.1446&appid=test&units=metric')
+            .then(response => {
+                if (response.ok) {
+                    results.innerHTML += '<p class="success">✅ OpenWeather API: Working</p>';
+                } else {
+                    results.innerHTML += '<p class="warning">⚠️ OpenWeather API: HTTP ' + response.status + '</p>';
+                }
+            }).catch(error => {
+                results.innerHTML += '<p class="error">❌ OpenWeather API: ' + error.message + '</p>';
+            });
+        }
+    </script>
+</body>
+</html>

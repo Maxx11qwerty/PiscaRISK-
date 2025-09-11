@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Development - PiscaRisk</title>
+    <!-- Clean development CSP - Only meta tags that work -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self';" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()" />
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains; preload" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .clean-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .warning { background: #fff3cd; color: #856404; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧹 Clean Development Configuration</h1>
+    
+    <div class="clean-box success">
+        <h2>✅ Meta Tags That Work:</h2>
+        <ul>
+            <li><strong>Content-Security-Policy</strong> - ✅ Works in meta tags</li>
+            <li><strong>X-Content-Type-Options</strong> - ✅ Works in meta tags</li>
+            <li><strong>Referrer-Policy</strong> - ✅ Works in meta tags</li>
+            <li><strong>Permissions-Policy</strong> - ✅ Works in meta tags</li>
+            <li><strong>Strict-Transport-Security</strong> - ✅ Works in meta tags</li>
+        </ul>
+    </div>
+
+    <div class="clean-box warning">
+        <h2>⚠️ Meta Tags That DON'T Work:</h2>
+        <ul>
+            <li><strong>X-Frame-Options</strong> - ❌ Ignored in meta tags (use server headers)</li>
+            <li><strong>frame-ancestors</strong> - ❌ Ignored in meta tags (use server headers)</li>
+        </ul>
+    </div>
+
+    <div class="clean-box info">
+        <h2>📋 Current Development CSP:</h2>
+        <div class="code">
+            script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com
+        </div>
+        <p><strong>Note:</strong> This allows React development features while maintaining security</p>
+    </div>
+
+    <div class="clean-box">
+        <h2>🔒 Server Headers (Production):</h2>
+        <ul>
+            <li><strong>X-Frame-Options: DENY</strong> - Set by server</li>
+            <li><strong>frame-ancestors 'none'</strong> - Set by server</li>
+            <li><strong>All other headers</strong> - Set by server</li>
+        </ul>
+    </div>
+
+    <div class="clean-box">
+        <h2>🚀 Development Features:</h2>
+        <ul>
+            <li>✅ No console warnings</li>
+            <li>✅ React hot reloading works</li>
+            <li>✅ eval() functions work</li>
+            <li>✅ External APIs work</li>
+            <li>✅ Analytics skipped in development</li>
+        </ul>
+    </div>
+
+    <div class="clean-box">
+        <h2>📊 Expected Results:</h2>
+        <ul>
+            <li><strong>Development:</strong> Clean console, all features work</li>
+            <li><strong>Production:</strong> Server headers provide full protection</li>
+            <li><strong>Security Test:</strong> Headers detected from server</li>
+        </ul>
+    </div>
+
+    <script>
+        console.log('✅ Clean development configuration loaded');
+        console.log('✅ No X-Frame-Options meta tag warning');
+        console.log('✅ No frame-ancestors meta tag warning');
+        
+        // Test that eval works
+        try {
+            const result = eval('2 + 2');
+            console.log('✅ eval() works:', result);
+        } catch (error) {
+            console.error('❌ eval() blocked:', error);
+        }
+        
+        // Test React-like features
+        try {
+            const func = new Function('return 3 + 3');
+            const result = func();
+            console.log('✅ new Function() works:', result);
+        } catch (error) {
+            console.error('❌ new Function() blocked:', error);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSP Eval Test - PiscaRisk</title>
+    <!-- Test CSP with eval() -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()" />
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains; preload" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .test-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 3px; font-family: monospace; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🧪 CSP Eval() Test Page</h1>
+    
+    <div class="test-box">
+        <h2>📋 Current CSP Configuration:</h2>
+        <div class="code">
+            script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com
+        </div>
+        <p><strong>Status:</strong> <span id="csp-status">Testing...</span></p>
+    </div>
+
+    <div class="test-box">
+        <h2>🔬 Eval() Tests:</h2>
+        <button class="btn-primary" onclick="testEval()">Test eval()</button>
+        <button class="btn-primary" onclick="testNewFunction()">Test new Function()</button>
+        <button class="btn-primary" onclick="testSetTimeout()">Test setTimeout(string)</button>
+        <button class="btn-primary" onclick="testSetInterval()">Test setInterval(string)</button>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>🚀 React Development Tests:</h2>
+        <button class="btn-success" onclick="testReactHotReload()">Test React Hot Reload</button>
+        <button class="btn-success" onclick="testWebpackHMR()">Test Webpack HMR</button>
+        <div id="react-results"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>⚠️ Security Notes:</h2>
+        <ul>
+            <li><strong>Development:</strong> unsafe-eval is needed for React hot reloading</li>
+            <li><strong>Production:</strong> unsafe-eval should be removed for security</li>
+            <li><strong>Best Practice:</strong> Use environment-based CSP</li>
+        </ul>
+    </div>
+
+    <div class="test-box">
+        <h2>📊 Expected Results:</h2>
+        <ul>
+            <li>✅ <strong>Development:</strong> All eval() tests should work</li>
+            <li>❌ <strong>Production:</strong> eval() tests should fail (this is good!)</li>
+            <li>🔒 <strong>Security:</strong> Production CSP should block eval()</li>
+        </ul>
+    </div>
+
+    <script>
+        // Test CSP status
+        function checkCSPStatus() {
+            const status = document.getElementById('csp-status');
+            try {
+                // Try to use eval to test CSP
+                eval('1+1');
+                status.innerHTML = '<span style="color: green;">✅ unsafe-eval allowed</span>';
+            } catch (error) {
+                status.innerHTML = '<span style="color: red;">❌ unsafe-eval blocked</span>';
+            }
+        }
+
+        // Test eval() function
+        function testEval() {
+            const results = document.getElementById('test-results');
+            try {
+                const result = eval('2 + 2');
+                results.innerHTML += '<p class="success">✅ eval() works: 2 + 2 = ' + result + '</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ eval() blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Test new Function()
+        function testNewFunction() {
+            const results = document.getElementById('test-results');
+            try {
+                const func = new Function('return 3 + 3');
+                const result = func();
+                results.innerHTML += '<p class="success">✅ new Function() works: 3 + 3 = ' + result + '</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ new Function() blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Test setTimeout with string
+        function testSetTimeout() {
+            const results = document.getElementById('test-results');
+            try {
+                setTimeout('console.log("setTimeout with string works")', 100);
+                results.innerHTML += '<p class="success">✅ setTimeout(string) works</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ setTimeout(string) blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Test setInterval with string
+        function testSetInterval() {
+            const results = document.getElementById('test-results');
+            try {
+                const intervalId = setInterval('console.log("setInterval with string works")', 1000);
+                setTimeout(() => clearInterval(intervalId), 2000);
+                results.innerHTML += '<p class="success">✅ setInterval(string) works</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ setInterval(string) blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Test React-like hot reload
+        function testReactHotReload() {
+            const results = document.getElementById('react-results');
+            try {
+                // Simulate React hot reload behavior
+                const hotReloadCode = `
+                    if (module.hot) {
+                        module.hot.accept();
+                    }
+                `;
+                eval(hotReloadCode);
+                results.innerHTML += '<p class="success">✅ React Hot Reload simulation works</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ React Hot Reload blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Test Webpack HMR
+        function testWebpackHMR() {
+            const results = document.getElementById('react-results');
+            try {
+                // Simulate Webpack HMR behavior
+                const hmrCode = `
+                    if (module.hot) {
+                        module.hot.accept('./App', () => {
+                            console.log('HMR update');
+                        });
+                    }
+                `;
+                eval(hmrCode);
+                results.innerHTML += '<p class="success">✅ Webpack HMR simulation works</p>';
+            } catch (error) {
+                results.innerHTML += '<p class="error">❌ Webpack HMR blocked: ' + error.message + '</p>';
+            }
+        }
+
+        // Initialize
+        checkCSPStatus();
+    </script>
+</body>
+</html>

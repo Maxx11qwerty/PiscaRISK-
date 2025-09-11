@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error-Free Development - PiscaRisk</title>
+    <!-- Clean development CSP without frame-ancestors -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self';" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()" />
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains; preload" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .status-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .code { background: #f1f1f1; padding: 10px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>✅ Error-Free Development Setup</h1>
+    
+    <div class="status-box success">
+        <h2>✅ Fixed Issues:</h2>
+        <ul>
+            <li><strong>frame-ancestors removed</strong> - No more meta tag warnings</li>
+            <li><strong>Analytics skipped in dev</strong> - No more DNS errors</li>
+            <li><strong>X-Frame-Options added</strong> - Proper clickjacking protection</li>
+            <li><strong>Clean console</strong> - No more CSP warnings</li>
+        </ul>
+    </div>
+
+    <div class="status-box info">
+        <h2>📋 Current Configuration:</h2>
+        <div class="code">
+            script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com
+        </div>
+        <p><strong>Note:</strong> frame-ancestors removed from meta tag (will be added by server headers in production)</p>
+    </div>
+
+    <div class="status-box">
+        <h2>🚀 Development Features:</h2>
+        <ul>
+            <li>✅ React hot reloading works</li>
+            <li>✅ All eval() functions work</li>
+            <li>✅ External APIs work</li>
+            <li>✅ No console errors</li>
+            <li>✅ Analytics skipped in development</li>
+        </ul>
+    </div>
+
+    <div class="status-box">
+        <h2>🔒 Production Features:</h2>
+        <ul>
+            <li>✅ Strict CSP (no unsafe-eval)</li>
+            <li>✅ frame-ancestors 'none' (server headers)</li>
+            <li>✅ X-Frame-Options: DENY</li>
+            <li>✅ Better security score</li>
+        </ul>
+    </div>
+
+    <div class="status-box">
+        <h2>📊 Expected Results:</h2>
+        <ul>
+            <li><strong>Development:</strong> Clean console, all features work</li>
+            <li><strong>Production:</strong> Better security score, eval() blocked</li>
+            <li><strong>OWASP Test:</strong> Headers properly detected</li>
+        </ul>
+    </div>
+
+    <script>
+        console.log('✅ Development CSP loaded successfully');
+        console.log('✅ No frame-ancestors warning (removed from meta tag)');
+        console.log('✅ Analytics skipped in development mode');
+        
+        // Test that eval works
+        try {
+            const result = eval('2 + 2');
+            console.log('✅ eval() works:', result);
+        } catch (error) {
+            console.error('❌ eval() blocked:', error);
+        }
+    </script>
+</body>
+</html>

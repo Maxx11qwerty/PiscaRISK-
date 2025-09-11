@@ -90,8 +90,6 @@ const AccountManagement = () => {
   }, [message, showAddUserForm]);
 
   useEffect(() => {
-    console.log("Current User Data:", currentUser);
-    console.log("Is Admin:", isAdmin());
   }, [currentUser]);
   
   // Load farms list and resolve assigned farm name (if any)
@@ -103,7 +101,7 @@ const AccountManagement = () => {
         const sorted = list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
         setFarms(sorted);
       } catch (e) {
-        console.warn('Failed to load farms list:', e);
+
       }
     };
 
@@ -279,16 +277,10 @@ const AccountManagement = () => {
   const fetchUsers = async () => {
     try {
       const users = await fetchAllUsers();
-      console.log('Fetched users from Firebase:', users);
-      if (users.length > 0) {
-        console.log('Sample user data structure:', users[0]);
-        console.log('Sample user dateJoined:', users[0]?.dateJoined);
-        console.log('Sample user dateJoined type:', typeof users[0]?.dateJoined);
-        console.log('Sample user dateJoined as Date object:', new Date(users[0]?.dateJoined));
+      if (users.length > 0) {        
       }
       setAccountUsers(users);
     } catch (error) {
-      console.error('Error fetching users:', error);
       setMessage({ text: 'Error fetching users', type: 'error' });
     }
   };
@@ -305,7 +297,6 @@ const AccountManagement = () => {
 
   const isInactive = (status) => {
     const result = String(status || '').toLowerCase() === 'inactive';
-    console.log('[isInactive] Status:', status, 'Result:', result);
     return result;
   };
   const getStatusDisplay = (status) => {
@@ -356,7 +347,6 @@ const AccountManagement = () => {
 
   // Apply sorting to filtered users
   const sortedUsers = [...filteredUsers].sort((a, b) => {
-    console.log(`Sorting users: ${a.username} vs ${b.username}, selectedNameSort: ${selectedNameSort}`);
     
     switch (selectedNameSort) {
       case 'A-Z':
@@ -367,22 +357,18 @@ const AccountManagement = () => {
         // Handle different date formats and missing dates
         const dateA = a.dateJoined ? new Date(a.dateJoined) : new Date(0);
         const dateB = b.dateJoined ? new Date(b.dateJoined) : new Date(0);
-        console.log(`Sorting by date - User A (${a.username}): ${a.dateJoined} -> ${dateA}`);
-        console.log(`Sorting by date - User B (${b.username}): ${b.dateJoined} -> ${dateB}`);
+
         return dateB - dateA; // Newest first
       case 'Oldest':
         // Handle different date formats and missing dates
         const dateAOldest = a.dateJoined ? new Date(a.dateJoined) : new Date(0);
         const dateBOldest = b.dateJoined ? new Date(b.dateJoined) : new Date(0);
-        console.log(`Sorting by date - User A (${a.username}): ${a.dateJoined} -> ${dateAOldest}`);
-        console.log(`Sorting by date - User B (${b.username}): ${b.dateJoined} -> ${dateBOldest}`);
+
         return dateAOldest - dateBOldest; // Oldest first
       default:
         return 0; // No sorting
     }
   });
-  
-  console.log('Sorted users result:', sortedUsers.map(u => ({ username: u.username, dateJoined: u.dateJoined })));
 
   // Pagination (exactly 5 users per page)
   const PAGE_SIZE = 5;
@@ -405,20 +391,11 @@ const AccountManagement = () => {
     const slice = sortedUsers.slice(startIndex, startIndex + PAGE_SIZE);
     return slice;
   }, [sortedUsers, startIndex]);
-  console.log('[Pagination]', {
-    PAGE_SIZE,
-    currentPage,
-    totalUsers: sortedUsers.length,
-    totalPages,
-    startIndex,
-    endIndex: startIndex + PAGE_SIZE,
-    paginatedCount: paginatedUsers.length
-  });
 
   // Debug actual DOM rows rendered to detect duplication
   useEffect(() => {
     const rows = document.querySelectorAll('.user-row');
-    console.log('[DOM] .user-row count:', rows.length, 'on page', currentPage);
+
   }, [paginatedUsers, currentPage]);
 
   useEffect(() => {
@@ -442,7 +419,7 @@ const AccountManagement = () => {
     // Special handling for role changes
     if (name === 'role') {
       const newStatus = (value === 'Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
-      console.log(`Role changed to: ${value}, setting status to: ${newStatus}`);
+
       
     setNewUser(prev => ({
       ...prev,
@@ -555,7 +532,7 @@ const AccountManagement = () => {
         farm: farmForNewUser || null
       };
 
-      console.log('Creating user with data:', userData);
+
 
       // Directly call createStaffAccount without admin password modal
       const result = await createStaffAccount(userData);
@@ -570,7 +547,7 @@ const AccountManagement = () => {
       }
 
     } catch (error) {
-      console.error('Error in handleAddUser:', error);
+
       let errorMessage = error.message;
       if (error.code === 'auth/email-already-in-use') errorMessage = 'This email is already registered';
       else if (error.code === 'auth/weak-password') errorMessage = 'Password should be at least 6 characters';
@@ -610,7 +587,7 @@ const AccountManagement = () => {
       return;
     }
     const todayDate = getTodayDate();
-    console.log('Setting today\'s date:', todayDate);
+
     
     setNewUser({
       username: '',
@@ -658,10 +635,9 @@ const AccountManagement = () => {
       });
       
       // Log the password reset email sent
-      console.log(`Password reset email sent to user ${user.username} (${user.email})`);
+
       
     } catch (error) {
-      console.error('Error sending password reset email:', error);
       let errorMessage = 'Failed to send password reset email';
       
       if (error.code === 'auth/user-not-found') {
@@ -719,14 +695,13 @@ const AccountManagement = () => {
       await fetchUsers();
       
     } catch (error) {
-      console.error('Error activating Tech Officer:', error);
       setMessage({ text: `Error activating Tech Officer: ${error.message}`, type: 'error' });
     }
   };
 
   // Function to activate Fish Farmer accounts
   const handleActivateFishFarmer = async (user) => {
-    console.log('[handleActivateFishFarmer] Starting activation for:', user);
+
     if (formatRoleForDisplay(user.role) !== 'Fish Farmer') {
       setMessage({ text: 'Only Fish Farmer accounts can be activated here', type: 'error' });
       return;
@@ -748,10 +723,7 @@ const AccountManagement = () => {
       }
 
       setMessage({ text: `Activating Fish Farmer ${user.username}...`, type: 'info' });
-      console.log('[Activate] User data:', { id: user.id, email: user.email, collection: user._collection });
-      console.log('[Activate] Calling serviceActivateFishFarmer with userId:', user.id);
       const result = await serviceActivateFishFarmer(user.id, user.email, user._collection || 'mobileUsers');
-      console.log('[Activate] Result:', result);
       if (!result.success) {
         throw new Error(result.error || 'Failed to update status');
       }
@@ -763,7 +735,7 @@ const AccountManagement = () => {
       setMessage({ text: `Fish Farmer ${user.username} activated successfully`, type: 'success' });
       await fetchUsers();
     } catch (error) {
-      console.error('Error activating Fish Farmer:', error);
+
       setMessage({ text: `Error activating Fish Farmer: ${error.message}`, type: 'error' });
     }
   };
@@ -789,7 +761,7 @@ const AccountManagement = () => {
       }
       return null;
     } catch (e) {
-      console.warn('Failed to fetch live user status:', e);
+
       return null;
     }
   };
@@ -803,17 +775,13 @@ const AccountManagement = () => {
     if (window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
       try {
         setMessage({ text: `Deleting user ${user.username}...`, type: 'info' });
-        
-        console.log(`Starting deletion process for user: ${user.username} (ID: ${user.id})`);
-        console.log('User data:', user);
+
         
         // Delete user from Firebase
         const result = await deleteUserFromFirebase(user.id);
         
         if (result.success) {
           setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
-          
-          console.log(`User ${user.username} deleted successfully from Firebase`);
           
           // Remove user from local state
           setAccountUsers(prev => prev.filter(u => u.id !== user.id));
@@ -833,11 +801,11 @@ const AccountManagement = () => {
           // Refresh users list
           await fetchUsers();
         } else {
-          console.error(`Failed to delete user ${user.username}:`, result.error);
+
           setMessage({ text: `Error deleting user: ${result.error}`, type: 'error' });
         }
       } catch (error) {
-        console.error('Error deleting user:', error);
+
         setMessage({ text: `Error deleting user: ${error.message}`, type: 'error' });
       }
     }
@@ -913,11 +881,11 @@ const AccountManagement = () => {
         
         // Log errors for debugging
         if (errors.length > 0) {
-          console.error('Bulk delete errors:', errors);
+
         }
         
       } catch (error) {
-        console.error('Bulk delete error:', error);
+
         setMessage({ text: `Error during bulk delete: ${error.message}`, type: 'error' });
       }
     }
@@ -993,16 +961,10 @@ const AccountManagement = () => {
       const result = await checkUserLoginStatusFunction({ userEmail });
       return result.data;
     } catch (error) {
-      console.warn('Could not check user login status:', error);
+
       return { isLoggedIn: false, error: error.message };
     }
   };
-
-
-
-
-
-
 
   // Admin password confirmation removed per requirement
   // const handleAdminPasswordConfirm = async () => {};
@@ -1246,35 +1208,30 @@ const AccountManagement = () => {
               {showNameDropdown && (
                 <div className="dropdown-menu-name">
                   <div className="dropdown-item" onClick={() => { 
-                    console.log('Setting sort to A-Z');
                     setSelectedNameSort('A-Z'); 
                     setShowNameDropdown(false); 
                   }}>
                     A-Z (Ascending)
                   </div>
                   <div className="dropdown-item" onClick={() => { 
-                    console.log('Setting sort to Z-A');
                     setSelectedNameSort('Z-A'); 
                     setShowNameDropdown(false); 
                   }}>
                     Z-A (Descending)
                   </div>
                   <div className="dropdown-item" onClick={() => { 
-                    console.log('Setting sort to Newest');
                     setSelectedNameSort('Newest'); 
                     setShowNameDropdown(false); 
                   }}>
                     Newest First
                   </div>
                   <div className="dropdown-item" onClick={() => { 
-                    console.log('Setting sort to Oldest');
                     setSelectedNameSort('Oldest'); 
                     setShowNameDropdown(false); 
                   }}>
                     Oldest First
                   </div>
                   <div className="dropdown-item" onClick={() => { 
-                    console.log('Setting sort to None');
                     setSelectedNameSort('None'); 
                     setShowNameDropdown(false); 
                   }}>
@@ -1607,7 +1564,7 @@ const AccountManagement = () => {
                     .map((user, index) => {
                       const reactKey = `${user._collection || 'users'}:${user.id || user.email || user.username || index}`;
                       if (!user.id && !user.email && !user.username) {
-                        console.warn('[UserRow] Missing unique identifier for key. Using index fallback.', { index, user });
+                        
                       }
                       return (
                       <div key={reactKey} className="user-row">
@@ -1671,7 +1628,7 @@ const AccountManagement = () => {
                           ) : null}
                           {formatRoleForDisplay(user.role) === 'Fish Farmer' && isInactive(user.status) ? (
                             <button className="activate-tech-officer-btn" onClick={(e) => {
-                              console.log('[Activate Button] Clicked for user:', user);
+                              
                               e.stopPropagation();
                               closeAllDropdowns();
                               handleActivateFishFarmer(user);
