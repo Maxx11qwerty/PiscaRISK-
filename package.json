@@ -35,7 +35,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "server": "node server.js",
-    "start:prod": "npm run build && npm run server",
+    "start:prod": "node server.js",
     "deploy:security": "npm run build:strict && firebase deploy --only hosting"
   },
   "engines": {
