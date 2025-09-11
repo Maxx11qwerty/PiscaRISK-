@@ -1384,43 +1384,7 @@ const resetPassword = async (email) => {
     }
   };
 
-  // Function to check if password change is required
-  const checkPasswordChangeRequired = async () => {
-    try {
-      if (!auth.currentUser) {
-        return { requiresChange: false };
-      }
-
-      // Import Firebase Functions
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('../firebase');
-      
-      const functions = getFunctions(app);
-      const checkPasswordChangeFunction = httpsCallable(functions, 'checkPasswordChangeRequired');
-      
-      // Call the Cloud Function to check password change requirement
-      const result = await checkPasswordChangeFunction({});
-      
-      if (result.data.success) {
-        return {
-          requiresChange: result.data.requiresPasswordChange || false,
-          lastPasswordReset: result.data.lastPasswordReset,
-          passwordResetBy: result.data.passwordResetBy
-        };
-      } else {
-        console.warn('Failed to check password change requirement:', result.data);
-        return { requiresChange: false };
-      }
-    } catch (error) {
-      console.error('Check password change required error:', error);
-      // If there's a CORS error, just return false to prevent blocking the app
-      if (error.message && error.message.includes('CORS')) {
-        console.warn('CORS error detected, skipping password change check');
-        return { requiresChange: false };
-      }
-      return { requiresChange: false };
-    }
-  };
+  // checkPasswordChangeRequired function removed - using ProfileSettings password reset instead
 
   // Function to migrate existing users to proper status
   const migrateExistingUser = async (userId) => {
@@ -1663,7 +1627,6 @@ const resetPassword = async (email) => {
     updateStatusAfterVerification,
     handleLogout,
     forcePasswordChange,
-    checkPasswordChangeRequired,
     activateAdminAccount,
     resetAdminPassword,
     // OTP functionality

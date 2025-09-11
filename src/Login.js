@@ -51,7 +51,6 @@ export default function Login() {
     login, 
     signInWithGoogle, 
     resetPassword, 
-    checkPasswordChangeRequired,
     emailVerificationModal,
     openEmailVerificationModal,
     resendVerificationEmail,
@@ -117,17 +116,8 @@ export default function Login() {
           console.error('Failed to log activity:', logError);
         }
         
-        try {
-          const result = await checkPasswordChangeRequired();
-          if (result.requiresChange) {
-            navigate('/Homepage');
-          } else {
-            navigate('/Homepage');
-          }
-        } catch (error) {
-          console.error('Error checking password change requirements:', error);
-          navigate('/Homepage');
-        }
+        // Navigate to homepage after successful login
+        navigate('/Homepage');
       } else {
         if (result.code === 'show_verification_modal') {
           setError('');
@@ -167,21 +157,8 @@ export default function Login() {
     try {
       const result = await signInWithGoogle();
       if (result.success) {
-        // Check if user needs to change password after admin reset
-        try {
-          const result = await checkPasswordChangeRequired();
-          if (result.requiresChange) {
-            // Navigate to homepage which will show the password change modal
-            navigate('/Homepage');
-          } else {
-            // Normal navigation to homepage
-            navigate('/Homepage');
-          }
-        } catch (error) {
-          console.error('Error checking password change requirements:', error);
-          // Fallback to normal navigation
-          navigate('/Homepage');
-        }
+        // Navigate to homepage after successful Google sign-in
+        navigate('/Homepage');
       }
           } catch (error) {
         console.error('Google login error:', error);

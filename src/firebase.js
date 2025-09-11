@@ -24,8 +24,14 @@ defineAnalytics();
 function defineAnalytics() {
   if (typeof window !== "undefined") {
     import("firebase/analytics").then(({ getAnalytics }) => {
-      getAnalytics(app);
-    }).catch(() => {});
+      try {
+        getAnalytics(app);
+      } catch (error) {
+        console.warn('Analytics initialization failed:', error);
+      }
+    }).catch((error) => {
+      console.warn('Analytics import failed:', error);
+    });
   }
 }
 
