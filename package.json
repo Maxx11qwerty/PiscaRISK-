@@ -32,6 +32,7 @@
     "start": "node scripts/set-csp.js && react-scripts start",
     "build": "node scripts/set-csp.js && react-scripts build",
     "build:strict": "NODE_ENV=production node scripts/set-csp.js && react-scripts build",
+    "build:render": "npm install && node scripts/set-csp.js && react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "server": "node server.js",
