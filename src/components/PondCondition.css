@@ -308,6 +308,24 @@
   gap: 6px;
 }
 
+/* Compact button for logs */
+.logs-link-btn {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1A4375;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.logs-link-btn:hover {
+  background: #eef2ff;
+  border-color: #93c5fd;
+}
+
 .time-icon {
   font-size: 0.8rem;
 }
@@ -445,6 +463,30 @@
 .status-badge.failed {
   background: #fee2e2;
   color: #991b1b;
+}
+
+/* Mark as Reviewed button */
+.mark-reviewed-btn {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border: 1px solid #22c55e;
+  background: #22c55e;
+  color: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.mark-reviewed-btn:hover {
+  background: #16a34a;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.3);
+}
+
+.mark-reviewed-btn:active {
+  transform: translateY(1px);
 }
 
 .harvest-badge {

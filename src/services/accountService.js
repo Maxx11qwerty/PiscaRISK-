@@ -1,5 +1,6 @@
 import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
 import { logActivity, logMessages } from '../utils/logger';
 
@@ -276,10 +277,38 @@ export const deleteUserById = async (userId) => {
     }
     const data = snap.data();
     await deleteDoc(ref);
+    
+    // Call Cloud Function to delete from Firebase Auth
     try {
-      const functions = getFunctions();
-      const deleteAuthUser = httpsCallable(functions, 'deleteAuthUser');
-      if (data?.email) await deleteAuthUser({ email: data.email });
+      if (data?.email) {
+        // Get current user's auth token
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const authToken = await currentUser.getIdToken();
+          
+          // Call the HTTP endpoint with proper CORS
+          const response = await fetch('https://us-central1-piscarisk.cloudfunctions.net/deleteAuthUser', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: data.email,
+              authToken: authToken
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const result = await response.json();
+          console.log('Firebase Auth deletion result:', result);
+        } else {
+          console.warn('No authenticated user found, skipping Firebase Auth deletion');
+        }
+      }
     } catch (authErr) {
       console.warn('Could not delete from Firebase Auth:', authErr?.message || authErr);
     }
@@ -302,19 +331,6 @@ export const checkUserLoginStatus = async (userEmail) => {
     return { isLoggedIn: false, error: error.message };
   }
 };
-
-export const forceLogoutUser = async (userEmail) => {
-  try {
-    const functions = getFunctions();
-    const forceFn = httpsCallable(functions, 'forceLogoutUser');
-    const result = await forceFn({ userEmail });
-    return result.data;
-  } catch (error) {
-    console.warn('Could not force logout user:', error);
-    return { success: false, error: error.message };
-  }
-};
-
 // Reset password via Cloud Function, return {success, message}
 export const resetUserPassword = async (userEmail, newPassword) => {
   try {

@@ -83,7 +83,30 @@ const Feedback = () => {
   const [nightMode, setNightMode] = useState(false);
   const [activeTab, setActiveTab] = useState('inbox');
   const [feedbackFilterValue, setFeedbackFilterValue] = useState('');
+  const [assignedFarmName, setAssignedFarmName] = useState('');
   const navigate = useNavigate();
+
+  // Resolve assigned farm name for current user
+  useEffect(() => {
+    const resolveAssignedFarmName = async () => {
+      try {
+        if (currentUser?.farm) {
+          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (farmDoc.exists()) {
+            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+          } else {
+            setAssignedFarmName(currentUser.farm);
+          }
+        } else {
+          setAssignedFarmName('');
+        }
+      } catch (e) {
+        setAssignedFarmName(String(currentUser?.farm || ''));
+      }
+    };
+
+    resolveAssignedFarmName();
+  }, [currentUser?.farm]);
 
   // Fetch feedback data from Firebase
   useEffect(() => {
@@ -117,7 +140,7 @@ const Feedback = () => {
         
         console.log('Number of documents found:', querySnapshot.docs.length);
         
-        const fetchedFeedbacks = querySnapshot.docs.map(doc => {
+        const fetchedFeedbacks = await Promise.all(querySnapshot.docs.map(async (doc) => {
           const data = doc.data();
           console.log('Document data:', data);
           console.log('Status field:', data.status);
@@ -153,6 +176,47 @@ const Feedback = () => {
             date: formatFirestoreTimestamp(reply.date) || reply.date
           })) || [];
 
+          // Fetch user farm information
+          let userFarm = null;
+          let assignedFarmName = null;
+          if (data.uid) {
+            try {
+              // Try to get user data from mobileUsers collection first
+              const userDoc = await getDoc(doc(db, 'mobileUsers', data.uid));
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                userFarm = userData.farm;
+                if (userFarm) {
+                  // Get farm name
+                  const farmDoc = await getDoc(doc(db, 'farms', userFarm));
+                  if (farmDoc.exists()) {
+                    assignedFarmName = farmDoc.data().name || userFarm;
+                  } else {
+                    assignedFarmName = userFarm;
+                  }
+                }
+              } else {
+                // Try users collection as fallback
+                const userDoc2 = await getDoc(doc(db, 'users', data.uid));
+                if (userDoc2.exists()) {
+                  const userData = userDoc2.data();
+                  userFarm = userData.farm;
+                  if (userFarm) {
+                    // Get farm name
+                    const farmDoc = await getDoc(doc(db, 'farms', userFarm));
+                    if (farmDoc.exists()) {
+                      assignedFarmName = farmDoc.data().name || userFarm;
+                    } else {
+                      assignedFarmName = userFarm;
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn('Could not fetch user farm data for feedback:', error);
+            }
+          }
+
           return {
             id: doc.id,
             user: data.userName || 'Anonymous',
@@ -172,9 +236,11 @@ const Feedback = () => {
             archivedBy: data.archivedBy || null,
             isRead: data.isRead !== undefined ? data.isRead : false, // Default to false (unread) if not set
             readAt: data.readAt || null,
-            readBy: data.readBy || null
+            readBy: data.readBy || null,
+            userFarm: userFarm, // Add user farm ID
+            assignedFarmName: assignedFarmName // Add resolved farm name
           };
-        });
+        }));
 
         console.log('Processed feedbacks:', fetchedFeedbacks);
         setFeedbacks(fetchedFeedbacks);
@@ -209,8 +275,13 @@ const Feedback = () => {
     return IconComponent ? <IconComponent /> : null;
   };
 
-  const handleExport = (format) => {
+  const handleExport = (format) => { 
     setShowDownloadOptions(false);
+    
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('export', logMessages.export[format === 'csv' ? 'csvDownload' : 'pdfDownload'](u, 'feedback data'), u); 
+    } catch (_) {}
     
     if (format === 'csv') {
       exportToCSV(feedbacks, feedbackTypes, currentUser);
@@ -221,6 +292,27 @@ const Feedback = () => {
 
   // Combined filtering logic
   const filteredFeedbacks = feedbacks.filter(feedback => {
+    // Farm filter - if current user is assigned to a farm, only show feedback from users in the same farm
+    const isAssignedToFarm = currentUser?.farm;
+    if (isAssignedToFarm) {
+      const feedbackUserFarm = feedback.userFarm;
+      const currentUserFarm = currentUser.farm;
+      
+      // Check if feedback user's farm matches current user's farm
+      const matchesFarm = feedbackUserFarm === currentUserFarm ||
+                         feedbackUserFarm === assignedFarmName ||
+                         feedback.assignedFarmName === currentUserFarm ||
+                         feedback.assignedFarmName === assignedFarmName ||
+                         feedbackUserFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                         feedbackUserFarm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
+                         feedback.assignedFarmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                         feedback.assignedFarmName?.toLowerCase() === assignedFarmName?.toLowerCase();
+      
+      if (!matchesFarm) {
+        return false; // Skip feedback from different farms
+      }
+    }
+
     const searchTermLower = searchTerm.toLowerCase();
     const feedbackFilterLower = feedbackFilterValue.toLowerCase();
     const messageLower = (feedback.message || '').toLowerCase();
@@ -377,6 +469,10 @@ const Feedback = () => {
 
   const closeDetailView = () => {
     setSelectedFeedback(null);
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('feedback', `Detail view closed in Feedback`, u); 
+    } catch (_) {}
   };
 
   const handleArchiveFeedback = async (feedbackId) => {
@@ -712,7 +808,13 @@ const Feedback = () => {
                 placeholder={t('common.search')}
                 className="header-search-input"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('feedback', `Search performed: "${e.target.value}" in Feedback`, u); 
+                  } catch (_) {}
+                }}
               />
             </div>
           </div>
@@ -780,21 +882,39 @@ const Feedback = () => {
       <div className="feedback-tabs">
         <button 
           className={`feedback-tab ${activeTab === 'inbox' ? 'active' : ''}`}
-          onClick={() => setActiveTab('inbox')}
+          onClick={() => {
+            setActiveTab('inbox');
+            try { 
+              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+              logActivity('feedback', `Switched to Inbox tab in Feedback`, u); 
+            } catch (_) {}
+          }}
           data-count={feedbacks.filter(f => !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
           {t('feedback.inbox')}
         </button>
         <button 
           className={`feedback-tab ${activeTab === 'response' ? 'active' : ''}`}
-          onClick={() => setActiveTab('response')}
+          onClick={() => {
+            setActiveTab('response');
+            try { 
+              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+              logActivity('feedback', `Switched to Response tab in Feedback`, u); 
+            } catch (_) {}
+          }}
           data-count={feedbacks.filter(f => f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
           {t('feedback.response')}
         </button>
         <button 
           className={`feedback-tab ${activeTab === 'archive' ? 'active' : ''}`}
-          onClick={() => setActiveTab('archive')}
+          onClick={() => {
+            setActiveTab('archive');
+            try { 
+              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+              logActivity('feedback', `Switched to Archive tab in Feedback`, u); 
+            } catch (_) {}
+          }}
           data-count={feedbacks.filter(f => f.status === 'archived').length}
         >
           {t('feedback.archive')}
@@ -803,7 +923,14 @@ const Feedback = () => {
         <div className="feedback-filter-container">
           <button 
             className="feedback-filter-btn"
-            onClick={() => setShowSearchFilters(!showSearchFilters)}
+            onClick={() => {
+              const isOpening = !showSearchFilters;
+              setShowSearchFilters(!showSearchFilters);
+              try { 
+                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                logActivity('feedback', `Filter menu ${isOpening ? 'opened' : 'closed'} in Feedback`, u); 
+              } catch (_) {}
+            }}
           >
             <FaFilter className="filter-icon" />
             {t('common.filter')}
@@ -815,7 +942,13 @@ const Feedback = () => {
                 <div className="feedback-category-options">
                   <button
                     className={`feedback-category-option ${activeCategory === 'All' ? 'active' : ''}`}
-                    onClick={() => setActiveCategory('All')}
+                    onClick={() => {
+                      setActiveCategory('All');
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('feedback', `Category filter changed to All in Feedback`, u); 
+                      } catch (_) {}
+                    }}
                   >
                     {t('common.all')}
                   </button>
@@ -823,7 +956,13 @@ const Feedback = () => {
                     <button
                       key={type.id}
                       className={`feedback-category-option ${activeCategory === type.label ? 'active' : ''}`}
-                      onClick={() => setActiveCategory(type.label)}
+                      onClick={() => {
+                        setActiveCategory(type.label);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('feedback', `Category filter changed to ${type.label} in Feedback`, u); 
+                        } catch (_) {}
+                      }}
                     >
                       {getIconComponent(type.icon)}
                       <span>{type.label}</span>
@@ -836,7 +975,13 @@ const Feedback = () => {
                 <label>{t('feedback.filterType')}:</label>
                 <select
                   value={searchFilter}
-                  onChange={(e) => setSearchFilter(e.target.value)}
+                  onChange={(e) => {
+                    setSearchFilter(e.target.value);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('feedback', `Filter type changed to ${e.target.value} in Feedback`, u); 
+                    } catch (_) {}
+                  }}
                   className="feedback-filter-select"
                 >
                   <option value="all">{t('common.all')}</option>
@@ -862,7 +1007,13 @@ const Feedback = () => {
               <div className="feedback-filter-actions">
                 <button 
                   className="feedback-apply-filter-btn"
-                  onClick={() => setShowSearchFilters(false)}
+                  onClick={() => {
+                    setShowSearchFilters(false);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('feedback', `Filter applied in Feedback`, u); 
+                    } catch (_) {}
+                  }}
                 >
                   {t('common.apply')}
                 </button>
@@ -873,6 +1024,10 @@ const Feedback = () => {
                     setFeedbackFilterValue('');
                     setActiveCategory('All');
                     setShowSearchFilters(false);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('feedback', `Filter cleared in Feedback`, u); 
+                    } catch (_) {}
                   }}
                 >
                   {t('common.clear')}

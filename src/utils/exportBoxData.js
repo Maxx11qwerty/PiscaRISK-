@@ -11,14 +11,102 @@ export const exportBoxData = async ({
   selectedPond,
   lastUpdated,
   setShowDownloadOptions,
-  currentUser
+  currentUser,
+  allFarmsRiskData = []
 }) => {
+  console.log('Export started with format:', format);
+  console.log('Box data:', boxData);
+  console.log('Weather data:', weatherData);
+  console.log('Current user:', currentUser);
+  
   setShowDownloadOptions(false);
 
   // Log export start
-  logActivity('export', logMessages.export.exportStart(currentUser.username, 'dashboard'), currentUser.username);
+  try {
+    logActivity('export', logMessages.export.exportStart(currentUser?.username || 'Unknown', 'dashboard'), currentUser?.username || 'Unknown');
+  } catch (logError) {
+    console.error('Error logging export start:', logError);
+  }
 
   try {
+    // Fetch PiscaRISK data
+    const getPiscaRiskData = async () => {
+      try {
+        // Fetch farms data from reports collection
+        const reportsRef = collection(db, 'reports');
+        const q = query(reportsRef, orderBy('timestamp', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        const farmsData = {};
+        const farmReportsCount = {};
+        const farmReviewedCount = {};
+        
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          const farm = data.farm || 'Unknown Farm';
+          const farmKey = farm.toLowerCase().replace(/\s+/g, '-');
+          
+          if (!farmsData[farmKey]) {
+            farmsData[farmKey] = {
+              key: farmKey,
+              name: farm,
+              risk: 'Normal',
+              overall_risk: 'Normal',
+              ponds: new Set(),
+              predictions: [],
+              has_reports: true,
+              counts: { high: 0, medium: 0, low: 0, normal: 0 },
+              totalReports: 0,
+              reviewedReports: 0
+            };
+          }
+          
+          farmsData[farmKey].totalReports++;
+          farmsData[farmKey].ponds.add(data.fish_pond || 'Unknown Pond');
+          
+          if (data.status === 'Reviewed') {
+            farmsData[farmKey].reviewedReports++;
+          }
+          
+          // Count risk levels
+          const riskLevel = data.fish_condition || 'Normal';
+          const riskKey = riskLevel.toLowerCase();
+          if (riskKey.includes('high') || riskKey.includes('critical')) {
+            farmsData[farmKey].counts.high++;
+          } else if (riskKey.includes('medium')) {
+            farmsData[farmKey].counts.medium++;
+          } else if (riskKey.includes('low')) {
+            farmsData[farmKey].counts.low++;
+          } else {
+            farmsData[farmKey].counts.normal++;
+          }
+        });
+        
+        // Convert to array and calculate overall risk
+        const farmsArray = Object.values(farmsData).map(farm => {
+          const totalCount = Object.values(farm.counts).reduce((sum, count) => sum + count, 0);
+          const highCount = farm.counts.high;
+          const mediumCount = farm.counts.medium;
+          
+          let overallRisk = 'Normal';
+          if (highCount > 0) overallRisk = 'High';
+          else if (mediumCount > 0) overallRisk = 'Medium';
+          
+          return {
+            ...farm,
+            ponds: Array.from(farm.ponds),
+            overall_risk: overallRisk,
+            pondsWithReports: farm.ponds.size
+          };
+        });
+        
+        return farmsArray;
+      } catch (error) {
+        console.error('Error fetching PiscaRISK data:', error);
+        return [];
+      }
+    };
+
     // Extract weather data - returns array of lines
     const getWeatherContent = (weatherData) => {
       if (!weatherData || !weatherData.weather) return ["No weather data available"];
@@ -174,32 +262,120 @@ export const exportBoxData = async ({
 
     const exportData = await Promise.all(boxData.map(async box => {
       let contentArray = [];
+      let csvContent = '';
   
       if (box.id === 1) { // Weather Condition box
         contentArray = getWeatherContent(weatherData);
+        csvContent = getWeatherCSVData(weatherData);
       } 
       else if (box.id === 2) { // Fish Pond Condition box
         contentArray = await getAllPondsContent();
+        csvContent = await getPondsCSVData();
+      }
+      else if (box.id === 3) { // PiscaRISK Data box
+        const piscaRiskData = await getPiscaRiskData();
+        contentArray = [
+          "PISCA RISK DATA",
+          "===============",
+          `Total Farms: ${piscaRiskData.length}`,
+          `Total Ponds: ${piscaRiskData.reduce((sum, farm) => sum + farm.pondsWithReports, 0)}`,
+          `Total Reports: ${piscaRiskData.reduce((sum, farm) => sum + farm.totalReports, 0)}`,
+          `Reviewed Reports: ${piscaRiskData.reduce((sum, farm) => sum + farm.reviewedReports, 0)}`,
+          "",
+          "FARM BREAKDOWN:",
+          "==============="
+        ];
+        
+        piscaRiskData.forEach(farm => {
+          contentArray.push(`Farm: ${farm.name}`);
+          contentArray.push(`  Overall Risk: ${farm.overall_risk}`);
+          contentArray.push(`  Ponds with Reports: ${farm.pondsWithReports}`);
+          contentArray.push(`  Total Reports: ${farm.totalReports}`);
+          contentArray.push(`  Reviewed: ${farm.reviewedReports}/${farm.totalReports}`);
+          contentArray.push(`  Risk Counts: High: ${farm.counts.high}, Medium: ${farm.counts.medium}, Low: ${farm.counts.low}, Normal: ${farm.counts.normal}`);
+          contentArray.push("");
+        });
+        
+        contentArray.push(`Last updated: ${new Date().toLocaleString()}`);
+        
+        // Create CSV content
+        csvContent = `"Farm Name","Overall Risk","Ponds with Reports","Total Reports","Reviewed Reports","High Risk","Medium Risk","Low Risk","Normal Risk"
+${piscaRiskData.map(farm => `"${farm.name}","${farm.overall_risk}","${farm.pondsWithReports}","${farm.totalReports}","${farm.reviewedReports}","${farm.counts.high}","${farm.counts.medium}","${farm.counts.low}","${farm.counts.normal}"`).join('\n')}`;
+      }
+      else if (box.id === 4) { // Risk Reports box
+        const riskReportsData = allFarmsRiskData || [];
+        const highRiskFarms = riskReportsData.filter(farm => farm.overall_risk === 'High');
+        const mediumRiskFarms = riskReportsData.filter(farm => farm.overall_risk === 'Medium');
+        const lowRiskFarms = riskReportsData.filter(farm => farm.overall_risk === 'Low');
+        const normalRiskFarms = riskReportsData.filter(farm => farm.overall_risk === 'Normal');
+        
+        contentArray = [
+          "RISK REPORTS",
+          "============",
+          `Total Farms Monitored: ${riskReportsData.length}`,
+          `High Risk Farms: ${highRiskFarms.length}`,
+          `Medium Risk Farms: ${mediumRiskFarms.length}`,
+          `Low Risk Farms: ${lowRiskFarms.length}`,
+          `Normal Risk Farms: ${normalRiskFarms.length}`,
+          "",
+          "HIGH RISK FARMS:",
+          "================"
+        ];
+        
+        highRiskFarms.forEach(farm => {
+          contentArray.push(`• ${farm.name || farm.farm_name || 'Unknown Farm'}`);
+          contentArray.push(`  Risk Level: ${farm.overall_risk}`);
+          contentArray.push(`  Ponds: ${farm.predictions?.length || 0}`);
+          contentArray.push(`  Has Reports: ${farm.has_reports ? 'Yes' : 'No'}`);
+          contentArray.push("");
+        });
+        
+        if (mediumRiskFarms.length > 0) {
+          contentArray.push("MEDIUM RISK FARMS:");
+          contentArray.push("==================");
+          mediumRiskFarms.forEach(farm => {
+            contentArray.push(`• ${farm.name || farm.farm_name || 'Unknown Farm'}`);
+            contentArray.push(`  Risk Level: ${farm.overall_risk}`);
+            contentArray.push(`  Ponds: ${farm.predictions?.length || 0}`);
+            contentArray.push("");
+          });
+        }
+        
+        contentArray.push(`Last updated: ${new Date().toLocaleString()}`);
+        
+        // Create CSV content
+        csvContent = `"Farm Name","Risk Level","Ponds Count","Has Reports","Farm Key"
+${riskReportsData.map(farm => `"${farm.name || farm.farm_name || 'Unknown Farm'}","${farm.overall_risk}","${farm.predictions?.length || 0}","${farm.has_reports ? 'Yes' : 'No'}","${farm.key || farm.farm_key || 'unknown'}"`).join('\n')}`;
       }
       else if (typeof box.content === 'string') {
         contentArray = box.content.split('\n');
       }
-      else if (box.content.props?.children) {
+      else if (box.content && box.content.props?.children) {
         contentArray = React.Children.toArray(box.content.props.children)
           .map(child => typeof child === 'string' ? child : '')
           .filter(Boolean);
       }
+      else {
+        // Default content for boxes without proper content
+        contentArray = [
+          `${box.title || 'Unknown Box'}`,
+          "==================",
+          "No specific content available for this section.",
+          "Please check the application for detailed information.",
+          "",
+          "Last updated: " + new Date().toLocaleString()
+        ];
+      }
   
       return {
-        Title: box.title,
+        Title: box.title || 'Unknown Section',
         Content: contentArray,
-        CSVContent: box.id === 1 ? getWeatherCSVData(weatherData) : 
-                    box.id === 2 ? await getPondsCSVData() : 
-                    '' // Default empty CSV for other boxes
+        CSVContent: csvContent
       };
     }));
   
     if (format === 'csv') {
+      console.log('Processing CSV export...');
       const timestamp = new Date().toISOString().split('T')[0];
       const fileName = `piscarisk_export_${timestamp}.csv`;
       
@@ -208,12 +384,18 @@ export const exportBoxData = async ({
       
       // Add each box's data with clear section headers
       exportData.forEach((box, index) => {
-        if (!box.CSVContent) return; // Skip boxes without CSV content
+        console.log(`Processing box ${index + 1}: ${box.Title}`);
+        if (!box.CSVContent) {
+          console.log(`Skipping box ${box.Title} - no CSV content`);
+          return; // Skip boxes without CSV content
+        }
         
         combinedCSV += `\n===== ${box.Title} =====\n\n`;
         combinedCSV += box.CSVContent;
         combinedCSV += '\n\n'; // Add spacing between sections
       });
+      
+      console.log('CSV content generated, creating download...');
       
       // Create and download the combined CSV file
       const blob = new Blob([combinedCSV], { type: 'text/csv;charset=utf-8;' });
@@ -222,11 +404,19 @@ export const exportBoxData = async ({
       link.href = url;
       link.download = fileName;
       link.click();
+      URL.revokeObjectURL(url); // Clean up
+
+      console.log('CSV download initiated');
 
       // Log successful CSV export
-      logActivity('export', logMessages.export.csvDownload(currentUser.username, 'dashboard data'), currentUser.username);
+      try {
+        logActivity('export', logMessages.export.csvDownload(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+      } catch (logError) {
+        console.error('Error logging CSV export:', logError);
+      }
     }
     else if (format === 'pdf') {
+      console.log('Processing PDF export...');
       const doc = new jsPDF({ 
         orientation: "portrait", 
         unit: "mm", 
@@ -295,18 +485,33 @@ export const exportBoxData = async ({
 
       // Save the PDF
       const timestamp = new Date().toISOString().split('T')[0];
-      doc.save(`piscarisk_export_${timestamp}.pdf`);
+      const fileName = `piscarisk_export_${timestamp}.pdf`;
+      console.log('Saving PDF:', fileName);
+      doc.save(fileName);
+      console.log('PDF download initiated');
 
       // Log successful PDF export
-      logActivity('export', logMessages.export.pdfDownload(currentUser.username, 'dashboard data'), currentUser.username);
+      try {
+        logActivity('export', logMessages.export.pdfDownload(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+      } catch (logError) {
+        console.error('Error logging PDF export:', logError);
+      }
     }
 
     // Log export completion
-    logActivity('export', logMessages.export.exportComplete(currentUser.username, 'dashboard data'), currentUser.username);
+    try {
+      logActivity('export', logMessages.export.exportComplete(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+    } catch (logError) {
+      console.error('Error logging export completion:', logError);
+    }
 
   } catch (error) {
     console.error('Export error:', error);
-    logActivity('export', logMessages.export.exportError(currentUser.username, error.message), currentUser.username);
+    try {
+      logActivity('export', logMessages.export.exportError(currentUser?.username || 'Unknown', error.message), currentUser?.username || 'Unknown');
+    } catch (logError) {
+      console.error('Error logging export error:', logError);
+    }
   }
 };
 

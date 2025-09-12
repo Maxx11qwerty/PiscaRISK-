@@ -176,7 +176,6 @@ const uploadImage = (file) => {
       setFullNameError('');
       setSuccess('Full name updated successfully!');
     } catch (error) {
-      console.error('Error updating full name:', error);
       setFullNameError('Failed to update full name. Please try again.');
       setError('Failed to update full name. Please try again.');
     }
@@ -215,7 +214,6 @@ const uploadImage = (file) => {
       setAddressError('');
       setSuccess('Address updated successfully!');
     } catch (error) {
-      console.error('Error updating address:', error);
       setAddressError('Failed to update address. Please try again.');
       setError('Failed to update address. Please try again.');
     }
@@ -254,7 +252,6 @@ const uploadImage = (file) => {
       setContactError('');
       setSuccess('Contact updated successfully!');
     } catch (error) {
-      console.error('Error updating contact:', error);
       setContactError('Failed to update contact. Please try again.');
       setError('Failed to update contact. Please try again.');
     }
@@ -293,7 +290,6 @@ const uploadImage = (file) => {
       setEmailError('');
       setSuccess('Email updated successfully!');
     } catch (error) {
-      console.error('Error updating email:', error);
       setEmailError('Failed to update email. Please try again.');
       setError('Failed to update email. Please try again.');
     }
@@ -309,20 +305,31 @@ const uploadImage = (file) => {
         setShowImageOptions(false);
       } catch (error) {
         logActivity('error', logMessages.error.system(error.message), currentUser.username);
-        console.error('Error uploading image:', error);
       }
     }
   };
 
   const handleProfileImageClick = () => {
     setShowProfileImageModal(true);
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('profile', `Profile image options opened in Profile Settings`, u); 
+    } catch (_) {}
   };
 
   const toggleRemoveButton = () => {
     if (profileImage) {
       setShowRemoveButton(!showRemoveButton);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Profile image remove button toggled in Profile Settings`, u); 
+      } catch (_) {}
     } else {
       setShowImageOptions(true);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Image options opened in Profile Settings`, u); 
+      } catch (_) {}
     }
   };
 
@@ -340,8 +347,11 @@ const uploadImage = (file) => {
         setTempProfileImage(imageData);
         setShowImagePreview(true);
         stopCamera();
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('profile', `Photo captured from camera in Profile Settings`, u); 
+        } catch (_) {}
       } catch (error) {
-        console.error('Error capturing image:', error);
         setError('Failed to capture image. Please try again.');
       }
     }
@@ -374,7 +384,6 @@ const uploadImage = (file) => {
       // Show success message
       setSuccess(t('profileSettings.profilePictureUpdated'));
     } catch (error) {
-      console.error('Error confirming image:', error);
       setError(t('profileSettings.failedToSaveProfilePicture'));
       // Revert local state if save failed
       setProfileImage(currentUser?.profileImage || null);
@@ -387,6 +396,10 @@ const uploadImage = (file) => {
     if (isCameraActive) {
       stopCamera();
     }
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('profile', `Image preview cancelled in Profile Settings`, u); 
+    } catch (_) {}
   };
 
   // Add effect to handle video element initialization
@@ -404,6 +417,11 @@ const uploadImage = (file) => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera API not supported in this browser');
       }
+
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Camera opened for photo capture in Profile Settings`, u); 
+      } catch (_) {}
 
       // Set camera as active first to ensure video element is rendered
       setIsCameraActive(true);
@@ -426,8 +444,6 @@ const uploadImage = (file) => {
         throw new Error('No camera devices found');
       }
 
-      console.log('Available video devices:', videoDevices);
-
       // Try to get camera access with more specific constraints
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -449,19 +465,15 @@ const uploadImage = (file) => {
         throw new Error('No video tracks in media stream');
       }
 
-      console.log('Active video track:', videoTracks[0].label);
-
       // Set up video element
       videoRef.current.srcObject = mediaStream;
       await videoRef.current.play().catch(err => {
-        console.error('Error playing video:', err);
         setIsCameraActive(false);
         throw new Error('Failed to start video preview');
       });
 
       setStream(mediaStream);
     } catch (err) {
-      console.error("Detailed camera error:", err);
       let errorMessage = "Could not access camera. ";
       
       if (err.name === 'NotAllowedError') {
@@ -504,6 +516,10 @@ const uploadImage = (file) => {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
       setIsCameraActive(false);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Camera closed in Profile Settings`, u); 
+      } catch (_) {}
     }
   };
 
@@ -527,7 +543,6 @@ const uploadImage = (file) => {
       
       setSuccess(t('profileSettings.profilePictureRemoved'));
     } catch (error) {
-      console.error('Error removing image:', error);
       setError(t('profileSettings.failedToRemoveProfilePicture'));
     }
   };
@@ -536,6 +551,11 @@ const uploadImage = (file) => {
     try {
       setError('');
       setSuccess('');
+
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Password change attempted in Profile Settings`, u); 
+      } catch (_) {}
 
       // Validate new password
       if (newPassword.length < 6) {
@@ -551,6 +571,10 @@ const uploadImage = (file) => {
         setError('');
         setCurrentPassword('');
         setNewPassword('');
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('profile', `Password changed successfully in Profile Settings`, u); 
+        } catch (_) {}
       }
     } catch (err) {
       setError(err.message);
@@ -576,7 +600,6 @@ const uploadImage = (file) => {
       
       setSuccess(t('profileSettings.passwordResetEmailSent'));
     } catch (error) {
-      console.error('Error sending password reset email:', error);
       let errorMessage = t('profileSettings.failedToSendPasswordReset');
       
       if (error.code === 'auth/user-not-found') {
@@ -593,6 +616,10 @@ const uploadImage = (file) => {
 
   const handleUsernameClick = () => {
     setShowUsernameOptions(!showUsernameOptions);
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('profile', `Username options ${showUsernameOptions ? 'closed' : 'opened'} in Profile Settings`, u); 
+    } catch (_) {}
   };
 
   // Add function to handle verification check
@@ -605,6 +632,10 @@ const uploadImage = (file) => {
         // Only show success message if we haven't shown it before
         if (!verificationCheckInterval) {
           setSuccess(t('profileSettings.emailVerified'));
+          try { 
+            const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+            logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
+          } catch (_) {}
         }
         // Clear the interval if email is verified
         if (verificationCheckInterval) {
@@ -626,6 +657,11 @@ const handleSendVerificationEmail = async () => {
     setError('');
     setSuccess('');
 
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('profile', `Verification email sending initiated in Profile Settings`, u); 
+    } catch (_) {}
+
     // Start checking verification status every 5 seconds
     const interval = setInterval(handleVerificationCheck, 5000);
     setVerificationCheckInterval(interval);
@@ -634,6 +670,10 @@ const handleSendVerificationEmail = async () => {
     
     if (result.success) {
       setSuccess(result.message);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('profile', `Verification email sent successfully in Profile Settings`, u); 
+      } catch (_) {}
     } else {
       setError(result.message);
     }
@@ -694,8 +734,6 @@ const handleSendVerificationEmail = async () => {
 
   const handleExport = (format) => {
     setShowDownloadOptions(false);
-    // Handle export functionality here if needed
-    console.log(`Exporting in ${format} format`);
   };
 
   // Function to save all changes when Save Changes button is clicked
@@ -781,7 +819,6 @@ const handleSendVerificationEmail = async () => {
       setSuccess(t('profileSettings.allChangesSaved'));
       
     } catch (error) {
-      console.error('Error saving changes:', error);
       setError(t('profileSettings.failedToSaveChanges'));
     }
   };
@@ -933,6 +970,10 @@ const handleSendVerificationEmail = async () => {
                         // Start editing
                         setNewUsername(currentUser?.username || '');
                         setShowUsernameChangeForm(true);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('profile', `Username editing started in Profile Settings`, u); 
+                        } catch (_) {}
                       }
                     }}
                   />
@@ -968,6 +1009,10 @@ const handleSendVerificationEmail = async () => {
                         // Start editing
                         setNewFullName(currentUser?.fullName || '');
                         setShowFullNameChangeForm(true);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('profile', `Full name editing started in Profile Settings`, u); 
+                        } catch (_) {}
                       }
                     }}
                   />
@@ -1001,6 +1046,10 @@ const handleSendVerificationEmail = async () => {
                         // Start editing
                         setNewAddress(currentUser?.address || '');
                         setShowAddressChangeForm(true);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('profile', `Address editing started in Profile Settings`, u); 
+                        } catch (_) {}
                       }
                     }}
                   />
@@ -1031,6 +1080,10 @@ const handleSendVerificationEmail = async () => {
                         // Start editing
                         setNewContact(currentUser?.contact || '');
                         setShowContactChangeForm(true);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('profile', `Contact editing started in Profile Settings`, u); 
+                        } catch (_) {}
                       }
                     }}
                   />
@@ -1064,6 +1117,10 @@ const handleSendVerificationEmail = async () => {
                         // Start editing
                         setNewEmail(currentUser?.email || '');
                         setShowEmailChangeForm(true);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('profile', `Email editing started in Profile Settings`, u); 
+                        } catch (_) {}
                       }
                     }}
                   />
@@ -1087,6 +1144,10 @@ const handleSendVerificationEmail = async () => {
                     onClick={() => {
                       // This will open the password change functionality
                       setShowPasswordChangeForm(true);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('profile', `Password change form opened in Profile Settings`, u); 
+                      } catch (_) {}
                     }}
                   />
                 </div>
@@ -1154,7 +1215,13 @@ const handleSendVerificationEmail = async () => {
                   </button>
                   <button 
                     className="option-btn" 
-                    onClick={() => fileInputRef.current.click()}
+                    onClick={() => {
+                      fileInputRef.current.click();
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('profile', `File upload option selected in Profile Settings`, u); 
+                      } catch (_) {}
+                    }}
                   >
                     <FaUpload /> {t('profileSettings.uploadPhoto')}
                   </button>
@@ -1167,7 +1234,13 @@ const handleSendVerificationEmail = async () => {
                   />
                   <button 
                     className="cancel-btn" 
-                    onClick={() => setShowImageOptions(false)}
+                    onClick={() => {
+                      setShowImageOptions(false);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('profile', `Image options cancelled in Profile Settings`, u); 
+                      } catch (_) {}
+                    }}
                   >
                     {t('common.cancel')}
                   </button>
@@ -1207,12 +1280,20 @@ const handleSendVerificationEmail = async () => {
                   <button className="option-btn" onClick={() => {
                     setShowProfileImageModal(false);
                     setShowImageOptions(true);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('profile', `Change picture option selected in Profile Settings`, u); 
+                    } catch (_) {}
                   }}>
                     <FaUpload /> {t('profileSettings.changePicture')}
                   </button>
                   <button className="option-btn remove-btn" onClick={() => {
                     removeImage();
                     setShowProfileImageModal(false);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('profile', `Remove picture option selected in Profile Settings`, u); 
+                    } catch (_) {}
                   }}>
                     <FaTimes /> {t('profileSettings.removePicture')}
                   </button>
@@ -1222,12 +1303,22 @@ const handleSendVerificationEmail = async () => {
                   <button className="option-btn" onClick={() => {
                     setShowProfileImageModal(false);
                     setShowImageOptions(true);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('profile', `Add picture option selected in Profile Settings`, u); 
+                    } catch (_) {}
                   }}>
                     <FaUpload /> {t('profileSettings.addPicture')}
                   </button>
                 </>
               )}
-              <button className="cancel-btn" onClick={() => setShowProfileImageModal(false)}>
+              <button className="cancel-btn" onClick={() => {
+                setShowProfileImageModal(false);
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('profile', `Profile image modal closed in Profile Settings`, u); 
+                } catch (_) {}
+              }}>
                 {t('profileSettings.close')}
               </button>
             </div>

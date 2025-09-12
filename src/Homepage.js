@@ -18,11 +18,11 @@ import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
 import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
 import { fetchRiskReportData } from './services/riskDataService';
-import PageTransition from './components/PageTransition';
 import AnimatedModal from './components/AnimatedModal';
 // PasswordChangeModal removed - using ProfileSettings password reset instead
 import Sidebar from './components/Sidebar';
 import RiskReportModal from './components/RiskReportModal';
+import PiscaRiskData from './components/PiscaRiskData';
 import ConditionInsights from './components/ConditionInsights';
 
 // Import data from localStorage or use default values
@@ -239,7 +239,8 @@ const PiscaRiskHome = () => {
       selectedPond,
       lastUpdated,
       setShowDownloadOptions,
-      currentUser: currentUser
+      currentUser: currentUser,
+      allFarmsRiskData: allFarmsRiskData
     });
   }; 
 
@@ -291,21 +292,7 @@ const PiscaRiskHome = () => {
       id: 3,
       title: t('dashboard.piscaRiskData'),
       icon: <FaDatabase className="box-icon" />,
-      content: (
-        <div className="coming-soon-content">
-          <div className="coming-soon-badge">{t('dashboard.comingSoon')}</div>
-          <p>{t('dashboard.realTimeDataDescription')}</p>
-          <p>{t('dashboard.stayTunedDescription')}</p>
-        </div>
-      ),
-      modalContent: (
-        <div className="coming-soon-content modal-view">
-          <div className="coming-soon-badge">{t('dashboard.comingSoon')}</div>
-          <p>{t('dashboard.realTimeDataDescription')}</p>
-          <p>{t('dashboard.stayTunedDescription')}</p>
-          <p>{t('dashboard.optimizePerformance')}</p>
-        </div>
-      )
+
     },
     {
       id: 4,
@@ -476,9 +463,8 @@ const PiscaRiskHome = () => {
           );
         case 3: // PiscaRISK Data
           return (
-            <div className="image-placeholder">
-              <FaImage className="placeholder-icon" />
-              <span>{t('dashboard.piscaRiskData')} visualization</span>
+            <div className="risk-modal-content">
+              <PiscaRiskData />
             </div>
           );
         case 4: // Risk Reports
@@ -494,8 +480,7 @@ const PiscaRiskHome = () => {
   }, [weatherModalContent, selectedPond, t, location.state, modalKey]);
 
   return (
-    <PageTransition>
-      <div className="homepage-container">
+    <div className="homepage-container">
         {process.env.NODE_ENV === 'development' && ( 
         <div style={{
           position: 'fixed', 
@@ -672,7 +657,6 @@ const PiscaRiskHome = () => {
           {/* Password Change Modal removed - using ProfileSettings password reset instead */}
         </div>
       </div>
-    </PageTransition>
   );
 };
 

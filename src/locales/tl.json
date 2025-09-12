@@ -611,5 +611,80 @@
       "bulk_delete_failed": "Nabigo ang pag-delete ng kahit anong user. Tingnan ang console para sa mga detalye.",
       "bulk_delete_error": "Error sa bulk delete: {{error}}"
     }
+  },
+  "piscaRiskData": {
+    "loading": "Naglo-load ng data ng PiscaRISK…",
+    "export": {
+      "label": "I-export:",
+      "select": "Pumili",
+      "csv": "I-export ang CSV",
+      "pdf": "I-export ang PDF"
+    },
+    "sections": {
+      "farms": {
+        "title": "Mga Sakahan",
+        "description": "Pangkalahatang-ideya ng mga sakahan na natukoy ng system (kasama ang kabuuang mga ulat)"
+      },
+      "weather": {
+        "title": "Snapshot ng Panahon",
+        "description": "Pinakabagong panahon na ginamit sa buong dashboard"
+      },
+      "chartData": {
+        "title": "Data ng Chart (Pinagsama-sama)",
+        "description": "Mga bilang bawat antas ng panganib na ginamit ng mga chart"
+      },
+      "predictions": {
+        "title": "Mga Hula sa Antas ng Palaisdaan",
+        "description": "Pinakabagong bawat palaisdaan sa lahat ng mga sakahan (may pag-paginate)"
+      },
+      "summary": {
+        "title": "Buod ng Data",
+        "description": "Mabilis na mga export at metadata"
+      }
+    },
+    "farmData": {
+      "overallRisk": "Pangkalahatang Panganib",
+      "pondsWithReports": "Mga Palaisdaan na may mga Ulat",
+      "totalReports": "Kabuuang mga Ulat",
+      "reviewedReports": "Mga Ulat na Nareview",
+      "counts": "Mga Bilang",
+      "high": "Mataas",
+      "medium": "Katamtaman",
+      "low": "Mababa",
+      "normal": "Normal"
+    },
+    "weatherData": {
+      "location": "Lokasyon",
+      "condition": "Kalagayan",
+      "temperature": "Temperatura",
+      "humidity": "Kahalumigmigan",
+      "wind": "Hangin",
+      "asOf": "Bilang ng",
+      "noData": "Walang data ng panahon"
+    },
+    "confidence": {
+      "title": "{{farmName}} Karaniwang Kumpiyansa",
+      "subtitle": "Kumpiyansa ng hula ng modelo sa lahat ng palaisdaan",
+      "high": "Mataas na Kumpiyansa - Ang mga hula ng modelo ay napaka-maaasahan",
+      "medium": "Katamtamang Kumpiyansa - Ang mga hula ng modelo ay karaniwang maaasahan",
+      "low": "Mababang Kumpiyansa - Ang mga hula ng modelo ay maaaring kailangan ng pagsusuri",
+      "noData": "Walang data ng kumpiyansa para sa sakahang ito"
+    },
+    "predictionsTable": {
+      "farm": "Sakahan",
+      "pond": "Palaisdaan",
+      "risk": "Panganib",
+      "timestamp": "Timestamp"
+    },
+    "summaryData": {
+      "totalFarms": "Kabuuang mga Sakahan",
+      "totalPonds": "Kabuuang mga Palaisdaan (may pinakabagong mga hula)",
+      "asOf": "Bilang ng"
+    },
+    "pagination": {
+      "prev": "Nakaraan",
+      "next": "Susunod",
+      "page": "Pahina {{current}} ng {{total}}"
+    }
   }
 }

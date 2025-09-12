@@ -119,7 +119,8 @@ export const getAllLogs = async () => {
       if (user.username) {
         userDataMap.set(user.username, {
           role: user.user_role || user.role || 'Unknown',
-          isMobileUser: user.isMobileUser || false
+          isMobileUser: user.isMobileUser || false,
+          farm: user.farm || null
         });
       }
     });
@@ -190,7 +191,8 @@ export const getAllLogs = async () => {
         timestamp: validTimestamp, // Use validated timestamp
         role: userData ? userData.role : 'Unknown',
         isMobileUser: userData ? userData.isMobileUser : false,
-        source: source
+        source: source,
+        userFarm: userData ? userData.farm : null
       };
     });
     
@@ -263,7 +265,8 @@ export const getLogsByCategory = async (category) => {
       if (user.username) {
         userDataMap.set(user.username, {
           role: user.user_role || user.role || 'Unknown',
-          isMobileUser: user.isMobileUser || false
+          isMobileUser: user.isMobileUser || false,
+          farm: user.farm || null
         });
       }
     });
@@ -345,7 +348,8 @@ export const getLogsByUsername = async (username) => {
       if (user.username) {
         userDataMap.set(user.username, {
           role: user.user_role || user.role || 'Unknown',
-          isMobileUser: user.isMobileUser || false
+          isMobileUser: user.isMobileUser || false,
+          farm: user.farm || null
         });
       }
     });

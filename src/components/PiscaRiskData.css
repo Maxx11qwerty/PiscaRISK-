@@ -1,0 +1,351 @@
+.prd-container {
+  background: transparent;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.prd-export-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px 0;
+}
+
+.prd-export-label {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.prd-export-btn {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.prd-export-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.prd-export-menu-list {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  min-width: 160px;
+  overflow: hidden;
+}
+
+.prd-export-menu-item {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.prd-loading {
+  text-align: center;
+  color: #64748b;
+}
+
+.prd-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.prd-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+}
+
+.prd-section-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prd-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #111827;
+  font-weight: 700;
+}
+
+.prd-section-desc {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.prd-section-body {
+  padding: 14px 16px;
+}
+
+.prd-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.prd-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.prd-card:hover {
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+.prd-card-header {
+  margin-bottom: 8px;
+}
+
+.prd-card-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.prd-card-sub {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.prd-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.prd-row > span:first-child { color: #6b7280; }
+.prd-row > span:last-child, .prd-row > strong { color: #111827; }
+
+.prd-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: #ffffff;
+  margin-right: 6px;
+  font-weight: 600;
+}
+
+.prd-table {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.prd-thead, .prd-rowline {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.prd-thead {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  color: #0f172a;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.prd-tbody .prd-rowline {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.prd-tbody .prd-rowline:nth-child(odd) { background: #fcfcfd; }
+.prd-tbody .prd-rowline:hover { background: #f8fafc; }
+
+.prd-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.prd-pagination button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.prd-pagination button:hover {
+  background: #eef2ff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.prd-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.prd-summary-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prd-summary-item span {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.prd-summary-item strong {
+  color: #1f2937;
+}
+
+.prd-weather {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.prd-aggregates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .prd-thead, .prd-rowline {
+    grid-template-columns: 1.5fr 1fr 1fr 1.8fr;
+  }
+}
+
+/* Confidence Indicator Styles */
+.prd-confidence-indicator {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.prd-confidence-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  color: white;
+  text-align: center;
+  min-width: 300px;
+  max-width: 500px;
+  width: 100%;
+}
+
+.prd-confidence-header {
+  margin-bottom: 20px;
+}
+
+.prd-confidence-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: white;
+}
+
+.prd-confidence-subtitle {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.prd-confidence-value {
+  margin-bottom: 16px;
+}
+
+.prd-confidence-number {
+  font-size: 3rem;
+  font-weight: 800;
+  display: block;
+  margin-bottom: 12px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.prd-confidence-bar {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.prd-confidence-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.prd-confidence-description {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.prd-confidence-no-data {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.prd-confidence-no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.prd-confidence-no-data-text {
+  font-size: 1rem;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+/* Responsive design for confidence indicator */
+@media (max-width: 640px) {
+  .prd-confidence-card {
+    padding: 20px;
+    min-width: 280px;
+  }
+  
+  .prd-confidence-title {
+    font-size: 1.3rem;
+  }
+  
+  .prd-confidence-number {
+    font-size: 2.5rem;
+  }
+}
+
+

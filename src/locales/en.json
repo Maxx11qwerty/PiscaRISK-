@@ -611,5 +611,80 @@
       "bulk_delete_failed": "Failed to delete any users. Check console for details.",
       "bulk_delete_error": "Error during bulk delete: {{error}}"
     }
+  },
+  "piscaRiskData": {
+    "loading": "Loading PiscaRISK data…",
+    "export": {
+      "label": "Export:",
+      "select": "Select",
+      "csv": "Export CSV",
+      "pdf": "Export PDF"
+    },
+    "sections": {
+      "farms": {
+        "title": "Farms",
+        "description": "Overview of farms detected by the system (with total reports)"
+      },
+      "weather": {
+        "title": "Weather Snapshot",
+        "description": "Latest weather used across the dashboard"
+      },
+      "chartData": {
+        "title": "Chart Data (Aggregates)",
+        "description": "Counts per risk level used by charts"
+      },
+      "predictions": {
+        "title": "Pond-level Predictions",
+        "description": "Latest per pond across all farms (paginated)"
+      },
+      "summary": {
+        "title": "Data Summary",
+        "description": "Quick exports and metadata"
+      }
+    },
+    "farmData": {
+      "overallRisk": "Overall Risk",
+      "pondsWithReports": "Ponds With Reports",
+      "totalReports": "Total Reports",
+      "reviewedReports": "Reviewed Reports",
+      "counts": "Counts",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "normal": "Normal"
+    },
+    "weatherData": {
+      "location": "Location",
+      "condition": "Condition",
+      "temperature": "Temperature",
+      "humidity": "Humidity",
+      "wind": "Wind",
+      "asOf": "As of",
+      "noData": "No weather data"
+    },
+    "confidence": {
+      "title": "{{farmName}} Average Confidence",
+      "subtitle": "Model prediction confidence across all ponds",
+      "high": "High Confidence - Model predictions are very reliable",
+      "medium": "Medium Confidence - Model predictions are generally reliable",
+      "low": "Low Confidence - Model predictions may need review",
+      "noData": "No confidence data available for this farm"
+    },
+    "predictionsTable": {
+      "farm": "Farm",
+      "pond": "Pond",
+      "risk": "Risk",
+      "timestamp": "Timestamp"
+    },
+    "summaryData": {
+      "totalFarms": "Total Farms",
+      "totalPonds": "Total Ponds (with latest predictions)",
+      "asOf": "As of"
+    },
+    "pagination": {
+      "prev": "Prev",
+      "next": "Next",
+      "page": "Page {{current}} of {{total}}"
+    }
   }
 }

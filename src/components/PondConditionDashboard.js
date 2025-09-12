@@ -2,9 +2,18 @@ import { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
 import { logActivity, logMessages } from '../utils/logger';
 import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle } from 'react-icons/fa';
+import AnimatedModal from './AnimatedModal';
+import { FaFileExport } from 'react-icons/fa6';
+import { 
+  exportFishConditionCSV, 
+  exportFishConditionPDF, 
+  exportFishConditionWithLogsCSV,
+  exportFishConditionWithLogsPDF
+} from '../utils/exportFishCondition';
+import StockFeedLogs from './StockFeedLogs';
 import { AuthContext } from '../contexts/AuthContext';
 import './PondCondition.css';
 
@@ -35,6 +44,15 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const [reportsByFarm, setReportsByFarm] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedFarms, setExpandedFarms] = useState(new Set());
+  const [openLogsModal, setOpenLogsModal] = useState(null); // { farmId, farmName }
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  // Ensure pond filter defaults to 'all' when opened as a modal
+  useEffect(() => {
+    if (isModal) {
+      setSelectedPond('all');
+    }
+  }, [isModal]);
 
   // Handle navigation state from notifications
   useEffect(() => {
@@ -179,22 +197,6 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             reportsSnapshot = await getDocs(farmQuery);
             console.log(`Found ${reportsSnapshot.docs.length} reports in 'reports' collection for farm: ${farmName}`);
           } catch (error) {
-            console.log('Error querying reports collection, trying alternative collections...');
-            
-            // Try alternative collection names
-            const alternativeCollections = ['pondReports', 'fishpondReports', 'farmReports'];
-            for (const collectionName of alternativeCollections) {
-              try {
-                const altRef = collection(db, collectionName);
-                const altQuery = query(altRef, where('farm', '==', farmName));
-                reportsSnapshot = await getDocs(altQuery);
-                console.log(`Found ${reportsSnapshot.docs.length} reports in '${collectionName}' collection for farm: ${farmName}`);
-                break;
-              } catch (altError) {
-                console.log(`No reports found in '${collectionName}' collection`);
-              }
-            }
-            
             if (!reportsSnapshot) {
               console.log('No reports found in any collection for farm:', farmName);
               reportsSnapshot = { docs: [] };
@@ -238,7 +240,11 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               contact: data.user_contact,
               email: data.user_email,
               status: data.status,
-              source: data.source || 'web'
+              reviewedBy: data.reviewed_by || data.reviewedBy,
+              reviewedAt: data.reviewed_at || data.reviewedAt,
+              source: data.source || 'web',
+              originalTimestamp: data.timestamp,
+              __collection: 'reports'
             };
           });
 
@@ -254,30 +260,16 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             // Try both approaches: farm subcollection and reports collection
             let farmReports = [];
             
-            // First try: farm subcollection
+            // Only use reports collection with farm field (single source of truth)
             try {
-              const farmReportsRef = collection(db, 'farms', farm.id, 'reports');
-              const rsnap = await getDocs(farmReportsRef);
-              farmReports = rsnap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-              console.log(`Found ${farmReports.length} reports in farm subcollection for ${farm.name}`);
+              const reportsRef = collection(db, 'reports');
+              const farmQuery = query(reportsRef, where('farm', '==', farm.name));
+              const reportsSnapshot = await getDocs(farmQuery);
+              const reportsFromCollection = reportsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, __collection: 'reports' }));
+              console.log(`Found ${reportsFromCollection.length} reports in reports collection for ${farm.name}`);
+              farmReports = reportsFromCollection;
             } catch (error) {
-              console.log(`No farm subcollection found for ${farm.name}`);
-            }
-            
-            // Second try: reports collection with farm field (only if no reports found in subcollection)
-            if (farmReports.length === 0) {
-              try {
-                const reportsRef = collection(db, 'reports');
-                const farmQuery = query(reportsRef, where('farm', '==', farm.name));
-                const reportsSnapshot = await getDocs(farmQuery);
-                const reportsFromCollection = reportsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                console.log(`Found ${reportsFromCollection.length} reports in reports collection for ${farm.name}`);
-                farmReports = reportsFromCollection;
-              } catch (error) {
-                console.log(`No reports collection found or error querying for ${farm.name}`);
-              }
-            } else {
-              console.log(`Using reports from farm subcollection for ${farm.name}, skipping main reports collection to avoid duplicates`);
+              console.log(`No reports collection found or error querying for ${farm.name}`);
             }
             
             const items = farmReports.map(report => {
@@ -315,7 +307,10 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 contact: data.user_contact,
                 email: data.user_email,
                 status: data.status,
-                source: data.source || 'web'
+                reviewedBy: data.reviewed_by || data.reviewedBy,
+                reviewedAt: data.reviewed_at || data.reviewedAt,
+                source: data.source || 'web',
+                originalTimestamp: data.timestamp
               };
             });
 
@@ -429,12 +424,107 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
   const toggleExpanded = (farmId) => {
     const newExpanded = new Set(expandedFarms);
+    const isExpanding = !newExpanded.has(farmId);
     if (newExpanded.has(farmId)) {
       newExpanded.delete(farmId);
     } else {
       newExpanded.add(farmId);
     }
     setExpandedFarms(newExpanded);
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const farm = farms.find(f => f.id === farmId);
+      const farmName = farm?.name || 'Unknown Farm';
+      logActivity('report', `Farm ${farmName} ${isExpanding ? 'expanded' : 'collapsed'} to view reports`, u); 
+    } catch (_) {}
+  };
+
+  const markReportAsReviewed = async (report, farmContext) => {
+    try {
+      const reviewerName = currentUser?.fullName || currentUser?.displayName || currentUser?.email || currentUser?.uid || 'Unknown Reviewer';
+      const reviewedAtIso = new Date().toISOString();
+
+      // Optimistic UI update: update local states first
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedAt: reviewedAtIso } : r));
+      setReportsByFarm(prev => {
+        const next = { ...prev };
+        const group = next[farmContext?.id || farmContext] || next[report.__farmId];
+        if (group) {
+          group.reports = group.reports.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedAt: reviewedAtIso } : r);
+        }
+        return next;
+      });
+
+      // Single source of truth: only update main reports collection
+      const mainDocRef = doc(db, 'reports', report.id);
+      const updates = [updateDoc(mainDocRef, {
+        status: 'Reviewed',
+        reviewed_by: reviewerName,
+        reviewed_at: Timestamp.now()
+      })];
+
+      const results = await Promise.allSettled(updates);
+      const allFailed = results.every(r => r.status === 'rejected');
+      if (allFailed) {
+        // Fallback: try to find the report in 'reports' by strong identifiers (farm, pond, timestamp)
+        try {
+          const reportsRef = collection(db, 'reports');
+          const q = query(
+            reportsRef,
+            where('farm', '==', report.farm || report?.farm),
+            where('fish_pond', '==', report.pond || report?.pond)
+          );
+          const snap = await getDocs(q);
+          // Try to match by timestamp equality if available
+          const targetTs = report.originalTimestamp;
+          let matchedDoc = null;
+          if (snap && !snap.empty) {
+            matchedDoc = snap.docs.find(d => {
+              const data = d.data() || {};
+              const ts = data.timestamp;
+              if (!targetTs || !ts) return false;
+              if (typeof ts?.toDate === 'function' && typeof targetTs?.toDate === 'function') {
+                return ts.toDate().getTime() === targetTs.toDate().getTime();
+              }
+              if (ts?.seconds && targetTs?.seconds) {
+                return ts.seconds === targetTs.seconds && ts.nanoseconds === targetTs.nanoseconds;
+              }
+              // Fallback: string/number compare
+              return String(ts) === String(targetTs);
+            }) || snap.docs[0];
+          }
+
+          if (matchedDoc) {
+            await updateDoc(doc(db, 'reports', matchedDoc.id), {
+              status: 'Reviewed',
+              reviewed_by: reviewerName,
+              reviewed_at: Timestamp.now()
+            });
+            try { logActivity('report', `Report marked as reviewed for ${report.pond || 'Unknown Pond'}`, currentUser?.username || currentUser?.email || 'Unknown'); } catch (_) {}
+            return;
+          }
+        } catch (e) {
+          // fall through to final throw
+        }
+
+        throw new Error('Failed to update report status in any known location');
+      }
+      try { logActivity('report', `Report marked as reviewed for ${report.pond || 'Unknown Pond'}`, currentUser?.username || currentUser?.email || 'Unknown'); } catch (_) {}
+    } catch (error) {
+      console.error('Failed to mark report as reviewed:', error);
+      // Revert optimistic update on error
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: report.status, reviewedBy: report.reviewedBy, reviewedAt: report.reviewedAt } : r));
+      setReportsByFarm(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(fid => {
+          next[fid] = {
+            ...next[fid],
+            reports: next[fid].reports.map(r => r.id === report.id ? { ...r, status: report.status, reviewedBy: report.reviewedBy, reviewedAt: report.reviewedAt } : r)
+          };
+        });
+        return next;
+      });
+    }
   };
 
   const getConditionIcon = (condition) => {
@@ -601,6 +691,96 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             <option value="custom">{t('pondCondition.custom_date')}</option>
           </select>
         </div>
+        <div className="filter-group" style={{ alignSelf: 'end', position: 'relative' }}>
+          <label style={{ visibility: 'hidden' }}>Export</label>
+          <button
+            onClick={(e) => { e.stopPropagation(); setExportMenuOpen((v) => !v); }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              color: '#1A4375',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <FaFileExport />
+            <span style={{ textDecoration: 'underline' }}>Export</span>
+          </button>
+          {exportMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 6,
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                zIndex: 5,
+                minWidth: 180,
+                overflow: 'hidden'
+              }}
+            >
+              <button
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('export', logMessages.export.csvDownload(u, 'fishpond condition data with logs'), u); 
+                    } catch (_) {}
+                    exportFishConditionWithLogsCSV(
+                      filteredReports,
+                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
+                      'fishpond_combined.csv'
+                    );
+                    setExportMenuOpen(false);
+                  }}
+              >
+                Export CSV
+              </button>
+              <div style={{ height: 1, background: '#e5e7eb' }} />
+              <button
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('export', logMessages.export.pdfDownload(u, 'fishpond condition data with logs'), u); 
+                    } catch (_) {}
+                    exportFishConditionWithLogsPDF(
+                      filteredReports,
+                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
+                      'fishpond_combined.pdf'
+                    );
+                    setExportMenuOpen(false);
+                  }}
+              >
+                Export PDF
+              </button>
+            </div>
+          )}
+        </div>
         
         {reportFilter === 'custom' && (
           <div className="filter-group">
@@ -727,6 +907,20 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                           <FaCalendarAlt className="time-icon" />
                           {t('pondCondition.latest')}: {visibleReports.length > 0 ? formatTimestamp(visibleReports[0].date) : t('pondCondition.no_reports')}
                         </span>
+                        <button
+                          className="logs-link-btn"
+                          style={{ marginLeft: 8 }}
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            try { 
+                              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                              logActivity('report', `View Stock & Feed Logs opened for farm ${farm.name}`, u); 
+                            } catch (_) {}
+                            setOpenLogsModal({ farmId: farm.id, farmName: farm.name }); 
+                          }}
+                        >
+                          View Stock & Feed Logs
+                        </button>
                       </div>
                     </div>
                     <div className="summary-indicators">
@@ -748,11 +942,20 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                       </div>
                     ) : (
                       visibleReports.map((report) => (
-                        <div key={report.id} className="report-detail-card">
+                        <div key={report.id} className="report-detail-card" onMouseEnter={() => { try { logActivity('report', logMessages.report.reportView(currentUser?.username || 'Unknown', report.pond || 'Unknown')); } catch (_) {} }}>
                           <div className="report-header">
                             <div className="report-header-left">
                               <span className="pond-badge">{report.pond || t('pondCondition.unknown_pond')}</span>
                               <span className={`status-badge ${String(report.status||'').toLowerCase().replace(/\s+/g,'-')}`}>{report.status || '—'}</span>
+                              {String(report.status || '').toLowerCase() === 'pending' && (
+                                <button
+                                  className="mark-reviewed-btn"
+                                  onClick={(e) => { e.stopPropagation(); markReportAsReviewed(report, farm); }}
+                                  title="Mark this report as reviewed"
+                                >
+                                  Mark as Reviewed
+                                </button>
+                              )}
                               <span className={`harvest-badge ${report.harvest === 'Ready' ? 'ready' : 'not-ready'}`}>{report.harvest === 'Ready' ? t('pondCondition.harvest_ready') : t('pondCondition.not_ready')}</span>
                             </div>
                             <span className="report-date">{formatTimestamp(report.date)}</span>
@@ -793,6 +996,15 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                                 <span className="meta-label">{t('pondCondition.submitted_by')}</span>
                                 <span className="meta-value">{report.submittedBy || '—'}{report.userRole ? ` (${report.userRole})` : ''}</span>
                               </div>
+                              {(report.reviewedBy || report.reviewedAt) && (
+                                <div className="meta-item">
+                                  <span className="meta-label">Reviewed</span>
+                                  <span className="meta-value">
+                                    {report.reviewedBy ? `by ${report.reviewedBy}` : ''}
+                                    {report.reviewedAt ? ` on ${formatTimestamp(report.reviewedAt)}` : ''}
+                                  </span>
+                                </div>
+                              )}
                               {report.contact || report.email ? (
                                 <div className="meta-item">
                                   <span className="meta-label">{t('pondCondition.contact')}</span>
@@ -818,6 +1030,16 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           })
         )}
       </div>
+      <AnimatedModal
+        isOpen={!!openLogsModal}
+        onClose={() => setOpenLogsModal(null)}
+        title={openLogsModal ? `Stock & Feed Logs — ${openLogsModal.farmName || ''}` : ''}
+        icon={<FaFish />}
+      >
+        {openLogsModal && (
+          <StockFeedLogs farmId={openLogsModal.farmId} farmName={openLogsModal.farmName} />
+        )}
+      </AnimatedModal>
     </div>
   );
 };

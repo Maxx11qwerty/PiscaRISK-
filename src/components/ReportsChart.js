@@ -3,27 +3,179 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import './ReportsChart.css';
+import { GiHamburgerMenu } from 'react-icons/gi';
+import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
+import { useAuth } from '../contexts/AuthContext';
+import { logActivity, logMessages } from '../utils/logger';
 
 function ReportsChart() {
+  const { currentUser } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('weekly'); // 'daily', 'weekly', 'monthly'
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [exportOpen, setExportOpen] = useState(false);
+  const [assignedFarmName, setAssignedFarmName] = useState('');
+
+  // Check if user is assigned to a farm
+  const isAssignedToFarm = Boolean(currentUser?.farm);
+
+  // Resolve assigned farm name
+  useEffect(() => {
+    const resolveAssignedFarmName = async () => {
+      if (isAssignedToFarm && currentUser.farm) {
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (farmDoc.exists()) {
+            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+          } else {
+            setAssignedFarmName(currentUser.farm);
+          }
+        } catch (error) {
+          console.error('Error resolving farm name:', error);
+          setAssignedFarmName(currentUser.farm);
+        }
+      }
+    };
+    resolveAssignedFarmName();
+  }, [isAssignedToFarm, currentUser?.farm]);
 
   useEffect(() => {
     const fetchReports = async () => {
       try {
         setLoading(true);
         const reportsRef = collection(db, 'reports');
-        const q = query(
-          reportsRef,
-          orderBy('timestamp', 'desc')
-        );
+        
+        // Build query based on farm assignment
+        let q;
+        if (isAssignedToFarm) {
+          // First try to get all reports to see what farm fields exist
+          const allReportsQuery = query(reportsRef, orderBy('timestamp', 'desc'));
+          const allReportsSnapshot = await getDocs(allReportsQuery);
+          
+          console.log('All reports sample:', allReportsSnapshot.docs.slice(0, 3).map(doc => ({
+            id: doc.id,
+            data: doc.data()
+          })));
+          
+          // Try different farm field names and values
+          const farmFields = ['farm', 'farm_name', 'farmId', 'farm_id'];
+          let foundMatchingReports = false;
+          
+          for (const field of farmFields) {
+            try {
+              // Try with the farm ID
+              q = query(
+                reportsRef,
+                where(field, '==', currentUser.farm),
+                orderBy('timestamp', 'desc')
+              );
+              const testSnapshot = await getDocs(q);
+              if (testSnapshot.docs.length > 0) {
+                console.log(`Found ${testSnapshot.docs.length} reports using field '${field}' with value '${currentUser.farm}'`);
+                foundMatchingReports = true;
+                break;
+              }
+            } catch (error) {
+              console.log(`Field '${field}' with farm ID failed:`, error.message);
+            }
+          }
+          
+          // If no matches with farm ID, try with farm name
+          if (!foundMatchingReports && assignedFarmName) {
+            for (const field of farmFields) {
+              try {
+                q = query(
+                  reportsRef,
+                  where(field, '==', assignedFarmName),
+                  orderBy('timestamp', 'desc')
+                );
+                const testSnapshot = await getDocs(q);
+                if (testSnapshot.docs.length > 0) {
+                  console.log(`Found ${testSnapshot.docs.length} reports using field '${field}' with farm name '${assignedFarmName}'`);
+                  foundMatchingReports = true;
+                  break;
+                }
+              } catch (error) {
+                console.log(`Field '${field}' with farm name failed:`, error.message);
+              }
+            }
+          }
+          
+          // If still no matches, fall back to all reports
+          if (!foundMatchingReports) {
+            console.warn('No matching reports found for assigned farm, showing all reports');
+            q = query(
+              reportsRef,
+              orderBy('timestamp', 'desc')
+            );
+          }
+        } else {
+          // Get all reports for non-assigned users
+          q = query(
+            reportsRef,
+            orderBy('timestamp', 'desc')
+          );
+        }
         
         const querySnapshot = await getDocs(q);
-        const allReports = querySnapshot.docs.map(doc => ({
-          date: doc.data().timestamp.toDate()
-        }));
+        console.log('ReportsChart Debug:', {
+          isAssignedToFarm,
+          currentUserFarm: currentUser?.farm,
+          totalReports: querySnapshot.docs.length,
+          firstReport: querySnapshot.docs[0]?.data(),
+          allReportFarms: querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            farm: doc.data().farm,
+            farm_name: doc.data().farm_name,
+            farmId: doc.data().farmId,
+            allFields: Object.keys(doc.data())
+          }))
+        });
+        
+        let allReports = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          let date;
+          try {
+            // Try different timestamp field names
+            if (data.timestamp && data.timestamp.toDate) {
+              date = data.timestamp.toDate();
+            } else if (data.createdAt && data.createdAt.toDate) {
+              date = data.createdAt.toDate();
+            } else if (data.date) {
+              date = new Date(data.date);
+            } else if (data.timestamp) {
+              date = new Date(data.timestamp);
+            } else {
+              console.warn('No valid timestamp found for report:', doc.id);
+              date = new Date(); // Fallback to current date
+            }
+          } catch (error) {
+            console.warn('Error parsing timestamp for report:', doc.id, error);
+            date = new Date(); // Fallback to current date
+          }
+          
+          return {
+            date,
+            farm: data.farm || data.farm_name || data.farmId || data.farm_id || 'Unknown Farm',
+            farmId: data.farmId || data.farm_id || data.farm,
+            farmName: data.farm_name || data.farm
+          };
+        });
+
+        // If user is assigned to a farm and we got all reports, filter client-side
+        if (isAssignedToFarm && allReports.length > 0) {
+          const originalLength = allReports.length;
+          allReports = allReports.filter(report => {
+            const farmMatch = report.farm === currentUser.farm || 
+                            report.farmId === currentUser.farm ||
+                            report.farmName === assignedFarmName ||
+                            report.farm === assignedFarmName;
+            return farmMatch;
+          });
+          console.log(`Client-side filtering: ${originalLength} total reports, ${allReports.length} matching assigned farm`);
+        }
 
         let chartData = [];
         const now = new Date();
@@ -107,25 +259,74 @@ function ReportsChart() {
             break;
         }
 
+        console.log('Processed chart data:', chartData);
+        
+        // If no data found, show a message or sample data
+        if (chartData.length === 0) {
+          console.log('No chart data found, showing empty state');
+          // You could set some default data here if needed
+        }
+        
         setData(chartData);
       } catch (error) {
         console.error('Error fetching reports:', error);
+        setData([]); // Set empty data on error
       } finally {
         setLoading(false);
       }
     };
 
     fetchReports();
-  }, [timeFilter]);
+  }, [timeFilter, isAssignedToFarm, currentUser?.farm]);
 
   if (loading) {
     return <div className="loading-reports">Loading chart data...</div>;
   }
 
+  if (data.length === 0) {
+    return (
+      <div className="bar-chart-container" id="reports-chart-card">
+        <h3 className="chart-title">
+          {isAssignedToFarm 
+            ? `${assignedFarmName || currentUser.farm} Reports Submitted`
+            : 'Reports Submitted'
+          }
+        </h3>
+        <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
+          <select 
+            value={timeFilter} 
+            onChange={(e) => setTimeFilter(e.target.value)}
+            className="time-filter"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div style={{ 
+          textAlign: 'center', 
+          color: '#cbd5e1', 
+          padding: '40px 20px',
+          fontSize: '16px'
+        }}>
+          {isAssignedToFarm 
+            ? `No reports found for ${assignedFarmName || currentUser.farm}`
+            : 'No reports found'
+          }
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bar-chart-container">
-      <h3 className="chart-title">Reports Submitted</h3>
-      <div className="chart-controls">
+    <div className="bar-chart-container" id="reports-chart-card">
+      <h3 className="chart-title">
+        {isAssignedToFarm 
+          ? `${assignedFarmName || currentUser.farm} Reports Submitted`
+          : 'Reports Submitted'
+        }
+      </h3>
+        <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
         <select 
           value={timeFilter} 
           onChange={(e) => setTimeFilter(e.target.value)}
@@ -135,6 +336,35 @@ function ReportsChart() {
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </select>
+        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+          <button
+            onClick={() => setExportOpen(v => !v)}
+            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            aria-label="Export"
+            title="Export"
+          >
+            <GiHamburgerMenu style={{ fontSize: '20px' }} />
+          </button>
+          {exportOpen && (
+            <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 220, overflow: 'hidden', zIndex: 5 }}>
+              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('#reports-chart-card', 'png', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
+              <div style={{ height: 1, background: '#e5e7eb' }} />
+              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('#reports-chart-card', 'jpeg', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
+              <div style={{ height: 1, background: '#e5e7eb' }} />
+              <button
+                style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
+                onClick={async () => {
+                  await exportReportsDataCSV(timeFilter, 'reports_chart_data.csv');
+                  try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'reports chart data'), u); } catch (_) {}
+                  setExportOpen(false);
+                }}
+              >
+                Export Chart Data
+              </button>
+              
+            </div>
+          )}
+        </div>
       </div>
       <ResponsiveContainer width="100%" height={320}>
         <BarChart data={data}>

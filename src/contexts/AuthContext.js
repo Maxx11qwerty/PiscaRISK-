@@ -538,6 +538,7 @@ const login = async (emailOrContact, password) => {
 
   const logout = async () => {
     try {
+      try { logActivity('logout', logMessages.logout.logoutAttempt(currentUser?.username || auth.currentUser?.email || 'Unknown')); } catch (_) {}
       // 1. Perform all cleanup first
       await signOut(auth);
       setCurrentUser(null);
@@ -576,9 +577,11 @@ const login = async (emailOrContact, password) => {
   
       // 5. Force redirect after cleanup
       window.location.replace('/');
+      try { logActivity('logout', logMessages.logout.success(currentUser?.username || auth.currentUser?.email || 'Unknown'), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       
     } catch (error) {
       console.error('Logout error:', error);
+      try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       window.location.replace('/');
     }
   };
@@ -594,6 +597,7 @@ const login = async (emailOrContact, password) => {
       
       // Call the main logout function
       await logout();
+      try { logActivity('logout', logMessages.logout.success(currentUser?.username || auth.currentUser?.email || 'Unknown'), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       
       // If navigate function is provided, use it
       if (navigate && typeof navigate === 'function') {
@@ -601,6 +605,7 @@ const login = async (emailOrContact, password) => {
       }
     } catch (error) {
       console.error('Handle logout error:', error);
+      try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       // Fallback navigation
       if (navigate && typeof navigate === 'function') {
         navigate('/login');

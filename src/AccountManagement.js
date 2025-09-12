@@ -17,6 +17,7 @@ import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } fro
 import Sidebar from './components/Sidebar';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { logActivity, logMessages } from './utils/logger';
 
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
@@ -58,6 +59,10 @@ const AccountManagement = () => {
   const [adminPasswordError, setAdminPasswordError] = useState('');
   const [pendingUserData, setPendingUserData] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  
+  // Delete confirmation modal state
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deleteConfirmData, setDeleteConfirmData] = useState(null);
 
   // Name sorting dropdown states
   const [showNameDropdown, setShowNameDropdown] = useState(false);
@@ -309,6 +314,23 @@ const AccountManagement = () => {
   const filteredUsers = AccountUsers.filter(user => {
     if (!user || !user.username) return false;
     
+    // Farm filter - if current user is assigned to a farm, only show users from the same farm
+    const isAssignedToFarm = currentUser?.farm;
+    if (isAssignedToFarm) {
+      const userFarm = user.farm;
+      const currentUserFarm = currentUser.farm;
+      
+      // Check if user's farm matches current user's farm
+      const matchesFarm = userFarm === currentUserFarm ||
+                         userFarm === assignedFarmName ||
+                         userFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                         userFarm?.toLowerCase() === assignedFarmName?.toLowerCase();
+      
+      if (!matchesFarm) {
+        return false; // Skip users from different farms
+      }
+    }
+    
     // Basic search term filter
     const roleDisplay = formatRoleForDisplay(user.role);
     const matchesSearch = (
@@ -470,6 +492,11 @@ const AccountManagement = () => {
         setMessage({ text: 'Only Admins can add new users', type: 'error' });
         return;
       }
+      
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `User creation attempted for ${newUser.username} (${newUser.role}) in Account Management`, u); 
+      } catch (_) {}
       if (newUser.password.length < 6) {
         setMessage({ text: 'Password must be at least 6 characters', type: 'error' });
         return;
@@ -539,6 +566,10 @@ const AccountManagement = () => {
 
       if (result.success) {
         setMessage({ text: `${newUser.role} ${newUser.username} created successfully!`, type: 'success' });
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('account', `User ${newUser.username} (${newUser.role}) created successfully in Account Management`, u); 
+        } catch (_) {}
         // Keep form open so success is visible, clear inputs for next entry
         resetForm();
         await fetchUsers();
@@ -557,6 +588,10 @@ const AccountManagement = () => {
 
   const handleCancelAddUser = () => {
     setShowAddUserForm(false);
+    try { 
+      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      logActivity('account', `Add User form cancelled in Account Management`, u); 
+    } catch (_) {}
     setNewUser({
       username: '',
       fullName: '',
@@ -619,6 +654,10 @@ const AccountManagement = () => {
     try {
       setResettingPasswordUserId(user.id);
       setMessage({ text: `Sending password reset email to ${user.username}...`, type: 'info' });
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Password reset initiated for user ${user.username} in Account Management`, u); 
+      } catch (_) {}
 
       // Import Firebase Auth functions
       const { getAuth, sendPasswordResetEmail } = await import('firebase/auth');
@@ -634,7 +673,10 @@ const AccountManagement = () => {
         type: 'success' 
       });
       
-      // Log the password reset email sent
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Password reset email sent successfully to ${user.username} in Account Management`, u); 
+      } catch (_) {}
 
       
     } catch (error) {
@@ -666,6 +708,10 @@ const AccountManagement = () => {
     }
 
     try {
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Tech Officer activation initiated for user ${user.username} in Account Management`, u); 
+      } catch (_) {}
       // Reconcile with Firestore first
       const live = await serviceFetchLiveUserStatus(user.id);
       if (live && typeof live.status === 'string') {
@@ -685,6 +731,11 @@ const AccountManagement = () => {
       if (!result.success) throw new Error(result.error || 'Failed to activate Tech Officer');
       
       setMessage({ text: `Tech Officer ${user.username} activated. Note: user must verify their email to become Active.`, type: 'success' });
+      
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Tech Officer ${user.username} activated successfully in Account Management`, u); 
+      } catch (_) {}
       
       // Update local state (optimistic)
       setAccountUsers(prev => prev.map(u => 
@@ -708,6 +759,10 @@ const AccountManagement = () => {
     }
 
     try {
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Fish Farmer activation initiated for user ${user.username} in Account Management`, u); 
+      } catch (_) {}
       // Reconcile with Firestore first
       const live = await serviceFetchLiveUserStatus(user.id);
       if (live && typeof live.status === 'string') {
@@ -733,6 +788,10 @@ const AccountManagement = () => {
       ));
 
       setMessage({ text: `Fish Farmer ${user.username} activated successfully`, type: 'success' });
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Fish Farmer ${user.username} activated successfully in Account Management`, u); 
+      } catch (_) {}
       await fetchUsers();
     } catch (error) {
 
@@ -771,44 +830,63 @@ const AccountManagement = () => {
       setMessage({ text: 'Only Admins can delete users', type: 'error' });
       return;
     }
-    // Show confirmation dialog
-    if (window.confirm(`Are you sure you want to delete user "${user.username}"? This action cannot be undone.`)) {
-      try {
-        setMessage({ text: `Deleting user ${user.username}...`, type: 'info' });
+    // Show custom confirmation modal
+    setDeleteConfirmData({
+      type: 'single',
+      user: user,
+      message: `Are you sure you want to delete user "${user.username}"? This action cannot be undone.`
+    });
+    setShowDeleteConfirmModal(true);
+  };
 
-        
-        // Delete user from Firebase
-        const result = await deleteUserFromFirebase(user.id);
-        
-        if (result.success) {
-          setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
-          
-          // Remove user from local state
-          setAccountUsers(prev => prev.filter(u => u.id !== user.id));
-          
-          // Remove from selected users if they were selected
-          setSelectedUsers(prev => {
-            const newSelected = new Set(prev);
-            newSelected.delete(user.id);
-            return newSelected;
-          });
-          
-          // Reset to first page if current page becomes empty
-          if (paginatedUsers.length === 1 && currentPage > 1) {
-            setCurrentPage(1);
-          }
-          
-          // Refresh users list
-          await fetchUsers();
-        } else {
+  const confirmDeleteUser = async () => {
+    if (!deleteConfirmData) return;
+    
+    const { user } = deleteConfirmData;
+    setShowDeleteConfirmModal(false);
+    
+    try {
+      setMessage({ text: `Deleting user ${user.username}...`, type: 'info' });
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `User deletion initiated for ${user.username} in Account Management`, u); 
+      } catch (_) {}
 
-          setMessage({ text: `Error deleting user: ${result.error}`, type: 'error' });
+      // Delete user from Firebase
+      const result = await deleteUserFromFirebase(user.id);
+      
+      if (result.success) {
+        setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('account', `User ${user.username} deleted successfully in Account Management`, u); 
+        } catch (_) {}
+        
+        // Remove user from local state
+        setAccountUsers(prev => prev.filter(u => u.id !== user.id));
+        
+        // Remove from selected users if they were selected
+        setSelectedUsers(prev => {
+          const newSelected = new Set(prev);
+          newSelected.delete(user.id);
+          return newSelected;
+        });
+        
+        // Reset to first page if current page becomes empty
+        if (paginatedUsers.length === 1 && currentPage > 1) {
+          setCurrentPage(1);
         }
-      } catch (error) {
-
-        setMessage({ text: `Error deleting user: ${error.message}`, type: 'error' });
+        
+        // Refresh users list
+        await fetchUsers();
+      } else {
+        setMessage({ text: `Error deleting user: ${result.error}`, type: 'error' });
       }
+    } catch (error) {
+      setMessage({ text: `Error deleting user: ${error.message}`, type: 'error' });
     }
+    
+    setDeleteConfirmData(null);
   };
 
   // Function to delete user from Firebase
@@ -836,59 +914,73 @@ const AccountManagement = () => {
     const selectedUserList = filteredUsers.filter(user => selectedUsers.has(user.id));
     const userNames = selectedUserList.map(user => user.username).join(', ');
     
-    if (window.confirm(`Are you sure you want to delete ${selectedUsers.size} user(s): ${userNames}? This action cannot be undone.`)) {
-      try {
-        setMessage({ text: `Deleting ${selectedUsers.size} users...`, type: 'info' });
-        
-        let successCount = 0;
-        let errorCount = 0;
-        const errors = [];
-        
-        // Delete users one by one
-        for (const userId of selectedUsers) {
-          try {
-            const result = await deleteUserFromFirebase(userId);
-            if (result.success) {
-              successCount++;
-            } else {
-              errorCount++;
-              errors.push(result.error);
-            }
-          } catch (error) {
+    // Show custom confirmation modal
+    setDeleteConfirmData({
+      type: 'bulk',
+      userNames: userNames,
+      count: selectedUsers.size,
+      message: `Are you sure you want to delete ${selectedUsers.size} user(s): ${userNames}? This action cannot be undone.`
+    });
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!deleteConfirmData || deleteConfirmData.type !== 'bulk') return;
+    
+    setShowDeleteConfirmModal(false);
+    
+    try {
+      setMessage({ text: `Deleting ${selectedUsers.size} users...`, type: 'info' });
+      
+      let successCount = 0;
+      let errorCount = 0;
+      const errors = [];
+      
+      // Delete users one by one
+      for (const userId of selectedUsers) {
+        try {
+          const result = await deleteUserFromFirebase(userId);
+          if (result.success) {
+            successCount++;
+          } else {
             errorCount++;
-            errors.push(error.message);
+            errors.push(result.error);
           }
+        } catch (error) {
+          errorCount++;
+          errors.push(error.message);
         }
-        
-        if (errorCount === 0) {
-          setMessage({ text: `Successfully deleted ${successCount} users!`, type: 'success' });
-        } else if (successCount > 0) {
-          setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. Check console for details.`, type: 'warning' });
-        } else {
-          setMessage({ text: `Failed to delete any users. Check console for details.`, type: 'error' });
-        }
-        
-        // Clear selection
-        setSelectedUsers(new Set());
-        
-        // Refresh users list
-        await fetchUsers();
-        
-        // Reset to first page if needed
-        if (currentPage > 1) {
-          setCurrentPage(1);
-        }
-        
-        // Log errors for debugging
-        if (errors.length > 0) {
-
-        }
-        
-      } catch (error) {
-
-        setMessage({ text: `Error during bulk delete: ${error.message}`, type: 'error' });
       }
+      
+      if (errorCount === 0) {
+        setMessage({ text: `Successfully deleted ${successCount} users!`, type: 'success' });
+      } else if (successCount > 0) {
+        setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. Check console for details.`, type: 'warning' });
+      } else {
+        setMessage({ text: `Failed to delete any users. Check console for details.`, type: 'error' });
+      }
+      
+      // Clear selection
+      setSelectedUsers(new Set());
+      
+      // Refresh users list
+      await fetchUsers();
+      
+      // Reset to first page if needed
+      if (currentPage > 1) {
+        setCurrentPage(1);
+      }
+      
+      // Log errors for debugging
+      if (errors.length > 0) {
+        console.error('Bulk delete errors:', errors);
+      }
+      
+    } catch (error) {
+      setMessage({ text: `Error during bulk delete: ${error.message}`, type: 'error' });
     }
+    
+    setDeleteConfirmData(null);
   };
 
   // Checkbox selection functions
@@ -897,9 +989,17 @@ const AccountManagement = () => {
       // Select all users across ALL pages, not just current page
       const allUserIds = filteredUsers.map(user => user.id).filter(Boolean);
       setSelectedUsers(new Set(allUserIds));
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `All users selected (${allUserIds.length} users) in Account Management`, u); 
+      } catch (_) {}
     } else {
       // Deselect all users across all pages
       setSelectedUsers(new Set());
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `All users deselected in Account Management`, u); 
+      } catch (_) {}
     }
   };
 
@@ -907,8 +1007,18 @@ const AccountManagement = () => {
     const newSelectedUsers = new Set(selectedUsers);
     if (checked) {
       newSelectedUsers.add(userId);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        const user = AccountUsers.find(u => u.id === userId);
+        logActivity('account', `User ${user?.username || userId} selected in Account Management`, u); 
+      } catch (_) {}
     } else {
       newSelectedUsers.delete(userId);
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        const user = AccountUsers.find(u => u.id === userId);
+        logActivity('account', `User ${user?.username || userId} deselected in Account Management`, u); 
+      } catch (_) {}
     }
     setSelectedUsers(newSelectedUsers);
   };
@@ -928,6 +1038,12 @@ const AccountManagement = () => {
         setMessage({ text: 'No users data available for export', type: 'error' });
         return;
       }
+      
+      try { 
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('export', logMessages.export[format === 'csv' ? 'csvDownload' : 'pdfDownload'](u, 'account data'), u); 
+      } catch (_) {}
+      
       // Ensure CSV export has data
       localStorage.setItem('currentUsers', JSON.stringify(AccountUsers));
 
@@ -938,31 +1054,6 @@ const AccountManagement = () => {
       }
     } finally {
       setShowDownloadOptions(false);
-    }
-  };
-
-
-
-
-
-
-
-  // Function to check if user is currently logged in
-  const checkUserLoginStatus = async (userEmail) => {
-    try {
-      // Import Firebase Functions
-      const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app } = await import('./firebase');
-      
-      const functions = getFunctions(app);
-      const checkUserLoginStatusFunction = httpsCallable(functions, 'checkUserLoginStatus');
-      
-      // Call the Cloud Function to check user login status
-      const result = await checkUserLoginStatusFunction({ userEmail });
-      return result.data;
-    } catch (error) {
-
-      return { isLoggedIn: false, error: error.message };
     }
   };
 
@@ -1023,6 +1114,10 @@ const AccountManagement = () => {
                   onChange={(e) => {
                     e.stopPropagation(); // Prevent closing dropdowns when typing in search
                     setSearchTerm(e.target.value);
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Search performed: "${e.target.value}" in Account Management`, u); 
+                    } catch (_) {}
                   }}
             />
           </div>
@@ -1085,7 +1180,12 @@ const AccountManagement = () => {
           className="filter-button"
           onClick={(e) => {
             e.stopPropagation();
+            const isOpening = !showFilterDropdown;
             setShowFilterDropdown(!showFilterDropdown);
+            try { 
+              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+              logActivity('account', `Filter menu ${isOpening ? 'opened' : 'closed'} in Account Management`, u); 
+            } catch (_) {}
           }}
         >
           <FaFilter className="filter-icon" />
@@ -1101,6 +1201,10 @@ const AccountManagement = () => {
                     onChange={(e) => {
                       e.stopPropagation();
                       setSelectedFilterType(e.target.value);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('account', `Filter type changed to ${e.target.value} in Account Management`, u); 
+                      } catch (_) {}
                     }}
                   >
                     <option value="All">{t('accountManagement.filters.all_option')}</option>
@@ -1120,6 +1224,10 @@ const AccountManagement = () => {
                       onChange={(e) => {
                         e.stopPropagation();
                         setFilterValue(e.target.value);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('account', `Filter value changed to "${e.target.value}" in Account Management`, u); 
+                        } catch (_) {}
                       }}
                       className="filter-input"
                     />
@@ -1132,6 +1240,10 @@ const AccountManagement = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowFilterDropdown(false);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('account', `Filter applied in Account Management`, u); 
+                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.filters.apply_button')}
@@ -1143,6 +1255,10 @@ const AccountManagement = () => {
                       setSelectedFilterType('All');
                       setFilterValue('');
                       setShowFilterDropdown(false);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('account', `Filter cleared in Account Management`, u); 
+                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.filters.clear_button')}
@@ -1155,6 +1271,10 @@ const AccountManagement = () => {
               <button className="add-user-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
                 closeAllDropdowns(); // Close all other dropdowns first
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('account', `Add User form opened in Account Management`, u); 
+                } catch (_) {}
                 handleOpenAddUserForm();
               }}>
                 <FaUserPlus className="button-icon" />
@@ -1171,6 +1291,10 @@ const AccountManagement = () => {
               <button className="bulk-delete-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking bulk delete button
                 closeAllDropdowns(); // Close all other dropdowns first
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('account', `Bulk delete initiated for ${selectedUsers.size} users in Account Management`, u); 
+                } catch (_) {}
                 handleBulkDelete();
               }}>
                 <RiDeleteBin6Line className="button-icon" />
@@ -1210,30 +1334,50 @@ const AccountManagement = () => {
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedNameSort('A-Z'); 
                     setShowNameDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Sort changed to A-Z in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     A-Z (Ascending)
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedNameSort('Z-A'); 
                     setShowNameDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Sort changed to Z-A in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     Z-A (Descending)
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedNameSort('Newest'); 
                     setShowNameDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Sort changed to Newest in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     Newest First
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedNameSort('Oldest'); 
                     setShowNameDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Sort changed to Oldest in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     Oldest First
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedNameSort('None'); 
                     setShowNameDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Sort changed to None in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     No Sorting
                   </div>
@@ -1255,24 +1399,40 @@ const AccountManagement = () => {
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('All Roles'); 
                     setShowRoleDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Role filter changed to All Roles in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.all_roles')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Admin'); 
                     setShowRoleDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Role filter changed to Admin in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.admin')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Tech Officer'); 
                     setShowRoleDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Role filter changed to Tech Officer in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.tech_officer')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('Fish Farmer'); 
                     setShowRoleDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Role filter changed to Fish Farmer in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.fish_farmer')}
                   </div>
@@ -1297,18 +1457,30 @@ const AccountManagement = () => {
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedStatus('All Status'); 
                     setShowStatusDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Status filter changed to All Status in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.all_status')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedStatus('Active'); 
                     setShowStatusDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Status filter changed to Active in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.active')}
                   </div>
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedStatus('Inactive'); 
                     setShowStatusDropdown(false); 
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('account', `Status filter changed to Inactive in Account Management`, u); 
+                    } catch (_) {}
                   }}>
                     {t('accountManagement.dropdown_options.inactive')}
                   </div>
@@ -1685,7 +1857,12 @@ const AccountManagement = () => {
                     disabled={currentPage === 1}
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
-                      setCurrentPage(p => Math.max(1, p - 1));
+                      const newPage = Math.max(1, currentPage - 1);
+                      setCurrentPage(newPage);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('account', `Pagination: moved to page ${newPage} in Account Management`, u); 
+                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.pagination.prev_button')}
@@ -1701,7 +1878,12 @@ const AccountManagement = () => {
                     onClick={(e) => {
                       e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
                       if (!showPageNumbers) setShowPageNumbers(true);
-                      setCurrentPage(p => Math.min(totalPages, p + 1));
+                      const newPage = Math.min(totalPages, currentPage + 1);
+                      setCurrentPage(newPage);
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('account', `Pagination: moved to page ${newPage} in Account Management`, u); 
+                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.pagination.next_button')}
@@ -1725,6 +1907,40 @@ const AccountManagement = () => {
       </div>
         </div>
       </div>
+
+      {/* Custom Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="delete-confirm-modal-overlay" onClick={() => setShowDeleteConfirmModal(false)}>
+          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-confirm-header">
+              <h3>Confirm Deletion</h3>
+              <button 
+                className="close-modal-btn" 
+                onClick={() => setShowDeleteConfirmModal(false)}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="delete-confirm-body">
+              <p>{deleteConfirmData?.message}</p>
+            </div>
+            <div className="delete-confirm-actions">
+              <button 
+                className="cancel-btn" 
+                onClick={() => setShowDeleteConfirmModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="confirm-delete-btn" 
+                onClick={deleteConfirmData?.type === 'bulk' ? confirmBulkDelete : confirmDeleteUser}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

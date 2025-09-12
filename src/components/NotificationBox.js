@@ -12,7 +12,8 @@ import {
   onSnapshot,
   doc,
   setDoc,
-  serverTimestamp
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -292,12 +293,57 @@ const NotificationBox = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
+  const [assignedFarmName, setAssignedFarmName] = useState('');
 
   useEffect(() => {
     // Get current user from Firebase Auth
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      
+      // Resolve assigned farm name for current user
+      if (user) {
+        try {
+          // Try to get user data from mobileUsers collection first
+          const userDoc = await getDoc(doc(db, 'mobileUsers', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.farm) {
+              const farmDoc = await getDoc(doc(db, 'farms', userData.farm));
+              if (farmDoc.exists()) {
+                setAssignedFarmName(farmDoc.data().name || userData.farm);
+              } else {
+                setAssignedFarmName(userData.farm);
+              }
+            } else {
+              setAssignedFarmName('');
+            }
+          } else {
+            // Try users collection as fallback
+            const userDoc2 = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc2.exists()) {
+              const userData = userDoc2.data();
+              if (userData.farm) {
+                const farmDoc = await getDoc(doc(db, 'farms', userData.farm));
+                if (farmDoc.exists()) {
+                  setAssignedFarmName(farmDoc.data().name || userData.farm);
+                } else {
+                  setAssignedFarmName(userData.farm);
+                }
+              } else {
+                setAssignedFarmName('');
+              }
+            } else {
+              setAssignedFarmName('');
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch user farm data:', error);
+          setAssignedFarmName('');
+        }
+      } else {
+        setAssignedFarmName('');
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -399,9 +445,48 @@ const NotificationBox = () => {
         read: readStatusMap.get(fresh.id) || false
       }));
 
+      // Apply farm filtering if current user is assigned to a farm
+      let filtered = merged;
+      if (currentUser && assignedFarmName) {
+        // Get current user's farm ID for comparison
+        let currentUserFarm = null;
+        try {
+          const userDoc = await getDoc(doc(db, 'mobileUsers', currentUser.uid));
+          if (userDoc.exists()) {
+            currentUserFarm = userDoc.data().farm;
+          } else {
+            const userDoc2 = await getDoc(doc(db, 'users', currentUser.uid));
+            if (userDoc2.exists()) {
+              currentUserFarm = userDoc2.data().farm;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch current user farm for filtering:', error);
+        }
+
+        if (currentUserFarm) {
+          filtered = merged.filter(notification => {
+            const notificationFarm = notification.farmName;
+            const notificationFarmId = notification.reportData?.farm;
+            
+            // Check if notification farm matches current user's farm
+            const matchesFarm = notificationFarm === assignedFarmName ||
+                               notificationFarm === currentUserFarm ||
+                               notificationFarmId === currentUserFarm ||
+                               notificationFarmId === assignedFarmName ||
+                               notificationFarm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
+                               notificationFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                               notificationFarmId?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                               notificationFarmId?.toLowerCase() === assignedFarmName?.toLowerCase();
+            
+            return matchesFarm;
+          });
+        }
+      }
+
       // Sort and clean
       const cleaned = removeOldNotifications(
-        merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       );
 
       // Update state
@@ -418,7 +503,7 @@ const NotificationBox = () => {
     if (currentUser) {
       loadNotifications();
     }
-  }, [currentUser]);
+  }, [currentUser, assignedFarmName]);
 
   const toggleNotifications = (event) => {
     event.preventDefault();

@@ -1,21 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaExclamationTriangle, FaShieldAlt, FaInfoCircle, FaLightbulb } from 'react-icons/fa';
 import { RiAlertFill } from 'react-icons/ri';
 import { PiNoteFill } from 'react-icons/pi';
 import { IoTimeSharp } from 'react-icons/io5';
+import { FaFileExport } from 'react-icons/fa6';
+import { exportRiskOverviewCSV, exportRiskOverviewPDF, exportFarmPondCSV, exportFarmPondPDF } from '../utils/exportRiskReport';
 import { db } from '../firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { sanitizeTimestamp } from '../utils/securityUtils';
+import { logActivity, logMessages } from '../utils/logger';
+import { AuthContext } from '../contexts/AuthContext';
 import './RiskReportModal.css';
 
 const RiskReportModal = ({ isModal = false }) => {
   const { t } = useTranslation();
+  const { currentUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [farms, setFarms] = useState([]);
   const [detailsFarmKey, setDetailsFarmKey] = useState(null);
   const [actionsFarmKey, setActionsFarmKey] = useState(null);
   const [feedbackCache, setFeedbackCache] = useState({});
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [assignedFarmName, setAssignedFarmName] = useState('');
+
+  // Resolve assigned farm name for current user
+  useEffect(() => {
+    const resolveAssignedFarmName = async () => {
+      try {
+        if (currentUser?.farm) {
+          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (farmDoc.exists()) {
+            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+          } else {
+            setAssignedFarmName(currentUser.farm);
+          }
+        } else {
+          setAssignedFarmName('');
+        }
+      } catch (e) {
+        setAssignedFarmName(String(currentUser?.farm || ''));
+      }
+    };
+
+    resolveAssignedFarmName();
+  }, [currentUser?.farm]);
 
   const fetchFarmFeedback = async (farmName) => {
     try {
@@ -354,7 +383,28 @@ const RiskReportModal = ({ isModal = false }) => {
           ponds: f.predictions.length,
           has_reports: f.has_reports 
         })));
-        setFarms(farmsArray);
+
+        // Apply farm filtering if current user is assigned to a farm
+        let filteredFarms = farmsArray;
+        if (currentUser?.farm && assignedFarmName) {
+          const currentUserFarm = currentUser.farm;
+          filteredFarms = farmsArray.filter(farm => {
+            const farmKey = farm.farm_key;
+            const farmName = farm.farm_name;
+            
+            // Check if farm matches current user's assigned farm
+            const matchesFarm = farmKey === normalizeFarmName(currentUserFarm) ||
+                               farmKey === normalizeFarmName(assignedFarmName) ||
+                               farmName === currentUserFarm ||
+                               farmName === assignedFarmName ||
+                               farmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                               farmName?.toLowerCase() === assignedFarmName?.toLowerCase();
+            
+            return matchesFarm;
+          });
+        }
+
+        setFarms(filteredFarms);
       } catch (error) {
         console.error('Error loading farm risk data:', error);
       } finally {
@@ -363,7 +413,7 @@ const RiskReportModal = ({ isModal = false }) => {
     };
 
     fetchData();
-  }, []);
+  }, [currentUser?.farm, assignedFarmName]);
 
   // Lazy-fetch aggregate feedback per farm if missing from initial load
   useEffect(() => {
@@ -511,6 +561,79 @@ const RiskReportModal = ({ isModal = false }) => {
       </div>
 
       <div className="farm-overview-section">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
+          <button
+            onClick={() => {
+              const isOpening = !exportMenuOpen;
+              setExportMenuOpen(v => !v);
+              try { 
+                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in Risk Reports`, u); 
+              } catch (_) {}
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              color: '#1A4375',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <FaFileExport />
+            <span style={{ textDecoration: 'underline' }}>Export</span>
+          </button>
+          {exportMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 28,
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                zIndex: 10,
+                minWidth: 200,
+                overflow: 'hidden'
+              }}
+            >
+              <button
+                style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('export', logMessages.export.csvDownload(u, 'risk overview data'), u); 
+                  } catch (_) {}
+                  exportRiskOverviewCSV(farms, 'risk_overview.csv');
+                  setExportMenuOpen(false);
+                }}
+              >
+                Export CSV
+              </button>
+              <div style={{ height: 1, background: '#e5e7eb' }} />
+              <button
+                style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('export', logMessages.export.pdfDownload(u, 'risk overview data'), u); 
+                  } catch (_) {}
+                  exportRiskOverviewPDF(farms, 'risk_overview.pdf');
+                  setExportMenuOpen(false);
+                }}
+              >
+                Export PDF
+              </button>
+            </div>
+          )}
+        </div>
         {farms.length > 0 ? (
           <div className="farm-cards-grid">
             {farms.map(farm => (
@@ -590,10 +713,22 @@ const RiskReportModal = ({ isModal = false }) => {
                       </div>
                     )}
                     <div className="farm-actions">
-                      <button className="view-details-btn" onClick={() => setDetailsFarmKey(farm.farm_key)}>
+                      <button className="view-details-btn" onClick={() => {
+                        setDetailsFarmKey(farm.farm_key);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('report', `View Details opened for farm ${farm.farm_name} in Risk Reports`, u); 
+                        } catch (_) {}
+                      }}>
                         <span className="btn-icon"><IoTimeSharp /></span> {t('riskReportModal.viewDetails')}
                       </button>
-                      <button className="suggested-actions-btn" onClick={() => setActionsFarmKey(farm.farm_key)}>
+                      <button className="suggested-actions-btn" onClick={() => {
+                        setActionsFarmKey(farm.farm_key);
+                        try { 
+                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                          logActivity('report', `Suggested Actions opened for farm ${farm.farm_name} in Risk Reports`, u); 
+                        } catch (_) {}
+                      }}>
                         <span className="btn-icon"><PiNoteFill /></span> {t('riskReportModal.suggestedActions')}
                       </button>
               </div>
@@ -601,7 +736,12 @@ const RiskReportModal = ({ isModal = false }) => {
                 ) : (
                   <div className="no-reports-message">
                     <p>{t('riskReportModal.noRiskAssessmentData')}</p>
-                    <button className="add-report-btn">
+                    <button className="add-report-btn" onClick={() => {
+                      try { 
+                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                        logActivity('report', `Add Report clicked for farm ${farm.farm_name} in Risk Reports`, u); 
+                      } catch (_) {}
+                    }}>
                       <span className="btn-icon">➕</span> {t('riskReportModal.addReport')}
                     </button>
                           </div>
@@ -644,7 +784,13 @@ const RiskReportModal = ({ isModal = false }) => {
             <div className="farm-details-modal">
               <div className="farm-details-header">
                 <h3>{farm.farm_name} — {t('riskReportModal.pondPredictions')}</h3>
-                <button className="close-modal-btn" onClick={() => setDetailsFarmKey(null)}>✕</button>
+                <button className="close-modal-btn" onClick={() => {
+                  setDetailsFarmKey(null);
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('report', `Details modal closed in Risk Reports`, u); 
+                  } catch (_) {}
+                }}>✕</button>
               </div>
               <div className="farm-details-content">
                 <div className="farm-risk-summary" style={{ marginBottom: 12 }}>
@@ -696,7 +842,13 @@ const RiskReportModal = ({ isModal = false }) => {
             <div className="farm-details-modal">
               <div className="farm-details-header">
                 <h3>{farm.farm_name} — {t('riskReportModal.suggestedActions')}</h3>
-                <button className="close-modal-btn" onClick={() => setActionsFarmKey(null)}>✕</button>
+                <button className="close-modal-btn" onClick={() => {
+                  setActionsFarmKey(null);
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('report', `Suggested Actions modal closed in Risk Reports`, u); 
+                  } catch (_) {}
+                }}>✕</button>
               </div>
               <div className="farm-details-content">
                 <div className="recommended-actions">

@@ -97,51 +97,87 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
 });
 
 /**
- * Deletes a Firebase Auth user by email
+ * Deletes a Firebase Auth user by email (HTTP endpoint with CORS)
  */
-exports.deleteAuthUser = functions.https.onCall(async (data, context) => {
-  return cors(req, res, async () => {
-    console.log("=== STARTING DELETE AUTH USER FUNCTION ===");
-    console.log("Received data:", JSON.stringify(data));
-    console.log("Context auth:", context.auth);
+exports.deleteAuthUser = functions.https.onRequest(async (req, res) => {
+  // Set CORS headers
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
 
-    // Validate authentication
-    if (!context.auth) {
-      console.error("FAIL: Unauthenticated request");
-      throw new functions.https.HttpsError("unauthenticated", "You must be signed in");
-    }
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  console.log("=== STARTING DELETE AUTH USER FUNCTION ===");
+  console.log("Received data:", JSON.stringify(req.body));
+
+  try {
+    const { email, authToken } = req.body;
     
     // Validate request data
-    if (!data || !data.email) {
-      throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    // Verify authentication token
+    if (!authToken) {
+      res.status(401).json({ error: 'Authentication token required' });
+      return;
+    }
+
+    // Verify the token and get user info
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(authToken);
+    } catch (tokenError) {
+      console.error("Token verification failed:", tokenError);
+      res.status(401).json({ error: 'Invalid authentication token' });
+      return;
     }
 
     // Verify admin status
     try {
-      console.log("Checking admin status for UID:", context.auth.uid);
-      const isAdminUser = await isAdmin(context.auth.uid);
+      console.log("Checking admin status for UID:", decodedToken.uid);
+      const isAdminUser = await isAdmin(decodedToken.uid);
       console.log("Admin check result:", isAdminUser);
       
       if (!isAdminUser) {
         console.error("FAIL: User is not admin");
-        throw new functions.https.HttpsError("permission-denied", "Admin privileges required");
+        res.status(403).json({ error: 'Admin privileges required' });
+        return;
       }
     } catch (err) {
       console.error("Error during admin check:", err);
-      throw new functions.https.HttpsError("internal", "Failed to verify admin status");
+      res.status(500).json({ error: 'Failed to verify admin status' });
+      return;
     }
 
     // Delete Firebase Auth user
     try {
-      console.log("Attempting to delete Firebase Auth user with email:", data.email);
+      console.log("Attempting to delete Firebase Auth user with email:", email);
       
       // Find user by email
-      const userRecord = await admin.auth().getUserByEmail(data.email);
+      const userRecord = await admin.auth().getUserByEmail(email);
       console.log("Found user with UID:", userRecord.uid);
       
       // Delete the user
       await admin.auth().deleteUser(userRecord.uid);
       console.log("Firebase Auth user deleted successfully");
+      
+      res.status(200).json({ 
+        success: true, 
+        message: "User deleted from Firebase Auth successfully" 
+      });
       
     } catch (err) {
       console.error("FAIL: Error deleting Firebase Auth user:", err);
@@ -149,15 +185,20 @@ exports.deleteAuthUser = functions.https.onCall(async (data, context) => {
       // If user not found, that's okay - they might have been deleted already
       if (err.code === 'auth/user-not-found') {
         console.log("User not found in Firebase Auth - may have been deleted already");
-        return { success: true, message: "User not found in Auth (may have been deleted already)" };
+        res.status(200).json({ 
+          success: true, 
+          message: "User not found in Auth (may have been deleted already)" 
+        });
+        return;
       }
       
-      throw new functions.https.HttpsError("internal", "Failed to delete Firebase Auth user");
+      res.status(500).json({ error: 'Failed to delete Firebase Auth user' });
     }
 
-    console.log("=== FUNCTION COMPLETED SUCCESSFULLY ===");
-    return { success: true, message: "User deleted from Firebase Auth successfully" };
-  });
+  } catch (error) {
+    console.error("Unexpected error:", error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 /**

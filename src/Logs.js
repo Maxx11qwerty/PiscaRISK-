@@ -8,6 +8,8 @@ import NotificationBox from './components/NotificationBox';
 import { getAllLogs } from './utils/logger';
 import { exportLogs } from './utils/exportLogs';
 import Sidebar from './components/Sidebar';
+import { db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 import './Logs.css';
 
@@ -33,6 +35,7 @@ const Logs = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [selectedFilterType, setSelectedFilterType] = useState('All');
   const [filterValue, setFilterValue] = useState('');
+  const [assignedFarmName, setAssignedFarmName] = useState('');
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -107,6 +110,28 @@ const Logs = () => {
     };
   }, [sidebarOpen]);
 
+  // Resolve assigned farm name for current user
+  useEffect(() => {
+    const resolveAssignedFarmName = async () => {
+      try {
+        if (currentUser?.farm) {
+          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (farmDoc.exists()) {
+            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+          } else {
+            setAssignedFarmName(currentUser.farm);
+          }
+        } else {
+          setAssignedFarmName('');
+        }
+      } catch (e) {
+        setAssignedFarmName(String(currentUser?.farm || ''));
+      }
+    };
+
+    resolveAssignedFarmName();
+  }, [currentUser?.farm]);
+
   useEffect(() => {
     const fetchLogs = async () => {
       try {
@@ -138,6 +163,23 @@ const Logs = () => {
   useEffect(() => {
     // Filter logs based on search term and category
     let filtered = logs;
+    
+    // Farm filter - if current user is assigned to a farm, only show logs from users in the same farm
+    const isAssignedToFarm = currentUser?.farm;
+    if (isAssignedToFarm) {
+      filtered = filtered.filter(log => {
+        const logUserFarm = log.userFarm;
+        const currentUserFarm = currentUser.farm;
+        
+        // Check if log user's farm matches current user's farm
+        const matchesFarm = logUserFarm === currentUserFarm ||
+                           logUserFarm === assignedFarmName ||
+                           logUserFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                           logUserFarm?.toLowerCase() === assignedFarmName?.toLowerCase();
+        
+        return matchesFarm;
+      });
+    }
     
     if (searchTerm) {
       filtered = filtered.filter(log => {
@@ -175,7 +217,7 @@ const Logs = () => {
 
     setFilteredLogs(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [searchTerm, selectedCategory, logs, selectedFilterType, filterValue]);
+  }, [searchTerm, selectedCategory, logs, selectedFilterType, filterValue, currentUser?.farm, assignedFarmName]);
 
   // Pagination logic
   const indexOfLastLog = currentPage * logsPerPage;
