@@ -82,6 +82,10 @@ export default function AccountSettings() {
   } = useContext(AuthContext);
   const [profileImage, setProfileImage] = useState(currentUser?.profileImage || null);
   
+  // Sync local profileImage state with currentUser changes
+  useEffect(() => {
+    setProfileImage(currentUser?.profileImage || null);
+  }, [currentUser?.profileImage]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -358,6 +362,9 @@ const uploadImage = (file) => {
       // Log the activity
       logActivity('profile', logMessages.profile.imageUpdate(currentUser.username), currentUser.username);
       
+      // Refresh current user data to sync across all components
+      await refreshCurrentUser();
+      
       // Clear temporary states
       setTempProfileImage(null);
       setShowImagePreview(false);
@@ -514,6 +521,9 @@ const uploadImage = (file) => {
       
       // Log the activity
       logActivity('profile', `Profile picture removed by ${currentUser.username}`, currentUser.username);
+      
+      // Refresh current user data to sync across all components
+      await refreshCurrentUser();
       
       setSuccess(t('profileSettings.profilePictureRemoved'));
     } catch (error) {
