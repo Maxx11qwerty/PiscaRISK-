@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next'; // Add this import
 import './AccountManagement.css';
-import './AccountManagement.responsive.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
 import { IoMdArrowDropdown } from "react-icons/io";

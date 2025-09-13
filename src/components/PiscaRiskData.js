@@ -162,51 +162,6 @@ const PiscaRiskData = () => {
     return farms.flatMap(f => (f.predictions || []).map(p => ({ ...p, farm_name: f.name })));
   }, [farms]);
 
-  // Get average confidence for assigned farm from existing data
-  const assignedFarmConfidence = useMemo(() => {
-    console.log('Confidence Debug - Current User:', currentUser?.farm);
-    console.log('Confidence Debug - Assigned Farm Name:', assignedFarmName);
-    console.log('Confidence Debug - Farms Length:', farms.length);
-    console.log('Confidence Debug - Farms Data:', farms);
-    
-    if (!currentUser?.farm || !assignedFarmName || farms.length === 0) {
-      console.log('Confidence Debug - Early return: missing data');
-      return null;
-    }
-    
-    const assignedFarm = farms.find(farm => {
-      const farmKey = farm.key;
-      const farmName = farm.name;
-      const currentUserFarm = currentUser.farm;
-      
-      return farmKey === normalizeFarmName(currentUserFarm) ||
-             farmKey === normalizeFarmName(assignedFarmName) ||
-             farmName === currentUserFarm ||
-             farmName === assignedFarmName ||
-             farmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
-             farmName?.toLowerCase() === assignedFarmName?.toLowerCase();
-    });
-
-    console.log('Confidence Debug - Assigned Farm Found:', assignedFarm);
-
-    if (!assignedFarm) {
-      console.log('Confidence Debug - No assigned farm found');
-      return null;
-    }
-
-    // Use the existing avg_confidence from the farm data
-    const confidence = assignedFarm.avg_confidence;
-    console.log('Confidence Debug - Farm avg_confidence:', confidence);
-    
-    if (typeof confidence === 'number' && confidence > 0) {
-      const result = Math.round(confidence * 10) / 10; // Round to 1 decimal place
-      console.log('Confidence Debug - Using avg_confidence:', result);
-      return result;
-    }
-    
-    console.log('Confidence Debug - No valid avg_confidence found');
-    return null;
-  }, [farms, currentUser?.farm, assignedFarmName]);
 
   const { page, setPage, totalPages, pageItems } = usePaginated(allPonds);
 
@@ -268,58 +223,6 @@ const PiscaRiskData = () => {
       </div>
       
 
-      {/* Big Confidence Indication for Assigned Farm - FORCE SHOW FOR DEBUGGING */}
-      {(() => {
-        console.log('=== CONFIDENCE INDICATOR DEBUG ===');
-        console.log('Current User:', currentUser);
-        console.log('Current User Farm:', currentUser?.farm);
-        console.log('Assigned Farm Name:', assignedFarmName);
-        console.log('Should Show Confidence:', !!(currentUser?.farm));
-        console.log('================================');
-        return currentUser?.farm;
-      })() && (
-        <div className="prd-confidence-indicator">
-          <div className="prd-confidence-card">
-            <div className="prd-confidence-header">
-              <h3 className="prd-confidence-title">
-                {t('piscaRiskData.confidence.title', { farmName: assignedFarmName })}
-              </h3>
-              <div className="prd-confidence-subtitle">
-                {t('piscaRiskData.confidence.subtitle')}
-              </div>
-            </div>
-            {assignedFarmConfidence !== null ? (
-              <>
-                <div className="prd-confidence-value">
-                  <span className="prd-confidence-number">{assignedFarmConfidence}%</span>
-                  <div className="prd-confidence-bar">
-                    <div 
-                      className="prd-confidence-fill" 
-                      style={{ 
-                        width: `${assignedFarmConfidence}%`,
-                        backgroundColor: assignedFarmConfidence >= 80 ? '#22c55e' : 
-                                       assignedFarmConfidence >= 60 ? '#f59e0b' : '#ef4444'
-                      }}
-                    ></div>
-                  </div>
-                </div>
-                <div className="prd-confidence-description">
-                  {assignedFarmConfidence >= 80 ? t('piscaRiskData.confidence.high') :
-                   assignedFarmConfidence >= 60 ? t('piscaRiskData.confidence.medium') : 
-                   t('piscaRiskData.confidence.low')}
-                </div>
-              </>
-            ) : (
-              <div className="prd-confidence-no-data">
-                <div className="prd-confidence-no-data-icon">📊</div>
-                <div className="prd-confidence-no-data-text">
-                  {t('piscaRiskData.confidence.noData')}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
       
       <div className="prd-grid">
         <Section title={t('piscaRiskData.sections.farms.title')} description={t('piscaRiskData.sections.farms.description')}>

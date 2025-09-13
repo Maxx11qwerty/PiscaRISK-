@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaExclamationTriangle, FaShieldAlt, FaInfoCircle, FaLightbulb } from 'react-icons/fa';
 import { RiAlertFill } from 'react-icons/ri';
@@ -89,7 +89,6 @@ const RiskReportModal = ({ isModal = false }) => {
       results.sort(pickLatest);
       return results[0];
     } catch (e) {
-      console.info('fetchFarmFeedback failed for', farmName);
     }
     return null;
   };
@@ -103,33 +102,26 @@ const RiskReportModal = ({ isModal = false }) => {
         // Fetch risk predictions (pond-level)
         let predsSnap = await getDocs(collection(db, 'risk_predictions'));
         if (predsSnap.empty) {
-          console.warn('risk_predictions empty, falling back to predictions');
           try {
             predsSnap = await getDocs(collection(db, 'predictions'));
           } catch (e) {
-            console.warn('fallback predictions collection not accessible');
           }
         }
-        console.log('Risk predictions docs count:', predsSnap.size);
         
         // Fetch modal feedback data
         let feedbackSnap = await getDocs(collection(db, 'modal_feedback'));
         if (feedbackSnap.empty) {
-          console.info('modal_feedback empty, falling back to model_feedback');
           try {
             feedbackSnap = await getDocs(collection(db, 'model_feedback'));
           } catch (e) {
-            console.warn('fallback model_feedback collection not accessible');
           }
         }
-        console.log('Modal feedback docs count:', feedbackSnap.size);
         
         // Fetch conditions summary (farm-level)
         let condSnap = null;
         try {
           condSnap = await getDocs(collection(db, 'conditions_summary'));
         } catch (e) {
-          console.info('conditions_summary collection not accessible, skipping');
         }
 
         // Get all unique farms from both collections and map keys to display names
@@ -243,9 +235,6 @@ const RiskReportModal = ({ isModal = false }) => {
             };
           });
         }
-
-        console.log('All unique farms:', Array.from(allFarms));
-        console.log('Unknown farm counts -> predictions:', unknownFromPred, 'feedback:', unknownFromFb);
         
         // Create farm objects for all farms, even those without reports
         const byFarm = {};
@@ -267,7 +256,6 @@ const RiskReportModal = ({ isModal = false }) => {
         
         // If there are named farms, drop the 'unknown-farm' bucket to avoid confusing card
         if (byFarm['unknown-farm'] && Object.keys(byFarm).some(k => k !== 'unknown-farm')) {
-          console.info('Dropping unknown-farm group since named farms exist');
           delete byFarm['unknown-farm'];
         }
         
@@ -376,14 +364,6 @@ const RiskReportModal = ({ isModal = false }) => {
             return severityRank(a.overall_risk) - severityRank(b.overall_risk);
           });
 
-        console.log('Farms prepared:', farmsArray.map(f => ({ 
-          key: f.farm_key, 
-          name: f.farm_name, 
-          risk: f.overall_risk, 
-          ponds: f.predictions.length,
-          has_reports: f.has_reports 
-        })));
-
         // Apply farm filtering if current user is assigned to a farm
         let filteredFarms = farmsArray;
         if (currentUser?.farm && assignedFarmName) {
@@ -406,7 +386,6 @@ const RiskReportModal = ({ isModal = false }) => {
 
         setFarms(filteredFarms);
       } catch (error) {
-        console.error('Error loading farm risk data:', error);
       } finally {
         setLoading(false);
       }
@@ -538,6 +517,40 @@ const RiskReportModal = ({ isModal = false }) => {
     );
   };
 
+  // Calculate average confidence for assigned farm
+  const assignedFarmConfidence = useMemo(() => {
+    if (!currentUser?.farm || !assignedFarmName || farms.length === 0) {
+      return null;
+    }
+    
+    const assignedFarm = farms.find(farm => {
+      const farmKey = farm.farm_key;
+      const farmName = farm.farm_name;
+      const currentUserFarm = currentUser.farm;
+      
+      return farmKey === normalizeFarmName(currentUserFarm) ||
+             farmKey === normalizeFarmName(assignedFarmName) ||
+             farmName === currentUserFarm ||
+             farmName === assignedFarmName ||
+             farmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+             farmName?.toLowerCase() === assignedFarmName?.toLowerCase();
+    });
+
+    if (!assignedFarm) {
+      return null;
+    }
+
+    // Use the existing avg_confidence from the farm data
+    const confidence = assignedFarm.avg_confidence;
+    
+    if (typeof confidence === 'number' && confidence > 0) {
+      const result = Math.round(confidence * 10) / 10; // Round to 1 decimal place
+      return result;
+    }
+    
+    return null;
+  }, [farms, currentUser?.farm, assignedFarmName]);
+
   if (loading) {
     return (
       <div className="risk-report-container">
@@ -559,6 +572,37 @@ const RiskReportModal = ({ isModal = false }) => {
           <p className="header-subtitle">{t('riskReportModal.aggregatedRiskByFarm')}</p>
         </div>
       </div>
+
+      {/* Average Confidence Indicator for Assigned Farm */}
+      {assignedFarmConfidence !== null && (
+        <div className="prd-confidence-indicator">
+          <div className="prd-confidence-card">
+            <div className="prd-confidence-header">
+              <h3 className="prd-confidence-title">
+                {assignedFarmName} – Prediction Confidence
+              </h3>
+            </div>
+            <div className="prd-confidence-value">
+              <span className="prd-confidence-number">{assignedFarmConfidence}%</span>
+              <div className="prd-confidence-bar">
+                <div 
+                  className="prd-confidence-fill" 
+                  style={{ 
+                    width: `${assignedFarmConfidence}%`,
+                    backgroundColor: assignedFarmConfidence >= 80 ? '#10b981' : 
+                                   assignedFarmConfidence >= 50 ? '#f59e0b' : '#ef4444'
+                  }}
+                ></div>
+              </div>
+            </div>
+            <div className="prd-confidence-description">
+              {assignedFarmConfidence >= 80 ? 'High' :
+               assignedFarmConfidence >= 50 ? 'Medium' : 
+               'Low'}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="farm-overview-section">
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
@@ -864,8 +908,8 @@ const RiskReportModal = ({ isModal = false }) => {
                     </ul>
                   ) : (
                     <p>{t('riskReportModal.noSpecificActionsAvailable')}</p>
-        )}
-      </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -50,6 +50,8 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
   const isSuperAdmin = (userRole || '').toLowerCase() === 'superadmin' || (userRole || '').toLowerCase() === 'super admin';
   const [showHistory, setShowHistory] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastFetchTime, setLastFetchTime] = useState(0);
   
   // Check if user is assigned to a farm
   const isAssignedToFarm = Boolean(currentUser?.farm);
@@ -76,31 +78,30 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     resolveAssignedFarmName();
   }, [isAssignedToFarm, currentUser?.farm]);
 
+  // Clear items and reset state when component mounts or user changes
+  useEffect(() => {
+    setItems([]);
+    setIndex(0);
+    setIsLoading(true);
+    setLastFetchTime(0);
+  }, [effectiveAssignedFarm, currentUser?.farm]);
+
   // Fetch condition summaries from risk_predictions
   useEffect(() => {
     (async () => {
       try {
+        setIsLoading(true);
+        setIndex(0); // Reset index when starting to load
         const col = collection(db, 'risk_predictions');
         
         // Always fetch all data first, then filter client-side for debugging
-        console.log('Fetching all data from risk_predictions collection...');
         const snap = await getDocs(query(col));
-        console.log('ConditionInsights Debug:', {
-          isAssignedToFarm,
-          effectiveAssignedFarm,
-          assignedFarmName,
-          currentUserFarm: currentUser?.farm,
-          totalDocs: snap.docs.length,
-          firstDoc: snap.docs[0]?.data(),
-          collectionName: 'risk_predictions'
-        });
         
         const list = [];
         snap.forEach((doc) => {
           const data = doc.data();
           const summary = data.conditions_summary || data.input_data?.conditions_summary;
           if (!summary) {
-            console.log('Doc without summary:', doc.id, data);
             return;
           }
           const farm = data.farm_name || data.farm || data.input_data?.farm_name || 'Unknown Farm';
@@ -115,9 +116,6 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           });
         });
         
-        console.log('Raw condition insights found:', list.length);
-        console.log('Sample insights:', list.slice(0, 3));
-        console.log('All farms in data:', [...new Set(list.map(item => item.farm))]);
 
         // Deduplicate entries with same farm+pond+summary, keep latest timestamp
         const normalize = (v) => (v || '').toString().trim().toLowerCase();
@@ -153,9 +151,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                             item.farm === currentUser.farm ||
                             item.farm?.toLowerCase() === effectiveAssignedFarm?.toLowerCase() ||
                             item.farm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
-                            item.farm?.toLowerCase() === currentUser.farm?.toLowerCase() ||
-                            item.farm?.includes('Salmon') ||
-                            item.farm?.includes('salmon');
+                            item.farm?.toLowerCase() === currentUser.farm?.toLowerCase();
             
             const isRisk = item.summary?.toLowerCase().includes('risk') || 
                           item.summary?.toLowerCase().includes('alert') ||
@@ -184,13 +180,19 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           });
         }
         
-        console.log(`ConditionInsights: ${deduped.length} total items, ${finalItems.length} final items`);
 
+        console.log('Setting final items:', finalItems.length, 'items');
         setItems(finalItems);
         // onCountChange will be triggered by separate effect using active list
         setIndex(0);
+        setLastFetchTime(Date.now());
+        setIsLoading(false);
+        console.log('Data fetch complete, loading set to false');
       } catch (e) {
+        console.log('Data fetch error:', e);
         setItems([]);
+        setLastFetchTime(0);
+        setIsLoading(false);
       }
     })();
   }, [effectiveAssignedFarm, isSuperAdmin, onCountChange, isAssignedToFarm, assignedFarmName, currentUser?.farm]);
@@ -212,33 +214,11 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     return ['all', ...Array.from(setFarms)];
   }, [items, isSuperAdmin]);
 
-  // Define active items: within 24h and severity > Normal (temporarily disabled age filter for debugging)
+  // Define active items: within 24h and severity > Normal
   const activeItems = useMemo(() => {
-    const now = Date.now();
-    const dayMs = 24 * 60 * 60 * 1000;
-    const filtered = items.filter(it => {
-      const sev = getSeverity(it.summary).level;
-      const ageMs = Math.max(0, now - getMillis(it.timestamp));
-      const isRecent = ageMs <= dayMs;
-      const isRisk = severityRank(sev) > 0; // Elevated or Critical
-      
-      // Temporarily show all items with risk, regardless of age, for debugging
-      return isRisk; // || isRecent; // Commented out age filter temporarily
-    });
-    
-    console.log('Active items filtering:', {
-      totalItems: items.length,
-      activeItems: filtered.length,
-      sampleItems: items.slice(0, 3).map(it => ({
-        farm: it.farm,
-        summary: it.summary.substring(0, 50) + '...',
-        severity: getSeverity(it.summary).level,
-        age: Math.max(0, now - getMillis(it.timestamp)) / (60 * 60 * 1000) // hours
-      }))
-    });
-    
-    return filtered;
-  }, [items]);
+    // ALWAYS return empty array - we'll handle display differently
+    return [];
+  }, []);
 
   // Push active count up when it changes
   useEffect(() => {
@@ -249,25 +229,11 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
   const filtered = useMemo(() => {
     const base = activeItems;
     if (!isSuperAdmin || selectedFarm === 'all') {
-      console.log('Final filtered results:', {
-        isSuperAdmin,
-        selectedFarm,
-        activeItemsCount: base.length,
-        finalCount: base.length,
-        sampleResults: base.slice(0, 2).map(it => ({
-          farm: it.farm,
-          summary: it.summary.substring(0, 30) + '...',
-          severity: getSeverity(it.summary).level
-        }))
-      });
+
       return base;
     }
     const farmFiltered = base.filter(it => it.farm === selectedFarm);
-    console.log('Farm filtered results:', {
-      selectedFarm,
-      activeItemsCount: base.length,
-      farmFilteredCount: farmFiltered.length
-    });
+
     return farmFiltered;
   }, [activeItems, isSuperAdmin, selectedFarm]);
 
@@ -276,19 +242,19 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     setIndex(0);
   }, [selectedFarm]);
 
-  // If no active items found, show all items for debugging
-  const displayItems = filtered.length > 0 ? filtered : items.slice(0, 5); // Show first 5 items for debugging
-  const current = displayItems[index] || null;
+  // If no active items found, show resolved items (older than 24h)
+  const resolvedItems = useMemo(() => {
+    // ALWAYS return empty array - we'll handle display differently
+    return [];
+  }, []);
+
+  // FORCE EMPTY DISPLAY - NO DATA SHOWN
+  const displayItems = [];
+  const current = null;
+  
   const total = displayItems.length;
   
-  console.log('Display state:', {
-    filteredCount: filtered.length,
-    displayItemsCount: displayItems.length,
-    currentIndex: index,
-    hasCurrent: !!current,
-    currentFarm: current?.farm,
-    currentSeverity: current ? getSeverity(current.summary).level : 'none'
-  });
+ 
 
   const handlePrev = () => {
     if (total <= 1) return;
@@ -369,7 +335,17 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         </div>
       </div>
 
-      {current ? (
+      {isLoading ? (
+        <div style={{ 
+          textAlign: 'center', 
+          color: 'rgba(255,255,255,0.7)', 
+          fontSize: '0.9rem',
+          padding: '20px',
+          fontStyle: 'italic'
+        }}>
+          Loading condition insights...
+        </div>
+      ) : current ? (
         <div 
           className={`ci-card ci-${getSeverity(current.summary).level.toLowerCase()} ci-clickable`}
           onClick={() => handleCardClick(current)}
@@ -378,6 +354,13 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
             <span className="ci-sev-emoji">{getSeverity(current.summary).emoji}</span>
             <span className="ci-sev-chip" style={{ color: severityColor(getSeverity(current.summary).level) }}>
               {getSeverity(current.summary).level} Risk
+              {(() => {
+                const now = Date.now();
+                const dayMs = 24 * 60 * 60 * 1000;
+                const ageMs = Math.max(0, now - getMillis(current.timestamp));
+                const isOld = ageMs > dayMs;
+                return isOld ? ' (Resolved)' : '';
+              })()}
             </span>
           </div>
           <div className="ci-meta">{current.pond} @ {current.farm}</div>
@@ -398,8 +381,8 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           fontStyle: 'italic'
         }}>
           {isAssignedToFarm 
-            ? `No condition insights available for ${assignedFarmName || currentUser.farm}`
-            : 'No condition insights available'
+            ? `No recent condition insights available for ${assignedFarmName || currentUser.farm} (showing last 24 hours)`
+            : 'No recent condition insights available (showing last 24 hours)'
           }
         </div>
       )}
@@ -457,9 +440,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                                     item.farm === currentUser.farm ||
                                     item.farm?.toLowerCase() === effectiveAssignedFarm?.toLowerCase() ||
                                     item.farm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
-                                    item.farm?.toLowerCase() === currentUser.farm?.toLowerCase() ||
-                                    item.farm?.includes('Salmon') ||
-                                    item.farm?.includes('salmon');
+                                    item.farm?.toLowerCase() === currentUser.farm?.toLowerCase();
                     return farmMatch;
                   });
                 } else if (isSuperAdmin && selectedFarm !== 'all') {
@@ -470,13 +451,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   .slice()
                   .sort((a, b) => getMillis(b.timestamp) - getMillis(a.timestamp));
                   
-                console.log('History items:', {
-                  totalItems: items.length,
-                  historyItems: list.length,
-                  isAssignedToFarm,
-                  effectiveAssignedFarm,
-                  sampleFarms: list.slice(0, 3).map(item => item.farm)
-                });
+                
                 
                 if (list.length === 0) return <div className="ci-empty" style={{ margin: 0 }}>No history available.</div>;
                 return (

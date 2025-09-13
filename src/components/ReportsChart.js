@@ -33,7 +33,6 @@ function ReportsChart() {
             setAssignedFarmName(currentUser.farm);
           }
         } catch (error) {
-          console.error('Error resolving farm name:', error);
           setAssignedFarmName(currentUser.farm);
         }
       }
@@ -54,10 +53,6 @@ function ReportsChart() {
           const allReportsQuery = query(reportsRef, orderBy('timestamp', 'desc'));
           const allReportsSnapshot = await getDocs(allReportsQuery);
           
-          console.log('All reports sample:', allReportsSnapshot.docs.slice(0, 3).map(doc => ({
-            id: doc.id,
-            data: doc.data()
-          })));
           
           // Try different farm field names and values
           const farmFields = ['farm', 'farm_name', 'farmId', 'farm_id'];
@@ -73,12 +68,10 @@ function ReportsChart() {
               );
               const testSnapshot = await getDocs(q);
               if (testSnapshot.docs.length > 0) {
-                console.log(`Found ${testSnapshot.docs.length} reports using field '${field}' with value '${currentUser.farm}'`);
                 foundMatchingReports = true;
                 break;
               }
             } catch (error) {
-              console.log(`Field '${field}' with farm ID failed:`, error.message);
             }
           }
           
@@ -93,19 +86,16 @@ function ReportsChart() {
                 );
                 const testSnapshot = await getDocs(q);
                 if (testSnapshot.docs.length > 0) {
-                  console.log(`Found ${testSnapshot.docs.length} reports using field '${field}' with farm name '${assignedFarmName}'`);
                   foundMatchingReports = true;
                   break;
                 }
               } catch (error) {
-                console.log(`Field '${field}' with farm name failed:`, error.message);
               }
             }
           }
           
           // If still no matches, fall back to all reports
           if (!foundMatchingReports) {
-            console.warn('No matching reports found for assigned farm, showing all reports');
             q = query(
               reportsRef,
               orderBy('timestamp', 'desc')
@@ -120,19 +110,6 @@ function ReportsChart() {
         }
         
         const querySnapshot = await getDocs(q);
-        console.log('ReportsChart Debug:', {
-          isAssignedToFarm,
-          currentUserFarm: currentUser?.farm,
-          totalReports: querySnapshot.docs.length,
-          firstReport: querySnapshot.docs[0]?.data(),
-          allReportFarms: querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            farm: doc.data().farm,
-            farm_name: doc.data().farm_name,
-            farmId: doc.data().farmId,
-            allFields: Object.keys(doc.data())
-          }))
-        });
         
         let allReports = querySnapshot.docs.map(doc => {
           const data = doc.data();
@@ -148,11 +125,9 @@ function ReportsChart() {
             } else if (data.timestamp) {
               date = new Date(data.timestamp);
             } else {
-              console.warn('No valid timestamp found for report:', doc.id);
               date = new Date(); // Fallback to current date
             }
           } catch (error) {
-            console.warn('Error parsing timestamp for report:', doc.id, error);
             date = new Date(); // Fallback to current date
           }
           
@@ -174,7 +149,6 @@ function ReportsChart() {
                             report.farm === assignedFarmName;
             return farmMatch;
           });
-          console.log(`Client-side filtering: ${originalLength} total reports, ${allReports.length} matching assigned farm`);
         }
 
         let chartData = [];
@@ -259,17 +233,14 @@ function ReportsChart() {
             break;
         }
 
-        console.log('Processed chart data:', chartData);
         
         // If no data found, show a message or sample data
         if (chartData.length === 0) {
-          console.log('No chart data found, showing empty state');
           // You could set some default data here if needed
         }
         
         setData(chartData);
       } catch (error) {
-        console.error('Error fetching reports:', error);
         setData([]); // Set empty data on error
       } finally {
         setLoading(false);

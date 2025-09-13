@@ -57,15 +57,20 @@ export const exportConditionInsightsPDF = (items, filename = 'condition_insights
           : 'Normal';
         return [it.farm || '', it.pond || '', sev, summary, normalizeTimestamp(it.timestamp)];
       }),
-      styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
+      styles: { 
+        fontSize: 9, 
+        cellPadding: 3, 
+        overflow: 'linebreak',
+        cellWidth: 'wrap'
+      },
       headStyles: { fillColor: [26, 67, 117], halign: 'left' },
       margin: { top: 72, left: 24, right: 24, bottom: 30 },
       columnStyles: {
-        0: { cellWidth: 110 },
-        1: { cellWidth: 110 },
-        2: { cellWidth: 80, halign: 'center' },
-        3: { cellWidth: 360 },
-        4: { cellWidth: 130 }
+        0: { cellWidth: 80 },  // Farm - reduced from 110
+        1: { cellWidth: 80 },  // Pond - reduced from 110
+        2: { cellWidth: 70, halign: 'center' },  // Severity - reduced from 80
+        3: { cellWidth: 280, overflow: 'linebreak' }, // Summary - reduced from 360, with line break
+        4: { cellWidth: 100 }  // Timestamp - reduced from 130
       },
       didDrawPage: (data) => {
         doc.setFontSize(14);

@@ -46,12 +46,6 @@ export const logActivity = async (category, message, username, originalTimestamp
 
   // Debug: Log timestamp creation for important categories
   if (category === 'export' || category === 'feedback') {
-    console.log('logActivity timestamp creation:', {
-      category,
-      originalTimestamp,
-      finalTimestamp: timestamp,
-      username
-    });
   }
 
   // Create log object with unique ID
@@ -67,13 +61,6 @@ export const logActivity = async (category, message, username, originalTimestamp
 
   // Debug logging for timestamp issues
   if (category === 'export' || category === 'feedback') {
-    console.log(`Creating log entry:`, {
-      category,
-      message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-      username,
-      timestamp,
-      originalTimestamp: originalTimestamp
-    });
   }
 
   try {
@@ -99,9 +86,6 @@ export const logActivity = async (category, message, username, originalTimestamp
 export const getAllLogs = async () => {
   try {
     const logs = await getData('systemLogs');
-    
-    // Debug: Log the raw data from Firebase
-    console.log('Raw logs from Firebase:', logs.slice(0, 3)); // Show first 3 logs
     
     // Fetch user data to get roles and mobile user status from users collection
     let users = [];
@@ -172,15 +156,7 @@ export const getAllLogs = async () => {
         }
       }
       
-      // Debug: Log timestamp processing for first few logs
       if (logs.indexOf(log) < 3) {
-        console.log('Processing log timestamp:', {
-          id: log.id,
-          originalTimestamp: log.timestamp,
-          validTimestamp: validTimestamp,
-          category: log.category,
-          username: log.username
-        });
       }
       
       return {
@@ -603,13 +579,6 @@ export const logReportSubmission = async (reportData, username, source = 'web') 
     // Log the activity with the correct timestamp
     await logActivity('report', logMessage, username, timestampToUse);
     
-    console.log('Report submission logged with correct timestamp:', {
-      username,
-      source,
-      submissionTimestamp: timestampToUse,
-      reportId: reportData.id || 'New Report'
-    });
-    
   } catch (error) {
     console.error('Error logging report submission:', error);
     // Fallback: log with current timestamp if there's an error
@@ -620,7 +589,7 @@ export const logReportSubmission = async (reportData, username, source = 'web') 
 // Function to retroactively log existing reports with correct timestamps
 export const logExistingReports = async (reports) => {
   try {
-    console.log(`Starting to log ${reports.length} existing reports with correct timestamps...`);
+   
     
     for (const report of reports) {
       if (report.timestamp && !report.logged) { // Only log if not already logged
@@ -631,7 +600,7 @@ export const logExistingReports = async (reports) => {
       }
     }
     
-    console.log('Finished logging existing reports with correct timestamps');
+   
   } catch (error) {
     console.error('Error logging existing reports:', error);
   }
@@ -640,7 +609,7 @@ export const logExistingReports = async (reports) => {
 // Function to clean up incorrect report logs (use with caution)
 export const cleanupIncorrectReportLogs = async () => {
   try {
-    console.log('Starting cleanup of incorrect report logs...');
+   
     
     // Get all logs
     const allLogs = await getAllLogs();
@@ -649,21 +618,15 @@ export const cleanupIncorrectReportLogs = async () => {
     // These are logs that were created when fetching reports instead of when submitting them
     const reportLogs = allLogs.filter(log => log.category === 'report');
     
-    console.log(`Found ${reportLogs.length} report logs to check`);
+   
     
     // For now, just log the report logs so you can manually review them
     // In a production environment, you might want to implement more sophisticated cleanup
     reportLogs.forEach(log => {
-      console.log('Report log found:', {
-        id: log.id,
-        timestamp: log.timestamp,
-        message: log.message,
-        username: log.username
-      });
+     
     });
     
-    console.log('Report log cleanup check completed. Review the logs above to identify incorrect entries.');
-    console.log('To remove incorrect logs, you may need to manually delete them from Firebase or implement a cleanup strategy.');
+   
     
   } catch (error) {
     console.error('Error during report log cleanup:', error);
@@ -673,7 +636,7 @@ export const cleanupIncorrectReportLogs = async () => {
 // Function to remove specific incorrect report logs
 export const removeIncorrectReportLogs = async (logIds) => {
   try {
-    console.log(`Attempting to remove ${logIds.length} incorrect report logs...`);
+   
     
     // Import Firebase functions needed for deletion
     const { doc, deleteDoc } = await import('firebase/firestore');
@@ -685,13 +648,13 @@ export const removeIncorrectReportLogs = async (logIds) => {
       try {
         await deleteDoc(doc(db, 'systemLogs', logId));
         removedCount++;
-        console.log(`Removed log: ${logId}`);
+       
       } catch (error) {
         console.error(`Failed to remove log ${logId}:`, error);
       }
     }
     
-    console.log(`Successfully removed ${removedCount} out of ${logIds.length} incorrect report logs`);
+   
     return removedCount;
     
   } catch (error) {
@@ -704,16 +667,12 @@ export const removeIncorrectReportLogs = async (logIds) => {
 // Run this in the browser console to identify and fix incorrect report log timestamps
 export const fixReportLogsFromConsole = async () => {
   try {
-    console.log('🔍 Starting report log timestamp fix...');
-    console.log('This utility will help identify and fix incorrect report log timestamps');
-    
-    // Get all logs
+
     const allLogs = await getAllLogs();
-    
     // Find report logs
     const reportLogs = allLogs.filter(log => log.category === 'report');
     
-    console.log(`📊 Found ${reportLogs.length} report logs`);
+   
     
     // Group logs by date to identify patterns
     const logsByDate = {};
@@ -725,9 +684,8 @@ export const fixReportLogsFromConsole = async () => {
       logsByDate[date].push(log);
     });
     
-    console.log('📅 Report logs grouped by date:');
+   
     Object.keys(logsByDate).forEach(date => {
-      console.log(`  ${date}: ${logsByDate[date].length} logs`);
     });
     
     // Identify potentially incorrect logs (logs created today for old reports)
@@ -737,25 +695,13 @@ export const fixReportLogsFromConsole = async () => {
       .filter(date => date !== today)
       .flatMap(date => logsByDate[date]);
     
-    console.log(`\n⚠️  Potentially incorrect logs (created today): ${todayLogs.length}`);
-    console.log(`✅ Potentially correct logs (other dates): ${otherDayLogs.length}`);
-    
     if (todayLogs.length > 0) {
-      console.log('\n🔍 Today\'s report logs (likely incorrect):');
+     
       todayLogs.forEach(log => {
-        console.log(`  ID: ${log.id}`);
-        console.log(`  Message: ${log.message}`);
-        console.log(`  Username: ${log.username}`);
-        console.log(`  Timestamp: ${log.timestamp}`);
-        console.log('  ---');
       });
-      
-      console.log('\n💡 To remove these incorrect logs, run:');
-      console.log('removeIncorrectReportLogs([logId1, logId2, ...])');
-      console.log('Replace logId1, logId2, etc. with the actual log IDs from above');
     }
     
-    console.log('\n✅ Report log analysis complete!');
+   
     
   } catch (error) {
     console.error('❌ Error analyzing report logs:', error);
