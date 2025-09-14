@@ -113,11 +113,37 @@ export const AuthProvider = ({ children }) => {
         lastModified: serverTimestamp()
       });
 
-      // Update current user data
-      setCurrentUser(prev => ({
-        ...prev,
-        phoneVerified: true
-      }));
+      // Refresh the complete user data from Firestore to ensure all fields are properly loaded
+      const updatedUserDoc = await getDoc(userRef);
+      if (updatedUserDoc.exists()) {
+        const updatedUserData = updatedUserDoc.data();
+        
+        // Set the complete current user data with all fields
+        // This ensures the user sees their proper name and data after phone verification
+        setCurrentUser({
+          uid: userId,
+          email: userData.email, // Use the email from userData since auth.currentUser might be null
+          username: updatedUserData.username,
+          role: updatedUserData.role,
+          profileImage: updatedUserData.profileImage || null,
+          dateJoined: updatedUserData.dateJoined || new Date().toISOString().split('T')[0],
+          emailVerified: true, // Phone verification implies email is verified
+          status: updatedUserData.status,
+          phoneVerified: true, // This is the key field we just updated
+          // Add data from main user document
+          address: updatedUserData.address || '',
+          fullName: updatedUserData.fullName || '',
+          contact: updatedUserData.contactNumber || '',
+          // Add farm information
+          farm: updatedUserData.farm || null
+        });
+      } else {
+        // Fallback: just update the phoneVerified field if document doesn't exist
+        setCurrentUser(prev => ({
+          ...prev,
+          phoneVerified: true
+        }));
+      }
 
       // Close the modal
       closePhoneVerificationModal();
