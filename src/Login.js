@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'; // Add this import
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import EmailVerificationModal from './components/EmailVerificationModal';
+import OTPVerification from './components/OtpVerification';
 import "./Login.css";
 import "./Login.responsive.css";
 import { logActivity } from './utils/logger';
@@ -48,13 +49,18 @@ export default function Login() {
   });
   
   const { 
+    currentUser,
     login, 
     signInWithGoogle, 
     resetPassword, 
     emailVerificationModal,
     openEmailVerificationModal,
     resendVerificationEmail,
-    closeEmailVerificationModal
+    closeEmailVerificationModal,
+    phoneVerificationModal,
+    openPhoneVerificationModal,
+    closePhoneVerificationModal,
+    handlePhoneVerificationSuccess
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -64,6 +70,7 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
   const [contactError, setContactError] = useState("");
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -77,7 +84,16 @@ export default function Login() {
   // Contact number validation
   const validateContactNumber = (contact) => {
     if (!contact) return t('login.contactNumberRequired');
-    if (!/^\d{11}$/.test(contact)) return t('login.contactNumberInvalid');
+    // Check if it's a valid Philippine phone number (11 digits starting with 09)
+    if (!/^09\d{9}$/.test(contact)) return t('login.contactNumberInvalid');
+    return "";
+  };
+
+  // Phone number validation with country code
+  const validatePhoneNumber = (phone) => {
+    if (!phone) return 'Phone number is required';
+    // Check if it starts with +63 and has 10 digits after
+    if (!/^\+63\d{10}$/.test(phone)) return 'Please enter a valid Philippine phone number with country code (+63)';
     return "";
   };
 
@@ -125,6 +141,16 @@ export default function Login() {
           return;
         }
         
+        if (result.code === 'show_phone_verification') {
+          setError('');
+          if (result.phoneNumber) {
+            openPhoneVerificationModal(result.phoneNumber, result.userId, result.userData);
+          } else {
+            setError('Phone number not found. Please contact support.');
+          }
+          return;
+        }
+        
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
         } else {
@@ -149,25 +175,65 @@ export default function Login() {
     }
   };
 
+
   const handleGoogleLogin = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setError('');
+    setIsGoogleLoading(true);
     
+    let result;
     try {
-      const result = await signInWithGoogle();
-      if (result.success) {
+      result = await signInWithGoogle();
+      
+      if (result.isRedirect) {
+        // Show a message that we're redirecting to Google
+        setError('Redirecting to Google sign-in...');
+        // Don't set loading to false yet, as we're redirecting
+      } else if (result.success) {
         // Navigate to homepage after successful Google sign-in
         navigate('/Homepage');
+        setIsGoogleLoading(false);
+      } else if (result.code === 'show_phone_verification') {
+        setError('');
+        if (result.phoneNumber) {
+          openPhoneVerificationModal(result.phoneNumber, result.userId, result.userData);
+        } else {
+          setError('Phone number not found. Please contact support.');
+        }
+        setIsGoogleLoading(false);
       }
-          } catch (error) {
-        console.error('Google login error:', error);
-        setError(error.message || t('login.failedToLoginWithGoogle'));
-        
-        setTimeout(() => {
-          setError('');
-        }, 3000);
+    } catch (error) {
+      console.error('Google login error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = t('login.failedToLoginWithGoogle');
+      if (error.message.includes('cancelled')) {
+        errorMessage = 'Google sign-in was cancelled. Please try again.';
+      } else if (error.message.includes('popup blocked')) {
+        errorMessage = 'Google sign-in popup was blocked. Please allow popups for this site and try again.';
+      } else if (error.message.includes('security settings')) {
+        errorMessage = 'Browser security settings are blocking Google sign-in popups. This is likely due to Cross-Origin-Opener-Policy restrictions. Please try using a different browser (Chrome, Firefox, or Edge) or disable popup blocking for this site.';
+      } else if (error.message.includes('already exists')) {
+        errorMessage = 'An account with this email already exists. Please use the login page instead.';
+      } else if (error.message.includes('verify your email')) {
+        errorMessage = 'Please verify your email before logging in. Check your inbox for a verification link.';
+      } else if (error.message.includes('pending admin approval')) {
+        errorMessage = 'Your account is pending admin approval. Please wait for activation.';
+      } else {
+        errorMessage = error.message || t('login.failedToLoginWithGoogle');
       }
+      
+      setError(errorMessage);
+      setIsGoogleLoading(false);
+    }
+    
+    // Clear error after 5 seconds (only if not redirecting)
+    if (!result?.isRedirect) {
+      setTimeout(() => {
+        setError('');
+      }, 5000);
+    }
   };
 
   useEffect(() => {
@@ -224,9 +290,13 @@ export default function Login() {
                     type="button"
                     className="social-login-button google"
                     onClick={handleGoogleLogin}
+                    disabled={isGoogleLoading}
+                    title="Click to sign in with Google. Make sure to allow popups for this site."
                   >
                     <FaGoogle className="social-icon" />
-                    <span className="social-login-button-text">{t('login.continueWithGmail')}</span>
+                    <span className="social-login-button-text">
+                      {isGoogleLoading ? 'Logging in...' : t('login.continueWithGmail')}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -317,6 +387,7 @@ export default function Login() {
                   {t('login.register')}
                 </span>
               </p>
+
             </div>
           </form>
         </div>
@@ -333,6 +404,41 @@ export default function Login() {
           onReturn={() => {
             closeEmailVerificationModal();
             // Redirect back to login page
+            setError('');
+          }}
+        />
+      )}
+
+      {/* Render phone verification modal when needed */}
+      {phoneVerificationModal && phoneVerificationModal.open && (
+        <OTPVerification
+          open={phoneVerificationModal.open}
+          phoneNumber={phoneVerificationModal.phoneNumber}
+          onVerify={async (phoneAuthResult) => {
+            try {
+              const result = await handlePhoneVerificationSuccess(phoneAuthResult);
+              if (result.success) {
+                if (result.message && result.message.includes('Test')) {
+                  // Show success message for test
+                  setError('✅ Test phone verification successful! OTP system is working correctly.');
+                  setTimeout(() => {
+                    setError('');
+                    closePhoneVerificationModal();
+                  }, 3000);
+                } else {
+                  // Navigate to homepage for real users
+                  navigate('/Homepage');
+                }
+              } else {
+                setError(result.message || 'Phone verification failed');
+              }
+            } catch (error) {
+              console.error('Phone verification error:', error);
+              setError('Phone verification failed. Please try again.');
+            }
+          }}
+          onClose={() => {
+            closePhoneVerificationModal();
             setError('');
           }}
         />

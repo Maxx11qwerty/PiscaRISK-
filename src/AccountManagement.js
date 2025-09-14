@@ -316,7 +316,7 @@ const AccountManagement = () => {
     // Farm filter - if current user is assigned to a farm, only show users from the same farm
     const isAssignedToFarm = currentUser?.farm;
     if (isAssignedToFarm) {
-      const userFarm = user.farm;
+      const userFarm = user.farmId || user.farm; // Check both farmId and farm fields
       const currentUserFarm = currentUser.farm;
       
       // Check if user's farm matches current user's farm
@@ -1775,7 +1775,7 @@ const AccountManagement = () => {
                           })()}
                         </div>
                         <div className="user-cell farm-cell">
-                          {user.farmName || farmIdToName[user.farm] || user.farm || 'N/A'}
+                          {user.farmName || farmIdToName[user.farmId] || farmIdToName[user.farm] || user.farmId || user.farm || 'N/A'}
                         </div>
                         <div className="user-cell status-cell">
                           <div className="status-indicator">

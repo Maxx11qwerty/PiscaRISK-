@@ -50,7 +50,7 @@ export default function SignupPage() {
     agree: false,
   });
 
-  const { signup } = useContext(AuthContext);
+  const { signup, signInWithGoogle } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -60,6 +60,7 @@ export default function SignupPage() {
   const [success, setSuccess] = useState("");
   const [farms, setFarms] = useState([]);
   const [loadingFarms, setLoadingFarms] = useState(true);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // Clear localStorage when component mounts (for development only)
   useEffect(() => {
@@ -173,9 +174,71 @@ export default function SignupPage() {
     }
   };
 
-  const handleRegisterGoogle = () => {
-    // Implement Google login
-    console.log('Google login clicked');
+  const handleRegisterGoogle = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setError('');
+    
+    // Validate farm selection and terms agreement before proceeding
+    if (!formData.farmId) {
+      setError('Please select a farm before signing up with Google.');
+      return;
+    }
+    
+    if (!formData.agree) {
+      setError('You must agree to the terms and conditions before signing up with Google.');
+      return;
+    }
+    
+    setIsGoogleLoading(true);
+    
+    let result;
+    try {
+      // Store farm selection in localStorage for use after Google sign-in
+      localStorage.setItem('googleSignUpFarmId', formData.farmId);
+      
+      result = await signInWithGoogle();
+      
+      if (result.isRedirect) {
+        // Show a message that we're redirecting to Google
+        setError('Redirecting to Google sign-in...');
+        // Don't set loading to false yet, as we're redirecting
+      } else if (result.success) {
+        // Navigate to homepage after successful Google sign-in
+        navigate('/Homepage');
+        setIsGoogleLoading(false);
+      }
+    } catch (error) {
+      
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to sign up with Google';
+      if (error.message.includes('cancelled')) {
+        errorMessage = 'Google sign-in was cancelled. Please try again.';
+      } else if (error.message.includes('popup blocked')) {
+        errorMessage = 'Google sign-in popup was blocked. Please allow popups for this site and try again.';
+      } else if (error.message.includes('security settings')) {
+        errorMessage = 'Browser security settings are blocking Google sign-in popups. This is likely due to Cross-Origin-Opener-Policy restrictions. Please try using a different browser (Chrome, Firefox, or Edge) or disable popup blocking for this site.';
+      } else if (error.message.includes('already exists')) {
+        errorMessage = 'An account with this email already exists. Please use the login page instead.';
+      } else if (error.message.includes('verify your email')) {
+        errorMessage = 'Please verify your email before logging in. Check your inbox for a verification link.';
+      } else if (error.message.includes('pending admin approval')) {
+        errorMessage = 'Your account is pending admin approval. Please wait for activation.';
+      } else {
+        errorMessage = error.message || 'Failed to sign up with Google';
+      }
+      
+      setError(errorMessage);
+      setIsGoogleLoading(false);
+    }
+    
+    // Clear error after 5 seconds (only if not redirecting)
+    if (!result?.isRedirect) {
+      setTimeout(() => {
+        setError('');
+      }, 5000);
+    }
   };
 
   const handleOtpVerify = () => {
@@ -217,9 +280,13 @@ export default function SignupPage() {
               <button 
                 className="social-sign-button google"
                 onClick={handleRegisterGoogle}
+                disabled={isGoogleLoading}
+                title="Click to sign up with Google. Make sure to allow popups for this site."
               >
                 <FaGoogle className="social-icon" />
-                <span className="social-sign-text">Sign in with Gmail</span>
+                <span className="social-sign-text">
+                  {isGoogleLoading ? 'Sign in with Google...' : 'Sign in with Gmail'}
+                </span>
               </button>
             </div>
           </div>

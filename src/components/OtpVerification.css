@@ -1,31 +1,43 @@
 @font-face {
-    font-family: 'customfont3';
-    src: url('../assets/fonts/ReadexPro-bold.ttf') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-  }
-  
-  .otp-overlay {
+  font-family: 'customfont';
+  src: url('../assets/fonts/Alexandria-Regular.ttf') format('ttf');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'customfont2';
+  src: url('../assets/fonts/Alexandria-Bold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'customfont3';
+  src: url('../assets/fonts/ReadexPro-bold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.otp-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(44, 81, 125, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(8px);
 }
 
 .otp-modal {
   background: white;
-  border-radius: 12px;
+  border-radius: 1rem;
   padding: 0;
   width: 90%;
-  max-width: 400px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   animation: slideIn 0.3s ease-out;
 }
 
@@ -41,10 +53,10 @@
 }
 
 .otp-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #2C517D;
   color: white;
   padding: 20px;
-  border-radius: 12px 12px 0 0;
+  border-radius: 1rem 1rem 0 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -54,6 +66,7 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
+  font-family: 'customfont2';
 }
 
 .otp-close {
@@ -80,50 +93,69 @@
   padding: 30px;
 }
 
+.otp-rounded-line {
+  height: 5px;
+  width: 89%;
+  background-color: #2C517D;
+  border-radius: 9999px;
+  margin: 0 auto;
+  margin-bottom: 25px;
+  margin-top: 10px;
+}
+
 .otp-description {
   text-align: center;
   color: #666;
   margin-bottom: 25px;
   font-size: 0.95rem;
   line-height: 1.5;
+  font-family: 'customfont2';
 }
 
 .otp-error {
-  background: #fee;
-  color: #c33;
-  padding: 12px;
-  border-radius: 8px;
+  color: #ff0000;
   margin-bottom: 20px;
   text-align: center;
-  border: 1px solid #fcc;
-  font-size: 0.9rem;
+  padding: 12px 16px;
+  background-color: #fff5f5;
+  border: 1px solid #ffd6d6;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: 'customfont2';
 }
 
 .otp-inputs {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   justify-content: center;
   margin-bottom: 25px;
+  flex-wrap: wrap;
+  max-width: 100%;
+  padding: 0 10px;
 }
 
 .otp-input {
-  width: 60px;
-  height: 60px;
-  border: 2px solid #e1e5e9;
-  border-radius: 12px;
+  width: 50px;
+  height: 50px;
+  border: 0.2rem solid #2C517D;
+  border-radius: 0.8rem;
   text-align: center;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 600;
   color: #333;
-  background: #f8f9fa;
-  transition: all 0.2s ease;
+  background: #ffffff;
+  transition: all 0.3s ease;
   outline: none;
+  font-family: 'customfont2';
+  flex-shrink: 0;
 }
 
 .otp-input:focus {
-  border-color: #667eea;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #3B82F6;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
   transform: translateY(-2px);
 }
 
@@ -132,23 +164,59 @@
   font-weight: 400;
 }
 
-.otp-verify-btn {
+.otp-send-btn {
   width: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  max-width: 150px;
+  background: #2C517D;
   color: white;
   border: none;
-  padding: 15px;
-  border-radius: 10px;
+  padding: 0.75rem;
+  border-radius: 9999px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 20px;
+  transition: all 0.3s ease;
+  margin: 0 auto 20px auto;
+  display: block;
+  font-family: 'customfont2';
+  letter-spacing: .1rem;
+}
+
+.otp-send-btn:hover:not(:disabled) {
+  transform: scale(1.00);
+  background: #60a3e6;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.otp-send-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.otp-verify-btn {
+  width: 100%;
+  max-width: 150px;
+  background: #2C517D;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 9999px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 0 auto 20px auto;
+  display: block;
+  font-family: 'customfont2';
+  letter-spacing: .1rem;
 }
 
 .otp-verify-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  transform: scale(1.00);
+  background: #60a3e6;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .otp-verify-btn:disabled {
@@ -162,27 +230,34 @@
   text-align: center;
   color: #666;
   font-size: 0.9rem;
+  font-family: 'customfont2';
 }
 
 .otp-resend-btn {
   background: none;
   border: none;
-  color: #667eea;
+  color: #1A4375;
   cursor: pointer;
   font-weight: 600;
   text-decoration: underline;
   padding: 0;
   margin-left: 5px;
-  transition: color 0.2s;
+  transition: color 0.3s ease;
+  font-family: 'customfont2';
 }
 
 .otp-resend-btn:hover:not(:disabled) {
-  color: #5a6fd8;
+  color: #2e6ba6;
 }
 
 .otp-resend-btn:disabled {
   color: #ccc;
   cursor: not-allowed;
+}
+
+/* Hidden reCAPTCHA container */
+#recaptcha-container {
+  display: none;
 }
 
 /* Responsive design */
@@ -197,16 +272,30 @@
   }
   
   .otp-inputs {
-    gap: 8px;
+    gap: 6px;
+    padding: 0 5px;
   }
   
   .otp-input {
-    width: 50px;
-    height: 50px;
-    font-size: 1.2rem;
+    width: 45px;
+    height: 45px;
+    font-size: 1.1rem;
   }
   
   .otp-header h3 {
     font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .otp-inputs {
+    gap: 4px;
+    padding: 0 2px;
+  }
+  
+  .otp-input {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
   }
 } 

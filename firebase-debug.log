@@ -1,0 +1,42 @@
+[debug] [2025-09-14T10:23:43.546Z] ----------------------------------------------------------------------
+[debug] [2025-09-14T10:23:43.548Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\caior\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2025-09-14T10:23:43.548Z] CLI Version:   14.16.0
+[debug] [2025-09-14T10:23:43.548Z] Platform:      win32
+[debug] [2025-09-14T10:23:43.548Z] Node Version:  v22.16.0
+[debug] [2025-09-14T10:23:43.549Z] Time:          Sun Sep 14 2025 18:23:43 GMT+0800 (Philippine Standard Time)
+[debug] [2025-09-14T10:23:43.549Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-14T10:23:43.551Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-09-14T10:23:43.821Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-09-14T10:23:43.821Z] > authorizing via signed-in user (angelineorjalo@gmail.com)
+[debug] [2025-09-14T10:23:43.821Z] [iam] checking project piscarisk for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-09-14T10:23:43.822Z] Checked if tokens are valid: false, expires at: 1757757818732
+[debug] [2025-09-14T10:23:43.822Z] Checked if tokens are valid: false, expires at: 1757757818732
+[debug] [2025-09-14T10:23:43.822Z] > refreshing access token with scopes: []
+[debug] [2025-09-14T10:23:43.824Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-09-14T10:23:43.824Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-14T10:23:43.968Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-09-14T10:23:43.968Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-09-14T10:23:43.976Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/piscarisk:testIamPermissions [none]
+[debug] [2025-09-14T10:23:43.976Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/piscarisk:testIamPermissions x-goog-quota-user=projects/piscarisk
+[debug] [2025-09-14T10:23:43.977Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/piscarisk:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-09-14T10:23:44.598Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-09-14T10:23:44.598Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2025-09-14T10:23:44.959Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/piscarisk:testIamPermissions 200
+[debug] [2025-09-14T10:23:44.960Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/piscarisk:testIamPermissions {}
+[debug] [2025-09-14T10:23:44.960Z] [iam] error while checking permissions, command may fail: Authorization failed. This account is missing the following required permissions on project piscarisk:
+
+  firebase.projects.get
+  firebasehosting.sites.update
+[debug] [2025-09-14T10:23:44.962Z] Checked if tokens are valid: true, expires at: 1757849022969
+[debug] [2025-09-14T10:23:44.962Z] Checked if tokens are valid: true, expires at: 1757849022969
+[debug] [2025-09-14T10:23:44.963Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/piscarisk [none]
+[debug] [2025-09-14T10:23:45.353Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/piscarisk 403
+[debug] [2025-09-14T10:23:45.353Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/piscarisk {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2025-09-14T10:23:45.354Z] Request to https://firebase.googleapis.com/v1beta1/projects/piscarisk had HTTP Error: 403, The caller does not have permission
+[debug] [2025-09-14T10:23:45.364Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/piscarisk had HTTP Error: 403, The caller does not have permission
+    at responseToError (C:\Users\caior\AppData\Roaming\npm\node_modules\firebase-tools\lib\responseToError.js:52:12)
+    at RetryOperation._fn (C:\Users\caior\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:312:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+[error] 
+[error] Error: Failed to get Firebase project piscarisk. Please make sure the project exists and your account has permission to access it.

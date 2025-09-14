@@ -67,6 +67,71 @@ export const AuthProvider = ({ children }) => {
     setEmailVerificationModal({ open: false, email: '', autoSent: false, tempPassword: '' });
   };
 
+  // Phone verification functions
+  const openPhoneVerificationModal = (phoneNumber, userId, userData) => {
+    setPhoneVerificationModal({
+      open: true,
+      phoneNumber,
+      userId,
+      userData
+    });
+  };
+
+  const closePhoneVerificationModal = () => {
+    setPhoneVerificationModal({
+      open: false,
+      phoneNumber: '',
+      userId: '',
+      userData: null
+    });
+  };
+
+  const handlePhoneVerificationSuccess = async (phoneAuthResult) => {
+    try {
+      const { userId, userData } = phoneVerificationModal;
+      
+      // Check if this is a test user (skip Firestore update for test)
+      if (userId === 'test-user-id' || userId === 'real-test-user-id') {
+        console.log('Test phone verification successful - skipping Firestore update');
+        
+        // Update current user data
+        setCurrentUser(prev => ({
+          ...prev,
+          phoneVerified: true
+        }));
+
+        // Close the modal
+        closePhoneVerificationModal();
+
+        return { success: true, message: 'Test phone verification successful!' };
+      }
+      
+      // Update Firestore with phoneVerified: true for real users
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        phoneVerified: true,
+        lastModified: serverTimestamp()
+      });
+
+      // Update current user data
+      setCurrentUser(prev => ({
+        ...prev,
+        phoneVerified: true
+      }));
+
+      // Close the modal
+      closePhoneVerificationModal();
+
+      // Log the activity
+      await logActivity('phone_verification', `Phone verified for user: ${userData.email}`, userData.email);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating phone verification status:', error);
+      return { success: false, message: 'Failed to update phone verification status' };
+    }
+  };
+
   const resendVerificationEmail = async () => {
     try {
       if (!emailVerificationModal.email || !emailVerificationModal.tempPassword) {
@@ -99,6 +164,14 @@ export const AuthProvider = ({ children }) => {
   // OTP and authentication state
   const [requiresOTP, setRequiresOTP] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+
+  // Phone verification state
+  const [phoneVerificationModal, setPhoneVerificationModal] = useState({
+    open: false,
+    phoneNumber: '',
+    userId: '',
+    userData: null
+  });
 
   // Somewhere in your initialization:
   useEffect(() => {
@@ -552,6 +625,43 @@ const login = async (emailOrContact, password) => {
           lastModified: serverTimestamp()
         });
         userData.status = 'Active';
+      }
+
+      // Check phone verification status after email verification
+      if (userCredential.user.emailVerified && !userData.phoneVerified) {
+        // Sign out the user temporarily
+        await signOut(auth);
+        
+        // Return a special code to trigger phone verification
+        // Format phone number properly (remove spaces, ensure +63 prefix)
+        let phoneNumber = null;
+        if (userData.contactNumber) {
+          let cleanNumber = userData.contactNumber.replace(/\s/g, '');
+          
+          // Remove any existing +63 prefix to avoid duplication
+          if (cleanNumber.startsWith('+63')) {
+            cleanNumber = cleanNumber.substring(3);
+          }
+          
+          // Ensure it's 10 digits for Philippine numbers
+          if (cleanNumber.length === 10) {
+            phoneNumber = `+63${cleanNumber}`;
+          } else if (cleanNumber.length === 11 && cleanNumber.startsWith('0')) {
+            // Remove leading 0 if present
+            phoneNumber = `+63${cleanNumber.substring(1)}`;
+          } else {
+            phoneNumber = `+63${cleanNumber}`;
+          }
+        }
+        
+        return {
+          success: false,
+          code: 'show_phone_verification',
+          phoneNumber: phoneNumber,
+          userId: userCredential.user.uid,
+          userData: userData,
+          message: 'Please verify your phone number to complete login'
+        };
       }
     }
     
@@ -1189,6 +1299,31 @@ const login = async (emailOrContact, password) => {
     }
   };
 
+  // Google Sign Up with redirect
+  const signUpWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+
+      // Store the intended action in localStorage
+      localStorage.setItem('googleSignInIntent', 'signup');
+      
+      // Use redirect method for sign up
+      await signInWithRedirect(auth, provider);
+      return { 
+        success: true, 
+        message: 'Redirecting to Google sign-up',
+        isRedirect: true 
+      };
+    } catch (error) {
+      throw error;
+    }
+  };
+
   // Handle Google redirect result
   const handleGoogleRedirectResult = async () => {
     try {
@@ -1208,10 +1343,10 @@ const login = async (emailOrContact, password) => {
     try {
       const user = result.user;
       
-      // Check if this is a sign-up flow (indicated by googleSignUpFarmId in localStorage)
-      const isSignUpFlow = localStorage.getItem('googleSignUpFarmId') !== null;
+      // Check the intent - if it's a sign-up intent and email exists, show error
+      const signUpIntent = localStorage.getItem('googleSignInIntent') === 'signup';
       
-      // First, check if this email already exists in Firestore (for newly added admins)
+      // First, check if this email already exists in Firestore
       const usersRef = collection(db, 'users');
       const emailQuery = query(usersRef, where('email', '==', user.email));
       const emailSnapshot = await getDocs(emailQuery);
@@ -1219,6 +1354,7 @@ const login = async (emailOrContact, password) => {
       let existingUserData = null;
       let isNewlyAddedAdmin = false;
       let existingUserDoc = null;
+      let userData = null; // Declare userData at function level
       
       if (!emailSnapshot.empty) {
         // Email exists in Firestore - check if it's a newly added admin
@@ -1235,19 +1371,21 @@ const login = async (emailOrContact, password) => {
           if (userStatus === 'inactive') {
             // User exists but is inactive - needs admin activation
             await signOut(auth);
-            if (isSignUpFlow) {
-              throw new Error('An account with this email already exists but is pending admin approval. Please use the login page instead.');
-            } else {
-              throw new Error('Your account is pending admin approval. Please wait for activation.');
-            }
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
           } else if (userStatus === 'suspended') {
             // User is suspended
             await signOut(auth);
             throw new Error('Your account has been suspended. Please contact support for assistance.');
           } else if (userStatus === 'active') {
-            // User exists and is active - should use login
-            await signOut(auth);
-            throw new Error('An account with this email already exists. Please use the login page instead.');
+            // User exists and is active
+            if (signUpIntent) {
+              // If this is a sign-up attempt, show error
+              await signOut(auth);
+              throw new Error('An account with this email already exists. Please use the login page instead.');
+            } else {
+              // If this is a sign-in attempt, allow them to proceed
+              // We'll handle the login logic below
+            }
           } else {
             // Unknown status - default to login message
             await signOut(auth);
@@ -1260,6 +1398,34 @@ const login = async (emailOrContact, password) => {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       let userRole = 'tech_officer'; // Default role for new users
+      
+      // Handle case where email exists but UID doesn't (existing user signing in with Google)
+      if (!userDoc.exists() && !emailSnapshot.empty && !signUpIntent) {
+        // This is an existing user trying to sign in with Google
+        // Link their Google account to the existing Firestore document
+        await updateDoc(doc(db, 'users', existingUserDoc.id), {
+          googleUid: user.uid,
+          profileImage: user.photoURL,
+          lastModified: serverTimestamp()
+        });
+        
+        // Set userData for phone verification check
+        userData = existingUserData;
+        
+        // Set the current user with existing data
+        setCurrentUser({
+          uid: existingUserDoc.id,
+          ...existingUserData,
+          emailVerified: user.emailVerified,
+          farm: existingUserData.farm || null
+        });
+        
+        // Clear the intent
+        localStorage.removeItem('googleSignInIntent');
+        
+        logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, existingUserData.role);
+        return { success: true, user };
+      }
       
       if (!userDoc.exists()) {
         // User doesn't exist by UID - this could be a new user or a newly added admin
@@ -1287,6 +1453,7 @@ const login = async (emailOrContact, password) => {
 
           await setDoc(doc(db, 'users', user.uid), userData);
           userRole = userData.role;
+          // userData is already set above
           
           // ALL users must verify email before accessing dashboard
           if (!user.emailVerified) {
@@ -1346,6 +1513,9 @@ const login = async (emailOrContact, password) => {
             existingUserData.status = 'Active';
           }
           
+          // Set userData for phone verification check
+          userData = existingUserData;
+          
           setCurrentUser({
             uid: existingUserDoc.id,
             ...existingUserData,
@@ -1378,7 +1548,7 @@ const login = async (emailOrContact, password) => {
       } else {
         // User exists by UID - this is an existing user trying to sign in
         // Update existing user's data
-        const userData = userDoc.data();
+        userData = userDoc.data();
         userRole = userData.role || 'tech_officer';
         
 
@@ -1430,6 +1600,43 @@ const login = async (emailOrContact, password) => {
           ...userData,
           farm: userData.farm || null
         });
+      }
+
+      // Check phone verification status for Google sign-in
+      if (user.emailVerified && userData && !userData.phoneVerified) {
+        // Sign out the user temporarily
+        await signOut(auth);
+        
+        // Return a special code to trigger phone verification
+        // Format phone number properly (remove spaces, ensure +63 prefix)
+        let phoneNumber = null;
+        if (userData.contactNumber) {
+          let cleanNumber = userData.contactNumber.replace(/\s/g, '');
+          
+          // Remove any existing +63 prefix to avoid duplication
+          if (cleanNumber.startsWith('+63')) {
+            cleanNumber = cleanNumber.substring(3);
+          }
+          
+          // Ensure it's 10 digits for Philippine numbers
+          if (cleanNumber.length === 10) {
+            phoneNumber = `+63${cleanNumber}`;
+          } else if (cleanNumber.length === 11 && cleanNumber.startsWith('0')) {
+            // Remove leading 0 if present
+            phoneNumber = `+63${cleanNumber.substring(1)}`;
+          } else {
+            phoneNumber = `+63${cleanNumber}`;
+          }
+        }
+        
+        return {
+          success: false,
+          code: 'show_phone_verification',
+          phoneNumber: phoneNumber,
+          userId: user.uid,
+          userData: userData,
+          message: 'Please verify your phone number to complete login'
+        };
       }
 
       logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, userRole);
@@ -1736,6 +1943,7 @@ const resetPassword = async (email) => {
     login,
     logout,
     signInWithGoogle,
+    signUpWithGoogle,
     handleGoogleRedirectResult,
     isHandlingRedirect,
     // email verification modal controls
@@ -1743,6 +1951,11 @@ const resetPassword = async (email) => {
     openEmailVerificationModal,
     resendVerificationEmail,
     closeEmailVerificationModal,
+    // phone verification modal controls
+    phoneVerificationModal,
+    openPhoneVerificationModal,
+    closePhoneVerificationModal,
+    handlePhoneVerificationSuccess,
     updateEmail,
     changePassword,
     updateProfileImage,
