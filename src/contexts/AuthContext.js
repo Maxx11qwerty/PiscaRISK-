@@ -18,6 +18,8 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   sendPasswordResetEmail,
   sendEmailVerification,
   reauthenticateWithCredential,
@@ -41,6 +43,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isHandlingRedirect, setIsHandlingRedirect] = useState(false);
   const suppressAuthUpdatesRef = useRef(false);
 
   // Email verification modal state
@@ -89,7 +92,6 @@ export const AuthProvider = ({ children }) => {
         throw verificationError;
       }
     } catch (e) {
-      console.error('Resend verification error:', e);
       return { success: false, message: e.message };
     }
   };
@@ -106,10 +108,61 @@ export const AuthProvider = ({ children }) => {
     initialize();
   }, []);
 
+  // Handle Google redirect results
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        // Check if we have any OAuth parameters in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasOAuthParams = urlParams.has('code') || urlParams.has('state') || urlParams.has('error');
+
+        if (hasOAuthParams) {
+
+        }
+        
+        const result = await getRedirectResult(auth);
+        
+        if (result) {
+
+          setIsHandlingRedirect(true);
+          
+          // Process the redirect result
+          const processResult = await processGoogleSignInResult(result);
+
+          
+          // Clear the intent and farm ID
+          localStorage.removeItem('googleSignInIntent');
+          localStorage.removeItem('googleSignUpFarmId');
+          
+          // Redirect handling is complete
+          setIsHandlingRedirect(false);
+          
+          // Force a page reload to ensure proper state
+
+          window.location.href = '/Homepage';
+        } else {
+
+          if (hasOAuthParams) {
+
+          }
+        }
+
+      } catch (error) {
+
+        setIsHandlingRedirect(false);
+      }
+    };
+
+    // Add a small delay to ensure auth is initialized
+    const timer = setTimeout(handleRedirectResult, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+
   // Function to fetch user data (address, contactNumber, fullName) from main user document
   const fetchUserSubcollectionData = async (userId) => {
     try {
-      console.log('fetchUserSubcollectionData: Starting fetch for user:', userId);
+
       const userData = {};
       
       // Fetch user document directly
@@ -118,19 +171,19 @@ export const AuthProvider = ({ children }) => {
       
       if (userDoc.exists()) {
         const userDataFromDoc = userDoc.data();
-        console.log('fetchUserSubcollectionData: User document data:', userDataFromDoc);
+
         
         // Get data from main user document
         userData.address = userDataFromDoc.address || '';
         userData.fullName = userDataFromDoc.fullName || '';
         userData.contact = userDataFromDoc.contactNumber || '';
         
-        console.log('fetchUserSubcollectionData: Extracted data:', userData);
+
       }
       
       return userData;
     } catch (error) {
-      console.error('Error fetching user data:', error);
+
       return {};
     }
   };
@@ -158,12 +211,12 @@ export const AuthProvider = ({ children }) => {
 
       // In production, this would send an actual email
       // For now, we'll log it to console
-      console.log(`OTP sent to ${userEmail}: ${otpCode}`);
+
       
       setOtpSent(true);
       return { success: true, otp: otpCode };
     } catch (error) {
-      console.error('Error sending OTP:', error);
+
       return { success: false, error: error.message };
     }
   };
@@ -201,7 +254,7 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+
       return { success: false, error: error.message };
     }
   };
@@ -504,7 +557,6 @@ const login = async (emailOrContact, password) => {
     
     return { success: true, user: userCredential.user };
   } catch (error) {
-    console.error('Login error:', error);
     
     // Handle specific Firebase Auth errors
     if (error.code === 'auth/invalid-credential') {
@@ -580,7 +632,6 @@ const login = async (emailOrContact, password) => {
       try { logActivity('logout', logMessages.logout.success(currentUser?.username || auth.currentUser?.email || 'Unknown'), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       
     } catch (error) {
-      console.error('Logout error:', error);
       try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       window.location.replace('/');
     }
@@ -604,7 +655,7 @@ const login = async (emailOrContact, password) => {
         navigate('/login');
       }
     } catch (error) {
-      console.error('Handle logout error:', error);
+
       try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       // Fallback navigation
       if (navigate && typeof navigate === 'function') {
@@ -651,7 +702,7 @@ const login = async (emailOrContact, password) => {
       await reauthenticateWithCredential(auth.currentUser, credential);
       return true;
     } catch (error) {
-      console.error('Re-authentication error:', error);
+
       throw new Error(
         error.code === 'auth/wrong-password' 
           ? "Incorrect password" 
@@ -692,7 +743,7 @@ const login = async (emailOrContact, password) => {
         );
         await reauthenticateWithCredential(auth.currentUser, credential);
       } catch (reauthError) {
-        console.error('Re-authentication error:', reauthError);
+
         throw new Error("Incorrect password. Please try again.");
       }
 
@@ -714,11 +765,7 @@ const login = async (emailOrContact, password) => {
         message: "Please check your new email address for a verification link. After verifying, you can complete the email change." 
       };
     } catch (error) {
-      console.error('Email update error details:', {
-        code: error.code,
-        message: error.message,
-        verificationStatus: auth.currentUser?.emailVerified
-      });
+
       
       let errorMessage = "Failed to update email";
       
@@ -766,7 +813,7 @@ const login = async (emailOrContact, password) => {
           
           // If status is inactive and email is verified, update to active
           if (userData.status === 'inactive') {
-            console.log('Email verified - immediately updating status to active for:', auth.currentUser.email);
+
             
             await updateDoc(doc(db, 'users', auth.currentUser.uid), {
               status: 'active',
@@ -774,7 +821,7 @@ const login = async (emailOrContact, password) => {
               lastModified: serverTimestamp()
             });
             
-            console.log('Status updated to active immediately after email verification');
+
             
             // Update local state
             setCurrentUser(prev => ({
@@ -785,7 +832,7 @@ const login = async (emailOrContact, password) => {
             
             return { success: true, statusUpdated: true };
           } else {
-            console.log('User status already active or different:', userData.status);
+
             return { success: true, statusUpdated: false };
           }
         }
@@ -793,7 +840,7 @@ const login = async (emailOrContact, password) => {
       
       return { success: true, statusUpdated: false };
     } catch (error) {
-      console.error('Error updating status after verification:', error);
+
       throw error;
     }
   };
@@ -821,12 +868,12 @@ const login = async (emailOrContact, password) => {
         if (userData.status === 'inactive' && auth.currentUser.emailVerified) {
           const canActivate = (userData.role === 'admin') || (userData.role === 'tech_officer' && userData.adminActivated);
           if (canActivate) {
-            console.log('Email verified - updating status from inactive to active for:', auth.currentUser.email);
+
             await updateDoc(doc(db, 'users', auth.currentUser.uid), {
               status: 'active',
               lastModified: serverTimestamp()
             });
-            console.log('Successfully updated user status to active after email verification');
+
             // Update local state
             setCurrentUser(prev => ({
               ...prev,
@@ -851,7 +898,7 @@ const login = async (emailOrContact, password) => {
 
       return auth.currentUser.emailVerified;
     } catch (error) {
-      console.error('Error checking email verification:', error);
+
       throw error;
     }
   };
@@ -871,7 +918,7 @@ const login = async (emailOrContact, password) => {
         );
         await reauthenticateWithCredential(auth.currentUser, credential);
       } catch (reauthError) {
-        console.error('Re-authentication error:', reauthError);
+
         throw new Error("Incorrect current password. Please try again.");
       }
 
@@ -884,7 +931,7 @@ const login = async (emailOrContact, password) => {
         message: "Password updated successfully!" 
       };
     } catch (error) {
-      console.error('Password change error:', error);
+
       
       let errorMessage = "Failed to update password";
       
@@ -922,7 +969,7 @@ const login = async (emailOrContact, password) => {
         profileImage: imageUrl
       }));
     } catch (error) {
-      console.error('Error updating profile image:', error);
+
       throw error;
     }
   };
@@ -930,7 +977,6 @@ const login = async (emailOrContact, password) => {
   
   const createStaffAccount = async (userData) => {
     try {
-      console.log('=== STARTING USER CREATION (NO ADMIN PASSWORD) ===');
       suppressAuthUpdatesRef.current = true;
 
       // Ensure admin is logged in
@@ -942,8 +988,7 @@ const login = async (emailOrContact, password) => {
         if (!currentAdmin) throw new Error('No admin logged in');
       }
 
-      console.log('Admin user creating account:', currentAdmin?.email);
-      console.log('Creating user with data:', userData);
+
 
       const adminUID = currentAdmin.uid;
 
@@ -955,17 +1000,15 @@ const login = async (emailOrContact, password) => {
         secondaryApp = firebase.apps?.find(a => a.name === secondaryName)
           || firebase.initializeApp(firebaseConfig, secondaryName);
         const secondaryAuth = secondaryApp.auth();
-        console.log('Creating user with secondary auth...');
         const cred = await secondaryAuth.createUserWithEmailAndPassword(
           userData.email,
           userData.password
         );
         newUserUid = cred.user?.uid || null;
-        console.log('User created successfully, UID:', newUserUid);
         await secondaryAuth.signOut();
-        console.log('Signed out from secondary auth');
+
       } catch (e) {
-        console.error('Secondary auth create error:', e);
+
         if (e.code === 'auth/email-already-in-use') {
           throw new Error('Email already exists in system');
         } else if (e.code === 'auth/weak-password') {
@@ -977,24 +1020,20 @@ const login = async (emailOrContact, password) => {
         try { 
           if (secondaryApp) { 
             await secondaryApp.delete(); 
-            console.log('Secondary app deleted');
           }
         } catch (deleteError) { 
-          console.warn('Could not delete secondary app:', deleteError); 
         }
       }
 
       if (!newUserUid) throw new Error('Failed to retrieve new user UID');
 
       // Firestore permission test for admin
-      console.log('Testing Firestore write permissions...');
       const testDocRef = doc(db, 'test_permission', 'test');
       try {
         await setDoc(testDocRef, { test: new Date().toISOString() });
-        console.log('Firestore write permission: OK');
         await deleteDoc(testDocRef);
       } catch (permError) {
-        console.error('Firestore permission error:', permError);
+
         throw new Error("Admin doesn't have permission to create users. Check Firestore rules.");
       }
 
@@ -1024,7 +1063,6 @@ const login = async (emailOrContact, password) => {
         isMobileUser = true;
       }
 
-      console.log('Creating Firestore document for UID:', newUserUid, 'collection:', targetCollection, 'role:', canonicalRole, 'status:', canonicalStatus);
       await setDoc(doc(db, targetCollection, newUserUid), {
         email: userData.email,
         username: userData.username,
@@ -1044,11 +1082,10 @@ const login = async (emailOrContact, password) => {
         // Admin activation flag (Firestore does not allow undefined)
         adminActivated: (requestedRole === 'Admin') ? true : false
       });
-      console.log('Firestore document created successfully');
 
       return { success: true };
     } catch (error) {
-      console.error('User creation failed:', error);
+
       return { success: false, error: error.message };
     } finally {
       suppressAuthUpdatesRef.current = false;
@@ -1063,7 +1100,7 @@ const login = async (emailOrContact, password) => {
       const docSnap = await getDoc(docRef);
       return docSnap.exists() && docSnap.data().role === "admin";
     } catch (error) {
-      console.error("Admin check error:", error);
+
       return false;
     }
   };
@@ -1090,12 +1127,12 @@ const login = async (emailOrContact, password) => {
 
       return true;
     } catch (error) {
-      console.error('Error updating user:', error);
+
       throw error;
     }
   };
 
-  // Google Sign In
+  // Google Sign In with popup fallback to redirect
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
@@ -1103,13 +1140,76 @@ const login = async (emailOrContact, password) => {
       provider.addScope('profile');
       provider.addScope('email');
       
-      // Set custom parameters
+      // Set custom parameters to avoid popup issues
       provider.setCustomParameters({
         prompt: 'select_account'
       });
 
-      const result = await signInWithPopup(auth, provider);
+      // Try popup first
+      try {
+        const result = await signInWithPopup(auth, provider);
+        return await processGoogleSignInResult(result);
+      } catch (popupError) {
+
+        
+        // If popup fails due to COOP or blocking, use redirect
+        if (popupError.code === 'auth/popup-closed-by-user' || 
+            popupError.code === 'auth/popup-blocked' ||
+            popupError.code === 'auth/cancelled-popup-request' ||
+            popupError.message.includes('Cross-Origin-Opener-Policy') ||
+            popupError.message.includes('COOP')) {
+          
+          // Store the intended action in localStorage
+          localStorage.setItem('googleSignInIntent', 'signin');
+          
+          // Use redirect method
+          await signInWithRedirect(auth, provider);
+          return { 
+            success: true, 
+            message: 'Redirecting to Google sign-in',
+            isRedirect: true 
+          };
+        }
+        
+        // Handle other specific popup errors
+        if (popupError.code === 'auth/network-request-failed') {
+          throw new Error('Network error occurred during Google sign-in. Please check your internet connection and try again.');
+        } else if (popupError.code === 'auth/too-many-requests') {
+          throw new Error('Too many sign-in attempts. Please wait a moment and try again.');
+        } else if (popupError.message.includes('Content Security Policy')) {
+          throw new Error('Security policy is blocking Google sign-in. Please try using a different browser or contact support.');
+        }
+        
+        // Generic error fallback
+        throw new Error(`Google sign-in failed: ${popupError.message || 'Unknown error occurred'}`);
+      }
+    } catch (error) {
+
+      throw error;
+    }
+  };
+
+  // Handle Google redirect result
+  const handleGoogleRedirectResult = async () => {
+    try {
+      const result = await getRedirectResult(auth);
+      if (result) {
+        return await processGoogleSignInResult(result);
+      }
+      return null;
+    } catch (error) {
+
+      throw error;
+    }
+  };
+
+  // Process Google sign-in result (shared logic for both popup and redirect)
+  const processGoogleSignInResult = async (result) => {
+    try {
       const user = result.user;
+      
+      // Check if this is a sign-up flow (indicated by googleSignUpFarmId in localStorage)
+      const isSignUpFlow = localStorage.getItem('googleSignUpFarmId') !== null;
       
       // First, check if this email already exists in Firestore (for newly added admins)
       const usersRef = collection(db, 'users');
@@ -1124,16 +1224,35 @@ const login = async (emailOrContact, password) => {
         // Email exists in Firestore - check if it's a newly added admin
         existingUserDoc = emailSnapshot.docs[0];
         existingUserData = existingUserDoc.data();
-        
-        console.log('Google Sign-In: Found existing user in Firestore:', {
-          email: user.email,
-          role: existingUserData.role,
-          status: existingUserData.status,
-          isNewlyAddedAdmin: existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive'
-        });
+
         
         if (existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive') {
           isNewlyAddedAdmin = true;
+        } else {
+          // Email exists in Firestore - check the user's status
+          const userStatus = String(existingUserData.status || '').toLowerCase();
+          
+          if (userStatus === 'inactive') {
+            // User exists but is inactive - needs admin activation
+            await signOut(auth);
+            if (isSignUpFlow) {
+              throw new Error('An account with this email already exists but is pending admin approval. Please use the login page instead.');
+            } else {
+              throw new Error('Your account is pending admin approval. Please wait for activation.');
+            }
+          } else if (userStatus === 'suspended') {
+            // User is suspended
+            await signOut(auth);
+            throw new Error('Your account has been suspended. Please contact support for assistance.');
+          } else if (userStatus === 'active') {
+            // User exists and is active - should use login
+            await signOut(auth);
+            throw new Error('An account with this email already exists. Please use the login page instead.');
+          } else {
+            // Unknown status - default to login message
+            await signOut(auth);
+            throw new Error('An account with this email already exists. Please use the login page instead.');
+          }
         }
       }
       
@@ -1144,7 +1263,58 @@ const login = async (emailOrContact, password) => {
       
       if (!userDoc.exists()) {
         // User doesn't exist by UID - this could be a new user or a newly added admin
-        if (isNewlyAddedAdmin) {
+        if (emailSnapshot.empty) {
+          // This is a completely new user - create new account
+          // Get farm ID from localStorage (set during Google sign-up)
+          const farmId = localStorage.getItem('googleSignUpFarmId');
+          
+          const userData = {
+            email: user.email,
+            username: user.displayName || user.email.split('@')[0],
+            dateJoined: new Date().toISOString().split('T')[0],
+            profileImage: user.photoURL,
+            role: 'tech_officer',
+            status: 'inactive',
+            emailVerified: user.emailVerified,
+            farmId: farmId || null, // Include farm ID from Google sign-up
+            createdAt: serverTimestamp()
+          };
+          
+          // Clear the stored farm ID after use
+          if (farmId) {
+            localStorage.removeItem('googleSignUpFarmId');
+          }
+
+          await setDoc(doc(db, 'users', user.uid), userData);
+          userRole = userData.role;
+          
+          // ALL users must verify email before accessing dashboard
+          if (!user.emailVerified) {
+            await signOut(auth);
+            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
+          }
+          
+          // Do NOT auto-activate Tech Officers; require admin activation.
+          // Only admins may be auto-activated on verified email.
+          if (user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
+            await updateDoc(doc(db, 'users', user.uid), {
+              status: 'Active',
+              emailVerified: true,
+              lastModified: serverTimestamp()
+            });
+            userData.status = 'Active';
+          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
+            await signOut(auth);
+            throw new Error('Your account is pending admin approval. Please wait for activation.');
+          }
+          
+          // Update the current user state
+          setCurrentUser({
+            uid: user.uid,
+            ...userData,
+            farm: userData.farm || null
+          });
+        } else if (isNewlyAddedAdmin) {
           // This is a newly added admin trying to log in with Google
           // We need to link their Google account to the existing Firestore document
           await updateDoc(doc(db, 'users', existingUserDoc.id), {
@@ -1182,61 +1352,35 @@ const login = async (emailOrContact, password) => {
             emailVerified: user.emailVerified,
             farm: existingUserData.farm || null
           });
-        } else {
-          // Create new user document if it doesn't exist
-          const userData = {
-            email: user.email,
-            username: user.displayName || user.email.split('@')[0],
-            dateJoined: new Date().toISOString().split('T')[0],
-            profileImage: user.photoURL,
-            role: 'tech_officer',
-            status: 'inactive',
-            emailVerified: user.emailVerified,
-            createdAt: serverTimestamp()
-          };
-
-          await setDoc(doc(db, 'users', user.uid), userData);
-          userRole = userData.role;
+      } else {
+          // Email exists but user is not a newly added admin
+          // Check the user's status to provide appropriate message
+          const userStatus = String(existingUserData.status || '').toLowerCase();
           
-          // ALL users must verify email before accessing dashboard
-          if (!user.emailVerified) {
-            await signOut(auth);
-            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-          }
-          
-          // Do NOT auto-activate Tech Officers; require admin activation.
-          // Only admins may be auto-activated on verified email.
-          if (user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
-            await updateDoc(doc(db, 'users', user.uid), {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            userData.status = 'Active';
-          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
+          if (userStatus === 'inactive') {
+            // User exists but is inactive - needs admin activation
             await signOut(auth);
             throw new Error('Your account is pending admin approval. Please wait for activation.');
+          } else if (userStatus === 'suspended') {
+            // User is suspended
+            await signOut(auth);
+            throw new Error('Your account has been suspended. Please contact support for assistance.');
+          } else if (userStatus === 'active') {
+            // User exists and is active - should use login
+            await signOut(auth);
+            throw new Error('An account with this email already exists. Please use the login page instead.');
+          } else {
+            // Unknown status - default to login message
+            await signOut(auth);
+            throw new Error('An account with this email already exists. Please use the login page instead.');
           }
-          
-          // Update the current user state
-          setCurrentUser({
-            uid: user.uid,
-            ...userData,
-            farm: userData.farm || null
-          });
         }
       } else {
+        // User exists by UID - this is an existing user trying to sign in
         // Update existing user's data
         const userData = userDoc.data();
         userRole = userData.role || 'tech_officer';
         
-        // Handle existing users who might have different status values
-        console.log('Google Sign-In: Existing user data:', {
-          email: userData.email,
-          status: userData.status,
-          role: userData.role,
-          emailVerified: user.emailVerified
-        });
 
         // Check if account is suspended (always block suspended accounts)
         if (userData.status === 'suspended') {
@@ -1246,14 +1390,14 @@ const login = async (emailOrContact, password) => {
 
         // For existing users, check if they need email verification
         if (!user.emailVerified) {
-          console.log('Google Sign-In: User email not verified, blocking access');
+
           await signOut(auth);
           throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
         }
 
         // Handle status updates for existing users (auto-activate admins only)
         if (userData.role === 'admin' && userData.status === 'inactive' && user.emailVerified) {
-          console.log('Google Sign-In: Updating existing user status from inactive to active for:', user.email);
+
           
           await updateDoc(doc(db, 'users', user.uid), {
             status: 'active',
@@ -1263,17 +1407,17 @@ const login = async (emailOrContact, password) => {
           userData.status = 'active';
         } else if (userData.status === 'active' && user.emailVerified) {
           // Existing active user with verified email - allow access
-          console.log('Google Sign-In: Existing active user with verified email - allowing access');
+
         } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
           // Handle legacy users without proper status
-          console.log('Google Sign-In: Legacy user without proper status - evaluating role for:', user.email);
+
           if (userData.role === 'admin' && user.emailVerified) {
             await updateDoc(doc(db, 'users', user.uid), {
               status: 'active',
               emailVerified: true,
               lastModified: serverTimestamp()
             });
-            console.log('Google Sign-In: Successfully updated legacy admin user status to active');
+
             userData.status = 'active';
           } else {
             await signOut(auth);
@@ -1291,19 +1435,7 @@ const login = async (emailOrContact, password) => {
       logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, userRole);
       return { success: true, user };
     } catch (error) {
-      console.error('Google sign-in error:', error);
-      let errorMessage = 'Failed to sign in with Google';
-      
-      if (error.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'Sign-in popup was closed before completing the sign-in';
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        errorMessage = 'Sign-in popup was cancelled';
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = 'Sign-in popup was blocked by the browser';
-      }
-      
-      logActivity('error', logMessages.error.system(`Google login failed: ${errorMessage}`), 'anonymous');
-      throw new Error(errorMessage);
+      throw error;
     }
   };
 
@@ -1332,7 +1464,7 @@ const resetPassword = async (email) => {
     
     return { success: true };
   } catch (error) {
-    console.error('Password reset error:', error);
+
     
     // Handle specific Firebase errors
     let errorMessage = error.message;
@@ -1376,7 +1508,6 @@ const resetPassword = async (email) => {
         throw new Error(result.data.message || 'Failed to change password');
       }
     } catch (error) {
-      console.error('Force password change error:', error);
       
       let errorMessage = error.message;
       if (error.code === 'auth/weak-password') {
@@ -1402,12 +1533,7 @@ const resetPassword = async (email) => {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        
-        console.log('Migrating existing user:', {
-          email: userData.email,
-          currentStatus: userData.status,
-          emailVerified: auth.currentUser.emailVerified
-        });
+      
 
         // If user has no status or legacy status, set to active if email verified
         if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
@@ -1418,7 +1544,7 @@ const resetPassword = async (email) => {
               lastModified: serverTimestamp()
             });
             
-            console.log('Successfully migrated existing user to active status');
+
             
             // Update local state
             setCurrentUser(prev => ({
@@ -1436,7 +1562,7 @@ const resetPassword = async (email) => {
               lastModified: serverTimestamp()
             });
             
-            console.log('Set existing user to inactive (email not verified)');
+
             
             // Update local state
             setCurrentUser(prev => ({
@@ -1455,7 +1581,7 @@ const resetPassword = async (email) => {
             lastModified: serverTimestamp()
           });
           
-          console.log('Updated existing inactive user to active');
+
           
           // Update local state
           setCurrentUser(prev => ({
@@ -1466,14 +1592,14 @@ const resetPassword = async (email) => {
           
           return { success: true, statusUpdated: true, newStatus: 'active' };
         } else {
-          console.log('User already has proper status:', userData.status);
+
           return { success: true, statusUpdated: false, currentStatus: userData.status };
         }
       }
       
       return { success: false, error: 'User document not found' };
     } catch (error) {
-      console.error('Error migrating existing user:', error);
+
       throw error;
     }
   };
@@ -1507,14 +1633,14 @@ const resetPassword = async (email) => {
         });
       }
     } catch (error) {
-      console.error('Error refreshing current user:', error);
+
     }
   }
 
   // Function to manually activate Admin account
   const activateAdminAccount = async (email) => {
     try {
-      console.log('Attempting to activate Admin account for:', email);
+
       
       // Search in users collection first
       const usersRef = collection(db, 'users');
@@ -1526,14 +1652,14 @@ const resetPassword = async (email) => {
         const userData = userDoc.data();
         
         if (userData.role === 'Admin' || userData.role === 'admin') {
-          console.log('Found Admin account, updating status to Active');
+
           
           await updateDoc(doc(db, 'users', userDoc.id), {
             status: 'Active',
             lastModified: serverTimestamp()
           });
           
-          console.log('Admin account activated successfully');
+
           return { success: true, message: 'Admin account activated successfully' };
         } else {
           return { success: false, message: 'Account is not an Admin account' };
@@ -1542,7 +1668,7 @@ const resetPassword = async (email) => {
       
       return { success: false, message: 'Admin account not found' };
     } catch (error) {
-      console.error('Error activating Admin account:', error);
+
       return { success: false, message: error.message };
     }
   }
@@ -1550,7 +1676,7 @@ const resetPassword = async (email) => {
   // Function to reset Admin password
   const resetAdminPassword = async (email, newPassword) => {
     try {
-      console.log('Attempting to reset Admin password for:', email);
+
       
       // Search in users collection first
       const usersRef = collection(db, 'users');
@@ -1562,12 +1688,12 @@ const resetPassword = async (email) => {
         const userData = userDoc.data();
         
         if (userData.role === 'Admin' || userData.role === 'admin') {
-          console.log('Found Admin account, resetting password...');
+
           
           // Use Firebase Admin SDK via Cloud Function to reset password
           try {
             const { getFunctions, httpsCallable } = await import('firebase/functions');
-            const { app } = await import('./firebase');
+            const { app } = await import('../firebase');
             
             const functions = getFunctions(app);
             const adminResetPassword = httpsCallable(functions, 'adminResetPassword');
@@ -1578,13 +1704,13 @@ const resetPassword = async (email) => {
             });
             
             if (result.data.success) {
-              console.log('Admin password reset successfully');
+
               return { success: true, message: 'Admin password reset successfully. New password: ' + newPassword };
             } else {
               throw new Error(result.data.error || 'Failed to reset password');
             }
           } catch (cloudError) {
-            console.warn('Cloud Function not available, using manual instructions');
+
             return { 
               success: false, 
               message: `Password reset initiated. To complete: 1) Go to Firebase Console > Authentication > Users, 2) Find user with email: ${email}, 3) Click "Edit" and set password to: ${newPassword}, 4) Save changes.`,
@@ -1598,7 +1724,7 @@ const resetPassword = async (email) => {
       
       return { success: false, message: 'Admin account not found' };
     } catch (error) {
-      console.error('Error resetting Admin password:', error);
+
       return { success: false, message: error.message };
     }
   }
@@ -1609,6 +1735,9 @@ const resetPassword = async (email) => {
     signup,
     login,
     logout,
+    signInWithGoogle,
+    handleGoogleRedirectResult,
+    isHandlingRedirect,
     // email verification modal controls
     emailVerificationModal,
     openEmailVerificationModal,
@@ -1625,7 +1754,6 @@ const resetPassword = async (email) => {
     isAdmin,
     isTechOfficer,
     updateUser,
-    signInWithGoogle,
     resetPassword,
     sendVerificationEmail,
     checkEmailVerification,
