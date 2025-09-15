@@ -179,6 +179,20 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     }));
   }, [filteredFarms, rangeStart, rangeEnd]);
 
+  // Compute max stacked totals to size the X-axis domain to avoid clipping
+  const maxFarmStackTotal = useMemo(() => {
+    const totals = byFarmData.map(d => Number(d.__total || 0));
+    return totals.length ? Math.max(...totals) : 0;
+  }, [byFarmData]);
+
+  const maxRiskStackTotal = useMemo(() => {
+    if (!byRiskData.length) return 0;
+    return byRiskData.reduce((maxSoFar, row) => {
+      const rowTotal = filteredFarms.reduce((sum, f) => sum + (Number(row[f.name]) || 0), 0);
+      return Math.max(maxSoFar, rowTotal);
+    }, 0);
+  }, [byRiskData, filteredFarms]);
+
   // Assign distinct colors to farms for risk view
   const farmColorMap = useMemo(() => {
     const palette = [
@@ -413,9 +427,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
 
       {groupMode === 'farm' ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart layout="vertical" data={byFarmData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}>
+          <BarChart layout="vertical" data={byFarmData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }} margin={{ top: 12, right: 24, left: 12, bottom: 12 }}>
             <CartesianGrid horizontal={false} />
-            <XAxis type="number" allowDecimals={false} />
+            <XAxis type="number" allowDecimals={false} domain={[0, Math.max(1, Math.ceil((maxFarmStackTotal || 0) * 1.1))]} />
             <YAxis type="category" dataKey="name" width={100} />
             <Tooltip content={<CustomTooltip />} />
             <Legend content={renderLegend} />
@@ -450,9 +464,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={340}>
-          <BarChart layout="vertical" data={byRiskData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}>
+          <BarChart layout="vertical" data={byRiskData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }} margin={{ top: 12, right: 24, left: 12, bottom: 12 }}>
             <CartesianGrid horizontal={false} />
-            <XAxis type="number" allowDecimals={false} />
+            <XAxis type="number" allowDecimals={false} domain={[0, Math.max(1, Math.ceil((maxRiskStackTotal || 0) * 1.1))]} />
             <YAxis type="category" dataKey="risk" width={110} />
             <Tooltip content={<CustomTooltip />} />
             <Legend content={renderLegend} />

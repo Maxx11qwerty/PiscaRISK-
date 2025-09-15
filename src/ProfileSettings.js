@@ -10,10 +10,10 @@ import { useNavigate } from "react-router-dom";
 import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
 import Sidebar from './components/Sidebar';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { auth } from './firebase';
-import { sendPasswordResetEmail } from 'firebase/auth';
+import { sendPasswordResetEmail, updateEmail as fbUpdateEmail, sendEmailVerification as fbSendEmailVerification } from 'firebase/auth';
 
 
 export default function AccountSettings() {
@@ -55,6 +55,7 @@ export default function AccountSettings() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [nightMode, setNightMode] = useState(false);
+  const [showEmailVerifyNotice, setShowEmailVerifyNotice] = useState(false);
   
   // Form state variables
   const [showFullNameChangeForm, setShowFullNameChangeForm] = useState(false);
@@ -272,26 +273,50 @@ const uploadImage = (file) => {
     }
     
     try {
-      // Update in Firestore directly (email is a main user field)
+      // 1) Update auth user's email
+      await fbUpdateEmail(auth.currentUser, newEmail);
+
+      // 2) Update Firestore: set email and mark emailVerified false until verification
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
-        email: newEmail
+        email: newEmail,
+        emailVerified: false,
+        lastModified: new Date()
       });
-      
-      // Update local state
+
+      // 3) Send verification email to the new address
+      await fbSendEmailVerification(auth.currentUser);
+
+      // 4) Update UI/local state and prompt user to verify
       setNewEmail(newEmail);
-      
-      logActivity('profile', `Email updated from "${currentUser.email || 'Not set'}" to "${newEmail}"`, currentUser.username);
-      
-      // Refresh current user data to get updated values
+      logActivity('profile', `Email updated from "${currentUser.email || 'Not set'}" to "${newEmail}" (verification sent)`, currentUser.username);
       await refreshCurrentUser();
-      
       setShowEmailChangeForm(false);
       setEmailError('');
-      setSuccess('Email updated successfully!');
+      setSuccess(`Verification email sent to ${newEmail}. Please verify to log in with your new address.`);
+      setShowEmailVerifyNotice(true);
+      
+      // Begin periodic verification checks until verified
+      if (!verificationCheckInterval) {
+        const interval = setInterval(handleVerificationCheck, 5000);
+        setVerificationCheckInterval(interval);
+      }
+      
+      // Force a page reload to ensure UI updates with new email
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error) {
-      setEmailError('Failed to update email. Please try again.');
-      setError('Failed to update email. Please try again.');
+      let msg = 'Failed to update email. Please try again.';
+      if (error?.code === 'auth/requires-recent-login') {
+        msg = 'Please re-login to change your email, then try again.';
+      } else if (error?.code === 'auth/invalid-email') {
+        msg = 'The email address is invalid.';
+      } else if (error?.code === 'auth/email-already-in-use') {
+        msg = 'That email is already in use.';
+      }
+      setEmailError(msg);
+      setError(msg);
     }
   };
 
@@ -629,19 +654,25 @@ const uploadImage = (file) => {
       const isVerified = await checkEmailVerification();
       
       if (isVerified) {
-        // Only show success message if we haven't shown it before
-        if (!verificationCheckInterval) {
-          setSuccess(t('profileSettings.emailVerified'));
-          try { 
-            const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-            logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
-          } catch (_) {}
-        }
-        // Clear the interval if email is verified
+        // Persist emailVerified true in Firestore and refresh
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          await updateDoc(userRef, { emailVerified: true, lastModified: serverTimestamp() });
+        } catch (_) {}
+
+        setShowEmailVerifyNotice(false);
+        setSuccess(t('profileSettings.emailVerified'));
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
+        } catch (_) {}
+
+        // Clear polling and refresh user state
         if (verificationCheckInterval) {
           clearInterval(verificationCheckInterval);
           setVerificationCheckInterval(null);
         }
+        await refreshCurrentUser();
       }
     } catch (error) {
       setError(t('profileSettings.failedToCheckVerification'));
@@ -1125,6 +1156,16 @@ const handleSendVerificationEmail = async () => {
                     }}
                   />
                 </div>
+                { (showEmailVerifyNotice || currentUser?.emailVerified === false) && (
+                  <div className="verification-notice" style={{ marginTop: '8px', color: '#eab308' }}>
+                    Your email is unverified. We sent a verification link to your new address. You must verify before you can log in with it.
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '8px' }}>
+                      <button className="send-verification-btn" onClick={handleSendVerificationEmail} disabled={isSendingVerification}>
+                        {isSendingVerification ? 'Sending…' : 'Resend verification email'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

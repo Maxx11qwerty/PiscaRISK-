@@ -118,17 +118,9 @@ const Feedback = () => {
         const feedbacksRef = collection(db, 'PiscaRisk');
         let q;
         
-        // Set up query based on user role
-        if (currentUser && (currentUser.role === 'Admin' || currentUser.role === 'Tech Officer')) {
-          // Admins and Tech Officers can see all feedback
+        // Fetch all feedback, filter by farm on client side
+        if (currentUser) {
           q = query(feedbacksRef, orderBy('timestamp', 'desc'));
-        } else if (currentUser) {
-          // Regular users can only see their own feedback
-          q = query(
-            feedbacksRef,
-            where('uid', '==', currentUser.uid),
-            orderBy('timestamp', 'desc')
-          );
         } else {
           // Not authenticated - don't try to fetch
           setFeedbacks([]);
@@ -140,8 +132,8 @@ const Feedback = () => {
         
         console.log('Number of documents found:', querySnapshot.docs.length);
         
-        const fetchedFeedbacks = await Promise.all(querySnapshot.docs.map(async (doc) => {
-          const data = doc.data();
+        const fetchedFeedbacks = await Promise.all(querySnapshot.docs.map(async (snap) => {
+          const data = snap.data();
           console.log('Document data:', data);
           console.log('Status field:', data.status);
           console.log('Archived fields:', { archivedAt: data.archivedAt, archivedBy: data.archivedBy });
@@ -159,7 +151,7 @@ const Feedback = () => {
           if (data.replies && Array.isArray(data.replies)) {
             setReplies(prev => ({
               ...prev,
-              [doc.id]: data.replies
+              [snap.id]: data.replies
             }));
           }
 
@@ -179,10 +171,11 @@ const Feedback = () => {
           // Fetch user farm information
           let userFarm = null;
           let assignedFarmName = null;
-          if (data.uid) {
+          const senderId = data.uid || data.userId;
+          if (senderId) {
             try {
               // Try to get user data from mobileUsers collection first
-              const userDoc = await getDoc(doc(db, 'mobileUsers', data.uid));
+              const userDoc = await getDoc(doc(db, 'mobileUsers', senderId));
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 userFarm = userData.farm;
@@ -197,7 +190,7 @@ const Feedback = () => {
                 }
               } else {
                 // Try users collection as fallback
-                const userDoc2 = await getDoc(doc(db, 'users', data.uid));
+                const userDoc2 = await getDoc(doc(db, 'users', senderId));
                 if (userDoc2.exists()) {
                   const userData = userDoc2.data();
                   userFarm = userData.farm;
@@ -212,15 +205,40 @@ const Feedback = () => {
                   }
                 }
               }
+              // If still no farm, try to resolve via userEmail in mobileUsers
+              if (!userFarm && data.userEmail) {
+                try {
+                  const muRef = collection(db, 'mobileUsers');
+                  const muQuery = query(muRef, where('email', '==', data.userEmail));
+                  const muSnap = await getDocs(muQuery);
+                  if (!muSnap.empty) {
+                    const muData = muSnap.docs[0].data();
+                    userFarm = muData.farm;
+                    if (userFarm) {
+                      const farmDoc = await getDoc(doc(db, 'farms', userFarm));
+                      assignedFarmName = farmDoc.exists() ? (farmDoc.data().name || userFarm) : userFarm;
+                    }
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+              console.debug('Feedback sender farm resolution', {
+                feedbackId: snap.id,
+                senderId,
+                userEmail: data.userEmail,
+                resolvedUserFarm: userFarm,
+                resolvedAssignedFarmName: assignedFarmName
+              });
             } catch (error) {
               console.warn('Could not fetch user farm data for feedback:', error);
             }
           }
 
           return {
-            id: doc.id,
+            id: snap.id,
             user: data.userName || 'Anonymous',
-            uid: data.uid || '',
+            uid: data.uid || data.userId || '',
             type: concernToType[data.concern?.toLowerCase()] || 'other',
             message: data.feedback || '',
             date: formatFirestoreTimestamp(data.timestamp),
@@ -242,7 +260,7 @@ const Feedback = () => {
           };
         }));
 
-        console.log('Processed feedbacks:', fetchedFeedbacks);
+        console.log('Processed feedbacks (pre-filter):', fetchedFeedbacks);
         setFeedbacks(fetchedFeedbacks);
       } catch (error) {
         console.error('Error fetching feedbacks:', error);
@@ -292,22 +310,31 @@ const Feedback = () => {
 
   // Combined filtering logic
   const filteredFeedbacks = feedbacks.filter(feedback => {
-    // Farm filter - if current user is assigned to a farm, only show feedback from users in the same farm
-    const isAssignedToFarm = currentUser?.farm;
-    if (isAssignedToFarm) {
+    // Farm filter - apply if we have either the current user's farm ID or resolved farm name
+    const hasUserFarmContext = Boolean(currentUser?.farm || assignedFarmName);
+    if (hasUserFarmContext) {
       const feedbackUserFarm = feedback.userFarm;
-      const currentUserFarm = currentUser.farm;
-      
-      // Check if feedback user's farm matches current user's farm
-      const matchesFarm = feedbackUserFarm === currentUserFarm ||
-                         feedbackUserFarm === assignedFarmName ||
-                         feedback.assignedFarmName === currentUserFarm ||
-                         feedback.assignedFarmName === assignedFarmName ||
-                         feedbackUserFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
-                         feedbackUserFarm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
-                         feedback.assignedFarmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
-                         feedback.assignedFarmName?.toLowerCase() === assignedFarmName?.toLowerCase();
-      
+      const feedbackUserFarmName = feedback.assignedFarmName;
+      const currentUserFarmId = currentUser?.farm;
+      const currentUserFarmName = assignedFarmName;
+
+      const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
+      const fId = norm(feedbackUserFarm);
+      const fName = norm(feedbackUserFarmName);
+      const uId = norm(currentUserFarmId);
+      const uName = norm(currentUserFarmName);
+
+      const matchesFarm = (fId && (fId === uId || fId === uName)) ||
+                          (fName && (fName === uId || fName === uName));
+
+      if (!matchesFarm) {
+        console.debug('Feedback filtered out by farm mismatch', {
+          feedbackId: feedback.id,
+          fId, fName, uId, uName,
+          raw: { feedbackUserFarm, feedbackUserFarmName, currentUserFarmId, currentUserFarmName }
+        });
+      }
+
       if (!matchesFarm) {
         return false; // Skip feedback from different farms
       }
@@ -889,7 +916,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Inbox tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={feedbacks.filter(f => !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
+          data-count={filteredFeedbacks.filter(f => !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
           {t('feedback.inbox')}
         </button>
@@ -902,7 +929,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Response tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={feedbacks.filter(f => f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
+          data-count={filteredFeedbacks.filter(f => f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
         >
           {t('feedback.response')}
         </button>
@@ -915,7 +942,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Archive tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={feedbacks.filter(f => f.status === 'archived').length}
+          data-count={filteredFeedbacks.filter(f => f.status === 'archived').length}
         >
           {t('feedback.archive')}
         </button>
@@ -1083,7 +1110,16 @@ const Feedback = () => {
                   </div>
                     <div className="feedback-actions">
                     <span className="feedback-date">{feedback.date}</span>
-                    { (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer') && (
+                    { (() => {
+                      const isPrivileged = currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer';
+                      const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
+                      const fId = norm(feedback.userFarm);
+                      const fName = norm(feedback.assignedFarmName);
+                      const uId = norm(currentUser?.farm);
+                      const uName = norm(assignedFarmName);
+                      const sameFarm = (fId && (fId === uId || fId === uName)) || (fName && (fName === uId || fName === uName));
+                      return isPrivileged || sameFarm;
+                    })() && (
                       <>
                         {/* Mark as Read/Unread Icons */}
                         {feedback.isRead ? (

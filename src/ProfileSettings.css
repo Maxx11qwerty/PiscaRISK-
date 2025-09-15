@@ -1380,6 +1380,37 @@
   transform: none;
 }
 
+.send-verification-btn,
+.check-verification-btn {
+  background: #1A4375;
+  font-family: 'customfont1';
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.check-verification-btn {
+  background: #4b5563; /* neutral for secondary */
+}
+
+.send-verification-btn:hover,
+.check-verification-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.send-verification-btn:disabled,
+.check-verification-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 /*
   =============================
   Responsive Breakpoints

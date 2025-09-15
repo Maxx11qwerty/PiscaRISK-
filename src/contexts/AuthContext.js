@@ -1850,12 +1850,12 @@ const resetPassword = async (email) => {
         
         setCurrentUser({
           uid: auth.currentUser.uid,
-          email: auth.currentUser.email,
+          email: userData.email || auth.currentUser.email,
           username: userData.username,
           role: userData.role,
           profileImage: userData.profileImage || null,
           dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
-          emailVerified: auth.currentUser.emailVerified,
+          emailVerified: (userData.emailVerified !== undefined ? userData.emailVerified : auth.currentUser.emailVerified),
           status: userData.status,
           // Add data from main user document
           address: userData.address || '',

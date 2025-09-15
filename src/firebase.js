@@ -4,6 +4,9 @@ import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
+import 'firebase/compat/firestore'; // if you use Firestore
+import 'firebase/compat/storage';
+import 'firebase/compat/auth';
 
 // Web App Firebase Configuration
 const firebaseConfig = {
@@ -13,9 +16,9 @@ const firebaseConfig = {
   storageBucket: "piscarisk.appspot.com",
   messagingSenderId: "272731177206",
   appId: "1:272731177206:web:657571087b13fba0626cd7",
-  measurementId: "G-NT4TSSJL22"
+  measurementId: "G-NT4TSSJL22",
+  recaptchaKey: "6LcfiMorAAAAANiZcyAwFAMoD0nEaH_fEvIcdV_8"
 };
-
 // Initialize Firebase Client
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);

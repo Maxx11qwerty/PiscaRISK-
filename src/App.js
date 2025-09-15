@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -12,12 +12,12 @@ import Feedback from "./Feedback";
 import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, AuthContext } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 
 const AppRoutes = () => {
   const location = useLocation();
-  const { isHandlingRedirect } = useAuth();
+  const { isHandlingRedirect } = useContext(AuthContext);
 
   if (isHandlingRedirect) {
     return (

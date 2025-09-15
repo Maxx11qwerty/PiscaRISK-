@@ -52,7 +52,7 @@ if (isProduction) {
   if (!indexContent.includes('unsafe-eval')) {
     indexContent = indexContent.replace(
       /script-src[^;]+;/g,
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com/recaptcha;`
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com/recaptcha https://www.google.com/recaptcha/ https://recaptcha.google.com/ https://www.recaptcha.net;`
     );
   }
   
@@ -61,6 +61,22 @@ if (isProduction) {
     indexContent = indexContent.replace(
       /img-src[^;]+;/g,
       `img-src 'self' data: https: blob:;`
+    );
+  }
+
+  // Ensure reCAPTCHA Enterprise endpoints are allowed in connect-src
+  if (!indexContent.includes('recaptchaenterprise.googleapis.com')) {
+    indexContent = indexContent.replace(
+      /connect-src[^;]+;/g,
+      `connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org https://us-central1-piscarisk.cloudfunctions.net https://www.google-analytics.com https://www.google.com https://recaptchaenterprise.googleapis.com https://firebaseinstallations.googleapis.com;`
+    );
+  }
+
+  // Ensure frame-src allows reCAPTCHA frames
+  if (!indexContent.includes('recaptcha.google.com')) {
+    indexContent = indexContent.replace(
+      /frame-src[^;]+;/g,
+      `frame-src 'self' https://*.google.com https://*.firebaseapp.com https://*.firebase.com https://piscarisk.firebaseapp.com https://piscarisk.onrender.com https://www.google.com/recaptcha/ https://recaptcha.google.com/ https://www.recaptcha.net/;`
     );
   }
 }

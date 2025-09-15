@@ -98,65 +98,87 @@ const initializeNotifications = async () => {
       });
     });
 
-    // Fetch feedback from Firebase
+    // Fetch feedback from Firebase and resolve sender's farm
     const feedbackRef = collection(db, 'PiscaRisk');
     const feedbackQuery = query(feedbackRef, orderBy('timestamp', 'desc'));
     const feedbackSnapshot = await getDocs(feedbackQuery);
-    
-    feedbackSnapshot.docs.forEach(doc => {
-      const feedback = doc.data();
-      
-      // Handle timestamp conversion safely for feedback
-      let timestamp;
-      try {
-        
-        // First try to handle Firestore Timestamp
-        if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
-          timestamp = feedback.timestamp.toDate().toISOString();
-        } 
-        // Then try Date object
-        else if (feedback.timestamp instanceof Date) {
-          timestamp = feedback.timestamp.toISOString();
-        }
-        // Then try string
-        else if (typeof feedback.timestamp === 'string') {
-          // Try to parse the string as a date
-          const date = new Date(feedback.timestamp);
-          if (!isNaN(date.getTime())) {
-            timestamp = date.toISOString();
-          } else {
-            // If string parsing fails, try to extract date from the string
-            const dateMatch = feedback.timestamp.match(/\d{4}-\d{2}-\d{2}/);
-            if (dateMatch) {
-              timestamp = new Date(dateMatch[0]).toISOString();
+
+    const feedbackNotifications = await Promise.all(
+      feedbackSnapshot.docs.map(async (docSnap) => {
+        const feedback = docSnap.data();
+
+        // Handle timestamp conversion safely for feedback
+        let timestamp;
+        try {
+          if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
+            timestamp = feedback.timestamp.toDate().toISOString();
+          } else if (feedback.timestamp instanceof Date) {
+            timestamp = feedback.timestamp.toISOString();
+          } else if (typeof feedback.timestamp === 'string') {
+            const date = new Date(feedback.timestamp);
+            if (!isNaN(date.getTime())) {
+              timestamp = date.toISOString();
             } else {
-              throw new Error('Invalid date string format');
+              const dateMatch = feedback.timestamp.match(/\d{4}-\d{2}-\d{2}/);
+              if (dateMatch) {
+                timestamp = new Date(dateMatch[0]).toISOString();
+              } else {
+                throw new Error('Invalid date string format');
+              }
             }
+          } else {
+            timestamp = new Date().toISOString();
           }
-        }
-        // If no valid timestamp found, use current date
-        else {
+        } catch (error) {
           timestamp = new Date().toISOString();
         }
-      } catch (error) {
-        // Use current date as fallback
-        timestamp = new Date().toISOString();
-      }
 
-      notifications.push({
-        id: doc.id,
-        type: 'feedback',
-        message: `${feedback.userName || feedback.user || 'A user'} submitted a feedback..`,
-        username: feedback.userName || feedback.user || 'Unknown User',
-        timestamp: timestamp,
-        read: false,
-        iconKey: "feedback",
-        feedbackType: feedback.concern || 'general',
-        feedbackData: feedback,
-        avatar: feedback.avatar || null,
-        source: feedback.source || 'web'
-      });
-    });
+        // Resolve sender's farm (ID and name)
+        let senderFarmId = null;
+        let senderFarmName = null;
+        try {
+          // Feedback may store sender as uid or userId; check both
+          const senderUid = feedback.uid || feedback.userId || null;
+          if (senderUid) {
+            const mobileUserDoc = await getDoc(doc(db, 'mobileUsers', senderUid));
+            if (mobileUserDoc.exists()) {
+              senderFarmId = mobileUserDoc.data().farm || null;
+            } else {
+              const userDoc = await getDoc(doc(db, 'users', senderUid));
+              if (userDoc.exists()) {
+                senderFarmId = userDoc.data().farm || null;
+              }
+            }
+            if (senderFarmId) {
+              const farmDoc = await getDoc(doc(db, 'farms', senderFarmId));
+              senderFarmName = farmDoc.exists() ? (farmDoc.data().name || senderFarmId) : senderFarmId;
+            }
+          }
+        } catch (_) {
+          // ignore resolution errors; fall back below
+        }
+
+        return {
+          id: docSnap.id,
+          type: 'feedback',
+          message: `${feedback.userName || feedback.user || 'A user'} submitted a feedback..`,
+          username: feedback.userName || feedback.user || 'Unknown User',
+          timestamp: timestamp,
+          read: false,
+          iconKey: "feedback",
+          feedbackType: feedback.concern || 'general',
+          feedbackData: feedback,
+          avatar: feedback.avatar || null,
+          source: feedback.source || 'web',
+          // attach farm data for filtering
+          farmName: senderFarmName || 'Unknown Farm',
+          reportData: { ...(feedback || {}), farm: senderFarmId || null },
+          senderUid: feedback.uid || feedback.userId || null
+        };
+      })
+    );
+
+    notifications.push(...feedbackNotifications);
 
     // Sort by timestamp (newest first)
     return notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -445,41 +467,43 @@ const NotificationBox = () => {
         read: readStatusMap.get(fresh.id) || false
       }));
 
-      // Apply farm filtering if current user is assigned to a farm
+      // Apply farm filtering based on the current user's farm (ID or name)
       let filtered = merged;
-      if (currentUser && assignedFarmName) {
-        // Get current user's farm ID for comparison
-        let currentUserFarm = null;
+      if (currentUser) {
+        // helper to normalize strings safely
+        const normalize = (val) => (typeof val === 'string' ? val.trim().toLowerCase() : (val || '').toString().trim().toLowerCase());
+
+        // Get current user's farm (prefer ID from user doc); assignedFarmName is the resolved display name
+        let currentUserFarmId = null;
         try {
           const userDoc = await getDoc(doc(db, 'mobileUsers', currentUser.uid));
           if (userDoc.exists()) {
-            currentUserFarm = userDoc.data().farm;
+            currentUserFarmId = userDoc.data().farm || null;
           } else {
             const userDoc2 = await getDoc(doc(db, 'users', currentUser.uid));
             if (userDoc2.exists()) {
-              currentUserFarm = userDoc2.data().farm;
+              currentUserFarmId = userDoc2.data().farm || null;
             }
           }
         } catch (error) {
           console.warn('Could not fetch current user farm for filtering:', error);
         }
 
-        if (currentUserFarm) {
+        if (currentUserFarmId || assignedFarmName) {
+          const normUserFarmId = normalize(currentUserFarmId);
+          const normUserFarmName = normalize(assignedFarmName);
+
           filtered = merged.filter(notification => {
-            const notificationFarm = notification.farmName;
-            const notificationFarmId = notification.reportData?.farm;
-            
-            // Check if notification farm matches current user's farm
-            const matchesFarm = notificationFarm === assignedFarmName ||
-                               notificationFarm === currentUserFarm ||
-                               notificationFarmId === currentUserFarm ||
-                               notificationFarmId === assignedFarmName ||
-                               notificationFarm?.toLowerCase() === assignedFarmName?.toLowerCase() ||
-                               notificationFarm?.toLowerCase() === currentUserFarm?.toLowerCase() ||
-                               notificationFarmId?.toLowerCase() === currentUserFarm?.toLowerCase() ||
-                               notificationFarmId?.toLowerCase() === assignedFarmName?.toLowerCase();
-            
-            return matchesFarm;
+            const notificationFarmName = normalize(notification.farmName);
+            const notificationFarmId = normalize(notification.reportData?.farm);
+
+            // Match if any normalized identity equals: name-to-name, id-to-id, id-to-name (for reports storing either)
+            return (
+              (normUserFarmName && notificationFarmName === normUserFarmName) ||
+              (normUserFarmId && notificationFarmId === normUserFarmId) ||
+              (normUserFarmId && notificationFarmName === normUserFarmId) ||
+              (normUserFarmName && notificationFarmId === normUserFarmName)
+            );
           });
         }
       }
