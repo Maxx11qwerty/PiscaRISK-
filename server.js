@@ -65,6 +65,8 @@ app.use(
           "https://www.gstatic.com",
           "https://recaptcha.google.com",
           "https://www.recaptcha.net",
+          // Google Analytics collection endpoint
+          "https://www.google-analytics.com",
           // OpenWeather
           "https://api.openweathermap.org"
         ],

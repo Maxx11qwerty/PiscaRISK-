@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
 
 // Web App Firebase Configuration
 const firebaseConfig = {
@@ -18,6 +19,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const analytics = getAnalytics(app);
 
 // Analytics initialization (client-side only)
 if (typeof window !== "undefined") {
@@ -78,4 +80,4 @@ export async function getData(collectionName) {
   }
 }
 
-export { app, auth, db, firebaseConfig };
+export { app, auth, db, firebaseConfig, analytics };
