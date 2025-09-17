@@ -35,7 +35,9 @@ app.use(
           "https://www.gstatic.com",
           "https://www.google.com",
           "https://www.googleapis.com",
-          "https://www.recaptcha.net"
+          "https://www.recaptcha.net",
+          // Google Tag Manager / gtag.js for Firebase Analytics
+          "https://www.googletagmanager.com"
         ],
         "frame-src": [
           "'self'",
@@ -48,6 +50,8 @@ app.use(
           "'self'",
           // Firebase/Auth endpoints
           "https://www.googleapis.com",
+          // Firebase WebConfig endpoint used by analytics JS SDK
+          "https://firebase.googleapis.com",
           "https://identitytoolkit.googleapis.com",
           "https://securetoken.googleapis.com",
           "https://firestore.googleapis.com",
