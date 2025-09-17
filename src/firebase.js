@@ -2,7 +2,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
 
 // Web App Firebase Configuration
 const firebaseConfig = {
@@ -19,26 +18,33 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const analytics = getAnalytics(app);
+let analytics = null;
 
 // Analytics initialization (client-side only)
 if (typeof window !== "undefined") {
-  const isDevelopment = window.location.hostname === 'localhost' || 
-                       window.location.hostname === '127.0.0.1';
-  
-  if (!isDevelopment) {
+  const hostname = window.location.hostname;
+  const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isRender = hostname.endsWith('.onrender.com');
+  const envFlag = (process.env.REACT_APP_ENABLE_ANALYTICS || '').toLowerCase();
+  const explicitlyDisabled = envFlag === 'false' || envFlag === '0' || envFlag === 'off';
+
+  const shouldEnableAnalytics = !isDevelopment && !isRender && !explicitlyDisabled;
+
+  if (shouldEnableAnalytics) {
     import("firebase/analytics")
       .then(({ getAnalytics }) => {
         try {
-          getAnalytics(app);
+          analytics = getAnalytics(app);
           console.log('Analytics initialized successfully');
         } catch (error) {
-          console.warn('Analytics initialization failed:', error);
+          console.warn('Analytics initialization failed:', error?.message || error);
         }
       })
       .catch((error) => {
-        console.warn('Analytics import failed:', error);
+        console.warn('Analytics import failed:', error?.message || error);
       });
+  } else {
+    console.log('Analytics disabled for this environment');
   }
 }
 
