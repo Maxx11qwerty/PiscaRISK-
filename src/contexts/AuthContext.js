@@ -367,38 +367,51 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         // Reload user to get latest verification status
         await user.reload();
-        
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          // Update Firestore with latest verification status
-          await updateDoc(doc(db, 'users', user.uid), {
-            emailVerified: user.emailVerified,
-            lastModified: serverTimestamp()
-          });
 
-          // Get data from main user document
-          const userData = userDoc.data();
+        // Try fetching from primary users collection
+        let userDoc = await getDoc(doc(db, 'users', user.uid));
+        let userData = null;
+        let collectionName = 'users';
+
+        // If not found, try mobileUsers (e.g., fish farmers)
+        if (!userDoc.exists()) {
+          const mobileDoc = await getDoc(doc(db, 'mobileUsers', user.uid));
+          if (mobileDoc.exists()) {
+            userDoc = mobileDoc;
+            collectionName = 'mobileUsers';
+          }
+        }
+
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+
+          // Update Firestore with latest verification status in the correct collection
+          try {
+            await updateDoc(doc(db, collectionName, user.uid), {
+              emailVerified: user.emailVerified,
+              lastModified: serverTimestamp()
+            });
+          } catch (_) {}
 
           // Check if user needs OTP verification
           if (user.emailVerified && userData.status === 'active') {
             setRequiresOTP(true);
           }
 
+          // Build robust currentUser payload with safe fallbacks
           setCurrentUser({
             uid: user.uid,
-            email: user.email,
-            username: userData.username,
+            email: userData.email || user.email,
+            username: userData.username || user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
             role: userData.role,
-            profileImage: userData.profileImage || null,
+            profileImage: userData.profileImage || user.photoURL || null,
             dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
             emailVerified: user.emailVerified,
             status: userData.status,
-            // Add data from main user document
             address: userData.address || '',
-            fullName: userData.fullName || '',
-            contact: userData.contactNumber || '',
-            // Add farm information
-            farm: userData.farm || null
+            fullName: userData.fullName || user.displayName || '',
+            contact: userData.contactNumber || userData.contact || '',
+            farm: userData.farm || userData.farmId || null
           });
         }
       } else {
