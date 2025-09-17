@@ -26,7 +26,6 @@ app.use(cors({
 app.use(
   helmet({
     contentSecurityPolicy: {
-      useDefaults: true,
       directives: {
         "default-src": ["'self'"],
         "script-src": [
@@ -34,9 +33,7 @@ app.use(
           "'unsafe-inline'",
           "https://www.gstatic.com",
           "https://www.google.com",
-          "https://www.googleapis.com",
           "https://www.recaptcha.net",
-          // Google Tag Manager / gtag.js for Firebase Analytics
           "https://www.googletagmanager.com"
         ],
         "frame-src": [
@@ -48,40 +45,44 @@ app.use(
         ],
         "connect-src": [
           "'self'",
-          // Firebase/Auth endpoints
           "https://www.googleapis.com",
-          // Firebase WebConfig endpoint used by analytics JS SDK
           "https://firebase.googleapis.com",
           "https://identitytoolkit.googleapis.com",
           "https://securetoken.googleapis.com",
           "https://firestore.googleapis.com",
           "https://firebaseinstallations.googleapis.com",
-          // Firebase RTDB/WebSockets (dev)
           "https://*.firebaseio.com",
           "wss://*.firebaseio.com",
           "https://*.firebaseapp.com",
-          // reCAPTCHA
           "https://www.google.com",
           "https://www.gstatic.com",
           "https://recaptcha.google.com",
           "https://www.recaptcha.net",
-          // Google Analytics collection endpoint
           "https://www.google-analytics.com",
-          // OpenWeather
           "https://api.openweathermap.org"
         ],
         "img-src": [
           "'self'",
           "data:",
           "https://www.gstatic.com",
-          "https://www.google.com"
+          "https://www.google.com",
+          "https://lh3.googleusercontent.com", // ← ADD THIS
+          "https://*.googleusercontent.com",  // ← ADD THIS
+          "blob:"
         ],
         "style-src": [
           "'self'",
           "'unsafe-inline'",
           "https://www.gstatic.com",
-          "https://www.google.com"
-        ]
+          "https://fonts.googleapis.com"
+        ],
+        "font-src": [
+          "'self'",
+          "data:",
+          "https://fonts.gstatic.com",
+          "https://www.gstatic.com"
+        ],
+        "worker-src": ["'self'", "blob:"]
       }
     },
     crossOriginEmbedderPolicy: false,

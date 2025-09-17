@@ -13,14 +13,15 @@ if (isProduction) {
   console.log('🔒 Setting PRODUCTION CSP (strict, no unsafe-eval)');
   
   // Production CSP - strict but allows all required services
-  const productionCSP = `default-src 'self'; ` +
-    `script-src 'self' https://www.gstatic.com https://www.google.com https://www.recaptcha.net https://www.google.com/recaptcha/ https://apis.google.com https://www.googletagmanager.com; ` +
-    `style-src 'self' 'unsafe-inline' https://www.gstatic.com https://fonts.googleapis.com; ` +
-    `frame-src 'self' https://www.google.com https://www.gstatic.com https://recaptcha.google.com https://www.recaptcha.net https://www.google.com/recaptcha/; ` +
-    `connect-src 'self' https://www.google.com https://www.gstatic.com https://recaptcha.google.com https://www.recaptcha.net https://apis.google.com https://firebase.googleapis.com https://*.firebaseio.com https://*.googleapis.com https://*.firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://api.openweathermap.org https://www.google-analytics.com; ` +
-    `img-src 'self' data: https://www.gstatic.com https://www.google.com https://lh3.googleusercontent.com https://*.googleusercontent.com; ` + // ← ADDED Google user images
-    `font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com;` +
-    `worker-src 'self' blob:;`;
+// In your CSP update script
+const productionCSP = `default-src 'self'; ` +
+  `script-src 'self' https://www.gstatic.com https://www.google.com https://www.recaptcha.net https://www.google.com/recaptcha/ https://apis.google.com https://www.googletagmanager.com; ` +
+  `style-src 'self' 'unsafe-inline' https://www.gstatic.com https://fonts.googleapis.com; ` +
+  `frame-src 'self' https://www.google.com https://www.gstatic.com https://recaptcha.google.com https://www.recaptcha.net https://www.google.com/recaptcha/; ` +
+  `connect-src 'self' https://www.google.com https://www.gstatic.com https://recaptcha.google.com https://www.recaptcha.net https://apis.google.com https://firebase.googleapis.com https://*.firebaseio.com https://*.googleapis.com https://*.firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://api.openweathermap.org https://www.google-analytics.com; ` +
+  `img-src 'self' data: https://www.gstatic.com https://www.google.com https://lh3.googleusercontent.com https://*.googleusercontent.com blob:; ` + // ← FIXED
+  `font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com;` +
+  `worker-src 'self' blob:;`;
 
   // Update the CSP meta tag
   if (indexContent.includes('http-equiv="Content-Security-Policy"')) {
