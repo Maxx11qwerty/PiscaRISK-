@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -12,12 +12,12 @@ import Feedback from "./Feedback";
 import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
-import { AuthProvider, AuthContext } from './contexts/AuthContext';
+import * as Auth from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 
 const AppRoutes = () => {
   const location = useLocation();
-  const { isHandlingRedirect } = useContext(AuthContext);
+  const { isHandlingRedirect } = useContext(Auth.AuthContext);
 
   if (isHandlingRedirect) {
     return (
@@ -55,10 +55,35 @@ const AppRoutes = () => {
 };
 
 function App() {
+  useEffect(() => {
+    const testProxyConnection = async () => {
+      try {
+        console.log('Testing proxy connection to backend...');
+        const response = await fetch('/api/debug', { signal: AbortSignal.timeout(3000) }); // 3s timeout
+        if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
+        const data = await response.json();
+        console.log('✅ Proxy connection successful:', data);
+      } catch (error) {
+        console.warn('⚠️ Proxy connection failed:', error.message);
+        console.log('Trying direct connection to port 3001...');
+        try {
+          const directResponse = await fetch('http://localhost:3001/api/debug', { signal: AbortSignal.timeout(3000) });
+          if (!directResponse.ok) throw new Error(`Direct connection error: ${directResponse.status}`);
+          const directData = await directResponse.json();
+          console.log('✅ Direct connection successful:', directData);
+        } catch (directError) {
+          console.warn('⚠️ Direct connection also failed. Backend is probably not running.');
+          // Do NOT throw here – keep app running
+        }
+      }
+    };
+    testProxyConnection();
+  }, []);
+  
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <AuthProvider>
+        <Auth.AuthProvider>
           <AppRoutes />
           <ToastContainer
             position="top-right"
@@ -72,7 +97,7 @@ function App() {
             pauseOnHover
             theme="light"
           />
-        </AuthProvider>
+        </Auth.AuthProvider>
       </LanguageProvider>
     </BrowserRouter>
   );

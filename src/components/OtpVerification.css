@@ -260,6 +260,16 @@
   display: none;
 }
 
+/* Ensure reCAPTCHA is contained within the modal */
+#recaptcha-container {
+  overflow: hidden;
+}
+
+/* Hide reCAPTCHA badge when not in use */
+.grecaptcha-badge {
+  visibility: hidden;
+}
+
 /* Responsive design */
 @media (max-width: 480px) {
   .otp-modal {
