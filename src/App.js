@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import SignupPage from "./SignupPage";
@@ -14,6 +14,17 @@ import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
 import * as Auth from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { currentUser } = useContext(Auth.AuthContext);
+  
+  if (!currentUser) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
+};
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -42,14 +53,14 @@ const AppRoutes = () => {
     <Routes location={location} key={location.pathname}>
       <Route path="/" element={<Login />} />
       <Route path="/signup" element={<SignupPage />} />
-      <Route path="/ProfileSettings" element={<ProfileSettings />} />
-      <Route path="/Homepage" element={<Homepage />} />
-      <Route path="/RewardManagement" element={<RewardManagment />} />
-      <Route path="/AccountManagement" element={<AccountManagement />} />
-      <Route path="/Feedback" element={<Feedback />} />
-      <Route path="/logs" element={<Logs />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/pond-conditions" element={<PondConditionDashboard />} />
+      <Route path="/ProfileSettings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
+      <Route path="/Homepage" element={<ProtectedRoute><Homepage /></ProtectedRoute>} />
+      <Route path="/RewardManagement" element={<ProtectedRoute><RewardManagment /></ProtectedRoute>} />
+      <Route path="/AccountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
+      <Route path="/Feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
+      <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
+      <Route path="/pond-conditions" element={<ProtectedRoute><PondConditionDashboard /></ProtectedRoute>} />
     </Routes>
   );
 };

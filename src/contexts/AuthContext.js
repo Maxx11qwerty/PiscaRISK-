@@ -45,6 +45,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isHandlingRedirect, setIsHandlingRedirect] = useState(false);
   const suppressAuthUpdatesRef = useRef(false);
+  const currentUserRef = useRef(null);
+  const isLoggingOutRef = useRef(false);
 
   // Email verification modal state
   const [emailVerificationModal, setEmailVerificationModal] = useState({ 
@@ -236,9 +238,8 @@ export const AuthProvider = ({ children }) => {
           // Redirect handling is complete
           setIsHandlingRedirect(false);
           
-          // Force a page reload to ensure proper state
-
-          window.location.href = '/Homepage';
+          // Navigate to homepage without reload
+          window.history.replaceState(null, '', '/Homepage');
         } else {
 
           if (hasOAuthParams) {
@@ -361,10 +362,12 @@ export const AuthProvider = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (suppressAuthUpdatesRef.current) {
+      if (suppressAuthUpdatesRef.current || isLoggingOutRef.current) {
         return;
       }
-      if (user) {
+      
+      // Only process login if we don't already have a current user and we're not in logout state
+      if (user && !currentUserRef.current && !isLoggingOutRef.current) {
         // Reload user to get latest verification status
         await user.reload();
 
@@ -399,12 +402,12 @@ export const AuthProvider = ({ children }) => {
           }
 
           // Build robust currentUser payload with safe fallbacks
-          setCurrentUser({
+          const newCurrentUser = {
             uid: user.uid,
             email: userData.email || user.email,
             username: userData.username || user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
             role: userData.role,
-            profileImage: userData.profileImage || user.photoURL || null,
+            profileImage: userData.profileImage || null,
             dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
             emailVerified: user.emailVerified,
             status: userData.status,
@@ -412,10 +415,16 @@ export const AuthProvider = ({ children }) => {
             fullName: userData.fullName || user.displayName || '',
             contact: userData.contactNumber || userData.contact || '',
             farm: userData.farm || userData.farmId || null
-          });
+          };
+          setCurrentUser(newCurrentUser);
+          currentUserRef.current = newCurrentUser;
         }
-      } else {
+      }
+      
+      if (!user && currentUserRef.current) {
+        // Only process logout if we had a current user before
         setCurrentUser(null);
+        currentUserRef.current = null;
         setRequiresOTP(false);
         setOtpSent(false);
       }
@@ -472,6 +481,9 @@ export const AuthProvider = ({ children }) => {
 // Login function
 const login = async (emailOrContact, password) => {
   try {
+    // Clear logout flag since user is actively trying to log in
+    isLoggingOutRef.current = false;
+    
     let email = emailOrContact;
     let userData = null;
     let collectionName = 'users';
@@ -738,13 +750,24 @@ const login = async (emailOrContact, password) => {
 };
 
   const logout = async () => {
+    // Capture user info at the very beginning before any state changes
+    const username = currentUser?.username || auth.currentUser?.email || 'Unknown';
+    
+    
     try {
-      try { logActivity('logout', logMessages.logout.logoutAttempt(currentUser?.username || auth.currentUser?.email || 'Unknown')); } catch (_) {}
-      // 1. Perform all cleanup first
-      await signOut(auth);
+      try { logActivity('logout', logMessages.logout.logoutAttempt(username), username); } catch (_) {}
+      
+      // 1. Suppress auth state changes during logout
+      suppressAuthUpdatesRef.current = true;
+      isLoggingOutRef.current = true;
+      
+      // 2. Clear state first to prevent redirects
       setCurrentUser(null);
+      currentUserRef.current = null;
       setRequiresOTP(false);
       setOtpSent(false);
+      
+      // 3. Clear all storage
       localStorage.clear();
       sessionStorage.clear();
       
@@ -754,64 +777,82 @@ const login = async (emailOrContact, password) => {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       });
   
-      // 2. Service worker cleanup
+      // 4. Service worker cleanup
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
         await Promise.all(registrations.map(r => r.unregister()));
         const cacheKeys = await caches.keys();
         await Promise.all(cacheKeys.map(key => caches.delete(key)));
       }
-  
-      // 3. Replace current history entry with logout state
-      window.history.replaceState(null, '', '/logout');
-  
-      // 4. Add navigation blocker
-      const blockNavigation = (e) => {
-        window.history.replaceState(null, '', '/');
-        if (e) {
-          e.preventDefault();
-          window.location.replace('/');
-        }
-      };
-  
-      window.addEventListener('popstate', blockNavigation);
-  
-      // 5. Force redirect after cleanup
-      window.location.replace('/');
-      try { logActivity('logout', logMessages.logout.success(currentUser?.username || auth.currentUser?.email || 'Unknown'), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
+      
+      // 5. Sign out from Firebase last
+      await signOut(auth);
+      
+      // 6. Re-enable auth state changes
+      suppressAuthUpdatesRef.current = false;
+      // Keep isLoggingOutRef active until we have a real login
+      // isLoggingOutRef will be cleared in the auth state listener when login is processed
+      
+      try { logActivity('logout', logMessages.logout.success(username), username); } catch (_) {}
       
     } catch (error) {
-      try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
-      window.location.replace('/');
+      try { logActivity('logout', logMessages.logout.logoutError(username, error.message), username); } catch (_) {}
+      // Ensure we still clear state even if there's an error
+      setCurrentUser(null);
+      currentUserRef.current = null;
+      setRequiresOTP(false);
+      setOtpSent(false);
+      localStorage.clear();
+      sessionStorage.clear();
+      suppressAuthUpdatesRef.current = false;
+      isLoggingOutRef.current = false;
     }
   };
 
   // Enhanced handleLogout function that can be used across components
   const handleLogout = async (navigate) => {
+    // Capture user info at the very beginning before any state changes
+    const username = currentUser?.username || auth.currentUser?.email || 'Unknown';
+    
     try {
-      // Prevent any clicks during logout
-      const logoutButton = document.querySelector('.dropdown-menu button');
-      if (logoutButton) {
-        logoutButton.disabled = true;
-      }
-      
       // Call the main logout function
       await logout();
-      try { logActivity('logout', logMessages.logout.success(currentUser?.username || auth.currentUser?.email || 'Unknown'), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
       
-      // If navigate function is provided, use it
+      // Use React Router navigation - this will trigger the ProtectedRoute redirect
       if (navigate && typeof navigate === 'function') {
-        navigate('/login');
+        navigate('/', { replace: true });
       }
+      
     } catch (error) {
-
-      try { logActivity('logout', logMessages.logout.logoutError(currentUser?.username || auth.currentUser?.email || 'Unknown', error.message), currentUser?.username || auth.currentUser?.email || 'Unknown'); } catch (_) {}
+      try { logActivity('logout', logMessages.logout.logoutError(username, error.message), username); } catch (_) {}
+      
       // Fallback navigation
       if (navigate && typeof navigate === 'function') {
-        navigate('/login');
+        navigate('/', { replace: true });
       }
     }
   };
+
+  // Global navigation guard to prevent back navigation after logout
+  useEffect(() => {
+    const handlePopState = (e) => {
+      // Check current user state at the time of the event
+      if (!auth.currentUser) {
+        // Only prevent back navigation if we're not on the login page
+        if (window.location.pathname !== '/') {
+          window.history.replaceState(null, '', '/');
+        }
+      }
+    };
+
+    // Add event listener for back/forward navigation only
+    window.addEventListener('popstate', handlePopState);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   // Add function to send verification email
   const sendVerificationEmail = async () => {
@@ -908,7 +949,7 @@ const login = async (emailOrContact, password) => {
         lastModified: serverTimestamp()
       });
 
-      logActivity('account', `Verification email sent to ${newEmail}`, currentUser.username);
+      logActivity('account', `Verification email sent to ${newEmail}`, currentUser?.username || 'Unknown');
       return { 
         success: true, 
         message: "Please check your new email address for a verification link. After verifying, you can complete the email change." 
@@ -1074,7 +1115,7 @@ const login = async (emailOrContact, password) => {
       // Update password
       await updateFirebasePassword(auth.currentUser, newPassword);
       
-      logActivity('account', logMessages.account.passwordChanged(currentUser.username), currentUser.username);
+      logActivity('account', logMessages.account.passwordChanged(currentUser?.username || 'Unknown'), currentUser?.username || 'Unknown');
       return { 
         success: true, 
         message: "Password updated successfully!" 
@@ -1477,7 +1518,7 @@ const login = async (emailOrContact, password) => {
             email: user.email,
             username: user.displayName || user.email.split('@')[0],
             dateJoined: new Date().toISOString().split('T')[0],
-            profileImage: user.photoURL,
+            profileImage: null,
             role: 'tech_officer',
             status: 'inactive',
             emailVerified: user.emailVerified,
@@ -1529,8 +1570,8 @@ const login = async (emailOrContact, password) => {
           });
           
           // Update the user document with Google profile info
+          // Do not auto-import Google profile image
           await updateDoc(doc(db, 'users', existingUserDoc.id), {
-            profileImage: user.photoURL,
             lastModified: serverTimestamp()
           });
           
@@ -1559,7 +1600,8 @@ const login = async (emailOrContact, password) => {
             uid: existingUserDoc.id,
             ...existingUserData,
             emailVerified: user.emailVerified,
-            farm: existingUserData.farm || null
+            farm: existingUserData.farm || null,
+            profileImage: existingUserData.profileImage || null
           });
       } else {
           // Email exists but user is not a newly added admin

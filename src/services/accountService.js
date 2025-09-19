@@ -1,4 +1,4 @@
-import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
@@ -15,16 +15,22 @@ export const generateUniqueId = (role, username) => {
 // Fetch all users (both web and mobile)
 export const fetchAllUsers = async () => {
   try {
-    // Fetch web users
+    // Fetch web users (exclude Fish Farmers - they should only come from mobileUsers)
     const usersCollection = collection(db, 'users');
     const usersSnapshot = await getDocs(usersCollection);
-    const webUsers = usersSnapshot.docs.map(d => ({
-      id: d.id,
-      _collection: 'users',
-      ...d.data()
-    }));
+    const webUsers = usersSnapshot.docs
+      .map(d => ({
+        id: d.id,
+        _collection: 'users',
+        ...d.data()
+      }))
+      .filter(user => {
+        const role = String(user.role || '').toLowerCase();
+        const isFishFarmer = role === 'fish_farmer' || role === 'fish farmer';
+        return !isFishFarmer; // Only include non-Fish Farmers from users collection
+      });
 
-    // Fetch mobile users
+    // Fetch mobile users (include all users from mobileUsers)
     const mobileUsersCollection = collection(db, 'mobileUsers');
     const mobileUsersSnapshot = await getDocs(mobileUsersCollection);
     const mobileUsers = mobileUsersSnapshot.docs.map(d => ({
@@ -36,12 +42,13 @@ export const fetchAllUsers = async () => {
     // Normalize roles/status and combine both user lists and ensure no duplicates
     const normalize = (u) => ({
       ...u,
-      role: typeof u.role === 'string' ? u.role : '',
+      role: typeof u.role === 'string' ? u.role.toLowerCase().replace(/\s+/g, '_') : '',
       status: typeof u.status === 'string' ? u.status.toLowerCase() : (u.status === undefined ? '' : String(u.status).toLowerCase())
     });
     const allUsers = [...webUsers.map(normalize), ...mobileUsers.map(normalize)];
     
-    // Deduplicate by email (prefer mobileUsers for Fish Farmers, users for others)
+    // Since we've already filtered out Fish Farmers from users collection,
+    // there should be no duplicates between collections now
     const userMap = new Map();
     allUsers.forEach(user => {
       if (!user.email) return;
@@ -50,16 +57,9 @@ export const fetchAllUsers = async () => {
       if (!existing) {
         userMap.set(user.email, user);
       } else {
-        // Prefer the collection that matches the user's role
-        const userRole = String(user.role || '').toLowerCase();
-        const existingRole = String(existing.role || '').toLowerCase();
-        
-        if (userRole === 'fish_farmer' && existing._collection === 'mobileUsers') {
-          // Keep existing mobileUsers entry for Fish Farmers
-        } else if (userRole !== 'fish_farmer' && existing._collection === 'users') {
-          // Keep existing users entry for non-Fish Farmers
-        } else {
-          // Replace with current user (better match)
+        // This should rarely happen now since Fish Farmers are excluded from users collection
+        // Prefer mobileUsers if there's still a duplicate
+        if (user._collection === 'mobileUsers') {
           userMap.set(user.email, user);
         }
       }
@@ -115,9 +115,9 @@ export const addNewUser = async (userData, currentUser) => {
 };
 
 // Update user status
-export const updateUserStatus = async (userId, status, role, collectionHint, userEmail) => {
+export const updateUserStatus = async (userId, status, role, collectionHint, userEmail, userName) => {
   try {
-    console.log('[updateUserStatus] Called with:', { userId, status, role, collectionHint, userEmail });
+    console.log('[updateUserStatus] Called with:', { userId, status, role, collectionHint, userEmail, userName });
     const roleNormalized = String(role || '').toLowerCase();
     let collectionName = collectionHint || ((roleNormalized === 'fish farmer' || roleNormalized === 'fish_farmer') ? 'mobileUsers' : 'users');
     console.log('[updateUserStatus] Using collection:', collectionName);
@@ -155,19 +155,34 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       const snap = await getDoc(ref);
       console.log(`[tryUpdate] Document exists in ${coll}:`, snap.exists());
       if (!snap.exists()) return false;
-      await updateDoc(ref, {
-        status: 'Active',
-        adminActivated: true,
-        lastModified: new Date().toISOString()
-      });
-      console.log(`[tryUpdate] Successfully updated ${coll} collection`);
-      return true;
+      try {
+        await updateDoc(ref, {
+          status: status || 'Active',
+          adminActivated: true,
+          pendingActivation: false,
+          lastModified: serverTimestamp()
+        });
+        console.log(`[tryUpdate] Successfully updated ${coll} collection`);
+        return true;
+      } catch (updateError) {
+        console.error(`[tryUpdate] Failed to update ${coll}:`, updateError);
+        throw updateError;
+      }
     };
 
-    let updated = await tryUpdate(collectionName);
+    let updated = false;
+    try {
+      updated = await tryUpdate(collectionName);
+    } catch (error) {
+      console.error('[updateUserStatus] First tryUpdate failed:', error);
+    }
     if (!updated) {
       collectionName = collectionName === 'users' ? 'mobileUsers' : 'users';
-      updated = await tryUpdate(collectionName);
+      try {
+        updated = await tryUpdate(collectionName);
+      } catch (error) {
+        console.error('[updateUserStatus] Second tryUpdate failed:', error);
+      }
     }
     
     // If still not updated, try to find by email
@@ -179,10 +194,17 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
         console.log('[updateUserStatus] Found user by email:', userByEmail);
         // Update the correct document
         const ref = doc(db, userByEmail.collection, userByEmail.id);
-                 await updateDoc(ref, {
-           status: 'Active',
-           lastModified: new Date().toISOString()
-         });
+        try {
+          await updateDoc(ref, {
+            status: status || 'Active',
+            adminActivated: true,
+            pendingActivation: false,
+            lastModified: serverTimestamp()
+          });
+        } catch (updateError) {
+          console.error('[updateUserStatus] Failed to update via email lookup:', updateError);
+          throw updateError;
+        }
         console.log('[updateUserStatus] Successfully updated via email lookup');
         return { success: true, collection: userByEmail.collection };
       }
@@ -197,6 +219,139 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
     console.error('Error updating user status:', error);
     return { success: false, error: error.message };
   }
+};
+
+// Add this to accountService.js
+export const debugUserActivation = async (userId, email, collectionHint, username) => {
+  console.log('🔍 DEBUG ACTIVATION for:', { userId, email, username });
+  
+  // Prioritize mobileUsers for Fish Farmers
+  const collections = collectionHint === 'mobileUsers' ? ['mobileUsers', 'users'] : ['users', 'mobileUsers'];
+  
+  for (const collectionName of collections) {
+    try {
+      console.log(`\nChecking ${collectionName} collection...`);
+      
+      // Check by ID first
+      const refById = doc(db, collectionName, userId);
+      const snapById = await getDoc(refById);
+      
+      if (snapById.exists()) {
+        console.log(`✅ Found by ID in ${collectionName}:`, snapById.data());
+        console.log(`Document path: ${collectionName}/${userId}`);
+        return { found: true, collection: collectionName, id: userId, method: 'id' };
+      } else {
+        console.log(`❌ Not found by ID in ${collectionName}`);
+      }
+      
+      // Check by email (use provided email or extract from userId)
+      let searchEmail = email;
+      if (!searchEmail && userId.includes('@') && userId.includes('_')) {
+        const parts = userId.split('_');
+        if (parts.length > 1) {
+          searchEmail = parts.slice(1).join('_');
+          console.log(`🔍 Extracted email from userId: ${searchEmail}`);
+        }
+      }
+      
+      if (searchEmail) {
+        const qEmail = query(collection(db, collectionName), where('email', '==', searchEmail));
+        const snapEmail = await getDocs(qEmail);
+        
+        if (!snapEmail.empty) {
+          const docData = snapEmail.docs[0].data();
+          const docId = snapEmail.docs[0].id;
+          console.log(`✅ Found by email in ${collectionName}:`, docData);
+          console.log(`Document path: ${collectionName}/${docId}`);
+          return { found: true, collection: collectionName, id: docId, method: 'email' };
+        }
+      }
+      
+      // Check by username
+      if (username) {
+        const qUsername = query(collection(db, collectionName), where('username', '==', username));
+        const snapUsername = await getDocs(qUsername);
+        
+        if (!snapUsername.empty) {
+          const docData = snapUsername.docs[0].data();
+          const docId = snapUsername.docs[0].id;
+          console.log(`✅ Found by username in ${collectionName}:`, docData);
+          console.log(`Document path: ${collectionName}/${docId}`);
+          return { found: true, collection: collectionName, id: docId, method: 'username' };
+        }
+      }
+      
+    } catch (error) {
+      console.error(`Error checking ${collectionName}:`, error);
+    }
+  }
+  
+  console.log('❌ User not found in any collection');
+  return { found: false };
+};
+
+// Add this to accountService.js
+export const directUpdateUserStatus = async (userId, email, username, collectionHint = 'mobileUsers') => {
+  try {
+    console.log('🎯 DIRECT UPDATE called for:', { userId, email, username, collectionHint });
+    
+    // First find the exact document location
+    const debugResult = await debugUserActivation(userId, email, collectionHint, username);
+    
+    if (!debugResult.found) {
+      throw new Error('User not found in any collection');
+    }
+    
+    const { collection: targetCollection, id: targetId } = debugResult;
+    
+    console.log(`📝 Updating ${targetCollection}/${targetId}`);
+    
+    // Try to update the document
+    const ref = doc(db, targetCollection, targetId);
+    
+    try {
+      await updateDoc(ref, {
+        status: 'Active',
+        adminActivated: true,
+        pendingActivation: false,
+        lastModified: serverTimestamp()
+      });
+      
+      console.log('✅ Direct update successful');
+      
+      // Verify the update
+      const updatedDoc = await getDoc(ref);
+      if (updatedDoc.exists()) {
+        console.log('✅ Verification - Updated data:', updatedDoc.data());
+        return { success: true, collection: targetCollection };
+      } else {
+        throw new Error('Document disappeared after update');
+      }
+      
+    } catch (updateError) {
+      console.error('❌ Direct update failed:', updateError);
+      
+      // Check if it's a permissions error
+      if (updateError.code === 'permission-denied') {
+        console.error('🔥 FIRESTORE RULES BLOCKING UPDATE!');
+        throw new Error('Firestore rules prevent updates. Check security rules.');
+      }
+      
+      throw updateError;
+    }
+    
+  } catch (error) {
+    console.error('Error in directUpdateUserStatus:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Replace your activateFishFarmer function with this:
+export const activateFishFarmer = async (userId, email, collectionHint, username) => {
+  console.log('🐟 activateFishFarmer called with:', { userId, email, collectionHint, username });
+  
+  // Use the direct update method instead
+  return directUpdateUserStatus(userId, email, username, collectionHint);
 };
 
 // Delete user
@@ -214,18 +369,48 @@ export const deleteUser = async (userId, role, username, currentUser) => {
 // Fetch live status (users -> mobileUsers)
 export const fetchLiveUserStatus = async (userId) => {
   try {
+    // First try by direct ID
     let ref = doc(db, 'users', userId);
     let snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
       return { status: String(data.status || '').toLowerCase(), collection: 'users' };
     }
+    
     ref = doc(db, 'mobileUsers', userId);
     snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data();
       return { status: String(data.status || '').toLowerCase(), collection: 'mobileUsers' };
     }
+    
+    // If not found by ID, try to find by searching all documents
+    // Extract email from userId if it contains the email (e.g., "FF_farm77test@gmail.com" -> "farm77test@gmail.com")
+    let searchEmail = userId;
+    if (userId.includes('@') && userId.includes('_')) {
+      // If userId is like "FF_farm77test@gmail.com", extract the email part
+      const parts = userId.split('_');
+      if (parts.length > 1) {
+        searchEmail = parts.slice(1).join('_'); // Get everything after the first underscore
+      }
+    }
+    
+    // Search in mobileUsers collection first (for Fish Farmers)
+    const mobileQuery = query(collection(db, 'mobileUsers'), where('email', '==', searchEmail));
+    const mobileSnapshot = await getDocs(mobileQuery);
+    if (!mobileSnapshot.empty) {
+      const data = mobileSnapshot.docs[0].data();
+      return { status: String(data.status || '').toLowerCase(), collection: 'mobileUsers' };
+    }
+    
+    // Search in users collection
+    const usersQuery = query(collection(db, 'users'), where('email', '==', searchEmail));
+    const usersSnapshot = await getDocs(usersQuery);
+    if (!usersSnapshot.empty) {
+      const data = usersSnapshot.docs[0].data();
+      return { status: String(data.status || '').toLowerCase(), collection: 'users' };
+    }
+    
     return null;
   } catch (e) {
     console.warn('Failed to fetch live user status:', e);
@@ -256,10 +441,6 @@ export const activateTechOfficer = async (userId) => {
   }
 };
 
-// Activate Fish Farmer using shared status updater
-export const activateFishFarmer = async (userId, email, collectionHint) => {
-  return updateUserStatus(userId, 'Active', 'Fish Farmer', collectionHint || 'mobileUsers', email);
-};
 
 // Delete user: resolve collection, delete doc, then try deleting from Auth via Cloud Function
 export const deleteUserById = async (userId) => {

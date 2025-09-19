@@ -749,54 +749,55 @@ const AccountManagement = () => {
     }
   };
 
-  // Function to activate Fish Farmer accounts
-  const handleActivateFishFarmer = async (user) => {
+// Update your handleActivateFishFarmer function
+const handleActivateFishFarmer = async (user) => {
+  if (formatRoleForDisplay(user.role) !== 'Fish Farmer') {
+    setMessage({ text: 'Only Fish Farmer accounts can be activated here', type: 'error' });
+    return;
+  }
 
-    if (formatRoleForDisplay(user.role) !== 'Fish Farmer') {
-      setMessage({ text: 'Only Fish Farmer accounts can be activated here', type: 'error' });
-      return;
+  try {
+    // Log activity
+    const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+    logActivity('account', `Fish Farmer activation initiated for ${user.username}`, adminUser);
+
+    setMessage({ text: `Activating ${user.username}...`, type: 'info' });
+
+    // Use the direct update method
+    const result = await serviceActivateFishFarmer(user.id, user.email, user._collection, user.username);
+
+    if (!result.success) {
+      throw new Error(result.error || 'Activation failed');
     }
 
-    try {
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('account', `Fish Farmer activation initiated for user ${user.username} in Account Management`, u); 
-      } catch (_) {}
-      // Reconcile with Firestore first
-      const live = await serviceFetchLiveUserStatus(user.id);
-      if (live && typeof live.status === 'string') {
-        const liveStatus = live.status.toLowerCase();
-        const localStatus = String(user.status || '').toLowerCase();
-        if (liveStatus !== localStatus) {
-          setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: liveStatus } : u));
-          if (liveStatus === 'active') {
-            setMessage({ text: `User ${user.username} is already Active in Firestore. UI has been updated.`, type: 'info' });
-            return;
-          }
-        }
-      }
-
-      setMessage({ text: `Activating Fish Farmer ${user.username}...`, type: 'info' });
-      const result = await serviceActivateFishFarmer(user.id, user.email, user._collection || 'mobileUsers');
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update status');
-      }
-
-      setAccountUsers(prev => prev.map(u =>
+    // Wait a moment for Firestore to update
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Verify the update worked
+    const liveAfter = await serviceFetchLiveUserStatus(user.id);
+    
+    if (liveAfter && liveAfter.status === 'active') {
+      setAccountUsers(prev => prev.map(u => 
         u.id === user.id ? { ...u, status: 'active' } : u
       ));
-
-      setMessage({ text: `Fish Farmer ${user.username} activated successfully`, type: 'success' });
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('account', `Fish Farmer ${user.username} activated successfully in Account Management`, u); 
-      } catch (_) {}
-      await fetchUsers();
-    } catch (error) {
-
-      setMessage({ text: `Error activating Fish Farmer: ${error.message}`, type: 'error' });
+      setMessage({ text: `${user.username} activated successfully!`, type: 'success' });
+      logActivity('account', `Fish Farmer ${user.username} activated successfully`, adminUser);
+    } else {
+      setMessage({ 
+        text: `Activation may have failed. Current status: ${liveAfter?.status || 'unknown'}`, 
+        type: 'warning' 
+      });
     }
-  };
+
+    await fetchUsers();
+
+  } catch (error) {
+    setMessage({ text: `Error: ${error.message}`, type: 'error' });
+    
+    const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+    logActivity('error', `Failed to activate ${user.username}: ${error.message}`, adminUser);
+  }
+};
 
   // Fetch live status from Firestore for reconciliation
   const fetchLiveUserStatus = async (userId) => {
@@ -823,6 +824,7 @@ const AccountManagement = () => {
       return null;
     }
   };
+
 
   const handleDeleteUser = async (user) => {
     if (!isAdminUser) {

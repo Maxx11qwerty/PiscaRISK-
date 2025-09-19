@@ -132,8 +132,10 @@ export default function Login() {
           console.error('Failed to log activity:', logError);
         }
         
-        // Navigate to homepage after successful login
-        navigate('/Homepage');
+        // Small delay to ensure state is updated before navigation
+        setTimeout(() => {
+          navigate('/Homepage');
+        }, 100);
       } else {
         if (result.code === 'show_verification_modal') {
           setError('');
@@ -191,8 +193,10 @@ export default function Login() {
         setError('Redirecting to Google sign-in...');
         // Don't set loading to false yet, as we're redirecting
       } else if (result.success) {
-        // Navigate to homepage after successful Google sign-in
-        navigate('/Homepage');
+        // Small delay to ensure state is updated before navigation
+        setTimeout(() => {
+          navigate('/Homepage');
+        }, 100);
         setIsGoogleLoading(false);
       } else if (result.code === 'show_phone_verification') {
         setError('');
@@ -244,19 +248,6 @@ export default function Login() {
     };
   }, []);
 
-  useEffect(() => {
-    const preventNavigation = (e) => {
-      window.history.pushState(null, '', '/');
-      if (e) e.preventDefault();
-    };
-    
-    window.history.pushState(null, '', '/');
-    window.addEventListener('popstate', preventNavigation);
-    
-    return () => {
-      window.removeEventListener('popstate', preventNavigation);
-    };
-  }, []);
 
   return (
     <div className="login-container">
@@ -426,8 +417,10 @@ export default function Login() {
                     closePhoneVerificationModal();
                   }, 3000);
                 } else {
-                  // Navigate to homepage for real users
-                  navigate('/Homepage');
+                  // Small delay to ensure state is updated before navigation
+                  setTimeout(() => {
+                    navigate('/Homepage');
+                  }, 100);
                 }
               } else {
                 setError(result.message || 'Phone verification failed');
