@@ -483,7 +483,9 @@
     "normalRisk": "Normal na Panganib",
     "recommendedActions": "Mga Inirerekomendang Aksyon",
     "noSpecificActionsAvailable": "Walang specific na aksyon available para sa sakahang ito.",
-    "corrected": "Naitama"
+    "corrected": "Naitama",
+    "asOf": "Bilang ng",
+    "latestSuggestedActions": "Pinakabagong Inirerekomendang Aksyon"
   },
   "pondsAtRiskChart": {
     "title": "Mga Palaisdaan na may Panganib bawat Isdaan",

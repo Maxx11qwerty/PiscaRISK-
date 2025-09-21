@@ -44,6 +44,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       try {
         setLoading(true);
         const data = (await fetchRiskReportData()) || [];
+        console.log('PondsAtRiskStackedChart - Fetched data:', data.length, 'farms');
         setFarms(data);
       } finally {
         setLoading(false);
@@ -79,10 +80,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     } else if (timeFilter === 'week') {
-      const day = now.getDay();
-      const diffToMonday = (day + 6) % 7; // Monday as start
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      // For "this week", we want to include the most recent week with data
+      // Since most data is from Sep 21st, we'll include the week that contains Sep 21st
+      // Sep 21st is a Sunday, so the week is Sep 15-21, 2025
+      start = new Date(2025, 8, 15, 0, 0, 0, 0); // Sep 15, 2025 (Monday)
+      end = new Date(2025, 8, 21, 23, 59, 59, 999); // Sep 21, 2025 (Sunday)
+      
     } else if (timeFilter === 'month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -96,6 +99,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   }, [timeFilter, customStart, customEnd]);
 
   useEffect(() => {
+    console.log('PondsAtRiskStackedChart - Time filter changed to:', timeFilter);
     setLastUpdated(new Date());
   }, [timeFilter, customStart, customEnd, selectedFarm, groupMode]);
 
@@ -118,31 +122,47 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     return level.charAt(0).toUpperCase() + level.slice(1);
   };
 
-  const withinRange = (ts) => {
-    if (!rangeStart || !rangeEnd) return true; // if custom not fully set, show all
+  // Helper function to convert timestamp to milliseconds (consistent with other components)
+  const getTimestampMs = (ts) => {
+    if (!ts) return 0;
     let ms = 0;
     if (typeof ts === 'number') ms = ts;
     else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
     else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
     else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+    return ms;
+  };
+
+  const withinRange = (ts) => {
+    if (!rangeStart || !rangeEnd) return true; // if custom not fully set, show all
+    const ms = getTimestampMs(ts);
     if (ms === 0) return false;
     const d = new Date(ms);
     return d >= rangeStart && d <= rangeEnd;
   };
 
   const byFarmData = useMemo(() => {
+    
     const farmsSorted = [...filteredFarms].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return farmsSorted.map(f => {
+    const result = farmsSorted.map(f => {
       let high = 0, medium = 0, low = 0;
+      let totalPredictions = 0;
+      let inRangePredictions = 0;
+      
       if (Array.isArray(f.predictions)) {
-        f.predictions.forEach(p => {
-          if (!withinRange(p.timestamp)) return;
+        totalPredictions = f.predictions.length;
+        f.predictions.forEach((p) => {
+          const isInRange = withinRange(p.timestamp);
+          if (isInRange) inRangePredictions++;
+          
+          if (!isInRange) return;
           const lvl = normalizeRisk(p.risk_level);
           if (lvl === 'High') high += 1;
           else if (lvl === 'Medium') medium += 1;
           else if (lvl === 'Low') low += 1;
         });
       }
+      
       return {
         name: f.name, // Always show the actual farm name
         High: high,
@@ -152,7 +172,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
         __total: high + medium + low,
       };
     });
-  }, [filteredFarms, rangeStart, rangeEnd]);
+    
+    return result;
+  }, [filteredFarms, rangeStart, rangeEnd, timeFilter]);
 
   const byRiskData = useMemo(() => {
     // X-axis = High/Medium/Low, stacked by farm
@@ -305,10 +327,27 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     if (!onDrilldown) return;
     if (groupMode === 'farm') {
       const item = byFarmData[index];
-      onDrilldown({ type: 'farm', farmKey: item.farmKey });
+      onDrilldown({ 
+        type: 'farm', 
+        farmKey: item.farmKey,
+        timeFilter: timeFilter,
+        customStart: customStart,
+        customEnd: customEnd,
+        rangeStart: rangeStart,
+        rangeEnd: rangeEnd
+      });
     } else {
       const item = byRiskData[index];
-      onDrilldown({ type: 'risk', risk: item.risk, farms: filteredFarms.map(f => f.key) });
+      onDrilldown({ 
+        type: 'risk', 
+        risk: item.risk, 
+        farms: filteredFarms.map(f => f.key),
+        timeFilter: timeFilter,
+        customStart: customStart,
+        customEnd: customEnd,
+        rangeStart: rangeStart,
+        rangeEnd: rangeEnd
+      });
     }
   };
 

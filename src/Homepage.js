@@ -347,17 +347,59 @@ const PiscaRiskHome = () => {
     })();
   }, []);
 
-  const openDrilldown = ({ type, farmKey, risk, farms }) => {
+  const openDrilldown = ({ type, farmKey, risk, farms, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];
+    
+    // Helper function to check if timestamp is within the selected time range
+    const withinTimeRange = (timestamp) => {
+      if (!rangeStart || !rangeEnd) return true; // If no range specified, show all
+      
+      let ms = 0;
+      if (typeof timestamp === 'number') ms = timestamp;
+      else if (typeof timestamp === 'string') { 
+        const m = Date.parse(timestamp); 
+        ms = Number.isNaN(m) ? 0 : m; 
+      }
+      else if (timestamp && typeof timestamp.toDate === 'function') { 
+        try { ms = timestamp.toDate().getTime(); } catch (_) {} 
+      }
+      else if (timestamp && typeof timestamp.seconds === 'number') { 
+        ms = timestamp.seconds * 1000; 
+      }
+      
+      if (ms === 0) return false;
+      const date = new Date(ms);
+      return date >= rangeStart && date <= rangeEnd;
+    };
+    
     if (type === 'farm' && farmKey) {
       const farm = allFarmsRiskData.find(f => f.key === farmKey);
       if (farm) {
         const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
-        items = preds.map(p => ({
-          pond: p.fish_pond || 'Unknown Pond',
-          risk: p.risk_level || 'Normal',
-          farm: farm.name,
-        }));
+        items = preds
+          .filter(p => withinTimeRange(p.timestamp)) // Filter by time range
+          .map(p => {
+          // Convert timestamp to readable date and time
+          const getTimestamp = (ts) => {
+            if (!ts) return 'Unknown time';
+            let ms = 0;
+            if (typeof ts === 'number') ms = ts;
+            else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+            else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+            else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+            if (ms === 0) return 'Unknown time';
+            return new Date(ms).toLocaleString();
+          };
+
+          return {
+            pond: p.fish_pond || 'Unknown Pond',
+            risk: p.risk_level || 'Normal',
+            farm: farm.name,
+            timestamp: getTimestamp(p.timestamp),
+            date: getTimestamp(p.timestamp).split(',')[0], // Just the date part
+            time: getTimestamp(p.timestamp).split(',')[1]?.trim() || 'Unknown time' // Just the time part
+          };
+        });
         setDrilldownTitle(`Ponds at Risk — ${farm.name}`);
       }
     } else if (type === 'risk' && risk) {
@@ -365,15 +407,46 @@ const PiscaRiskHome = () => {
       const relevantFarms = farmKeys ? allFarmsRiskData.filter(f => farmKeys.has(f.key)) : allFarmsRiskData;
       relevantFarms.forEach(f => {
         const preds = Array.isArray(f.predictions) ? f.predictions : [];
-        preds.forEach(p => {
+        preds
+          .filter(p => withinTimeRange(p.timestamp)) // Filter by time range
+          .forEach(p => {
           const lvl = (p.risk_level || 'Normal');
           if (lvl === risk) {
-            items.push({ pond: p.fish_pond || 'Unknown Pond', risk: lvl, farm: f.name });
+            // Convert timestamp to readable date and time
+            const getTimestamp = (ts) => {
+              if (!ts) return 'Unknown time';
+              let ms = 0;
+              if (typeof ts === 'number') ms = ts;
+              else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+              else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+              else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+              if (ms === 0) return 'Unknown time';
+              return new Date(ms).toLocaleString();
+            };
+
+            items.push({ 
+              pond: p.fish_pond || 'Unknown Pond', 
+              risk: lvl, 
+              farm: f.name,
+              timestamp: getTimestamp(p.timestamp),
+              date: getTimestamp(p.timestamp).split(',')[0], // Just the date part
+              time: getTimestamp(p.timestamp).split(',')[1]?.trim() || 'Unknown time' // Just the time part
+            });
           }
         });
       });
       setDrilldownTitle(`Ponds at ${risk} Risk`);
     }
+    
+    // Sort items by timestamp (latest first)
+    items.sort((a, b) => {
+      const getTimestamp = (item) => {
+        if (!item.timestamp || item.timestamp === 'Unknown time') return 0;
+        return new Date(item.timestamp).getTime();
+      };
+      return getTimestamp(b) - getTimestamp(a); // Descending order (latest first)
+    });
+    
     setDrilldownItems(items);
     setShowDrilldown(true);
   };
@@ -584,6 +657,8 @@ const PiscaRiskHome = () => {
                 
                 <div className="calendar-box">
                     <ConditionInsights 
+                      userRole={currentUser?.role}
+                      assignedFarm={currentUser?.farm}
                     />
                 </div>
               </div>
@@ -638,12 +713,16 @@ const PiscaRiskHome = () => {
                       <div style={{ flex: 2 }}>Pond</div>
                       <div style={{ flex: 1 }}>Risk</div>
                       <div style={{ flex: 2 }}>Farm</div>
+                      <div style={{ flex: 1.5 }}>Date</div>
+                      <div style={{ flex: 1 }}>Time</div>
                     </div>
                     {drilldownItems.map((it, idx) => (
                       <div key={idx} style={{ display: 'flex', padding: '6px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
                         <div style={{ flex: 2 }}>{it.pond}</div>
                         <div style={{ flex: 1 }}>{it.risk}</div>
                         <div style={{ flex: 2 }}>{it.farm}</div>
+                        <div style={{ flex: 1.5, fontSize: '0.9em', color: '#666' }}>{it.date}</div>
+                        <div style={{ flex: 1, fontSize: '0.9em', color: '#666' }}>{it.time}</div>
                       </div>
                     ))}
                   </div>

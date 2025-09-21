@@ -52,10 +52,32 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState(0);
+  const [isCompactView, setIsCompactView] = useState(false);
+  
+  // History filter states
+  const [historyFilter, setHistoryFilter] = useState({
+    severity: 'all', // 'all', 'critical', 'elevated', 'normal'
+    dateRange: 'all', // 'all', 'today', 'week', 'month'
+    farm: 'all', // 'all' or specific farm name
+    searchTerm: ''
+  });
   
   // Check if user is assigned to a farm
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const effectiveAssignedFarm = isAssignedToFarm ? currentUser.farm : assignedFarm;
+
+  // Detect screen size for compact view
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const width = window.innerWidth;
+      const shouldBeCompact = width < 1600; // Lowered threshold for easier testing
+      setIsCompactView(shouldBeCompact);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Resolve assigned farm name
   useEffect(() => {
@@ -197,14 +219,38 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     })();
   }, [effectiveAssignedFarm, isSuperAdmin, onCountChange, isAssignedToFarm, assignedFarmName, currentUser?.farm]);
 
+  // Show only recent items (within 24 hours) that have risk-related content
+  const displayItems = useMemo(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    return items.filter(item => {
+      // Check if item is recent (within 24 hours)
+      const ageMs = Math.max(0, now - getMillis(item.timestamp));
+      const isRecent = ageMs <= dayMs;
+      
+      // Check if item has risk-related content
+      const isRisk = item.summary?.toLowerCase().includes('risk') || 
+                    item.summary?.toLowerCase().includes('alert') ||
+                    item.summary?.toLowerCase().includes('warning') ||
+                    item.summary?.toLowerCase().includes('critical') ||
+                    item.summary?.toLowerCase().includes('danger') ||
+                    item.summary?.toLowerCase().includes('problem') ||
+                    item.summary?.toLowerCase().includes('issue') ||
+                    item.summary?.toLowerCase().includes('concern');
+      
+      return isRecent && isRisk;
+    });
+  }, [items]);
+
   // Auto-rotate
   useEffect(() => {
-    if (!enableRotate || items.length <= 1) return;
+    if (!enableRotate || displayItems.length <= 1) return;
     timerRef.current = setInterval(() => {
-      setIndex((prev) => (prev + 1) % items.length);
+      setIndex((prev) => (prev + 1) % displayItems.length);
     }, autoRotateMs);
     return () => clearInterval(timerRef.current);
-  }, [items.length, autoRotateMs, enableRotate]);
+  }, [displayItems.length, autoRotateMs, enableRotate]);
 
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
@@ -214,11 +260,26 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     return ['all', ...Array.from(setFarms)];
   }, [items, isSuperAdmin]);
 
+  // Get available farms for history filter (for all users)
+  const historyFarmOptions = useMemo(() => {
+    const setFarms = new Set(items.map(it => it.farm).filter(Boolean));
+    return ['all', ...Array.from(setFarms).sort()];
+  }, [items]);
+
   // Define active items: within 24h and severity > Normal
   const activeItems = useMemo(() => {
-    // ALWAYS return empty array - we'll handle display differently
-    return [];
-  }, []);
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    return displayItems.filter(item => {
+      const ageMs = Math.max(0, now - getMillis(item.timestamp));
+      const isRecent = ageMs <= dayMs;
+      const severity = getSeverity(item.summary).level;
+      const isHighSeverity = severityRank(severity) > 0; // Critical or Elevated
+      
+      return isRecent && isHighSeverity;
+    });
+  }, [displayItems]);
 
   // Push active count up when it changes
   useEffect(() => {
@@ -244,15 +305,30 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
 
   // If no active items found, show resolved items (older than 24h)
   const resolvedItems = useMemo(() => {
-    // ALWAYS return empty array - we'll handle display differently
-    return [];
-  }, []);
-
-  // FORCE EMPTY DISPLAY - NO DATA SHOWN
-  const displayItems = [];
-  const current = null;
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    return displayItems.filter(item => {
+      const ageMs = Math.max(0, now - getMillis(item.timestamp));
+      const isOld = ageMs > dayMs;
+      const severity = getSeverity(item.summary).level;
+      const isHighSeverity = severityRank(severity) > 0; // Critical or Elevated
+      
+      return isOld && isHighSeverity;
+    });
+  }, [displayItems]);
+  
+  const current = displayItems.length > 0 ? displayItems[index] : null;
   
   const total = displayItems.length;
+
+  // Reset index when displayItems changes to ensure continuous cycling
+  useEffect(() => {
+    if (displayItems.length > 0 && index >= displayItems.length) {
+      setIndex(0);
+    }
+  }, [displayItems.length, index]);
+
   
  
 
@@ -347,7 +423,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         </div>
       ) : current ? (
         <div 
-          className={`ci-card ci-${getSeverity(current.summary).level.toLowerCase()} ci-clickable`}
+          className={`ci-card ci-${getSeverity(current.summary).level.toLowerCase()} ci-clickable ${isCompactView ? 'ci-compact' : ''}`}
           onClick={() => handleCardClick(current)}
         >
           <div className="ci-severity">
@@ -364,7 +440,13 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
             </span>
           </div>
           <div className="ci-meta">{current.pond} @ {current.farm}</div>
-          <div className="ci-message" title={current.summary}>{current.summary}</div>
+          {isCompactView ? (
+            <div className="ci-time-meta">
+              {current.timestamp ? new Date(getMillis(current.timestamp)).toLocaleString() : 'Unknown time'}
+            </div>
+          ) : (
+            <div className="ci-message" title={current.summary}>{current.summary}</div>
+          )}
 
           <div className="ci-pagination">
             <button className="ci-nav ci-nav-prev" onClick={(e) => { e.stopPropagation(); handlePrev(); }} disabled={total <= 1}>◀ Prev</button>
@@ -384,6 +466,9 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
             ? `No recent condition insights available for ${assignedFarmName || currentUser.farm} (showing last 24 hours)`
             : 'No recent condition insights available (showing last 24 hours)'
           }
+          <div style={{ marginTop: '8px', fontSize: '0.8rem' }}>
+            Click the menu (☰) to view full history
+          </div>
         </div>
       )}
 
@@ -424,6 +509,74 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
               <h3>Condition Insights History</h3>
               <button className="ci-modal-close" onClick={() => setShowHistory(false)}>✕</button>
             </div>
+            
+            {/* Filter Controls */}
+            <div className="ci-history-filters">
+              <div className="ci-filter-row">
+                <div className="ci-filter-group">
+                  <label>Severity:</label>
+                  <select 
+                    value={historyFilter.severity} 
+                    onChange={(e) => setHistoryFilter(prev => ({ ...prev, severity: e.target.value }))}
+                    className="ci-filter-select"
+                  >
+                    <option value="all">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="elevated">Elevated</option>
+                    <option value="normal">Normal</option>
+                  </select>
+                </div>
+                
+                <div className="ci-filter-group">
+                  <label>Date Range:</label>
+                  <select 
+                    value={historyFilter.dateRange} 
+                    onChange={(e) => setHistoryFilter(prev => ({ ...prev, dateRange: e.target.value }))}
+                    className="ci-filter-select"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                  </select>
+                </div>
+                
+                <div className="ci-filter-group">
+                  <label>Farm:</label>
+                  <select 
+                    value={historyFilter.farm} 
+                    onChange={(e) => setHistoryFilter(prev => ({ ...prev, farm: e.target.value }))}
+                    className="ci-filter-select"
+                  >
+                    {historyFarmOptions.map(farm => (
+                      <option key={farm} value={farm}>
+                        {farm === 'all' ? 'All Farms' : farm}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="ci-filter-row">
+                <div className="ci-filter-group ci-search-group">
+                  <label>Search:</label>
+                  <input
+                    type="text"
+                    placeholder="Search in summaries..."
+                    value={historyFilter.searchTerm}
+                    onChange={(e) => setHistoryFilter(prev => ({ ...prev, searchTerm: e.target.value }))}
+                    className="ci-filter-search"
+                  />
+                </div>
+                
+                <button 
+                  onClick={() => setHistoryFilter({ severity: 'all', dateRange: 'all', farm: 'all', searchTerm: '' })}
+                  className="ci-clear-filters"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            </div>
             <div className="ci-modal-content" style={{ maxHeight: 480, overflow: 'auto' }}>
               {(() => {
                 // Build history list: show most recent first, mark Resolved if stale or Normal
@@ -447,13 +600,76 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   historyItems = items.filter(it => it.farm === selectedFarm);
                 }
                 
-                const list = historyItems
+                // Apply filters
+                let filteredList = historyItems.filter(item => {
+                  // Severity filter
+                  if (historyFilter.severity !== 'all') {
+                    const severity = getSeverity(item.summary).level.toLowerCase();
+                    if (severity !== historyFilter.severity) return false;
+                  }
+                  
+                  // Date range filter
+                  if (historyFilter.dateRange !== 'all') {
+                    const itemTime = getMillis(item.timestamp);
+                    const now = Date.now();
+                    const dayMs = 24 * 60 * 60 * 1000;
+                    const weekMs = 7 * dayMs;
+                    const monthMs = 30 * dayMs;
+                    
+                    const ageMs = now - itemTime;
+                    
+                    switch (historyFilter.dateRange) {
+                      case 'today':
+                        if (ageMs > dayMs) return false;
+                        break;
+                      case 'week':
+                        if (ageMs > weekMs) return false;
+                        break;
+                      case 'month':
+                        if (ageMs > monthMs) return false;
+                        break;
+                    }
+                  }
+                  
+                  // Farm filter
+                  if (historyFilter.farm !== 'all') {
+                    const itemFarm = (item.farm || '').toLowerCase();
+                    const filterFarm = historyFilter.farm.toLowerCase();
+                    if (itemFarm !== filterFarm) return false;
+                  }
+                  
+                  // Search term filter
+                  if (historyFilter.searchTerm.trim()) {
+                    const searchLower = historyFilter.searchTerm.toLowerCase();
+                    const summaryLower = (item.summary || '').toLowerCase();
+                    const farmLower = (item.farm || '').toLowerCase();
+                    const pondLower = (item.pond || '').toLowerCase();
+                    
+                    if (!summaryLower.includes(searchLower) && 
+                        !farmLower.includes(searchLower) && 
+                        !pondLower.includes(searchLower)) {
+                      return false;
+                    }
+                  }
+                  
+                  return true;
+                });
+                
+                const list = filteredList
                   .slice()
                   .sort((a, b) => getMillis(b.timestamp) - getMillis(a.timestamp));
-                  
                 
-                
-                if (list.length === 0) return <div className="ci-empty" style={{ margin: 0 }}>No history available.</div>;
+                if (list.length === 0) {
+                  const hasFilters = historyFilter.severity !== 'all' || 
+                                   historyFilter.dateRange !== 'all' || 
+                                   historyFilter.farm !== 'all' ||
+                                   historyFilter.searchTerm.trim();
+                  return (
+                    <div className="ci-empty" style={{ margin: 0 }}>
+                      {hasFilters ? 'No items match the current filters.' : 'No history available.'}
+                    </div>
+                  );
+                }
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {list.map((it) => {

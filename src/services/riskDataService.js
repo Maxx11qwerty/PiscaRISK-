@@ -129,14 +129,22 @@ export const fetchRiskReportData = async () => {
   });
 
   // Ensure transparency by including certain farms even if no reports exist
+  // Only add if not already present from prediction data
   const requiredFarms = [
     'Freshwater FinFish'
   ];
   requiredFarms.forEach((farmName) => {
     const farmKey = normalizeFarmName(farmName);
-    allFarms.add(farmKey);
-    if (!farmKeyToName[farmKey]) {
-      farmKeyToName[farmKey] = farmName;
+    // Check if we already have a similar farm (e.g., "Freshwater Finfish Farm" vs "Freshwater FinFish")
+    const existingFarm = Array.from(allFarms).find(key => 
+      key.includes('freshwater') && key.includes('finfish')
+    );
+    
+    if (!existingFarm) {
+      allFarms.add(farmKey);
+      if (!farmKeyToName[farmKey]) {
+        farmKeyToName[farmKey] = farmName;
+      }
     }
   });
 

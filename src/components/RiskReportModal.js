@@ -23,6 +23,9 @@ const RiskReportModal = ({ isModal = false }) => {
   const [feedbackCache, setFeedbackCache] = useState({});
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [selectedTimestamp, setSelectedTimestamp] = useState('latest');
+  const [availableTimestamps, setAvailableTimestamps] = useState([]);
+  const [showHistoryFilter, setShowHistoryFilter] = useState(false);
 
   // Resolve assigned farm name for current user
   useEffect(() => {
@@ -325,31 +328,72 @@ const RiskReportModal = ({ isModal = false }) => {
             farm.has_reports = true;
           }
 
-          // If no summary.main_issue, synthesize from most frequent conditions
+          // If no summary.main_issue, synthesize from latest predictions only
+          let main_issue = null;
           if (!farm.summary || !farm.summary.main_issue) {
-            const fishIssues = farm.predictions.map(p => p.fish_condition).filter(Boolean);
-            const riskIssues = farm.predictions.map(p => normalizeRisk(p.risk_level)).filter(Boolean);
-            const top = (arr) => {
-              const c = {};
-              arr.forEach(v => { const k = v.toString(); c[k] = (c[k] || 0) + 1; });
-              return Object.entries(c).sort((a,b) => b[1]-a[1])[0]?.[0] || null;
-            };
-            const fishTop = top(fishIssues);
-            const riskTop = top(riskIssues);
-            const riskLabel = riskTop ? `${riskTop} Risk` : null;
-            const main_issue = riskLabel || fishTop ? [riskLabel, fishTop].filter(Boolean).join(' + ') : null;
-            const last_update = farm.predictions.reduce((acc, p) => acc || p.timestamp, null);
-            // Ready for harvest and critical alerts approximation
-            const ready_count = farm.predictions.filter(p => p.ready_for_harvest === true).length;
-            // Count critical alerts: explicit ELEVATED RISK in conditions_summary or High risk predictions
-            const critical_alerts = farm.predictions.reduce((count, p) => {
+            // Get latest predictions for accurate main issue calculation
+            const latestPreds = getLatestRiskPerPond(farm);
+            
+            if (latestPreds.length > 0) {
+              // Count risk levels from latest predictions only
+              const riskCounts = {};
+              const fishConditionCounts = {};
+              
+              latestPreds.forEach(pred => {
+                const risk = normalizeRisk(pred.risk_level);
+                if (risk) {
+                  riskCounts[risk] = (riskCounts[risk] || 0) + 1;
+                }
+                if (pred.fish_condition) {
+                  fishConditionCounts[pred.fish_condition] = (fishConditionCounts[pred.fish_condition] || 0) + 1;
+                }
+              });
+              
+              // Find most common risk level
+              const mostCommonRisk = Object.entries(riskCounts)
+                .sort((a, b) => b[1] - a[1])[0]?.[0];
+              
+              // Find most common fish condition
+              const mostCommonFishCondition = Object.entries(fishConditionCounts)
+                .sort((a, b) => b[1] - a[1])[0]?.[0];
+              
+              // Create main issue based on most common risk level
+              if (mostCommonRisk) {
+                main_issue = `${mostCommonRisk} Risk`;
+                if (mostCommonFishCondition && mostCommonFishCondition !== mostCommonRisk) {
+                  main_issue += ` - ${mostCommonFishCondition}`;
+                }
+              } else if (mostCommonFishCondition) {
+                main_issue = mostCommonFishCondition;
+              }
+            }
+            // Get the latest timestamp from all predictions
+            const last_update = farm.predictions.length > 0 
+              ? farm.predictions
+                  .map(p => p.timestamp)
+                  .filter(ts => ts)
+                  .sort((a, b) => {
+                    const aMs = getTimestampMs(a);
+                    const bMs = getTimestampMs(b);
+                    return bMs - aMs; // Latest first
+                  })[0]
+              : null;
+            // Get latest predictions for consistent calculations
+            const latestPredsForCounts = getLatestRiskPerPond(farm);
+            
+            // Ready for harvest from latest predictions only
+            const ready_count = latestPredsForCounts.filter(p => p.ready_for_harvest === true).length;
+            
+            // Count critical alerts from latest predictions only
+            const critical_alerts = latestPredsForCounts.reduce((count, p) => {
               const hasElevated = typeof p.conditions_summary === 'string' && p.conditions_summary.toUpperCase().includes('ELEVATED RISK');
               const isHigh = normalizeRisk(p.risk_level) === 'High';
               return count + (hasElevated || isHigh ? 1 : 0);
             }, 0);
             farm.summary = farm.summary || {};
             farm.summary.main_issue = farm.summary?.main_issue || main_issue;
-            farm.summary.last_update = farm.summary?.last_update || last_update;
+            // Always use the latest timestamp from predictions, not from summary data
+            farm.summary.last_update = last_update;
             farm.summary.ready_count = farm.summary?.ready_count ?? ready_count;
             farm.summary.critical_alerts = farm.summary?.critical_alerts ?? critical_alerts;
           }
@@ -424,6 +468,119 @@ const RiskReportModal = ({ isModal = false }) => {
     loadForDetails();
   }, [detailsFarmKey, farms, feedbackCache]);
 
+  // Refresh farm data when details modal opens to ensure latest data
+  useEffect(() => {
+    const refreshFarmData = async () => {
+      if (!detailsFarmKey) return;
+      
+      // Reset to latest mode when modal opens
+      setSelectedTimestamp('latest');
+      setShowHistoryFilter(false);
+      
+      try {
+        setLoading(true);
+        
+        // Fetch latest risk predictions for this specific farm
+        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+        if (!farm) return;
+        
+        const farmName = farm.farm_name;
+        const farmKey = farm.farm_key;
+        
+        // Query for latest predictions for this farm
+        const predsQuery = query(
+          collection(db, 'risk_predictions'), 
+          where('farm_name', '==', farmName)
+        );
+        const predsSnap = await getDocs(predsQuery);
+        
+        if (!predsSnap.empty) {
+          const refreshedPredictions = [];
+          predsSnap.forEach(doc => {
+            const data = doc.data();
+            refreshedPredictions.push({
+              id: doc.id,
+              farm: farmName,
+              farm_key: farmKey,
+              fish_pond: data.fish_pond || data.input_data?.fish_pond || 'Unknown Pond',
+              risk_level: data.risk_level || data.prediction?.risk_level || 'Normal',
+              confidence: data.confidence || data.prediction?.confidence || 0,
+              timestamp: data.timestamp || data.prediction?.timestamp || data.created_at,
+              fish_condition: data.fish_condition || data.input_data?.fish_condition,
+              water_condition: data.water_condition || data.input_data?.water_condition,
+              weather: data.weather || data.input_data?.weather,
+            });
+          });
+          
+          console.log('Refreshed predictions from database:', refreshedPredictions.map(p => ({
+            pond: p.fish_pond,
+            timestamp: new Date(getTimestampMs(p.timestamp)).toLocaleString(),
+            risk: p.risk_level
+          })));
+          
+          // Update the farm data with latest predictions and recalculate main_issue
+          setFarms(prevFarms => 
+            prevFarms.map(f => {
+              if (f.farm_key === farmKey) {
+                // Recalculate main_issue from latest predictions
+                let main_issue = null;
+                if (refreshedPredictions.length > 0) {
+                  // Count risk levels from latest predictions only
+                  const riskCounts = {};
+                  const fishConditionCounts = {};
+                  
+                  refreshedPredictions.forEach(pred => {
+                    const risk = normalizeRisk(pred.risk_level);
+                    if (risk) {
+                      riskCounts[risk] = (riskCounts[risk] || 0) + 1;
+                    }
+                    if (pred.fish_condition) {
+                      fishConditionCounts[pred.fish_condition] = (fishConditionCounts[pred.fish_condition] || 0) + 1;
+                    }
+                  });
+                  
+                  // Find most common risk level
+                  const mostCommonRisk = Object.entries(riskCounts)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                  
+                  // Find most common fish condition
+                  const mostCommonFishCondition = Object.entries(fishConditionCounts)
+                    .sort((a, b) => b[1] - a[1])[0]?.[0];
+                  
+                  // Create main issue based on most common risk level
+                  if (mostCommonRisk) {
+                    main_issue = `${mostCommonRisk} Risk`;
+                    if (mostCommonFishCondition && mostCommonFishCondition !== mostCommonRisk) {
+                      main_issue += ` - ${mostCommonFishCondition}`;
+                    }
+                  } else if (mostCommonFishCondition) {
+                    main_issue = mostCommonFishCondition;
+                  }
+                }
+                
+                return { 
+                  ...f, 
+                  predictions: refreshedPredictions,
+                  summary: {
+                    ...f.summary,
+                    main_issue: main_issue
+                  }
+                };
+              }
+              return f;
+            })
+          );
+        }
+      } catch (error) {
+        console.error('Error refreshing farm data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    refreshFarmData();
+  }, [detailsFarmKey]);
+
   const normalizeFarmName = (name) => {
     if (!name || typeof name !== 'string') return 'unknown-farm';
     return name.trim().toLowerCase().replace(/\s+/g, '-');
@@ -437,6 +594,100 @@ const RiskReportModal = ({ isModal = false }) => {
     if (s.includes('low')) return 'Low';
     if (s.includes('normal')) return 'Normal';
     return level.charAt(0).toUpperCase() + level.slice(1);
+  };
+
+  // Helper function to convert timestamp to milliseconds
+  const getTimestampMs = (ts) => {
+    if (!ts) return 0;
+    let ms = 0;
+    if (typeof ts === 'number') ms = ts;
+    else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+    else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+    else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+    return ms;
+  };
+
+  // Get latest risk per pond for a farm
+  const getLatestRiskPerPond = (farm) => {
+    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
+    
+    // Filter out predictions with invalid timestamps first
+    const validPredictions = farm.predictions.filter(pred => {
+      const ms = getTimestampMs(pred.timestamp);
+      return ms > 0; // Only include predictions with valid timestamps
+    });
+    
+    if (validPredictions.length === 0) {
+      return [];
+    }
+    
+    // First, sort all predictions by timestamp (latest first) to ensure we get the most recent data
+    const sortedPredictions = [...validPredictions].sort((a, b) => {
+      const aMs = getTimestampMs(a.timestamp);
+      const bMs = getTimestampMs(b.timestamp);
+      return bMs - aMs; // Latest first
+    });
+    
+    // Group predictions by pond, but only keep the first (latest) occurrence of each pond
+    const pondMap = new Map();
+    sortedPredictions.forEach(pred => {
+      const pond = pred.fish_pond || 'Unknown Pond';
+      if (!pondMap.has(pond)) {
+        pondMap.set(pond, pred);
+      }
+    });
+
+    // Convert map values to array and sort by timestamp again
+    const latestPerPond = Array.from(pondMap.values()).sort((a, b) => {
+      const aMs = getTimestampMs(a.timestamp);
+      const bMs = getTimestampMs(b.timestamp);
+      return bMs - aMs; // Latest first
+    });
+
+    // Filter out ponds with old reports (only show reports from September 21st, 2025 and later)
+    const cutoffDate = new Date('2025-09-21T00:00:00');
+    const recentPonds = latestPerPond.filter(pred => {
+      const predDate = new Date(getTimestampMs(pred.timestamp));
+      return predDate >= cutoffDate;
+    });
+
+    return recentPonds;
+  };
+
+  // Get all unique dates from farm predictions
+  const getAllDates = (farm) => {
+    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
+    
+    // Get unique dates
+    const dateSet = new Set();
+    farm.predictions
+      .map(p => p.timestamp)
+      .filter(ts => ts)
+      .forEach(ts => {
+        const ms = getTimestampMs(ts);
+        const date = new Date(ms);
+        const dateKey = date.toDateString(); // e.g., "Mon Dec 15 2024"
+        dateSet.add(dateKey);
+      });
+
+    // Convert to array and sort by date (latest first)
+    const sortedDates = Array.from(dateSet)
+      .map(dateStr => {
+        // Find the latest timestamp for this date to use for sorting
+        const latestMs = Math.max(
+          ...farm.predictions
+            .map(p => getTimestampMs(p.timestamp))
+            .filter(ms => new Date(ms).toDateString() === dateStr)
+        );
+        return {
+          date: dateStr,
+          value: latestMs, // Use latest timestamp as the value for filtering
+          label: dateStr
+        };
+      })
+      .sort((a, b) => b.value - a.value); // Latest first
+
+    return sortedDates;
   };
 
   const levelKey = (level) => {
@@ -698,7 +949,27 @@ const RiskReportModal = ({ isModal = false }) => {
                               {corrected && ` (${t('riskReportModal.corrected')})`}
                               {farm.avg_confidence > 0 && (
                                 <> (
-                                  <span className="avg-conf">{t('riskReportModal.avgConfidence')}: {farm.avg_confidence.toFixed(1)}%</span>
+                                  <span className="avg-conf">
+                                    {t('riskReportModal.avgConfidence')}: {farm.avg_confidence.toFixed(1)}%
+                                    {(() => {
+                                      // Get the latest timestamp from predictions used for confidence calculation
+                                      if (farm.predictions && farm.predictions.length > 0) {
+                                        const latestPrediction = farm.predictions
+                                          .filter(p => p.timestamp)
+                                          .sort((a, b) => {
+                                            const aMs = getTimestampMs(a.timestamp);
+                                            const bMs = getTimestampMs(b.timestamp);
+                                            return bMs - aMs;
+                                          })[0];
+                                        
+                                        if (latestPrediction) {
+                                          const latestDate = new Date(getTimestampMs(latestPrediction.timestamp));
+                                          return ` (${t('riskReportModal.asOf')}: ${latestDate.toLocaleDateString()})`;
+                                        }
+                                      }
+                                      return '';
+                                    })()}
+                                  </span>
                                 )</>
                               )}
                             </>
@@ -716,25 +987,32 @@ const RiskReportModal = ({ isModal = false }) => {
                 {farm.has_reports ? (
                   <>
                     <div className="farm-risk-summary">
-                      <span className="confidence-info">{t('riskReportModal.ponds')}: {farm.predictions.length}</span>
-                      <div className="risk-counts">
-                        {(() => {
-                          const fb = feedbackCache[farm.farm_key] || farm.feedback;
-                          const diag = fb?.prediction?.diagnostics || fb?.diagnostics;
-                          const high = diag ? (diag.high_risk_count ?? diag.high ?? farm.counts.high) : farm.counts.high;
-                          const med = diag ? (diag.medium_risk_count ?? diag.medium ?? farm.counts.medium) : farm.counts.medium;
-                          const low = diag ? (diag.low_risk_count ?? diag.low ?? farm.counts.low) : farm.counts.low;
-                          const norm = diag ? (diag.normal_count ?? diag.normal ?? farm.counts.normal) : farm.counts.normal;
-            return (
-                            <>
-                              <span className="risk-badge high-risk">{t('riskReportModal.highRisk')}: {high}</span>
-                              <span className="risk-badge medium-risk">{t('riskReportModal.mediumRisk')}: {med}</span>
-                              <span className="risk-badge low-risk">{t('riskReportModal.lowRisk')}: {low}</span>
-                              <span className="risk-badge normal">{t('riskReportModal.normalRisk')}: {norm}</span>
-                            </>
-                          );
-                        })()}
-                      </div>
+                      {(() => {
+                        // Get latest risk per pond for this farm
+                        const latestPonds = getLatestRiskPerPond(farm);
+                        
+                        // Calculate counts from latest ponds only
+                        const latestCounts = { high: 0, medium: 0, low: 0, normal: 0 };
+                        latestPonds.forEach(pred => {
+                          const risk = normalizeRisk(pred.risk_level);
+                          if (risk === 'High') latestCounts.high++;
+                          else if (risk === 'Medium') latestCounts.medium++;
+                          else if (risk === 'Low') latestCounts.low++;
+                          else latestCounts.normal++;
+                        });
+                        
+                        return (
+                          <>
+                            <span className="confidence-info">{t('riskReportModal.ponds')}: {latestPonds.length}</span>
+                            <div className="risk-counts">
+                              <span className="risk-badge high-risk">{t('riskReportModal.highRisk')}: {latestCounts.high}</span>
+                              <span className="risk-badge medium-risk">{t('riskReportModal.mediumRisk')}: {latestCounts.medium}</span>
+                              <span className="risk-badge low-risk">{t('riskReportModal.lowRisk')}: {latestCounts.low}</span>
+                              <span className="risk-badge normal">{t('riskReportModal.normalRisk')}: {latestCounts.normal}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
                     {farm.summary && (
                       <div className="farm-risk-summary" style={{ marginTop: 8 }}>
@@ -744,10 +1022,16 @@ const RiskReportModal = ({ isModal = false }) => {
                     {farm.summary && (
                       <div className="farm-risk-summary" style={{ marginTop: 8 }}>
                         <span className="confidence-info"><FaLightbulb /> {t('riskReportModal.mainIssue')}: {(() => {
+                          // Prioritize the calculated main_issue from latest predictions
+                          if (farm.summary.main_issue) {
+                            return farm.summary.main_issue;
+                          }
+                          
+                          // Fallback to overall risk if no main_issue calculated
                           const fb = feedbackCache[farm.farm_key] || farm.feedback;
                           const corrected = fb?.corrected_risk_level;
                           const riskIssues = corrected || farm.overall_risk;
-                          return farm.summary.main_issue || `${riskIssues} ${riskIssues && !riskIssues.toLowerCase().includes('risk') ? 'Risk' : ''}`;
+                          return riskIssues ? `${riskIssues} ${!riskIssues.toLowerCase().includes('risk') ? 'Risk' : ''}` : 'No issues detected';
                         })()}</span>
                   </div>
                     )}
@@ -773,7 +1057,7 @@ const RiskReportModal = ({ isModal = false }) => {
                           logActivity('report', `Suggested Actions opened for farm ${farm.farm_name} in Risk Reports`, u); 
                         } catch (_) {}
                       }}>
-                        <span className="btn-icon"><PiNoteFill /></span> {t('riskReportModal.suggestedActions')}
+                        <span className="btn-icon"><PiNoteFill /></span> {t('riskReportModal.latestSuggestedActions')}
                       </button>
               </div>
                   </>
@@ -806,30 +1090,39 @@ const RiskReportModal = ({ isModal = false }) => {
       {detailsFarmKey && (() => {
         const farm = farms.find(f => f.farm_key === detailsFarmKey);
         if (!farm || !farm.has_reports) return null;
-        const fb = feedbackCache[farm.farm_key] || farm.feedback || null;
-        const diag = fb?.prediction?.diagnostics || fb?.diagnostics || {};
-        const corrected = fb?.corrected_risk_level || fb?.prediction?.corrected_risk_level;
-        const fbPredsRaw = Array.isArray(fb?.predictions) ? fb.predictions : [];
-        const fbPreds = fbPredsRaw.map(p => ({
-          id: p.id,
-          fish_pond: p.fish_pond || p.input_data?.fish_pond,
-          risk_level: normalizeRisk(p.risk_level),
-          confidence: parseFloat(p.confidence),
-          fish_condition: p.fish_condition || p.input_data?.fish_condition,
-          water_condition: p.water_condition || p.input_data?.water_condition,
-          weather: p.weather || p.input_data?.weather,
-        }));
-        const avgFromFeedback = (() => {
-          const vals = fbPreds.map(p => p.confidence).filter(v => !isNaN(v));
-          return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : null;
-        })();
+        
+        // Get available dates for this farm
+        const availableDates = getAllDates(farm);
+        
+        // Get predictions based on selected timestamp
+        let displayPredictions = [];
+        if (selectedTimestamp === 'latest' || !showHistoryFilter) {
+          // Always show only latest per pond when not viewing history
+          displayPredictions = getLatestRiskPerPond(farm);
+        } else {
+          const selectedMs = parseInt(selectedTimestamp);
+          // Get all reports from the same date as the selected timestamp
+          const selectedDate = new Date(selectedMs).toDateString();
+          displayPredictions = farm.predictions.filter(p => {
+            const reportDate = new Date(getTimestampMs(p.timestamp)).toDateString();
+            return reportDate === selectedDate;
+          });
+        }
+        
+        // Get last updated timestamp
+        const lastUpdated = displayPredictions.length > 0 
+          ? new Date(Math.max(...displayPredictions.map(p => getTimestampMs(p.timestamp))))
+          : new Date();
+        
         return (
           <div className="farm-details-modal-overlay">
             <div className="farm-details-modal">
               <div className="farm-details-header">
-                <h3>{farm.farm_name} — {t('riskReportModal.pondPredictions')}</h3>
+                <h3>{farm.farm_name} — {t('riskReportModal.pondPredictions')} (Last Updated: {lastUpdated.toLocaleDateString()} {lastUpdated.toLocaleTimeString()})</h3>
                 <button className="close-modal-btn" onClick={() => {
                   setDetailsFarmKey(null);
+                  setSelectedTimestamp('latest');
+                  setShowHistoryFilter(false);
                   try { 
                     const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                     logActivity('report', `Details modal closed in Risk Reports`, u); 
@@ -837,10 +1130,36 @@ const RiskReportModal = ({ isModal = false }) => {
                 }}>✕</button>
               </div>
               <div className="farm-details-content">
-                <div className="farm-risk-summary" style={{ marginBottom: 12 }}>
-                  <span className="confidence-info">{corrected ? `${t('riskReportModal.correctedRiskLevel')}: ${corrected}` : `${t('riskReportModal.overallRisk')}: ${farm.overall_risk}`}</span>
-                  {avgFromFeedback && <span className="confidence-info avg-conf">{t('riskReportModal.avgConfidence')}: {avgFromFeedback}%</span>}
-                </div>
+                {/* Date Filter - Only show when viewing history */}
+                {showHistoryFilter && (
+                  <div className="timestamp-filter-section" style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <label htmlFor="date-select" style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
+                      📅 Select Report Date:
+                    </label>
+                    <select
+                      id="date-select"
+                      value={selectedTimestamp}
+                      onChange={(e) => setSelectedTimestamp(e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: 'white',
+                        color: '#374151',
+                        minWidth: '200px'
+                      }}
+                    >
+                      <option value="latest">Latest Report Per Pond</option>
+                      {availableDates.map((date, index) => (
+                        <option key={date.value} value={date.value}>
+                          {date.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
                 <div className="pond-details-table">
                   <table className="pond-table">
                     <thead>
@@ -851,24 +1170,84 @@ const RiskReportModal = ({ isModal = false }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(fbPreds.length > 0 ? fbPreds : farm.predictions).map(p => {
+                      {displayPredictions.length > 0 ? displayPredictions.map((p, index) => {
                         const risk = normalizeRisk(p.risk_level);
                         const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
+                        
                         return (
-                        <tr key={p.id} className="pond-table-row">
+                        <tr key={p.id || index} className="pond-table-row">
                           <td className="pond-name">{p.fish_pond || '—'}</td>
                           <td>{emoji} {risk === 'High' ? t('riskReportModal.highRisk') : risk === 'Medium' ? t('riskReportModal.mediumRisk') : risk === 'Low' ? t('riskReportModal.lowRisk') : t('riskReportModal.normalRisk')}</td>
                           <td className="confidence-value">{typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : '—'}</td>
                         </tr>
                         );
-                      })}
+                      }) : (
+                        <tr>
+                          <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                            No predictions found for selected time period
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
-                    </div>
-                  </div>
                 </div>
+                
+                {/* View History Button */}
+                {selectedTimestamp === 'latest' && availableDates.length > 0 && !showHistoryFilter && (
+                  <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => {
+                        setShowHistoryFilter(true);
+                        // Show the most recent date
+                        const mostRecentDate = availableDates[0];
+                        if (mostRecentDate) {
+                          setSelectedTimestamp(mostRecentDate.value);
+                        }
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#1A4375',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      View History
+                    </button>
+                  </div>
+                )}
+
+                {/* Back to Latest Button - Only show when viewing history */}
+                {showHistoryFilter && (
+                  <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => {
+                        setShowHistoryFilter(false);
+                        setSelectedTimestamp('latest');
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#6b7280',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginRight: '10px'
+                      }}
+                    >
+                      Back to Latest
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            );
+          </div>
+        );
       })()}
 
       {/* Suggested Actions Modal */}
@@ -876,16 +1255,44 @@ const RiskReportModal = ({ isModal = false }) => {
         const farm = farms.find(f => f.farm_key === actionsFarmKey);
         if (!farm || !farm.has_reports) return null;
         
-        // Get all recommended actions from predictions
+        // Get latest recommended actions from latest predictions only
+        const latestPredictions = getLatestRiskPerPond(farm);
         const actions = Array.from(new Set(
-          farm.predictions.flatMap(p => p.recommended_actions || [])
+          latestPredictions.flatMap(p => p.recommended_actions || [])
         ));
         
         return (
           <div className="farm-details-modal-overlay">
             <div className="farm-details-modal">
               <div className="farm-details-header">
-                <h3>{farm.farm_name} — {t('riskReportModal.suggestedActions')}</h3>
+                <h3>{farm.farm_name} — {t('riskReportModal.latestSuggestedActions')}</h3>
+                {(() => {
+                  // Get the latest timestamp from the latest predictions
+                  if (latestPredictions.length > 0) {
+                    const latestPrediction = latestPredictions
+                      .filter(p => p.timestamp)
+                      .sort((a, b) => {
+                        const aMs = getTimestampMs(a.timestamp);
+                        const bMs = getTimestampMs(b.timestamp);
+                        return bMs - aMs;
+                      })[0];
+                    
+                    if (latestPrediction) {
+                      const latestDate = new Date(getTimestampMs(latestPrediction.timestamp));
+                      return (
+                        <p style={{ 
+                          fontSize: '0.9em', 
+                          color: '#666', 
+                          margin: '5px 0 0 0',
+                          fontStyle: 'italic'
+                        }}>
+                          {t('riskReportModal.asOf')}: {latestDate.toLocaleDateString()}
+                        </p>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
                 <button className="close-modal-btn" onClick={() => {
                   setActionsFarmKey(null);
                   try { 

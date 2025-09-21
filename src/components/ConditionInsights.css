@@ -224,9 +224,16 @@
      color: #374151;
    }
 
-   .ci-modal-content {
-     padding: 20px;
-   }
+    .ci-modal-content {
+      padding: 20px;
+      /* Hide scrollbar but keep functionality */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* Internet Explorer 10+ */
+    }
+    
+    .ci-modal-content::-webkit-scrollbar {
+      display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+    }
 
    .ci-modal-severity {
      display: flex;
@@ -282,6 +289,271 @@
      line-height: 1.5;
      white-space: pre-wrap;
      word-wrap: break-word;
+   }
+
+   /* History Filter Styles */
+   .ci-history-filters {
+     padding: 16px 20px;
+     border-bottom: 1px solid #e5e7eb;
+     background: #f9fafb;
+   }
+   
+   .ci-filter-row {
+     display: flex;
+     gap: 16px;
+     margin-bottom: 12px;
+     align-items: end;
+   }
+   
+   .ci-filter-row:last-child {
+     margin-bottom: 0;
+   }
+   
+   .ci-filter-group {
+     display: flex;
+     flex-direction: column;
+     gap: 4px;
+     min-width: 120px;
+   }
+   
+   .ci-filter-group label {
+     font-size: 12px;
+     font-weight: 600;
+     color: #374151;
+     text-transform: uppercase;
+     letter-spacing: 0.5px;
+   }
+   
+   .ci-filter-select {
+     padding: 6px 8px;
+     border: 1px solid #d1d5db;
+     border-radius: 6px;
+     background: white;
+     font-size: 13px;
+     color: #374151;
+     outline: none;
+     transition: all 0.15s ease;
+   }
+   
+   .ci-filter-select:hover {
+     border-color: #9ca3af;
+   }
+   
+   .ci-filter-select:focus {
+     border-color: #3b82f6;
+     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+   }
+   
+   .ci-search-group {
+     flex: 1;
+     min-width: 200px;
+   }
+   
+   .ci-filter-search {
+     padding: 6px 8px;
+     border: 1px solid #d1d5db;
+     border-radius: 6px;
+     background: white;
+     font-size: 13px;
+     color: #374151;
+     outline: none;
+     transition: all 0.15s ease;
+   }
+   
+   .ci-filter-search:hover {
+     border-color: #9ca3af;
+   }
+   
+   .ci-filter-search:focus {
+     border-color: #3b82f6;
+     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+   }
+   
+   .ci-clear-filters {
+     padding: 6px 12px;
+     background: #6b7280;
+     color: white;
+     border: none;
+     border-radius: 6px;
+     font-size: 12px;
+     font-weight: 600;
+     cursor: pointer;
+     transition: all 0.15s ease;
+     text-transform: uppercase;
+     letter-spacing: 0.5px;
+   }
+   
+   .ci-clear-filters:hover {
+     background: #4b5563;
+     transform: translateY(-1px);
+   }
+   
+   .ci-clear-filters:active {
+     transform: translateY(0);
+   }
+
+    /* Compact View Styles - Fits within calendar box */
+    .ci-card.ci-compact {
+      padding: 14px 18px;
+      min-height: 80px;
+      max-height: 140px;
+      width: 100%;
+      background: #f0f9ff !important; /* Light blue background to make it obvious */
+      border: 2px solid #0ea5e9 !important; /* Blue border to make it obvious */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+      flex: 1; /* Make all cards stretch to same width */
+    }
+    
+    .ci-card.ci-compact .ci-severity {
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+    
+    .ci-card.ci-compact .ci-sev-emoji {
+      font-size: 20px; /* Slightly larger for better visibility */
+      flex-shrink: 0; /* Don't shrink the emoji */
+    }
+    
+    .ci-card.ci-compact .ci-sev-chip {
+      font-size: 12px; /* Slightly larger for better readability */
+      padding: 3px 10px;
+      flex-shrink: 0; /* Don't shrink the chip */
+      white-space: nowrap;
+    }
+    
+    .ci-card.ci-compact .ci-meta {
+      font-size: 13px; /* Slightly larger for better readability */
+      margin-bottom: 6px;
+      font-weight: 600;
+      width: 100%;
+    }
+    
+    .ci-time-meta {
+      font-size: 11px; /* Slightly larger for better readability */
+      color: #6b7280;
+      margin-bottom: 8px;
+      font-style: italic;
+      width: 100%;
+    }
+    
+    .ci-card.ci-compact .ci-pagination {
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    
+    .ci-card.ci-compact .ci-nav {
+      padding: 5px 10px; /* Slightly larger buttons */
+      font-size: 11px;
+      min-width: 60px;
+    }
+    
+    .ci-card.ci-compact .ci-index {
+      font-size: 11px; /* Slightly larger index */
+      font-weight: 600;
+    }
+    
+    .ci-card.ci-compact {
+      position: relative;
+    }
+    
+    .ci-card.ci-compact::after {
+      content: "Click for details";
+      position: absolute;
+      bottom: 10px;
+      right: 16px;
+      font-size: 10px;
+      color: #0ea5e9;
+      font-style: italic;
+      font-weight: 600;
+      opacity: 0.8;
+    }
+
+    /* Responsive Styles for Laptop Screens */
+    @media screen and (min-width: 1024px) and (max-width: 1366px) {
+      .condition-insights {
+        max-height: 300px;
+        overflow: hidden;
+      }
+      
+      .ci-card {
+        max-height: 200px;
+        overflow-y: auto;
+        /* Hide scrollbar but keep functionality */
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* Internet Explorer 10+ */
+      }
+      
+      .ci-card::-webkit-scrollbar {
+        display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+      }
+      
+      .ci-card.ci-compact {
+        max-height: 120px;
+        min-height: 100px;
+        width: 100%;
+      }
+      
+      .ci-message {
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        max-height: 2.8em; /* 2 lines * 1.4 line-height */
+      }
+    }
+
+   /* Responsive Styles for Medium Laptop Screens */
+   @media screen and (min-width: 1367px) and (max-width: 1440px) {
+     .condition-insights {
+       max-height: 350px;
+       overflow: hidden;
+     }
+     
+     .ci-card {
+       max-height: 250px;
+       overflow-y: auto;
+       /* Hide scrollbar but keep functionality */
+       scrollbar-width: none; /* Firefox */
+       -ms-overflow-style: none; /* Internet Explorer 10+ */
+     }
+     
+     .ci-card::-webkit-scrollbar {
+       display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+     }
+     
+     .ci-card.ci-compact {
+       max-height: 140px;
+       min-height: 120px;
+       width: 100%;
+       overflow: hidden;
+     }
+   }
+
+   /* Responsive Styles for Large Screens */
+   @media screen and (min-width: 1441px) {
+     .condition-insights {
+       max-height: 400px;
+       overflow: hidden;
+     }
+     
+     .ci-card {
+       max-height: 300px;
+       overflow-y: auto;
+       /* Hide scrollbar but keep functionality */
+       scrollbar-width: none; /* Firefox */
+       -ms-overflow-style: none; /* Internet Explorer 10+ */
+     }
+     
+     .ci-card::-webkit-scrollbar {
+       display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+     }
    }
 
    /* Compact Variant */

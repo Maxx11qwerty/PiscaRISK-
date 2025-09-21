@@ -1037,6 +1037,11 @@
     height: 60px;
   }
   
+  .calendar-box {
+    max-height: 350px;
+    overflow: hidden;
+  }
+  
   .sidebar-wrapper {
     width: 18%;
     top: 60px; /* COMMENT: Adjust this to control sidebar distance from top on standard desktop */
@@ -1075,6 +1080,11 @@
     width: 20%;
     top: 60px; /* COMMENT: Adjust this to control sidebar distance from top on medium desktop */
     height: calc(100vh - 60px);
+  }
+  
+  .calendar-box {
+    max-height: 280px;
+    overflow: hidden;
   }
   
   .main-content {
@@ -1212,6 +1222,11 @@
   .homepage-header-bar {
     padding: 1rem 2rem;
     height: 60px;
+  }
+  
+  .calendar-box {
+    max-height: 320px;
+    overflow: hidden;
   }
   
   .sidebar-wrapper {

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import SignupPage from "./SignupPage";
@@ -27,7 +27,6 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AppRoutes = () => {
-  const location = useLocation();
   const { isHandlingRedirect } = useContext(Auth.AuthContext);
 
   if (isHandlingRedirect) {
@@ -50,7 +49,7 @@ const AppRoutes = () => {
   }
 
   return (
-    <Routes location={location} key={location.pathname}>
+    <Routes>
       <Route path="/" element={<Login />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />

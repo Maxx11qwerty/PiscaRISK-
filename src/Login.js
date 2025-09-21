@@ -60,7 +60,8 @@ export default function Login() {
     phoneVerificationModal,
     openPhoneVerificationModal,
     closePhoneVerificationModal,
-    handlePhoneVerificationSuccess
+    handlePhoneVerificationSuccess,
+    isProcessingLoginRef
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -126,16 +127,25 @@ export default function Login() {
       const result = await login(formData.emailOrContact, formData.password);
       
       if (result.success) {
+        console.log('Login successful, preparing navigation...');
+        
+        // Log successful login first
         try {
-          await logActivity('login', `Successful login for ${formData.emailOrContact}`, formData.emailOrContact);
+          const username = result.username || formData.emailOrContact;
+          await logActivity('login', `User ${username} logged in successfully`, username);
         } catch (logError) {
-          console.error('Failed to log activity:', logError);
+          console.error('Failed to log login activity:', logError);
         }
         
-        // Small delay to ensure state is updated before navigation
-        setTimeout(() => {
-          navigate('/Homepage');
-        }, 100);
+        // Clear the login processing flag immediately
+        if (isProcessingLoginRef) {
+          isProcessingLoginRef.current = false;
+          console.log('Cleared login processing flag');
+        }
+        
+        // Navigate immediately without delay
+        console.log('Navigating to Homepage...');
+        navigate('/Homepage', { replace: true });
       } else {
         if (result.code === 'show_verification_modal') {
           setError('');

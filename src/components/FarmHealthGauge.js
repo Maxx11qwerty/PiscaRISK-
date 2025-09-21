@@ -64,6 +64,64 @@ const FarmHealthGauge = () => {
     }
   }, [isAssignedToFarm, assignedFarmKey]);
 
+  // Helper function to get latest risk per pond (matching RiskReportModal logic)
+  const getLatestRiskPerPond = (farm) => {
+    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
+    
+    // Filter out predictions with invalid timestamps first
+    const validPredictions = farm.predictions.filter(pred => {
+      const ms = getTimestampMs(pred.timestamp);
+      return ms > 0; // Only include predictions with valid timestamps
+    });
+    
+    if (validPredictions.length === 0) {
+      return [];
+    }
+    
+    // First, sort all predictions by timestamp (latest first) to ensure we get the most recent data
+    const sortedPredictions = [...validPredictions].sort((a, b) => {
+      const aMs = getTimestampMs(a.timestamp);
+      const bMs = getTimestampMs(b.timestamp);
+      return bMs - aMs; // Latest first
+    });
+    
+    // Group predictions by pond, but only keep the first (latest) occurrence of each pond
+    const pondMap = new Map();
+    sortedPredictions.forEach(pred => {
+      const pond = pred.fish_pond || 'Unknown Pond';
+      if (!pondMap.has(pond)) {
+        pondMap.set(pond, pred);
+      }
+    });
+
+    // Convert map values to array and sort by timestamp again
+    const latestPerPond = Array.from(pondMap.values()).sort((a, b) => {
+      const aMs = getTimestampMs(a.timestamp);
+      const bMs = getTimestampMs(b.timestamp);
+      return bMs - aMs; // Latest first
+    });
+
+    // Filter out ponds with old reports (only show reports from September 21st, 2025 and later)
+    const cutoffDate = new Date('2025-09-21T00:00:00');
+    const recentPonds = latestPerPond.filter(pred => {
+      const predDate = new Date(getTimestampMs(pred.timestamp));
+      return predDate >= cutoffDate;
+    });
+
+    return recentPonds;
+  };
+
+  // Helper function to convert timestamp to milliseconds (matching RiskReportModal logic)
+  const getTimestampMs = (ts) => {
+    if (!ts) return 0;
+    let ms = 0;
+    if (typeof ts === 'number') ms = ts;
+    else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+    else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+    else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+    return ms;
+  };
+
   const { percent, status, color, hasData, latestMs, rangeLabel } = useMemo(() => {
     // Risk score mapping
     const riskScoreMap = { Low: 100, Medium: 50, High: 0, Normal: 100 };
@@ -71,49 +129,28 @@ const FarmHealthGauge = () => {
     let pondCount = 0;
     let latestTimestampMs = 0;
 
-    const now = new Date();
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 6); // inclusive 7-day window
-
     const accumulateFromFarm = (f) => {
       if (!f) return;
-      // Prefer predictions (already deduplicated to latest per pond), fallback to counts
-      if (Array.isArray(f.predictions) && f.predictions.length > 0) {
-        f.predictions.forEach(p => {
-          // Only include within last 7 days
-          const ts = p.timestamp;
-          let ms = 0;
-          if (typeof ts === 'number') ms = ts;
-          else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
-          else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
-          else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
-          if (ms > 0) {
-            const d = new Date(ms);
-            if (d < start || d > end) return; // outside window
-            if (ms > latestTimestampMs) latestTimestampMs = ms;
-          } else {
-            return; // skip if no timestamp
-          }
-          // Prefer explicit prediction confidence when available to align with Risk Report Modal
-          const conf = typeof p.confidence === 'number' ? p.confidence : undefined;
-          if (typeof conf === 'number') {
-            scoreSum += conf; // already 0-100 range expected
-          } else {
-            const level = (p.risk_level || 'Normal');
-            const score = riskScoreMap[level] ?? 0;
-            scoreSum += score;
-          }
-          pondCount += 1;
-        });
-      } else if (f.counts) {
-        const c = f.counts;
-        // Counts have no time dimension; include only if we still have no predictions
-        if (pondCount === 0 && scoreSum === 0) {
-          scoreSum += (c.low || 0) * 100 + (c.medium || 0) * 50 + (c.high || 0) * 0 + (c.normal || 0) * 100;
-          pondCount += (c.low || 0) + (c.medium || 0) + (c.high || 0) + (c.normal || 0);
+      
+      // Use the same logic as RiskReportModal - get latest per pond with cutoff date
+      const latestPonds = getLatestRiskPerPond(f);
+      
+      latestPonds.forEach(p => {
+        const ts = p.timestamp;
+        const ms = getTimestampMs(ts);
+        if (ms > latestTimestampMs) latestTimestampMs = ms;
+        
+        // Prefer explicit prediction confidence when available to align with Risk Report Modal
+        const conf = typeof p.confidence === 'number' ? p.confidence : undefined;
+        if (typeof conf === 'number') {
+          scoreSum += conf; // already 0-100 range expected
+        } else {
+          const level = (p.risk_level || 'Normal');
+          const score = riskScoreMap[level] ?? 0;
+          scoreSum += score;
         }
-      }
+        pondCount += 1;
+      });
     };
 
     if (selectedFarm === 'all') {
@@ -125,7 +162,12 @@ const FarmHealthGauge = () => {
 
     const pct = pondCount > 0 ? Math.round(scoreSum / pondCount) : 0;
     const s = getStatus(pct);
-    const rangeText = `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
+    
+    // Use the same range logic as RiskReportModal - show the cutoff date range
+    const cutoffDate = new Date('2025-09-21T00:00:00');
+    const now = new Date();
+    const rangeText = `${cutoffDate.toLocaleDateString()} – ${now.toLocaleDateString()}`;
+    
     return { percent: pct, status: s.label, color: s.color, hasData: pondCount > 0, latestMs: latestTimestampMs, rangeLabel: rangeText };
   }, [farms, selectedFarm]);
 
@@ -139,25 +181,79 @@ const FarmHealthGauge = () => {
     } catch (_) {}
   }, [hasData, percent, status, color, cacheKey]);
 
-  const { displayPercent, displayStatus, displayColor, noteText, infoLabel } = useMemo(() => {
+  const { displayPercent, displayStatus, displayColor, noteText, infoLabel, updateColor } = useMemo(() => {
     if (hasData) {
-      const updated = latestMs ? ` • Last updated: ${new Date(latestMs).toLocaleString()}` : '';
-      return { displayPercent: percent, displayStatus: status, displayColor: color, noteText: `Up to date${updated}`, infoLabel: `Data from ${rangeLabel}` };
+      const now = new Date();
+      const dataDate = latestMs ? new Date(latestMs) : null;
+      
+      let updateStatus = '';
+      let updateColor = '#4ade80'; // green for current
+      
+      if (dataDate) {
+        const hoursDiff = (now.getTime() - dataDate.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursDiff <= 24) {
+          updateStatus = 'Current data';
+          updateColor = '#4ade80'; // green
+        } else if (hoursDiff <= 72) {
+          updateStatus = 'Recent data';
+          updateColor = '#f59e0b'; // amber
+        } else {
+          updateStatus = 'Outdated data';
+          updateColor = '#ef4444'; // red
+        }
+        
+        const lastUpdated = `Last updated: ${dataDate.toLocaleString()}`;
+        return { 
+          displayPercent: percent, 
+          displayStatus: status, 
+          displayColor: color, 
+          noteText: `${updateStatus} • ${lastUpdated}`, 
+          infoLabel: `Data from ${rangeLabel}`,
+          updateColor: updateColor
+        };
+      } else {
+        return { 
+          displayPercent: percent, 
+          displayStatus: status, 
+          displayColor: color, 
+          noteText: 'Current data • No timestamp available', 
+          infoLabel: `Data from ${rangeLabel}`,
+          updateColor: '#6b7280' // gray
+        };
+      }
     }
+    
+    // Fallback to cached data
     try {
       const raw = localStorage.getItem(cacheKey);
       if (raw) {
         const parsed = JSON.parse(raw || '{}');
         const d = parsed?.asOf ? new Date(parsed.asOf) : null;
-        const note = d ? `Last updated: ${d.toLocaleString()}` : 'Last updated: unknown';
+        const note = d ? `Not Latest Data (Cached) • Last updated: ${d.toLocaleString()}` : 'Not Latest Data (Cached) • Last updated: unknown';
         const perc = typeof parsed.percent === 'number' ? parsed.percent : 100;
         const st = parsed.status || getStatus(perc).label;
         const col = parsed.color || getStatus(perc).color;
-        return { displayPercent: perc, displayStatus: st, displayColor: col, noteText: note, infoLabel: 'Based on the last 7 days' };
+        return { 
+          displayPercent: perc, 
+          displayStatus: st, 
+          displayColor: col, 
+          noteText: note, 
+          infoLabel: 'Based on cached data',
+          updateColor: '#f59e0b' // amber for cached
+        };
       }
     } catch (_) {}
+    
     const def = getStatus(100);
-    return { displayPercent: 100, displayStatus: def.label, displayColor: def.color, noteText: 'Last updated: no recent data', infoLabel: 'Based on the last 7 days' };
+    return { 
+      displayPercent: 100, 
+      displayStatus: def.label, 
+      displayColor: def.color, 
+      noteText: 'No data available', 
+      infoLabel: 'No recent data found',
+      updateColor: '#ef4444' // red for no data
+    };
   }, [hasData, percent, status, color, cacheKey, latestMs, rangeLabel]);
 
   const chartData = useMemo(() => ([{ name: 'health', value: displayPercent, fill: displayColor }]), [displayPercent, displayColor]);
@@ -244,7 +340,11 @@ const FarmHealthGauge = () => {
             {displayStatus}
           </div>
           {noteText ? (
-            <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>{noteText}</div>
+            <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>
+              <span style={{ color: updateColor || 'rgba(255,255,255,0.8)' }}>
+                {noteText}
+              </span>
+            </div>
           ) : null}
         </div>
       </div>

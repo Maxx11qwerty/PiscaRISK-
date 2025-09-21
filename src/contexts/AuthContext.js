@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }) => {
   const suppressAuthUpdatesRef = useRef(false);
   const currentUserRef = useRef(null);
   const isLoggingOutRef = useRef(false);
+  const isProcessingLoginRef = useRef(false);
 
   // Email verification modal state
   const [emailVerificationModal, setEmailVerificationModal] = useState({ 
@@ -362,25 +363,43 @@ export const AuthProvider = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (suppressAuthUpdatesRef.current || isLoggingOutRef.current) {
+      console.log('Auth state changed:', user ? 'User logged in' : 'User logged out', 'Processing flag:', isProcessingLoginRef.current);
+      
+      if (suppressAuthUpdatesRef.current) {
+        console.log('Auth state change suppressed');
         return;
       }
       
-      // Only process login if we don't already have a current user and we're not in logout state
-      if (user && !currentUserRef.current && !isLoggingOutRef.current) {
+      if (isProcessingLoginRef.current) {
+        console.log('Login processing - skipping auth state change');
+        return;
+      }
+      
+      // Clear logout flag when a user is detected (new login)
+      if (user) {
+        isLoggingOutRef.current = false;
+        console.log('User detected, cleared logout flag');
+      }
+      
+      // Only process login if we don't already have a current user
+      if (user && !currentUserRef.current) {
+        console.log('Processing new login for user:', user.uid);
+        
+        // Set a flag to prevent duplicate processing
+        currentUserRef.current = { processing: true };
+        
         // Reload user to get latest verification status
         await user.reload();
 
-        // Try fetching from primary users collection
+        // Try fetching from primary users collection first
         let userDoc = await getDoc(doc(db, 'users', user.uid));
         let userData = null;
         let collectionName = 'users';
 
         // If not found, try mobileUsers (e.g., fish farmers)
         if (!userDoc.exists()) {
-          const mobileDoc = await getDoc(doc(db, 'mobileUsers', user.uid));
-          if (mobileDoc.exists()) {
-            userDoc = mobileDoc;
+          userDoc = await getDoc(doc(db, 'mobileUsers', user.uid));
+          if (userDoc.exists()) {
             collectionName = 'mobileUsers';
           }
         }
@@ -418,6 +437,8 @@ export const AuthProvider = ({ children }) => {
           };
           setCurrentUser(newCurrentUser);
           currentUserRef.current = newCurrentUser;
+          
+          // Login logging is now handled in Login.js to ensure proper username display
         }
       }
       
@@ -716,7 +737,20 @@ const login = async (emailOrContact, password) => {
       }
     }
     
-    return { success: true, user: userCredential.user };
+    // Get user data for logging
+    let username = 'Unknown User';
+    if (userData) {
+      username = userData.username || userData.email || 'Unknown User';
+    }
+    
+    // Set flag to prevent auth state change handler from running
+    isProcessingLoginRef.current = true;
+    
+    // Set the current user immediately to prevent auth state change handler from running
+    setCurrentUser(userCredential.user);
+    currentUserRef.current = userCredential.user;
+    
+    return { success: true, user: userCredential.user, username: username };
   } catch (error) {
     
     // Handle specific Firebase Auth errors
@@ -1503,8 +1537,8 @@ const login = async (emailOrContact, password) => {
         // Clear the intent
         localStorage.removeItem('googleSignInIntent');
         
-        logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, existingUserData.role);
-        return { success: true, user };
+        // Login logging handled in Login.js
+        return { success: true, user, username: existingUserData.username };
       }
       
       if (!userDoc.exists()) {
@@ -1720,8 +1754,8 @@ const login = async (emailOrContact, password) => {
         };
       }
 
-      logActivity('login', `User logged in with Google: ${user.email}`, user.email, null, userRole);
-      return { success: true, user };
+      // Login logging handled in Login.js
+      return { success: true, user, username: userData.username };
     } catch (error) {
       throw error;
     }
@@ -2029,6 +2063,8 @@ const resetPassword = async (email) => {
     isHandlingRedirect,
     // email verification modal controls
     emailVerificationModal,
+    // login processing flag
+    isProcessingLoginRef,
     openEmailVerificationModal,
     resendVerificationEmail,
     closeEmailVerificationModal,

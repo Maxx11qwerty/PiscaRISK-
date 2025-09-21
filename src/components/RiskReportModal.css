@@ -99,9 +99,9 @@
 .risk-report-container {
   font-family: 'ReadexPro-Regular';
   background-color: #f8fafc;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   max-width: 1200px;
   margin: 0 auto;
 }
@@ -151,8 +151,11 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #e2e8f0;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .header-content {
@@ -161,25 +164,26 @@
 
 .header-content h2 {
   color: #1e293b;
-  margin: 0 0 10px 0;
-  font-size: 1.8rem;
-  font-weight: 700;
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
   font-family: 'customfont1';
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .header-icon {
   color: #dc2626;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 .header-subtitle {
   color: #64748b;
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1.5;
+  font-weight: 400;
 }
 
 /* Risk Summary */
@@ -598,27 +602,18 @@
 /* Prediction Actions */
 .prediction-actions {
   margin-bottom: 0;
-  background: #f8fafc;
-  padding: 20px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  counter-reset: action-counter;
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
 }
 
 .prediction-actions h4 {
   color: #1e293b;
-  margin: 0 0 16px 0;
-  font-size: 1.1rem;
+  margin: 0 0 12px 0;
+  font-size: 1rem;
   font-weight: 600;
   font-family: 'customfont1';
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.prediction-actions h4::before {
-  content: '📋';
-  font-size: 1.2rem;
 }
 
 .actions-list {
@@ -627,74 +622,22 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .actions-list li {
   color: #374151;
-  line-height: 1.6;
-  font-size: 0.95rem;
-  padding: 12px 16px;
+  line-height: 1.5;
+  font-size: 0.9rem;
+  padding: 10px 12px;
   background: white;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  position: relative;
-  transition: all 0.2s ease;
-  counter-increment: action-counter;
-}
-
-.actions-list li::before {
-  content: counter(action-counter);
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #1A4375;
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  font-family: 'customfont1';
-  box-shadow: 0 2px 4px rgba(26, 67, 117, 0.2);
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
 }
 
 .actions-list li:hover {
-  transform: translateX(4px);
-  border-color: #1A4375;
-  box-shadow: 0 2px 8px rgba(26, 67, 117, 0.1);
-}
-
-.actions-list li:nth-child(1)::before {
-  background: #dc2626;
-}
-
-.actions-list li:nth-child(2)::before {
-  background: #d97706;
-}
-
-.actions-list li:nth-child(3)::before {
-  background: #059669;
-}
-
-.actions-list li:nth-child(4)::before {
-  background: #0369a1;
-}
-
-.actions-list li:nth-child(5)::before {
-  background: #7c3aed;
-}
-
-.actions-list li:nth-child(6)::before {
-  background: #ec4899;
-}
-
-.actions-list li:nth-child(7)::before {
-  background: #f59e0b;
+  background: #f9fafb;
 }
 
 .actions-list li:nth-child(8)::before {
@@ -841,16 +784,28 @@
 
 .farm-risk-card {
   background: #ffffff;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e5e7eb;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+  margin-bottom: 15px;
+}
+
+.farm-risk-card.high-risk {
+  border-left: 4px solid #ef4444;
+}
+
+.farm-risk-card.medium-risk {
+  border-left: 4px solid #f59e0b;
+}
+
+.farm-risk-card.low-risk {
+  border-left: 4px solid #10b981;
 }
 
 .farm-risk-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .farm-card-header {
@@ -862,6 +817,10 @@
 
 .farm-info .farm-name {
   margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 8px;
 }
 
 .farm-info .farm-location {
@@ -872,12 +831,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  padding: 8px 10px;
+  margin-bottom: 15px;
+  padding: 15px;
   background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #eef2f7;
-  gap: 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  gap: 15px;
   flex-wrap: wrap;
 }
 
@@ -918,23 +877,22 @@
 }
 
 .risk-badge {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
   background: #fff;
   border: 1px solid #e5e7eb;
 }
 
 .risk-level-badge {
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 4px;
   color: white;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  letter-spacing: 0.5px;
 }
 
 .risk-level-badge.high-risk {
@@ -951,11 +909,11 @@
 
 .confidence-info {
   color: #374151;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 600;
   background: #ffffff;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: 4px;
   border: 1px solid #e5e7eb;
 }
 
@@ -1047,10 +1005,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 10px;
-  padding: 10px 12px;
+  margin-top: 15px;
+  padding: 15px;
   background: #f9fafb;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid #e5e7eb;
 }
 
@@ -1058,21 +1016,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background: #1f2937;
+  padding: 8px 16px;
+  background: #1e293b;
   color: white;
   border: none;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease;
 }
 
 .view-details-btn:hover {
   background: #374151;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .view-details-btn .btn-icon {
@@ -1083,21 +1039,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 16px;
   background: #3b82f6;
   color: white;
   border: none;
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s ease;
 }
 
 .suggested-actions-btn:hover {
   background: #2563eb;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .suggested-actions-btn .btn-icon {
@@ -1312,11 +1266,11 @@
 /* Farm Details Modal */
 .farm-details-modal-overlay {
   position: fixed;
-  top: 44px; /* offset below header bar */
+  top: 0;
   left: 0;
   right: 0;
-  height: calc(100vh - 64px);
-  background: rgba(17, 24, 39, 0.45);
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1326,50 +1280,51 @@
 
 .farm-details-modal {
   background: #ffffff;
-  border-radius: 12px;
-  max-width: 900px;
+  border-radius: 8px;
+  max-width: 1000px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border: 1px solid #e5e7eb;
   display: flex;
-    flex-direction: column;
-  }
+  flex-direction: column;
+}
   
 .farm-details-header {
   display: flex;
-    justify-content: space-between;
+  justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 20px;
   border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
+  background: #ffffff;
 }
 
 .farm-details-header h3 {
-  color: #111827;
+  color: #1e293b;
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .close-modal-btn {
   background: none;
   border: none;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   color: #6b7280;
   cursor: pointer;
-  padding: 6px;
-  border-radius: 6px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .close-modal-btn:hover {
-  background: #eef2f7;
+  background: #f3f4f6;
   color: #374151;
 }
 
 .farm-details-content {
-  padding: 16px 20px 20px;
+  padding: 20px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -1378,44 +1333,47 @@
 /* Summary badges at top of modal */
 .farm-details-content .farm-risk-summary {
   display: flex;
-  gap: 10px;
+  gap: 15px;
   flex-wrap: wrap;
   align-items: center;
-  background: #ffffff;
-  border: none;
-  padding: 0 0 12px 0;
-  margin-bottom: 12px;
-  border-bottom: 1px dashed #e5e7eb;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 6px;
 }
 
 /* Pond table aesthetics */
-.pond-details-table { margin-top: 8px; }
+.pond-details-table { 
+  margin-top: 0; 
+}
 
 .pond-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  border-collapse: collapse;
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
 }
 
 .pond-table thead th {
-  background: #f9fafb;
-  padding: 12px 14px;
+  background: #f8fafc;
+  padding: 12px 16px;
   text-align: left;
   font-weight: 600;
   color: #374151;
-  font-size: 0.85rem;
-  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .pond-table tbody td {
-  padding: 12px 14px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
   color: #111827;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .pond-table tbody tr:hover {
@@ -1526,8 +1484,8 @@
   background: #10b981;
 }
 .risk-level-badge.normal {
-  background: #e5e7eb;
-  color: #111827;
+  background: #6b7280;
+  color: white;
 }
 
 /* Buttons neutral */
@@ -1542,19 +1500,26 @@
   background: #f9fafb;
 }
 
+/* Critical Alerts - Simple style */
+.farm-risk-summary .confidence-info:has([class*="alert"]) {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
 /* Suggested Actions - Clean style */
 .recommended-actions {
-  background: #ffffff;
+  background: #f9fafb;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 6px;
+  padding: 15px;
 }
 
 .recommended-actions h4 {
-  margin: 0 0 10px 0;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #111827;
+  margin: 0 0 12px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
 }
 
 .actions-list {
@@ -1569,28 +1534,27 @@
 .action-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 12px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
 }
 
 .action-item:hover {
   background: #f9fafb;
-  border-color: #d1d5db;
 }
 
 .action-icon {
-  font-size: 0.9rem;
-  color: #10b981;
+  font-size: 0.8rem;
+  color: #6b7280;
 }
 
 .action-item span:last-child {
-  color: #111827;
-  font-size: 0.9rem;
-  font-weight: 500;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 /* Remove priority colors to keep risk indicator as main color source */

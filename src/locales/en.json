@@ -400,7 +400,9 @@
     "normalRisk": "Normal Risk",
     "recommendedActions": "Recommended Actions",
     "noSpecificActionsAvailable": "No specific actions available for this farm.",
-    "corrected": "Corrected"
+    "corrected": "Corrected",
+    "asOf": "As of",
+    "latestSuggestedActions": "Latest Suggested Actions"
   },
   "pondsAtRiskChart": {
     "title": "Ponds at Risk per Farm",
