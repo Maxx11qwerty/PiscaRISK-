@@ -11,8 +11,19 @@ import { exportPiscaRiskCSV, exportPiscaRiskPDF } from '../utils/exportPiscarisk
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 import './PiscaRiskData.css';
+import { IoFish } from 'react-icons/io5';
 
 const PAGE_SIZE = 8;
+
+const getTimestampMs = (ts) => {
+  if (!ts) return 0;
+  let ms = 0;
+  if (typeof ts === 'number') ms = ts;
+  else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+  else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+  else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+  return ms;
+};
 
 const normalizeFarmName = (name) => {
   if (!name || typeof name !== 'string') return 'unknown-farm';
@@ -53,6 +64,9 @@ const PiscaRiskData = () => {
   const [farmReviewedCount, setFarmReviewedCount] = useState({});
   const [weather, setWeather] = useState(null);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [filterFarmKey, setFilterFarmKey] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [timeFilter, setTimeFilter] = useState('all'); // all | week | month
 
   // Resolve assigned farm name for current user
   useEffect(() => {
@@ -162,8 +176,150 @@ const PiscaRiskData = () => {
     return farms.flatMap(f => (f.predictions || []).map(p => ({ ...p, farm_name: f.name })));
   }, [farms]);
 
+  const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {
+    const format = (d) => `${d.toLocaleDateString()}`;
+    if (timeFilter === 'week') {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? 6 : (day - 1);
+      const startCurrent = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday, 0, 0, 0, 0);
+      const endCurrent = new Date(startCurrent.getFullYear(), startCurrent.getMonth(), startCurrent.getDate() + 6, 23, 59, 59, 999);
+      // Check if any data falls into current week
+      const hasInCurrent = (allPonds || []).some(p => {
+        const ms = getTimestampMs(p.timestamp);
+        if (!ms) return false;
+        const d = new Date(ms);
+        return d >= startCurrent && d <= endCurrent;
+      });
+      if (hasInCurrent) return { rangeStart: startCurrent, rangeEnd: endCurrent, rangeLabel: `${format(startCurrent)} - ${format(endCurrent)}` };
+      // Fallback to week containing latest data
+      let latestMs = 0;
+      (allPonds || []).forEach(p => { const ms = getTimestampMs(p.timestamp); if (ms > latestMs) latestMs = ms; });
+      if (latestMs > 0) {
+        const d = new Date(latestMs);
+        const day2 = d.getDay();
+        const diff2 = day2 === 0 ? 6 : (day2 - 1);
+        const startLatest = new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff2, 0, 0, 0, 0);
+        const endLatest = new Date(startLatest.getFullYear(), startLatest.getMonth(), startLatest.getDate() + 6, 23, 59, 59, 999);
+        return { rangeStart: startLatest, rangeEnd: endLatest, rangeLabel: `${format(startLatest)} - ${format(endLatest)}` };
+      }
+      return { rangeStart: startCurrent, rangeEnd: endCurrent, rangeLabel: `${format(startCurrent)} - ${format(endCurrent)}` };
+    }
+    if (timeFilter === 'month') {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      return { rangeStart: start, rangeEnd: end, rangeLabel: `${start.toLocaleString('default', { month: 'short' })} ${start.getFullYear()}` };
+    }
+    return { rangeStart: null, rangeEnd: null, rangeLabel: 'All time' };
+  }, [timeFilter, allPonds]);
 
-  const { page, setPage, totalPages, pageItems } = usePaginated(allPonds);
+  const withinRange = (ts) => {
+    if (!rangeStart || !rangeEnd) return true;
+    const ms = getTimestampMs(ts);
+    if (ms === 0) return false;
+    const d = new Date(ms);
+    return d >= rangeStart && d <= rangeEnd;
+  };
+
+  const farmsWithFilteredCounts = useMemo(() => {
+    return farms.map(f => {
+      const preds = Array.isArray(f.predictions) ? f.predictions : [];
+      const valid = preds.filter(p => withinRange(p.timestamp));
+      const sorted = [...valid].sort((a,b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
+      const pondMap = new Map();
+      sorted.forEach(p => {
+        const pond = p.fish_pond || 'Unknown Pond';
+        if (!pondMap.has(pond)) pondMap.set(pond, p);
+      });
+      const latestPerPond = Array.from(pondMap.values());
+      const counts = { high: 0, medium: 0, low: 0, normal: 0 };
+      latestPerPond.forEach(p => {
+        const r = (p.risk_level || '').toString().toLowerCase();
+        if (r === 'high') counts.high += 1;
+        else if (r === 'medium') counts.medium += 1;
+        else if (r === 'low') counts.low += 1;
+        else counts.normal += 1;
+      });
+      return { key: f.key, name: f.name, counts, ponds: latestPerPond.length };
+    });
+  }, [farms, rangeStart, rangeEnd]);
+
+  const summaryStats = useMemo(() => {
+    // Total High-Risk Ponds
+    const totalHighRisk = (allPonds || []).reduce((acc, p) => acc + ((p.risk_level || '').toString().toLowerCase() === 'high' ? 1 : 0), 0);
+
+    // Total Reports Reviewed (%)
+    const totals = Object.keys(farmReportsCount).reduce((agg, k) => {
+      agg.total += farmReportsCount[k] || 0;
+      agg.reviewed += farmReviewedCount[k] || 0;
+      return agg;
+    }, { reviewed: 0, total: 0 });
+    const reviewedPct = totals.total > 0 ? Math.round((totals.reviewed / totals.total) * 100) : 0;
+
+    // Average Risk Level across all ponds
+    const riskToScore = (r) => {
+      const s = (r || '').toString().toLowerCase();
+      if (s === 'high') return 3;
+      if (s === 'medium') return 2;
+      if (s === 'low') return 1;
+      return 0; // normal/unknown
+    };
+    const scoreToLabel = (v) => {
+      if (v >= 2.5) return 'High';
+      if (v >= 1.5) return 'Medium';
+      if (v >= 0.5) return 'Low';
+      return 'Normal';
+    };
+    const scores = (allPonds || []).map(p => riskToScore(p.risk_level));
+    const avgScore = scores.length > 0 ? (scores.reduce((a,b)=>a+b,0) / scores.length) : 0;
+    const avgRiskLabel = scoreToLabel(avgScore);
+
+    return { totalHighRisk, reviewedPct, avgRiskLabel };
+  }, [allPonds, farmReportsCount, farmReviewedCount]);
+
+  const filteredPonds = useMemo(() => {
+    const q = (searchQuery || '').toString().trim().toLowerCase();
+    return (allPonds || []).filter(p => {
+      if (filterFarmKey !== 'all') {
+        const pk = p.farm_key || normalizeFarmName(p.farm || p.farm_name || '');
+        if (pk !== filterFarmKey) return false;
+      }
+      if (!withinRange(p.timestamp)) return false;
+      if (q.length > 0) {
+        const hay = [
+          (p.farm || p.farm_name || ''),
+          (p.fish_pond || ''),
+          (p.risk_level || '')
+        ].join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [allPonds, filterFarmKey, searchQuery, rangeStart, rangeEnd]);
+
+  const { freshnessLabel, lastUpdatedStr, updateColor } = useMemo(() => {
+    let latestMs = 0;
+    farms.forEach(f => {
+      (f.predictions || []).forEach(p => {
+        const ms = getTimestampMs(p.timestamp);
+        if (ms > latestMs) latestMs = ms;
+      });
+    });
+    if (latestMs > 0) {
+      const now = Date.now();
+      const hoursDiff = (now - latestMs) / (1000 * 60 * 60);
+      let label = 'Current data';
+      let color = '#4ade80';
+      if (hoursDiff > 72) { label = 'Outdated data'; color = '#ef4444'; }
+      else if (hoursDiff > 24) { label = 'Recent data'; color = '#f59e0b'; }
+      return { freshnessLabel: label, lastUpdatedStr: new Date(latestMs).toLocaleString(), updateColor: color };
+    }
+    return { freshnessLabel: 'Not Latest Data (Cached)', lastUpdatedStr: 'unknown', updateColor: '#f59e0b' };
+  }, [farms]);
+
+
+  const { page, setPage, totalPages, pageItems } = usePaginated(filteredPonds);
 
   if (loading) {
     return (
@@ -175,6 +331,13 @@ const PiscaRiskData = () => {
 
   return (
     <div className="prd-container">
+      <div className="prd-last-updated" style={{ marginBottom: 10, fontSize: '0.85rem', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${updateColor}` }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: updateColor }} />
+          <span style={{ color: '#111827' }}>{freshnessLabel}</span>
+        </span>
+        <span style={{ color: '#6b7280' }}>Last updated: <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
+      </div>
       <div className="prd-export-bar">
         <span className="prd-export-label">{t('piscaRiskData.export.label')}</span>
         <div className="prd-export-menu">
@@ -226,24 +389,46 @@ const PiscaRiskData = () => {
       
       <div className="prd-grid">
         <Section title={t('piscaRiskData.sections.farms.title')} description={t('piscaRiskData.sections.farms.description')}>
-          <div className="prd-list">
+          <div className="prd-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
             {farms.map((f) => (
-              <div key={f.key} className="prd-card">
-                <div className="prd-card-header">
-                  <div className="prd-card-title">{f.name}</div>
-                  <div className="prd-card-sub">{f.key}</div>
+              <div key={f.key} className="prd-card" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
+                <div className="prd-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <div className="prd-card-title" style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <IoFish style={{ color: '#06b6d4', fontSize: 20 }} />
+                    {f.name}
+                  </div>
+                  <div className="prd-card-sub" style={{ fontSize: '0.75rem', color: '#6b7280' }}>{f.key}</div>
                 </div>
-                <div className="prd-card-body">
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.overallRisk')}</span><Pill color={f.overall_risk === 'High' ? '#ef4444' : f.overall_risk === 'Medium' ? '#f59e0b' : '#22c55e'}>{f.overall_risk}</Pill></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.pondsWithReports')}</span><span>{f.ponds}</span></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.totalReports')}</span><span>{farmReportsCount[f.key] || 0}</span></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.reviewedReports')}</span><span>{farmReviewedCount[f.key] || 0} / {(farmReportsCount[f.key] || 0)}</span></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.counts')}</span><span>
-                    <Pill color="#ef4444">{t('piscaRiskData.farmData.high')}: {f.counts?.high || 0}</Pill>
-                    <Pill color="#f59e0b">{t('piscaRiskData.farmData.medium')}: {f.counts?.medium || 0}</Pill>
-                    <Pill color="#eab308">{t('piscaRiskData.farmData.low')}: {f.counts?.low || 0}</Pill>
-                    <Pill color="#86efac">{t('piscaRiskData.farmData.normal')}: {f.counts?.normal || 0}</Pill>
-                  </span></div>
+                <div className="prd-card-body" style={{ display: 'grid', rowGap: 8 }}>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.overallRisk')}</span><Pill color={f.overall_risk === 'High' ? '#ef4444' : f.overall_risk === 'Medium' ? '#f59e0b' : '#22c55e'}>{f.overall_risk}</Pill></div>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.pondsWithReports')}</span><span>{f.ponds}</span></div>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.totalReports')}</span><span>{farmReportsCount[f.key] || 0}</span></div>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{t('piscaRiskData.farmData.reviewedReports')}</span>
+                    {(() => {
+                      const reviewed = farmReviewedCount[f.key] || 0;
+                      const total = farmReportsCount[f.key] || 0;
+                      const pct = total > 0 ? Math.round((reviewed / total) * 100) : 0;
+                      const barColor = pct >= 75 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444';
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ padding: '2px 6px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{reviewed} / {total}</span>
+                          <span style={{ width: 90, height: 6, background: '#e5e7eb', borderRadius: 999, overflow: 'hidden', display: 'inline-block' }}>
+                            <span style={{ display: 'block', width: `${pct}%`, height: '100%', background: barColor }} />
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{pct}%</span>
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.counts')}</span>
+                    <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <Pill color="#ef4444">{t('piscaRiskData.farmData.high')}: {f.counts?.high || 0}</Pill>
+                      <Pill color="#f59e0b">{t('piscaRiskData.farmData.medium')}: {f.counts?.medium || 0}</Pill>
+                      <Pill color="#eab308">{t('piscaRiskData.farmData.low')}: {f.counts?.low || 0}</Pill>
+                      <Pill color="#86efac">{t('piscaRiskData.farmData.normal')}: {f.counts?.normal || 0}</Pill>
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -252,13 +437,31 @@ const PiscaRiskData = () => {
 
         <Section title={t('piscaRiskData.sections.weather.title')} description={t('piscaRiskData.sections.weather.description')}>
           {weather ? (
-            <div className="prd-weather">
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.location')}</span><strong>{weather.locationName || '—'}</strong></div>
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.condition')}</span><strong>{weather.weather?.[0]?.description || '—'}</strong></div>
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.temperature')}</span><strong>{typeof weather.main?.temp === 'number' ? `${Math.round(weather.main.temp)}°C` : '—'}</strong></div>
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.humidity')}</span><strong>{typeof weather.main?.humidity === 'number' ? `${weather.main.humidity}%` : '—'}</strong></div>
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.wind')}</span><strong>{typeof weather.wind?.speed === 'number' ? `${weather.wind.speed} m/s` : '—'}</strong></div>
-              <div className="prd-row"><span>{t('piscaRiskData.weatherData.asOf')}</span><strong>{new Date().toLocaleString()}</strong></div>
+            <div className="prd-weather" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.location')}</div>
+                <div style={{ fontWeight: 600 }}>{weather.locationName || '—'}</div>
+              </div>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.condition')}</div>
+                <div style={{ fontWeight: 600 }}>{weather.weather?.[0]?.description || '—'}</div>
+              </div>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.temperature')}</div>
+                <div style={{ fontWeight: 600 }}>{typeof weather.main?.temp === 'number' ? `${Math.round(weather.main.temp)}°C` : '—'}</div>
+              </div>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.humidity')}</div>
+                <div style={{ fontWeight: 600 }}>{typeof weather.main?.humidity === 'number' ? `${weather.main.humidity}%` : '—'}</div>
+              </div>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.wind')}</div>
+                <div style={{ fontWeight: 600 }}>{typeof weather.wind?.speed === 'number' ? `${weather.wind.speed} m/s` : '—'}</div>
+              </div>
+              <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.asOf')}</div>
+                <div style={{ fontWeight: 600 }}>{new Date().toLocaleString()}</div>
+              </div>
             </div>
           ) : (
             <div className="prd-loading">{t('piscaRiskData.weatherData.noData')}</div>
@@ -266,17 +469,30 @@ const PiscaRiskData = () => {
         </Section>
 
         <Section title={t('piscaRiskData.sections.chartData.title')} description={t('piscaRiskData.sections.chartData.description')}>
-          <div className="prd-aggregates">
-            {farms.map(f => (
+          <div className="prd-aggregates" style={{ marginBottom: 12 }}>
+            <div className="prd-filters" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>Time:</label>
+                <select value={timeFilter} onChange={(e) => { setTimeFilter(e.target.value); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+                  <option value="all">All</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                </select>
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                {rangeLabel}
+              </div>
+            </div>
+            {farmsWithFilteredCounts.map(f => (
               <div key={f.key} className="prd-card">
                 <div className="prd-card-header">
                   <div className="prd-card-title">{f.name}</div>
                 </div>
                 <div className="prd-card-body">
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.high')}</span><strong>{f.counts?.high || 0}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.medium')}</span><strong>{f.counts?.medium || 0}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.low')}</span><strong>{f.counts?.low || 0}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.normal')}</span><strong>{f.counts?.normal || 0}</strong></div>
+                  <div className="prd-row"><span>{t('piscaRiskData.farmData.high')}</span><strong>{f.counts.high}</strong></div>
+                  <div className="prd-row"><span>{t('piscaRiskData.farmData.medium')}</span><strong>{f.counts.medium}</strong></div>
+                  <div className="prd-row"><span>{t('piscaRiskData.farmData.low')}</span><strong>{f.counts.low}</strong></div>
+                  <div className="prd-row"><span>{t('piscaRiskData.farmData.normal')}</span><strong>{f.counts.normal}</strong></div>
                 </div>
               </div>
             ))}
@@ -284,6 +500,34 @@ const PiscaRiskData = () => {
         </Section>
 
         <Section title={t('piscaRiskData.sections.predictions.title')} description={t('piscaRiskData.sections.predictions.description')}>
+          <div className="prd-filters" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>{t('piscaRiskData.predictionsTable.farm')}:</label>
+              <select value={filterFarmKey} onChange={(e) => { setFilterFarmKey(e.target.value); setPage(1); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+                <option value="all">All Farms</option>
+                {farms.map(f => (
+                  <option key={f.key} value={f.key}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>Time:</label>
+              <select value={timeFilter} onChange={(e) => { setTimeFilter(e.target.value); setPage(1); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+                <option value="all">All</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+              </select>
+            </div>
+            <div style={{ flex: '1 1 220px' }}>
+              <input type="text" placeholder="Search pond, farm or risk..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }} />
+            </div>
+            <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280' }}>
+              Showing {filteredPonds.length} of {allPonds.length}
+            </div>
+            {timeFilter !== 'all' ? (
+              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{rangeLabel}</div>
+            ) : null}
+          </div>
           <div className="prd-table">
             <div className="prd-thead">
               <div>{t('piscaRiskData.predictionsTable.farm')}</div>
@@ -330,6 +574,9 @@ const PiscaRiskData = () => {
             <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalFarms')}</span><strong>{farms.length}</strong></div>
             <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalPonds')}</span><strong>{allPonds.length}</strong></div>
             <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.asOf')}</span><strong>{new Date().toLocaleString()}</strong></div>
+            <div className="prd-summary-item"><span>Total High-Risk Ponds</span><strong>{summaryStats.totalHighRisk}</strong></div>
+            <div className="prd-summary-item"><span>Total Reports Reviewed (%)</span><strong>{summaryStats.reviewedPct}%</strong></div>
+            <div className="prd-summary-item"><span>Average Risk Level</span><strong>{summaryStats.avgRiskLabel}</strong></div>
           </div>
         </Section>
       </div>

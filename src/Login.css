@@ -51,7 +51,7 @@
   max-width: 19rem;
   height: auto;
   margin-bottom: 0.1rem;
-  margin-left: 6%;
+  margin-left: 8%;
 }
 
 .title {
@@ -183,7 +183,7 @@ justify-content: center;
 }
 
 .login-text {
-  margin-top: 1rem;
+  margin-top: 7rem;
   text-align: center;
   font-size: .9rem;
   font-family: 'customfont2';

@@ -1724,10 +1724,6 @@ const handleActivateFishFarmer = async (user) => {
             </div>
           )}
 
-
-
-          {/* Admin Password Confirmation Modal removed per requirement */}
-
         <div className="user-grid-container">
             {paginatedUsers.length > 0 ? (
             <>

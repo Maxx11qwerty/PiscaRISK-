@@ -275,6 +275,7 @@ export default function SignupPage() {
 
         <div className="sign-form-section">
           <form onSubmit={handleSubmit}>
+          {/* Social Login Section 
           <div className="social-sign-section">
             <div className="social-sign-buttons">
               <button 
@@ -290,13 +291,15 @@ export default function SignupPage() {
               </button>
             </div>
           </div>
-            
+
             <div className="or-divider">
               <span className="or-text">or</span>
             </div>
-            
+            */}
+
             <p className="sign-login-text">
-              Continue with an existing email account
+              Create Your Account <br />
+              Fill in your details to get started.
             </p>
             <div className="sign-rounded-line"></div>
             <div className={`sign-error-message ${error ? 'visible' : ''}`}> {error} </div>

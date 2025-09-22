@@ -84,6 +84,8 @@ const Feedback = () => {
   const [activeTab, setActiveTab] = useState('inbox');
   const [feedbackFilterValue, setFeedbackFilterValue] = useState('');
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(typeof window !== 'undefined' ? window.innerWidth <= 1023 : false);
   const navigate = useNavigate();
 
   // Resolve assigned farm name for current user
@@ -394,6 +396,32 @@ const Feedback = () => {
     return matchesHeaderSearch && matchesFeedbackFilter && matchesCategory && matchesTab;
   });
 
+  // Compute tab counts from the full list (respecting farm filter), not the current tab filter
+  const passesFarmFilter = (feedback) => {
+    const hasUserFarmContext = Boolean(currentUser?.farm || assignedFarmName);
+    if (!hasUserFarmContext) return true;
+
+    const feedbackUserFarm = feedback.userFarm;
+    const feedbackUserFarmName = feedback.assignedFarmName;
+    const currentUserFarmId = currentUser?.farm;
+    const currentUserFarmName = assignedFarmName;
+
+    const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
+    const fId = norm(feedbackUserFarm);
+    const fName = norm(feedbackUserFarmName);
+    const uId = norm(currentUserFarmId);
+    const uName = norm(currentUserFarmName);
+
+    const matchesFarm = (fId && (fId === uId || fId === uName)) ||
+                        (fName && (fName === uId || fName === uName));
+
+    return matchesFarm;
+  };
+
+  const inboxCount = feedbacks.filter(f => passesFarmFilter(f) && !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length;
+  const responseCount = feedbacks.filter(f => passesFarmFilter(f) && f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length;
+  const archiveCount = feedbacks.filter(f => passesFarmFilter(f) && f.status === 'archived').length;
+
   const handleFeedbackClick = async (feedback) => {
     // If feedback is unread and user is admin/tech officer, mark it as read
     if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer')) {
@@ -423,16 +451,19 @@ const Feedback = () => {
         };
 
         setSelectedFeedback(updatedFeedback);
+        if (isNarrow) setInboxOpen(false);
         logActivity('feedback', `Feedback from ${feedback.userName || feedback.user || 'Anonymous'} marked as read by ${currentUser?.username || 'Admin'}`, currentUser?.username);
       } catch (error) {
         console.error('Error marking feedback as read:', error);
         logActivity('error', `Failed to mark feedback as read: ${error.message}`, currentUser?.username);
         // If marking as read fails, still show the feedback
         setSelectedFeedback(feedback);
+        if (isNarrow) setInboxOpen(false);
       }
     } else {
       // If feedback is already read or user is not admin, just show it
       setSelectedFeedback(feedback);
+      if (isNarrow) setInboxOpen(false);
     }
   };
 
@@ -771,13 +802,16 @@ const Feedback = () => {
     }
   };
 
-  // Close sidebar when window is resized to desktop
+  // Close sidebar/inbox when window is resized; track narrow mode
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 1023) {
+      const narrow = window.innerWidth <= 1023;
+      setIsNarrow(narrow);
+      if (!narrow) {
         setSidebarOpen(false);
+        setInboxOpen(false);
       } else {
-        // On mobile, ensure sidebar is closed when resizing
+        // On mobile, ensure sidebar starts closed
         setSidebarOpen(false);
       }
     };
@@ -916,7 +950,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Inbox tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={filteredFeedbacks.filter(f => !f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
+          data-count={inboxCount}
         >
           {t('feedback.inbox')}
         </button>
@@ -929,7 +963,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Response tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={filteredFeedbacks.filter(f => f.hasResponse && f.status !== 'archived' && f.status !== 'resolved').length}
+          data-count={responseCount}
         >
           {t('feedback.response')}
         </button>
@@ -942,7 +976,7 @@ const Feedback = () => {
               logActivity('feedback', `Switched to Archive tab in Feedback`, u); 
             } catch (_) {}
           }}
-          data-count={filteredFeedbacks.filter(f => f.status === 'archived').length}
+          data-count={archiveCount}
         >
           {t('feedback.archive')}
         </button>
@@ -1070,8 +1104,17 @@ const Feedback = () => {
         closeSidebar();
       }}>
         {/* Main content area */}
-        <div className="content-area">
-          <div className="inbox-container">
+        <div className={`content-area ${isNarrow ? 'narrow' : ''}`}>
+          {/* Mobile toggle to open inbox drawer */}
+          {isNarrow && (
+            <button 
+              className="inbox-toggle-btn"
+              onClick={() => setInboxOpen(true)}
+            >
+              {t('feedback.inbox')}
+            </button>
+          )}
+          <div className={`inbox-container ${isNarrow ? (inboxOpen ? 'open' : 'closed') : ''}`}>
             {loading ? (
               <div className="loading-feedback">
                 <div className="loading-spinner"></div>
@@ -1203,6 +1246,10 @@ const Feedback = () => {
               </div>
             )}
           </div>
+          {/* Backdrop when inbox drawer is open on mobile */}
+          {isNarrow && inboxOpen && (
+            <div className="inbox-backdrop" onClick={() => setInboxOpen(false)} />
+          )}
                       {selectedFeedback ? (
               <div className="feedback-detail">
                 <div className="detail-header-top">

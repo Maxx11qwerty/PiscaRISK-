@@ -285,7 +285,9 @@ export default function Login() {
         <div className="form-section">
           <form onSubmit={handleLogin}>
             <div className="login-fields-container">
+              {/* Social Login Section*/}
               <div className="social-login-section">
+                {/*
                 <div className="social-login-buttons">
                   <button 
                     type="button"
@@ -300,12 +302,15 @@ export default function Login() {
                     </span>
                   </button>
                 </div>
+                */}
               </div>
               
+              {/*
               <div className="login-or-divider">
                 <span className="login-or-text">{t('login.or')}</span>
               </div>
-              
+              */}
+
               <p className="login-text">
                 {t('login.continueWithExistingAccount')}
               </p>

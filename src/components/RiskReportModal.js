@@ -20,6 +20,7 @@ const RiskReportModal = ({ isModal = false }) => {
   const [farms, setFarms] = useState([]);
   const [detailsFarmKey, setDetailsFarmKey] = useState(null);
   const [actionsFarmKey, setActionsFarmKey] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [feedbackCache, setFeedbackCache] = useState({});
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
@@ -478,7 +479,10 @@ const RiskReportModal = ({ isModal = false }) => {
       setShowHistoryFilter(false);
       
       try {
-        setLoading(true);
+        // Only show loader if we don't already have predictions to render
+        const existingFarm = farms.find(f => f.farm_key === detailsFarmKey);
+        const hasExisting = !!(existingFarm && Array.isArray(existingFarm.predictions) && existingFarm.predictions.length > 0);
+        setDetailsLoading(!hasExisting);
         
         // Fetch latest risk predictions for this specific farm
         const farm = farms.find(f => f.farm_key === detailsFarmKey);
@@ -574,7 +578,7 @@ const RiskReportModal = ({ isModal = false }) => {
       } catch (error) {
         console.error('Error refreshing farm data:', error);
       } finally {
-        setLoading(false);
+        setDetailsLoading(false);
       }
     };
     
@@ -1041,7 +1045,10 @@ const RiskReportModal = ({ isModal = false }) => {
                       </div>
                     )}
                     <div className="farm-actions">
-                      <button className="view-details-btn" onClick={() => {
+                      <button className="view-details-btn" onClick={(e) => {
+                        e.stopPropagation();
+                        if (detailsFarmKey === farm.farm_key) return; // prevent re-opening same modal
+                        if (detailsFarmKey) return; // another details modal already open
                         setDetailsFarmKey(farm.farm_key);
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
@@ -1130,6 +1137,19 @@ const RiskReportModal = ({ isModal = false }) => {
                 }}>✕</button>
               </div>
               <div className="farm-details-content">
+                {detailsLoading && (
+                  <div style={{
+                    marginBottom: '12px',
+                    padding: '10px 12px',
+                    background: '#f9fafb',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 6,
+                    color: '#6b7280',
+                    fontSize: '0.9rem'
+                  }}>
+                    {t('riskReportModal.loadingFarmRiskData')}
+                  </div>
+                )}
                 {/* Date Filter - Only show when viewing history */}
                 {showHistoryFilter && (
                   <div className="timestamp-filter-section" style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
