@@ -11,10 +11,10 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
-import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser } from './services/accountService';
+import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, updateUserStatus as serviceUpdateUserStatus } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { logActivity, logMessages } from './utils/logger';
 
@@ -276,6 +276,13 @@ const AccountManagement = () => {
 
   useEffect(() => {
     fetchUsers();
+    // Real-time: refresh list when users/mobileUsers change
+    const unsubUsers = onSnapshot(collection(db, 'users'), () => fetchUsers());
+    const unsubMobileUsers = onSnapshot(collection(db, 'mobileUsers'), () => fetchUsers());
+    return () => {
+      unsubUsers && unsubUsers();
+      unsubMobileUsers && unsubMobileUsers();
+    };
   }, []);
 
   const fetchUsers = async () => {
@@ -1748,7 +1755,7 @@ const handleActivateFishFarmer = async (user) => {
                             }}
                           />
                         </div>
-                        <div className="user-cell name-cell">
+                        <div className="user-cell name-cell" data-label="User">
                           <div className="user-info">
                             {user.profileImage ? (
                               <img src={user.profileImage} alt={`${user.username}'s profile`} className="user-avatar" />
@@ -1761,7 +1768,7 @@ const handleActivateFishFarmer = async (user) => {
                             </div>
                       </div>
                         </div>
-                        <div className="user-cell role-cell">
+                        <div className="user-cell role-cell" data-label="Role">
                           {(() => {
                             const roleDisplayValue = formatRoleForDisplay(user.role);
                             const roleClassValue = (roleDisplayValue || '').toLowerCase().replace(' ', '-');
@@ -1772,19 +1779,56 @@ const handleActivateFishFarmer = async (user) => {
                             );
                           })()}
                         </div>
-                        <div className="user-cell farm-cell">
+                        <div className="user-cell farm-cell" data-label="Farm">
                           {user.farmName || farmIdToName[user.farmId] || farmIdToName[user.farm] || user.farmId || user.farm || 'N/A'}
                         </div>
-                        <div className="user-cell status-cell">
-                          <div className="status-indicator">
+                        <div className="user-cell status-cell" data-label="Status">
+                          <div
+                            className="status-indicator"
+                            title={(currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? `Click to deactivate this account (${user.username || user.email || 'User'})` : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` : undefined}
+                            aria-label={(currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? `Click to deactivate this account (${user.username || user.email || 'User'})` : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` : undefined}
+                            style={{ cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? 'pointer' : 'default' }}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (currentUser?.role !== 'Admin') return;
+                              const current = String(user.status || '').toLowerCase();
+                              // Only allow deactivation via click. Activation must use the Activate button.
+                              if (current !== 'active') return;
+                              const nextStatus = 'Inactive';
+                              try {
+                                // Optimistic UI update
+                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
+                                const result = await serviceUpdateUserStatus(
+                                  user.id,
+                                  nextStatus,
+                                  user.role,
+                                  user.collection || undefined,
+                                  user.email || undefined,
+                                  user.username || undefined
+                                );
+                                if (!result?.success) {
+                                  throw new Error(result?.error || 'Failed to update status');
+                                }
+                                setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
+                                try {
+                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                  logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
+                                } catch (_) {}
+                              } catch (error) {
+                                // Revert UI on error
+                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
+                                setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+                              }
+                            }}
+                          >
                             <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
                             <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
                           </div>
                         </div>
-                        <div className="user-cell contact-cell">
+                        <div className="user-cell contact-cell" data-label="Contact">
                           {user.contactNumber || t('accountManagement.user_list.no_contact')}
                         </div>
-                        <div className="user-cell actions-cell">
+                        <div className="user-cell actions-cell" data-label="Actions">
                           {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && !(user.adminActivated || user._justActivated) ? (
                             <button className="activate-tech-officer-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking activate button
@@ -1826,7 +1870,7 @@ const handleActivateFishFarmer = async (user) => {
                             </div>
                           )}
                         </div>
-                        <div className="user-cell joined-cell">
+                        <div className="user-cell joined-cell" data-label="Joined">
                           {user.dateJoined ? new Date(user.dateJoined).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -1834,7 +1878,7 @@ const handleActivateFishFarmer = async (user) => {
                           }) : t('accountManagement.user_list.unknown_date')}
                         </div>
                         {isAdminUser && (
-                          <div className="user-cell delete-cell">
+                          <div className="user-cell delete-cell" data-label="Delete">
                             <button className="delete-user-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
                               closeAllDropdowns(); // Close all other dropdowns first

@@ -815,6 +815,12 @@
   margin-bottom: 12px;
 }
 
+/* Ensure the farm info section spans the full card width so right-aligned
+   freshness block can sit flush to the card's right edge */
+.farm-card-header .farm-info {
+  flex: 1;
+}
+
 .farm-info .farm-name {
   margin: 0;
   font-size: 1.2rem;

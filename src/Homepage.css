@@ -149,7 +149,7 @@
   margin-left: 18%;
   transition: margin-left 0.3s ease;
   position: relative;
-  z-index: 1;
+  z-index: 0; /* lower z-index to ensure dropdown appears above */
   box-sizing: border-box;
   padding: 0 1rem;
   overflow-y: auto;
@@ -178,8 +178,10 @@
   margin-bottom: 2rem;
   height: 60px;
   box-sizing: border-box;
-  position: relative;
-  z-index: 1000;
+  position: sticky; /* keep above content */
+  top: 0;
+  z-index: 2147483000; /* ensure dropdown sits above all */
+  overflow: visible;
 }
 
 .header-logo-container {
@@ -237,6 +239,7 @@
 
 .user-menu {
   position: relative;
+  z-index: 2147483500; /* ensure button sits above header layer */
 }
 
 .user-menu button {
@@ -266,14 +269,56 @@
   background-color: #EFEFEF;
   border: 3px solid #DDDDDD;
   border-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 0.3rem 0;
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 1001;
+  position: fixed; /* detach from stacking contexts */
+  right: 10px;
+  top: 70px; /* base top position for desktop */
+  z-index: 2147483647; /* maximum z-index to ensure it's above everything */
   min-width: 180px;
-  margin-top: 0.5rem;
+}
+
+/* Tablet height alignment */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .header-dropdown-menu { top: 60px; }
+}
+
+/* Mobile tall phones */
+@media (min-width: 480px) and (max-width: 767px) {
+  .header-dropdown-menu { top: 55px; }
+}
+
+/* Small phones */
+@media (max-width: 479px) {
+  .header-dropdown-menu { 
+    top: 50px; 
+    right: 8px; 
+    width: calc(100vw - 16px); 
+    max-width: 280px;
+    z-index: 2147483647; /* ensure maximum z-index on small phones */
+  }
+}
+
+/* Very small phones - ensure dropdown is visible */
+@media (max-width: 360px) {
+  .header-dropdown-menu { 
+    top: 45px; 
+    right: 6px; 
+    width: calc(100vw - 12px); 
+    max-width: 260px;
+    z-index: 2147483647;
+  }
+}
+
+/* Specific range for 360px-480px mobile screens */
+@media (min-width: 361px) and (max-width: 480px) {
+  .header-dropdown-menu {
+    top: 50px;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-width: 280px;
+    z-index: 2147483647;
+  }
 }
 
 .header-dropdown-menu button {
@@ -583,6 +628,7 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
   min-height: 400px;
   position: relative;
+  z-index: 0; /* keep below header dropdown on mobile */
   min-width: 400px;
   box-sizing: border-box;
 }
@@ -1266,7 +1312,8 @@
   .homepage-header-bar {
     padding: 0.8rem 1rem;
     height: 60px;
-    margin-bottom: 1rem;
+    margin-bottom: 0; /* eliminate gap under header on tablets */
+    box-sizing: border-box; /* include padding in height to avoid seam */
   }
   
   .header-logo {
@@ -1281,16 +1328,22 @@
     position: fixed;
     left: -100% !important;
     width: 250px;
-    top: 58px; /* COMMENT: Tighten to eliminate any visible seam under header around ~980px */
-    height: calc(100vh - 60px);
+    top: 0; /* anchor to viewport top to avoid seam */
+    height: 100vh; /* full viewport height */
     z-index: 998;
     transition: left 0.3s ease;
-    margin-top: -1.1rem;
   }
   
   .sidebar-wrapper.sidebarOpen {
     left: 0 !important;
     
+  }
+
+  /* Improve readability on narrower tablets (760px–890px): widen sidebar */
+  @media (min-width: 760px) and (max-width: 890px) {
+    .sidebar-wrapper { width: 300px; }
+    .sidebar-wrapper.sidebarOpen { width: 300px; }
+    .sidebar-nav-item { font-size: 1.1rem; }
   }
 
   /* Slightly larger sidebar width on wider tablets (~982px) */
@@ -1331,6 +1384,15 @@
   
   .main-content.sidebar-collapsed {
     margin-left: 0;
+  }
+
+  /* Ensure user menu shows over content on tablets */
+  .header-dropdown-menu {
+    position: fixed;
+    top: 60px; /* match header height */
+    right: 10px;
+    z-index: 3000;
+    width: 220px;
   }
   
   .dashboard {
@@ -1410,7 +1472,8 @@
   .homepage-header-bar {
     padding: 0.6rem 0.8rem;
     height: 55px;
-    margin-bottom: 1rem;
+    margin-bottom: 0; /* eliminate gap under header on mobile */
+    box-sizing: border-box; /* include padding in height to avoid seam */
   }
   
   .header-logo {
@@ -1425,11 +1488,14 @@
     position: fixed;
     left: -100%;
     width: 280px;
-    top: 55px; /* COMMENT: Adjust this to control sidebar distance from top on mobile */
-    height: calc(100vh - 55px);
+    top: 0; /* anchor to viewport top */
+    height: 100vh; /* full height */
     z-index: 998;
     transition: left 0.3s ease;
   }
+
+  /* push sidebar content below fixed header internally to remove visible seam */
+  .sidebar { padding-top: calc(55px + 1rem); }
   
   .sidebar-wrapper.sidebarOpen {
     left: 0;
@@ -1447,6 +1513,15 @@
   
   .main-content.sidebar-collapsed {
     margin-left: 0;
+  }
+
+  /* Ensure user menu shows over content on mobile */
+  .header-dropdown-menu {
+    position: fixed;
+    top: 55px; /* match header height */
+    right: 10px;
+    z-index: 20000; /* ensure on top */
+    width: 220px;
   }
   
   .dashboard {
@@ -1541,7 +1616,8 @@
   .homepage-header-bar {
     padding: 0.5rem;
     height: 50px;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0; /* eliminate gap under header on small phones */
+    box-sizing: border-box; /* include padding in height to avoid seam */
   }
   
   .header-logo {
@@ -1556,7 +1632,7 @@
     position: fixed;
     left: -100%;
     width: 100%;
-    top: 50px; /* COMMENT: Adjust this to control sidebar distance from top on small mobile */
+    top: 50px; /* align exactly with header height */
     height: calc(100vh - 50px);
     z-index: 998;
     transition: left 0.3s ease;
@@ -1578,6 +1654,15 @@
   
   .main-content.sidebar-collapsed {
     margin-left: 0;
+  }
+
+  /* Ensure user menu shows over content on small phones */
+  .header-dropdown-menu {
+    position: fixed;
+    top: 50px; /* match header height */
+    right: 10px;
+    z-index: 3000;
+    width: 220px;
   }
   
   .dashboard {
@@ -1844,6 +1929,8 @@
   .homepage-header-bar {
     padding: 0.4rem;
     height: 45px;
+    margin-bottom: 0; /* eliminate gap under header on very small phones */
+    box-sizing: border-box; /* include padding in height to avoid seam */
   }
   
   .header-logo {
@@ -2125,6 +2212,18 @@ Mobile Responsiveness - Clean & Improved
     margin-bottom: 1rem; 
     width: 100%;
     box-sizing: border-box;
+  }
+
+  /* Ensure dropdown is visible on mobile */
+  .header-dropdown-menu {
+    top: 55px;
+    right: 10px;
+    width: auto;
+    max-width: 280px;
+    z-index: 2147483647;
+  }
+
+  .homepage-container { 
     overflow: hidden;
   }
 
@@ -2284,6 +2383,15 @@ Mobile Responsiveness - Clean & Improved
     font-size: 1rem;
   }
 
+  /* Ensure dropdown is visible on mobile */
+  .header-dropdown-menu {
+    top: 50px;
+    right: 8px;
+    width: calc(100vw - 16px);
+    max-width: 280px;
+    z-index: 2147483647;
+  }
+
   .sidebar-wrapper {
     width: 100%;
     top: 50px;
@@ -2380,8 +2488,17 @@ Mobile Responsiveness - Clean & Improved
     font-size: 0.9rem;
   }
 
-  .sidebar-wrapper {
+  /* Ensure dropdown is visible on very small mobile */
+  .header-dropdown-menu {
     top: 45px;
+    right: 6px;
+    width: calc(100vw - 12px);
+    max-width: 260px;
+    z-index: 2147483647;
+  }
+
+  .sidebar-wrapper {
+    top: 45px; /* align exactly with header height */
     height: calc(100vh - 45px);
   }
 
@@ -2499,7 +2616,8 @@ Mobile Responsiveness - Clean & Improved
   .homepage-header-bar {
     padding: 0.8rem 1rem;
     height: 60px;
-    margin-bottom: 1rem;
+    margin-bottom: 0; /* eliminate gap duplicate block */
+    box-sizing: border-box;
   }
 
   .header-logo {
@@ -2514,11 +2632,10 @@ Mobile Responsiveness - Clean & Improved
     position: fixed;
     left: -100% !important;
     width: 250px;
-    top: 58px;
-    height: calc(100vh - 60px);
+    top: 0; /* anchor to top */
+    height: 100vh;
     z-index: 998;
     transition: left 0.3s ease;
-    margin-top: -1.1rem;
   }
 
   .sidebar-wrapper.sidebarOpen {
@@ -2537,6 +2654,15 @@ Mobile Responsiveness - Clean & Improved
 
   .main-content.sidebar-collapsed {
     margin-left: 0;
+  }
+
+  /* Ensure user menu shows over content on very small phones */
+  .header-dropdown-menu {
+    position: fixed;
+    top: 45px; /* match header height */
+    right: 8px;
+    z-index: 3000;
+    width: 210px;
   }
 
   .dashboard {

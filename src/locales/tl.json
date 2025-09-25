@@ -331,8 +331,8 @@
     "fileSizeTooLarge": "Masyadong malaki ang file. Maximum na size ay 5MB.",
     "profilePictureUpdated": "Matagumpay na na-update ang profile picture!",
     "failedToSaveProfilePicture": "Nabigo ang pag-save ng profile picture. Subukan ulit.",
-    "failedToRemoveProfilePicture": "Nabigo ang pagtanggal ng profile picture. Subukan ulit.",
     "profilePictureRemoved": "Matagumpay na na-tanggal ang profile picture!",
+    "failedToRemoveProfilePicture": "Nabigo ang pagtanggal ng profile picture. Subukan ulit.",
     "passwordTooShort": "Ang bagong password ay dapat may kahit 6 characters",
     "emailVerified": "Matagumpay na na-verify ang email!",
     "failedToCheckVerification": "Nabigo ang pag-check ng email verification status",
@@ -345,7 +345,28 @@
     "noEmailForReset": "Walang nahanap na email address para sa password reset.",
     "userNotFound": "Walang nahanap na account gamit ang email address na ito.",
     "invalidEmail": "Hindi valid na format ng email address.",
-    "tooManyRequests": "Masyadong maraming password reset attempts. Subukan ulit mamaya."
+    "tooManyRequests": "Masyadong maraming password reset attempts. Subukan ulit mamaya.",
+    "fullNameCannotBeEmpty": "Hindi pwedeng walang laman ang buong pangalan",
+    "fullNameUpdated": "Matagumpay na na-update ang buong pangalan!",
+    "failedToUpdateFullName": "Nabigo ang pag-update ng buong pangalan. Subukan ulit.",
+    "addressCannotBeEmpty": "Hindi pwedeng walang laman ang address",
+    "addressUpdated": "Matagumpay na na-update ang address!",
+    "failedToUpdateAddress": "Nabigo ang pag-update ng address. Subukan ulit.",
+    "contactCannotBeEmpty": "Hindi pwedeng walang laman ang kontak",
+    "contactUpdated": "Matagumpay na na-update ang kontak!",
+    "failedToUpdateContact": "Nabigo ang pag-update ng kontak. Subukan ulit.",
+    "emailCannotBeEmpty": "Hindi pwedeng walang laman ang email",
+    "verificationEmailSentTo": "Naipadala ang verification email sa {{email}}. Mangyaring i-verify para makapag-login gamit ang iyong bagong address.",
+    "failedToUpdateEmail": "Nabigo ang pag-update ng email. Subukan ulit.",
+    "requiresRecentLogin": "Mangyaring mag-login muli upang baguhin ang iyong email, saka subukan ulit.",
+    "emailInvalid": "Hindi valid ang email address.",
+    "emailInUse": "Ginagamit na ang email na iyon.",
+    "noChangesToSave": "Walang mga pagbabagong ise-save.",
+    "emailUnverifiedNotice": "Paki-verify ang iyong email. Nagpadala kami ng link sa iyong bagong address.",
+    "sending": "Nagpapadala…",
+    "resendVerification": "Ipadala muli ang verification email",
+    "fileMustBeImage": "Ang file ay dapat isang larawan.",
+    "errorReadingFile": "May error sa pagbasa ng file."
   },
   "weather": {
     "weatherDetails": "Mga detalye ng panahon",
@@ -687,6 +708,91 @@
       "prev": "Nakaraan",
       "next": "Susunod",
       "page": "Pahina {{current}} ng {{total}}"
+    }
+  }
+  ,
+  "reportsChart": {
+    "title": "Naipasang Ulat",
+    "titleAssigned": "{{farm}} Naipasang Ulat",
+    "daily": "Arawan",
+    "weekly": "Lingguhan",
+    "monthly": "Buwanang",
+    "yAxisLabel": "Naipasang Ulat",
+    "asOf": "Bilang ng",
+    "loading": "Naglo-load ng chart data...",
+    "noReports": "Walang nahanap na mga ulat",
+    "noReportsForFarm": "Walang nahanap na mga ulat para sa {{farm}}"
+  }
+  ,
+  "farmHealthGauge": {
+    "title": "Kalusugan ng Sakahan",
+    "titleAssigned": "Kalusugan ng {{farm}}",
+    "allFarms": "Lahat ng mga Sakahan",
+    "status": {
+      "good": "MAHUSAY",
+      "caution": "BABALA",
+      "critical": "KRITIKAL"
+    },
+    "notes": {
+      "currentData": "Kasalukuyang data",
+      "recentData": "Kamakailang data",
+      "outdatedData": "Luma na ang data"
+    },
+    "lastUpdated": "Huling na-update:",
+    "dataFrom": "Data mula {{range}}",
+    "currentNoTimestamp": "Kasalukuyang data • Walang available na oras",
+    "cachedNotLatestWithLastUpdated": "Hindi Pinakabago (Cache) • Huling na-update: {{datetime}}",
+    "cachedNotLatestUnknown": "Hindi Pinakabago (Cache) • Huling na-update: hindi alam",
+    "basedOnCachedData": "Batay sa naka-cache na data",
+    "noDataAvailable": "Walang available na data",
+    "noRecentDataFound": "Walang kamakailang data",
+    "exportAriaLabel": "I-export",
+    "downloadPNG": "I-download ang PNG",
+    "downloadJPEG": "I-download ang JPEG",
+    "exportCSV": "I-export ang CSV"
+  }
+  ,
+  "conditionInsights": {
+    "title": "Mga Pahiwatig ng Kalagayan",
+    "export": "I-export",
+    "viewHistory": "Tingnan ang Kasaysayan",
+    "exportCSV": "I-export sa CSV",
+    "exportPDF": "I-export sa PDF",
+    "loading": "Naglo-load ng mga pahiwatig ng kalagayan...",
+    "risk": "Panganib",
+    "resolved": "Nalutas",
+    "unknownTime": "Hindi alam ang oras",
+    "prev": "Nakaraan",
+    "next": "Susunod",
+    "noRecentAssigned": "Walang kamakailang pahiwatig ng kalagayan para sa {{farm}} (ipinapakita ang huling 24 oras)",
+    "noRecentGlobal": "Walang kamakailang pahiwatig ng kalagayan (ipinapakita ang huling 24 oras)",
+    "clickMenuToViewHistory": "I-click ang menu (☰) para makita ang buong kasaysayan",
+    "detailsTitle": "Mga Detalye ng Kalagayan",
+    "farm": "Sakahan",
+    "pond": "Palaisdaan",
+    "timestamp": "Oras",
+    "unknown": "Hindi alam",
+    "summary": "Buod",
+    "historyTitle": "Kasaysayan ng Mga Pahiwatig ng Kalagayan",
+    "filters": {
+      "severity": "Tindi",
+      "allSeverities": "Lahat ng Antas",
+      "dateRange": "Saklaw ng Petsa",
+      "allTime": "Lahat ng Oras",
+      "today": "Ngayon",
+      "thisWeek": "Ngayong Linggo",
+      "thisMonth": "Ngayong Buwan"
+    },
+    "allFarms": "Lahat ng mga Sakahan",
+    "search": "Hanapin",
+    "searchPlaceholder": "Maghanap sa mga buod...",
+    "clearFilters": "I-clear ang mga Filter",
+    "noItemsForFilters": "Walang item na tumutugma sa kasalukuyang mga filter.",
+    "noHistory": "Walang available na kasaysayan.",
+    "severity": {
+      "critical": "Kritikal",
+      "elevated": "Mataas",
+      "normal": "Normal"
     }
   }
 }

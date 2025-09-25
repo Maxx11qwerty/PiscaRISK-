@@ -554,19 +554,6 @@ const PiscaRiskHome = () => {
 
   return (
     <div className="homepage-container">
-        {process.env.NODE_ENV === 'development' && ( 
-        <div style={{
-          position: 'fixed', 
-          top: '80px', 
-          right: '10px', 
-          padding: '5px 10px', 
-          borderRadius: '4px',
-          fontSize: '20px',
-          zIndex: 9999
-        }}>
-          {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
-        </div>
-      )}
         <header className="homepage-header-bar">
           <div className="header-logo-container">
           <FaBars 

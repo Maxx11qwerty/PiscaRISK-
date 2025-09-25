@@ -12,8 +12,8 @@
 
 /* Mobile Responsiveness (Signup) */
 @media (max-width: 767px) {
-  html, body { height: 100%; width: 100%; background-color: #2C517D; }
-  .signup-container { min-height: 100dvh; position: relative; background-color: #2C517D; justify-content: flex-start; align-items: center; }
+  html, body { height: 100%; width: 100%; background-color: #2C517D; overflow-x: auto; }
+  .signup-container { min-height: 100dvh; position: relative; background-color: #2C517D; justify-content: flex-start; align-items: center; overflow-x: auto; }
   .signup-wrapper { flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; width: 100%; }
   .logo-section { align-items: center; margin-left: 0; margin-bottom: 1.5rem; text-align: center; }
   .logo { width: 50%; max-width: 200px; }
@@ -86,5 +86,23 @@
   .logo-section { margin-bottom: 10rem; margin-left: 3rem; }
   .logo { width: 15rem; }
   .title { font-size: 2.5rem; margin-left: 1.5rem; }
-  .sign-form-section { width: 25rem; padding: 3rem; }
+  .sign-form-section { width: 20rem; padding: 2.5rem; }
+}
+
+/* Ensure responsive layout for 1022px and below (tablet and down) */
+@media (max-width: 1022px) {
+  .signup-wrapper { flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 1rem; width: 100%; }
+  .logo-section { align-items: center; margin-left: 0; margin-bottom: 1.25rem; text-align: center; }
+  .sign-form-section { width: 92vw; max-width: 320px; height: auto; padding: 1.75rem; margin: 0 auto; }
+
+  .sign-input-field { width: 100%; max-width: none; margin: 0.5rem auto 1rem auto; padding: 0.8rem 1rem 0.8rem 2.25rem; font-size: 0.95rem; box-sizing: border-box; }
+  .signup-password-wrapper { width: 100%; max-width: none; margin: 0.5rem auto 1rem auto; }
+  .signup-password-input { width: 100%; max-width: none; margin: 0 auto; padding: 0.8rem 2.75rem 0.8rem 2.25rem; font-size: 0.95rem; box-sizing: border-box; }
+  .signup-password-toggle { right: 0.75rem; top: 50%; transform: translateY(-50%); }
+
+  .farm-selection-wrapper { width: 100%; max-width: none; margin: 0.5rem auto 1rem auto; }
+  .farm-select-field { width: 100%; max-width: none; padding: 0.75rem 1rem; font-size: 0.95rem; box-sizing: border-box; }
+
+  .social-sign-button { width: 100%; max-width: none; margin-bottom: 0.5rem; }
+  .create-btn { width: 100%; max-width: none; margin-top: 1rem; }
 }

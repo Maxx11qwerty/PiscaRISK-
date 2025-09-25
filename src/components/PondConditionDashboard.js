@@ -961,6 +961,9 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         onClose={() => setOpenLogsModal(null)}
         title={openLogsModal ? `Stock & Feed Logs — ${openLogsModal.farmName || ''}` : ''}
         icon={<FaFish />}
+        containerClassName="align-left"
+        overlayClassName="align-left"
+        bodyClassName="hide-scrollbar"
       >
         {openLogsModal && (
           <StockFeedLogs farmId={openLogsModal.farmId} farmName={openLogsModal.farmName} />

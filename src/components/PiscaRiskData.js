@@ -11,7 +11,9 @@ import { exportPiscaRiskCSV, exportPiscaRiskPDF } from '../utils/exportPiscarisk
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 import './PiscaRiskData.css';
+import './RiskReportModal.css';
 import { IoFish } from 'react-icons/io5';
+import { FaExclamationTriangle } from 'react-icons/fa';
 
 const PAGE_SIZE = 8;
 
@@ -313,7 +315,7 @@ const PiscaRiskData = () => {
       let color = '#4ade80';
       if (hoursDiff > 72) { label = 'Outdated data'; color = '#ef4444'; }
       else if (hoursDiff > 24) { label = 'Recent data'; color = '#f59e0b'; }
-      return { freshnessLabel: label, lastUpdatedStr: new Date(latestMs).toLocaleString(), updateColor: color };
+      return { freshnessLabel: label, lastUpdatedStr: new Date(latestMs).toLocaleDateString(), updateColor: color };
     }
     return { freshnessLabel: 'Not Latest Data (Cached)', lastUpdatedStr: 'unknown', updateColor: '#f59e0b' };
   }, [farms]);
@@ -323,24 +325,22 @@ const PiscaRiskData = () => {
 
   if (loading) {
     return (
-      <div className="prd-container">
-        <div className="prd-loading">{t('piscaRiskData.loading')}</div>
+      <div className="risk-report-container modal-view">
+        <div className="loading-state">
+          <FaExclamationTriangle className="loading-icon" />
+          <h3>{t('riskReportModal.loadingFarmRiskData')}</h3>
+          <p>{t('riskReportModal.fetchingLatestFarmSummaries')}</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="prd-container">
-      <div className="prd-last-updated" style={{ marginBottom: 10, fontSize: '0.85rem', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${updateColor}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: updateColor }} />
-          <span style={{ color: '#111827' }}>{freshnessLabel}</span>
-        </span>
-        <span style={{ color: '#6b7280' }}>Last updated: <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
-      </div>
       <div className="prd-export-bar">
-        <span className="prd-export-label">{t('piscaRiskData.export.label')}</span>
-        <div className="prd-export-menu">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span className="prd-export-label">{t('piscaRiskData.export.label')}</span>
+          <div className="prd-export-menu">
           <button className="prd-export-btn" onClick={(e) => {
             const menu = e.currentTarget.nextSibling;
             const isOpening = menu.style.display !== 'block';
@@ -382,6 +382,14 @@ const PiscaRiskData = () => {
               });
             }}>{t('piscaRiskData.export.pdf')}</button>
           </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${updateColor}` }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: updateColor }} />
+            <span style={{ color: '#111827' }}>{freshnessLabel}</span>
+          </span>
+          <span style={{ color: '#6b7280' }}>Last updated: <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
         </div>
       </div>
       

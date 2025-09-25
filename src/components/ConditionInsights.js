@@ -7,6 +7,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import './ConditionInsights.css';
 import { useAuth } from '../contexts/AuthContext';
 import { logActivity, logMessages } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 // Map severity label to gauge-style colors
 const severityColor = (level) => {
@@ -42,6 +43,7 @@ const getMillis = (ts) => {
 
 const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000, enableRotate = true, onCountChange }) => {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [index, setIndex] = useState(0);
   const [showModal, setShowModal] = useState(false);
@@ -357,22 +359,22 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         <div className="ci-header-left">
           <FaBell className="ci-icon" />
           <span className="ci-title">
-            Condition Insights
+            {t('conditionInsights.title')}
           </span>
         </div>
         <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', gap: '8px', alignItems: 'center' }}>
           {isSuperAdmin && farmOptions.length > 1 && (
             <select className="ci-farm-filter" value={selectedFarm} onChange={(e) => setSelectedFarm(e.target.value)}>
               {farmOptions.map((op) => (
-                <option key={op} value={op}>{op === 'all' ? 'All Farms' : op}</option>
+                <option key={op} value={op}>{op === 'all' ? t('conditionInsights.allFarms') : op}</option>
               ))}
             </select>
           )}
           <button
             onClick={() => setExportOpen(v => !v)}
             style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            aria-label="Export"
-            title="Export"
+            aria-label={t('conditionInsights.export')}
+            title={t('conditionInsights.export')}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
@@ -382,7 +384,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                 style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
                 onClick={() => { setShowHistory(true); setExportOpen(false); }}
               >
-                View History
+                {t('conditionInsights.viewHistory')}
               </button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
               <button
@@ -393,7 +395,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   setExportOpen(false);
                 }}
               >
-                Export to CSV
+                {t('conditionInsights.exportCSV')}
               </button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
               <button
@@ -404,7 +406,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   setExportOpen(false);
                 }}
               >
-                Export to PDF
+                {t('conditionInsights.exportPDF')}
               </button>
             </div>
           )}
@@ -419,7 +421,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           padding: '20px',
           fontStyle: 'italic'
         }}>
-          Loading condition insights...
+          {t('conditionInsights.loading')}
         </div>
       ) : current ? (
         <div 
@@ -429,29 +431,29 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           <div className="ci-severity">
             <span className="ci-sev-emoji">{getSeverity(current.summary).emoji}</span>
             <span className="ci-sev-chip" style={{ color: severityColor(getSeverity(current.summary).level) }}>
-              {getSeverity(current.summary).level} Risk
+              {t(`conditionInsights.severity.${getSeverity(current.summary).level.toLowerCase()}`)} {t('conditionInsights.risk')}
               {(() => {
                 const now = Date.now();
                 const dayMs = 24 * 60 * 60 * 1000;
                 const ageMs = Math.max(0, now - getMillis(current.timestamp));
                 const isOld = ageMs > dayMs;
-                return isOld ? ' (Resolved)' : '';
+                return isOld ? ` (${t('conditionInsights.resolved')})` : '';
               })()}
             </span>
           </div>
           <div className="ci-meta">{current.pond} @ {current.farm}</div>
           {isCompactView ? (
             <div className="ci-time-meta">
-              {current.timestamp ? new Date(getMillis(current.timestamp)).toLocaleString() : 'Unknown time'}
+              {current.timestamp ? new Date(getMillis(current.timestamp)).toLocaleString() : t('conditionInsights.unknownTime')}
             </div>
           ) : (
             <div className="ci-message" title={current.summary}>{current.summary}</div>
           )}
 
           <div className="ci-pagination">
-            <button className="ci-nav ci-nav-prev" onClick={(e) => { e.stopPropagation(); handlePrev(); }} disabled={total <= 1}>◀ Prev</button>
+            <button className="ci-nav ci-nav-prev" onClick={(e) => { e.stopPropagation(); handlePrev(); }} disabled={total <= 1}>◀ {t('conditionInsights.prev')}</button>
             <span className="ci-index">{Math.min(index + 1, total)}/{total || 0}</span>
-            <button className="ci-nav ci-nav-next" onClick={(e) => { e.stopPropagation(); handleNext(); }} disabled={total <= 1}>Next ▶</button>
+            <button className="ci-nav ci-nav-next" onClick={(e) => { e.stopPropagation(); handleNext(); }} disabled={total <= 1}>{t('conditionInsights.next')} ▶</button>
           </div>
         </div>
       ) : (
@@ -463,11 +465,11 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           fontStyle: 'italic'
         }}>
           {isAssignedToFarm 
-            ? `No recent condition insights available for ${assignedFarmName || currentUser.farm} (showing last 24 hours)`
-            : 'No recent condition insights available (showing last 24 hours)'
+            ? t('conditionInsights.noRecentAssigned', { farm: assignedFarmName || currentUser.farm })
+            : t('conditionInsights.noRecentGlobal')
           }
           <div style={{ marginTop: '8px', fontSize: '0.8rem' }}>
-            Click the menu (☰) to view full history
+            {t('conditionInsights.clickMenuToViewHistory')}
           </div>
         </div>
       )}
@@ -477,23 +479,23 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         <div className="ci-modal-overlay" onClick={closeModal}>
           <div className="ci-modal" onClick={(e) => e.stopPropagation()}>
             <div className="ci-modal-header">
-              <h3>Condition Details</h3>
+              <h3>{t('conditionInsights.detailsTitle')}</h3>
               <button className="ci-modal-close" onClick={closeModal}>✕</button>
             </div>
             <div className="ci-modal-content">
               <div className="ci-modal-severity">
                 <span className="ci-modal-emoji">{getSeverity(selectedItem.summary).emoji}</span>
                 <span className="ci-modal-chip" style={{ color: severityColor(getSeverity(selectedItem.summary).level) }}>
-                  {getSeverity(selectedItem.summary).level} Risk
+                  {t(`conditionInsights.severity.${getSeverity(selectedItem.summary).level.toLowerCase()}`)} {t('conditionInsights.risk')}
                 </span>
               </div>
               <div className="ci-modal-meta">
-                <div><strong>Farm:</strong> {selectedItem.farm}</div>
-                <div><strong>Pond:</strong> {selectedItem.pond}</div>
-                <div><strong>Timestamp:</strong> {selectedItem.timestamp ? new Date(getMillis(selectedItem.timestamp)).toLocaleString() : 'Unknown'}</div>
+                <div><strong>{t('conditionInsights.farm')}:</strong> {selectedItem.farm}</div>
+                <div><strong>{t('conditionInsights.pond')}:</strong> {selectedItem.pond}</div>
+                <div><strong>{t('conditionInsights.timestamp')}:</strong> {selectedItem.timestamp ? new Date(getMillis(selectedItem.timestamp)).toLocaleString() : t('conditionInsights.unknown')}</div>
               </div>
               <div className="ci-modal-message">
-                <strong>Summary:</strong>
+                <strong>{t('conditionInsights.summary')}:</strong>
                 <div className="ci-modal-summary">{selectedItem.summary}</div>
               </div>
             </div>
@@ -506,7 +508,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         <div className="ci-modal-overlay" onClick={() => setShowHistory(false)}>
           <div className="ci-modal" onClick={(e) => e.stopPropagation()}>
             <div className="ci-modal-header">
-              <h3>Condition Insights History</h3>
+              <h3>{t('conditionInsights.historyTitle')}</h3>
               <button className="ci-modal-close" onClick={() => setShowHistory(false)}>✕</button>
             </div>
             
@@ -514,35 +516,35 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
             <div className="ci-history-filters">
               <div className="ci-filter-row">
                 <div className="ci-filter-group">
-                  <label>Severity:</label>
+                  <label>{t('conditionInsights.filters.severity')}:</label>
                   <select 
                     value={historyFilter.severity} 
                     onChange={(e) => setHistoryFilter(prev => ({ ...prev, severity: e.target.value }))}
                     className="ci-filter-select"
                   >
-                    <option value="all">All Severities</option>
-                    <option value="critical">Critical</option>
-                    <option value="elevated">Elevated</option>
-                    <option value="normal">Normal</option>
+                    <option value="all">{t('conditionInsights.filters.allSeverities')}</option>
+                    <option value="critical">{t('conditionInsights.severity.critical')}</option>
+                    <option value="elevated">{t('conditionInsights.severity.elevated')}</option>
+                    <option value="normal">{t('conditionInsights.severity.normal')}</option>
                   </select>
                 </div>
                 
                 <div className="ci-filter-group">
-                  <label>Date Range:</label>
+                  <label>{t('conditionInsights.filters.dateRange')}:</label>
                   <select 
                     value={historyFilter.dateRange} 
                     onChange={(e) => setHistoryFilter(prev => ({ ...prev, dateRange: e.target.value }))}
                     className="ci-filter-select"
                   >
-                    <option value="all">All Time</option>
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
+                    <option value="all">{t('conditionInsights.filters.allTime')}</option>
+                    <option value="today">{t('conditionInsights.filters.today')}</option>
+                    <option value="week">{t('conditionInsights.filters.thisWeek')}</option>
+                    <option value="month">{t('conditionInsights.filters.thisMonth')}</option>
                   </select>
                 </div>
                 
                 <div className="ci-filter-group">
-                  <label>Farm:</label>
+                  <label>{t('conditionInsights.farm')}:</label>
                   <select 
                     value={historyFilter.farm} 
                     onChange={(e) => setHistoryFilter(prev => ({ ...prev, farm: e.target.value }))}
@@ -550,7 +552,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   >
                     {historyFarmOptions.map(farm => (
                       <option key={farm} value={farm}>
-                        {farm === 'all' ? 'All Farms' : farm}
+                        {farm === 'all' ? t('conditionInsights.allFarms') : farm}
                       </option>
                     ))}
                   </select>
@@ -559,10 +561,10 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
               
               <div className="ci-filter-row">
                 <div className="ci-filter-group ci-search-group">
-                  <label>Search:</label>
+                  <label>{t('conditionInsights.search')}:</label>
                   <input
                     type="text"
-                    placeholder="Search in summaries..."
+                    placeholder={t('conditionInsights.searchPlaceholder')}
                     value={historyFilter.searchTerm}
                     onChange={(e) => setHistoryFilter(prev => ({ ...prev, searchTerm: e.target.value }))}
                     className="ci-filter-search"
@@ -573,7 +575,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                   onClick={() => setHistoryFilter({ severity: 'all', dateRange: 'all', farm: 'all', searchTerm: '' })}
                   className="ci-clear-filters"
                 >
-                  Clear Filters
+                  {t('conditionInsights.clearFilters')}
                 </button>
               </div>
             </div>
@@ -666,7 +668,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                                    historyFilter.searchTerm.trim();
                   return (
                     <div className="ci-empty" style={{ margin: 0 }}>
-                      {hasFilters ? 'No items match the current filters.' : 'No history available.'}
+                      {hasFilters ? t('conditionInsights.noItemsForFilters') : t('conditionInsights.noHistory')}
                     </div>
                   );
                 }
@@ -681,7 +683,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                         <div key={`${it.id}`} className={`ci-card ci-${(sev || 'Normal').toLowerCase()}`} style={{ cursor: 'default' }}>
                           <div className="ci-severity">
                             <span className="ci-sev-emoji">{getSeverity(it.summary).emoji}</span>
-                            <span className="ci-sev-chip">{sev} {isResolved ? '(Resolved)' : ''}</span>
+                            <span className="ci-sev-chip">{t(`conditionInsights.severity.${(sev || 'normal').toLowerCase()}`)} {isResolved ? `(${t('conditionInsights.resolved')})` : ''}</span>
                           </div>
                           <div className="ci-meta">{it.pond} @ {it.farm} — {new Date(getMillis(it.timestamp)).toLocaleString()}</div>
                           <div className="ci-message" title={it.summary}>{it.summary}</div>

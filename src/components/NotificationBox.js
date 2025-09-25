@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FaUserCircle } from 'react-icons/fa';
-import { IoNotificationsOutline } from "react-icons/io5";
+import { IoIosNotifications } from "react-icons/io";
 import './NotificationBox.css';
 import { db } from '../firebase';
+import { ensureReportLog, ensureStockFeedLog } from '../utils/logger';
 import { 
   collection, 
   query, 
@@ -51,6 +52,9 @@ const initializeNotifications = async () => {
     reportsSnapshot.docs.forEach(doc => {
       const report = doc.data();
       const pondId = report.fish_pond ? extractPondId(report.fish_pond) : '';
+
+      // Opportunistically ensure a system log exists for this report (no-op if already logged)
+      try { ensureReportLog(doc.id, report); } catch (_) {}
       
       // Handle timestamp conversion safely
       let timestamp;
@@ -179,6 +183,91 @@ const initializeNotifications = async () => {
     );
 
     notifications.push(...feedbackNotifications);
+
+    // Fetch stock/feed logs from Firebase and resolve submitter's farm
+    try {
+      const farmerLogsRef = collection(db, 'farmerLogs');
+      const farmerLogsQuery = query(farmerLogsRef, orderBy('timestamp', 'desc'));
+      const farmerLogsSnapshot = await getDocs(farmerLogsQuery);
+
+      // Preload mobileUsers to help resolve farm by email/uid
+      const mobileUsersRef = collection(db, 'mobileUsers');
+      const mobileUsersSnap = await getDocs(mobileUsersRef);
+      const emailToUser = new Map();
+      const idToUser = new Map();
+      mobileUsersSnap.docs.forEach(u => {
+        const data = u.data();
+        if (data?.email) emailToUser.set(String(data.email).toLowerCase(), { id: u.id, ...data });
+        idToUser.set(u.id, { id: u.id, ...data });
+      });
+
+      const stockFeedNotifications = await Promise.all(
+        farmerLogsSnapshot.docs.map(async (docSnap) => {
+          const log = docSnap.data();
+
+          // Ensure stock/feed has a corresponding systemLogs entry
+          try { ensureStockFeedLog(docSnap.id, log); } catch (_) {}
+
+          // Resolve farm from matched user via uid or email
+          let farmId = null;
+          let farmNameResolved = null;
+          try {
+            const candidateUid = log.uid || log.user_id || null;
+            const candidateEmail = (log.user_email || log.email || '').toLowerCase();
+            let matchedUser = null;
+            if (candidateUid && idToUser.has(candidateUid)) matchedUser = idToUser.get(candidateUid);
+            if (!matchedUser && candidateEmail && emailToUser.has(candidateEmail)) matchedUser = emailToUser.get(candidateEmail);
+            farmId = matchedUser?.farm || log.farmId || log.farm || null;
+          } catch (_) {}
+
+          // Try to resolve farm display name
+          if (farmId) {
+            try {
+              const farmDoc = await getDoc(doc(db, 'farms', farmId));
+              farmNameResolved = farmDoc.exists() ? (farmDoc.data().name || farmId) : farmId;
+            } catch (_) {
+              farmNameResolved = farmId;
+            }
+          }
+
+          // Timestamp normalization
+          let tsIso;
+          try {
+            if (log.timestamp && typeof log.timestamp.toDate === 'function') {
+              tsIso = log.timestamp.toDate().toISOString();
+            } else if (log.timestamp instanceof Date) {
+              tsIso = log.timestamp.toISOString();
+            } else if (typeof log.timestamp === 'string' && !isNaN(new Date(log.timestamp).getTime())) {
+              tsIso = new Date(log.timestamp).toISOString();
+            } else {
+              tsIso = new Date().toISOString();
+            }
+          } catch (_) {
+            tsIso = new Date().toISOString();
+          }
+
+          return {
+            id: docSnap.id,
+            type: 'stock-feed',
+            message: `${log.submitted_by || log.username || log.user_email || 'A user'} submitted a stock/feed log for ${log.fish_pond || 'a pond'} from ${farmNameResolved || 'Unknown Farm'}`,
+            details: `Feed: ${log.feed_brand || 'N/A'} • Amount: ${log.feed_amount ?? 'N/A'} • Cost: ${log.feed_cost ?? 'N/A'}`,
+            username: log.submitted_by || log.username || log.user_email || 'Unknown User',
+            timestamp: tsIso,
+            read: false,
+            iconKey: 'stock',
+            pondId: log.fish_pond || null,
+            farmName: farmNameResolved || 'Unknown Farm',
+            reportData: { ...(log || {}), farm: farmId || null },
+            avatar: log.avatar || null,
+            source: log.source || 'mobile'
+          };
+        })
+      );
+
+      notifications.push(...stockFeedNotifications);
+    } catch (e) {
+      console.warn('Failed to fetch stock/feed logs for notifications:', e);
+    }
 
     // Sort by timestamp (newest first)
     return notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -529,6 +618,31 @@ const NotificationBox = () => {
     }
   }, [currentUser, assignedFarmName]);
 
+  // Realtime updates: refresh notifications when reports/feedback/stock-feed logs change
+  useEffect(() => {
+    if (!currentUser) return;
+    // Debounce rapid snapshot bursts
+    let timeoutId = null;
+    const scheduleRefresh = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadNotifications();
+        timeoutId = null;
+      }, 150);
+    };
+
+    const reportsUnsub = onSnapshot(collection(db, 'reports'), scheduleRefresh);
+    const feedbackUnsub = onSnapshot(collection(db, 'PiscaRisk'), scheduleRefresh);
+    const farmerLogsUnsub = onSnapshot(collection(db, 'farmerLogs'), scheduleRefresh);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      reportsUnsub && reportsUnsub();
+      feedbackUnsub && feedbackUnsub();
+      farmerLogsUnsub && farmerLogsUnsub();
+    };
+  }, [currentUser?.uid]);
+
   const toggleNotifications = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -578,6 +692,8 @@ const NotificationBox = () => {
         return <FaUserCircle className="notification-type-icon" />;
       case 'feedback':
         return <FaUserCircle className="notification-type-icon" />;
+      case 'stock-feed':
+        return <FaUserCircle className="notification-type-icon" />;
       default:
         return <FaUserCircle className="notification-type-icon" />;
     }
@@ -586,7 +702,7 @@ const NotificationBox = () => {
   return (
     <div className="notification-container" onClick={(e) => e.stopPropagation()}>
       <div className="notification-icon" onClick={toggleNotifications}>
-        <IoNotificationsOutline />
+        <IoIosNotifications />
         {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
       </div>
 

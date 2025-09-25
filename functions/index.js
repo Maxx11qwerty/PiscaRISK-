@@ -413,6 +413,65 @@ exports.forcePasswordChange = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * Log every new report creation into systemLogs so Logs page stays in sync with notifications
+ */
+exports.logReportOnCreate = functions.firestore
+  .document('reports/{reportId}')
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+
+      // Extract fields with safe fallbacks
+      const username = data.submitted_by || data.user || data.user_email || 'Unknown User';
+      const userRole = data.user_role || 'Unknown';
+      const pond = data.fish_pond || data.pond || 'Unknown Pond';
+      const source = (data.source || 'web').toString().toLowerCase();
+      const farm = data.farm || null;
+
+      // Normalize timestamp
+      let ts;
+      try {
+        if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+          ts = data.timestamp.toDate();
+        } else if (data.timestamp instanceof Date) {
+          ts = data.timestamp;
+        } else if (typeof data.timestamp === 'string') {
+          const d = new Date(data.timestamp);
+          ts = isNaN(d.getTime()) ? new Date() : d;
+        } else if (data.timestamp && typeof data.timestamp.seconds === 'number') {
+          ts = new Date(data.timestamp.seconds * 1000);
+        } else {
+          ts = new Date();
+        }
+      } catch (_) {
+        ts = new Date();
+      }
+
+      const message = source === 'mobile'
+        ? `Mobile user ${username} submitted a new report for Fish Pond ${pond}`
+        : `User ${username} submitted a new report for Fish Pond ${pond}`;
+
+      // Compose log entry
+      const log = {
+        timestamp: ts.toISOString(),
+        category: 'report',
+        message,
+        username,
+        userRole,
+        source: source === 'mobile' ? 'mobile' : 'web',
+        reportId: context.params.reportId,
+        farm: farm || null,
+      };
+
+      await admin.firestore().collection('systemLogs').add(log);
+      return null;
+    } catch (err) {
+      console.error('Failed to log report creation:', err);
+      return null;
+    }
+  });
+
+/**
  * Check if user needs to change password after admin reset
  */
 exports.checkPasswordChangeRequired = functions.https.onCall(async (data, context) => {

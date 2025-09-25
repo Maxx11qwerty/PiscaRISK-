@@ -1,0 +1,190 @@
+/* Overlay with vignette and smoother focus effect */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(2, 6, 23, 0.55) 0%, rgba(2, 6, 23, 0.75) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: saturate(140%) blur(10px);
+    animation: modal-fade-in 0.25s ease-out;
+}
+
+/* Overlay variant to left-align the container only for specific modals */
+.modal-overlay.align-left {
+    justify-content: flex-start;
+    padding-left: 8px;
+}
+
+/* Modal container with glassmorphism & subtle 3D shadow */
+.modal-container {
+	background: rgba(255, 255, 255, 0.96);
+	backdrop-filter: blur(12px) saturate(160%);
+	border-radius: 20px;
+	box-shadow: 0 20px 48px rgba(15, 23, 42, 0.35), 0 2px 8px rgba(15, 23, 42, 0.15);
+	max-width: 1100px;
+	width: min(96vw, 1100px);
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden; /* prevent container from scrolling so header stays fixed */
+	position: relative;
+	border: 1px solid rgba(230, 233, 240, 0.8);
+	animation: modal-scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Optional explicit centering helper if needed */
+.modal-container.center-modal { margin: 0 auto; }
+
+/* Optional left alignment helper for specific modals */
+.modal-container.align-left {
+    margin-right: auto;
+    margin-left: 0;
+    transform: translateX(-96px);
+}
+
+@media (max-width: 480px) {
+    .modal-container.align-left { margin-left: 0; transform: translateX(-28px); }
+}
+
+/* Gradient ring with smoother, slightly glowing look */
+.modal-container::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 1px;
+	background: linear-gradient(135deg, rgba(26, 67, 117, 0.25), rgba(220, 38, 38, 0.15));
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	box-shadow: 0 0 12px rgba(26, 67, 117, 0.08);
+	pointer-events: none;
+}
+
+/* Close button – softer, rounder, glowing hover */
+.modal-close-btn {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	background: rgba(255, 255, 255, 0.9);
+	border: 1px solid rgba(229, 231, 235, 0.8);
+    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: #0f172a;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+.modal-close-btn:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.16);
+}
+.modal-close-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Close icon refinement */
+.modal-close-btn svg {
+    width: 18px;
+    height: 18px;
+    color: #0f172a;
+    opacity: 0.9;
+}
+.modal-close-btn:hover svg { opacity: 1; }
+
+/* Focus ring for accessibility */
+.modal-close-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 67, 117, 0.25), 0 0 0 1px #1A4375 inset;
+}
+
+/* Content & header – cleaner spacing */
+/* Scrollable body area separated from fixed header */
+.modal-body {
+	padding: 16px 22px 22px;
+	flex: 1 1 auto;
+	min-height: 0; /* allow flex child to shrink and enable overflow */
+	overflow: auto; /* the only scrollable area */
+	height: calc(86vh - 64px);
+	scroll-behavior: smooth;
+	-webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain; /* prevent parent/page scroll */
+}
+
+/* Hide scrollbar when requested */
+.modal-body.hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+.modal-body.hide-scrollbar { scrollbar-width: none; }
+
+.modal-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+    margin: 0;
+    position: sticky; /* remains pinned at top of modal-body */
+    top: 0;
+	background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.85) 80%, rgba(255,255,255,0));
+    padding: 16px 22px 10px;
+	backdrop-filter: blur(6px);
+	z-index: 2;
+}
+
+.modal-header::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 1px;
+	background: linear-gradient(90deg, rgba(226,232,240,0), rgba(226,232,240,0.8), rgba(226,232,240,0));
+}
+
+.modal-title-icon {
+	color: #1A4375 !important;
+	font-size: 22px;
+}
+
+.modal-header h2 {
+	margin: 0;
+	font-size: 19px;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+/* Scrollbar – softer look */
+.modal-content::-webkit-scrollbar-thumb {
+	background: rgba(229, 231, 235, 0.8);
+	border-radius: 999px;
+	border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+/* Animations */
+@keyframes modal-fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+@keyframes modal-scale-in {
+	from { opacity: 0; transform: scale(0.94); }
+	to { opacity: 1; transform: scale(1); }
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+	.modal-container {
+		border-radius: 14px;
+		width: 96vw;
+		max-height: 88vh;
+	}
+    .modal-body { padding: 12px 14px 16px; max-height: calc(88vh - 60px); }
+	.modal-header h2 {
+		font-size: 16px;
+	}
+}

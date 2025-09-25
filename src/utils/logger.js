@@ -168,7 +168,8 @@ export const getAllLogs = async () => {
         role: userData ? userData.role : 'Unknown',
         isMobileUser: userData ? userData.isMobileUser : false,
         source: source,
-        userFarm: userData ? userData.farm : null
+        // Prefer farm info carried by the log (from Cloud Function) for filtering
+        userFarm: log.userFarm || log.farm || (userData ? userData.farm : null)
       };
     });
     
@@ -583,6 +584,122 @@ export const logReportSubmission = async (reportData, username, source = 'web') 
     console.error('Error logging report submission:', error);
     // Fallback: log with current timestamp if there's an error
     await logActivity('report', `Report submission by ${username}`, username);
+  }
+};
+
+// Idempotent client-side logger for report documents without Cloud Functions
+// Writes a systemLogs entry with a stable ID: report_<reportId>
+export const ensureReportLog = async (reportId, reportData) => {
+  try {
+    if (!reportId || !reportData) return;
+
+    const { doc: fsDoc, getDoc } = await import('firebase/firestore');
+
+    // Check if a log already exists for this report
+    const logDocRef = fsDoc(db, 'systemLogs', `report_${reportId}`);
+    const existing = await getDoc(logDocRef);
+    if (existing.exists()) return; // Already logged
+
+    // Build username, pond, source, farm
+    const username = reportData.submitted_by || reportData.user || reportData.user_email || 'Unknown User';
+    const pond = reportData.fish_pond || reportData.pond || 'Unknown Pond';
+    const source = (reportData.source || 'web').toString().toLowerCase();
+    const farm = reportData.farm || null;
+
+    // Derive timestamp from report
+    let ts;
+    try {
+      if (reportData.timestamp && typeof reportData.timestamp.toDate === 'function') {
+        ts = reportData.timestamp.toDate();
+      } else if (reportData.timestamp instanceof Date) {
+        ts = reportData.timestamp;
+      } else if (typeof reportData.timestamp === 'string') {
+        const d = new Date(reportData.timestamp);
+        ts = isNaN(d.getTime()) ? new Date() : d;
+      } else if (reportData.timestamp && typeof reportData.timestamp.seconds === 'number') {
+        ts = new Date(reportData.timestamp.seconds * 1000);
+      } else {
+        ts = new Date();
+      }
+    } catch (_) {
+      ts = new Date();
+    }
+
+    const message = source === 'mobile'
+      ? `Mobile user ${username} submitted a new report for Fish Pond ${pond}`
+      : `User ${username} submitted a new report for Fish Pond ${pond}`;
+
+    const newLog = {
+      timestamp: ts.toISOString(),
+      category: 'report',
+      message,
+      username,
+      userRole: reportData.user_role || 'Unknown',
+      source: source === 'mobile' ? 'mobile' : 'web',
+      reportId: reportId,
+      farm: farm || null,
+      pond: pond
+    };
+
+    await setDoc(logDocRef, newLog, { merge: false });
+  } catch (error) {
+    console.error('ensureReportLog failed:', error);
+  }
+};
+
+// Idempotent client-side logger for farmer stock/feed logs (farmerLogs collection)
+// Creates a systemLogs entry with a stable ID: stock_<farmerLogId>
+export const ensureStockFeedLog = async (farmerLogId, farmerLogData) => {
+  try {
+    if (!farmerLogId || !farmerLogData) return;
+
+    const { doc: fsDoc, getDoc } = await import('firebase/firestore');
+    const logDocRef = fsDoc(db, 'systemLogs', `stock_${farmerLogId}`);
+    const existing = await getDoc(logDocRef);
+    if (existing.exists()) return;
+
+    const username = farmerLogData.submitted_by || farmerLogData.username || farmerLogData.user_email || 'Unknown User';
+    const pond = farmerLogData.fish_pond || farmerLogData.pond || 'Unknown Pond';
+    const source = (farmerLogData.source || 'mobile').toString().toLowerCase();
+    const farm = farmerLogData.farm || farmerLogData.farmId || null;
+
+    // Timestamp normalization
+    let ts;
+    try {
+      if (farmerLogData.timestamp && typeof farmerLogData.timestamp.toDate === 'function') {
+        ts = farmerLogData.timestamp.toDate();
+      } else if (farmerLogData.timestamp instanceof Date) {
+        ts = farmerLogData.timestamp;
+      } else if (typeof farmerLogData.timestamp === 'string') {
+        const d = new Date(farmerLogData.timestamp);
+        ts = isNaN(d.getTime()) ? new Date() : d;
+      } else if (farmerLogData.timestamp && typeof farmerLogData.timestamp.seconds === 'number') {
+        ts = new Date(farmerLogData.timestamp.seconds * 1000);
+      } else {
+        ts = new Date();
+      }
+    } catch (_) {
+      ts = new Date();
+    }
+
+    const prefix = source === 'mobile' ? 'Mobile user' : 'User';
+    const message = `${prefix} ${username} submitted a stock/feed log for ${pond}`;
+
+    const newLog = {
+      timestamp: ts.toISOString(),
+      category: 'stock',
+      message,
+      username,
+      userRole: farmerLogData.user_role || 'Unknown',
+      source: source === 'mobile' ? 'mobile' : 'web',
+      stockLogId: farmerLogId,
+      farm: farm || null,
+      pond: pond
+    };
+
+    await setDoc(logDocRef, newLog, { merge: false });
+  } catch (error) {
+    console.error('ensureStockFeedLog failed:', error);
   }
 };
 

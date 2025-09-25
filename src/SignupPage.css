@@ -70,13 +70,13 @@
     text-align: center;
     margin: 0;
     font-weight: 500;
-    font-size: 1rem;
+    font-size: clamp(0.8rem, 1.8vw, 1rem);
   }
   
   
   .sign-form-section {
     background-color: #ffffff;
-    padding: 4rem;
+    padding: 3rem;
     border-radius: 1rem;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     height: 35rem;

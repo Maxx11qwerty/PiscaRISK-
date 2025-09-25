@@ -694,6 +694,18 @@ const RiskReportModal = ({ isModal = false }) => {
     return sortedDates;
   };
 
+  // Compute freshness label and color for a given timestamp (ms)
+  const getFreshness = (latestMs) => {
+    if (!latestMs || latestMs <= 0) {
+      return { label: 'Not Latest Data (Cached)', color: '#f59e0b' };
+    }
+    const now = Date.now();
+    const hoursDiff = (now - latestMs) / (1000 * 60 * 60);
+    if (hoursDiff > 72) return { label: 'Outdated data', color: '#ef4444' };
+    if (hoursDiff > 24) return { label: 'Recent data', color: '#f59e0b' };
+    return { label: 'Current data', color: '#4ade80' };
+  };
+
   const levelKey = (level) => {
     const n = normalizeRisk(level);
     if (n === 'High') return 'high';
@@ -941,8 +953,9 @@ const RiskReportModal = ({ isModal = false }) => {
                   <div className="farm-info">
                     <h3 className="farm-name">{farm.farm_name}</h3>
                     {farm.has_reports ? (
-                      <p className="farm-location">
-                        {(() => {
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginTop: 6, width: '100%' }}>
+                        <p className="farm-location" style={{ margin: 0 }}>
+                          {(() => {
                           const fb = feedbackCache[farm.farm_key] || farm.feedback;
                           const correctedRaw = fb?.corrected_risk_level || fb?.prediction?.corrected_risk_level;
                           const corrected = correctedRaw ? normalizeRisk(correctedRaw) : null;
@@ -955,31 +968,41 @@ const RiskReportModal = ({ isModal = false }) => {
                                 <> (
                                   <span className="avg-conf">
                                     {t('riskReportModal.avgConfidence')}: {farm.avg_confidence.toFixed(1)}%
-                                    {(() => {
-                                      // Get the latest timestamp from predictions used for confidence calculation
-                                      if (farm.predictions && farm.predictions.length > 0) {
-                                        const latestPrediction = farm.predictions
-                                          .filter(p => p.timestamp)
-                                          .sort((a, b) => {
-                                            const aMs = getTimestampMs(a.timestamp);
-                                            const bMs = getTimestampMs(b.timestamp);
-                                            return bMs - aMs;
-                                          })[0];
-                                        
-                                        if (latestPrediction) {
-                                          const latestDate = new Date(getTimestampMs(latestPrediction.timestamp));
-                                          return ` (${t('riskReportModal.asOf')}: ${latestDate.toLocaleDateString()})`;
-                                        }
-                                      }
-                                      return '';
-                                    })()}
                                   </span>
                                 )</>
                               )}
                             </>
                           );
+                          })()}
+                        </p>
+                        {(() => {
+                          // Derive latest timestamp from predictions or summary
+                          const candidates = [];
+                          if (Array.isArray(farm.predictions)) {
+                            const latestPred = farm.predictions
+                              .filter(p => p && p.timestamp)
+                              .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))[0];
+                            if (latestPred) {
+                              candidates.push(getTimestampMs(latestPred.timestamp));
+                            }
+                          }
+                          if (farm.summary?.last_update) {
+                            candidates.push(getTimestampMs(farm.summary.last_update));
+                          }
+                          const latestMs = candidates.length ? Math.max(...candidates) : 0;
+                          const { label, color } = getFreshness(latestMs);
+                          const lastUpdatedStr = latestMs > 0 ? new Date(latestMs).toLocaleDateString() : 'unknown';
+                          return (
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${color}` }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+                                <span style={{ color: '#111827' }}>{label}</span>
+                              </span>
+                              <span style={{ color: '#6b7280' }}>Last updated: <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
+                            </div>
+                          );
                         })()}
-                      </p>
+                      </div>
                     ) : (
                       <p className="no-reports-note">
                         <FaInfoCircle /> {t('riskReportModal.noRiskReportsAvailable')}

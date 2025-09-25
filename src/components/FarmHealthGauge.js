@@ -6,6 +6,7 @@ import './FarmHealthGauge.css';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadGaugeAsImage, exportHealthGaugeCSV } from '../utils/exportHealthGauge';
 import { logActivity, logMessages } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 const normalizeFarmName = (name) => {
   if (!name || typeof name !== 'string') return 'unknown-farm';
@@ -20,6 +21,7 @@ const getStatus = (pct) => {
 
 const FarmHealthGauge = () => {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const [farms, setFarms] = useState([]);
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
@@ -193,23 +195,23 @@ const FarmHealthGauge = () => {
         const hoursDiff = (now.getTime() - dataDate.getTime()) / (1000 * 60 * 60);
         
         if (hoursDiff <= 24) {
-          updateStatus = 'Current data';
+          updateStatus = t('farmHealthGauge.notes.currentData');
           updateColor = '#4ade80'; // green
         } else if (hoursDiff <= 72) {
-          updateStatus = 'Recent data';
+          updateStatus = t('farmHealthGauge.notes.recentData');
           updateColor = '#f59e0b'; // amber
         } else {
-          updateStatus = 'Outdated data';
+          updateStatus = t('farmHealthGauge.notes.outdatedData');
           updateColor = '#ef4444'; // red
         }
         
-        const lastUpdated = `Last updated: ${dataDate.toLocaleString()}`;
+        const lastUpdated = `${t('farmHealthGauge.lastUpdated')} ${dataDate.toLocaleString()}`;
         return { 
           displayPercent: percent, 
           displayStatus: status, 
           displayColor: color, 
           noteText: `${updateStatus} • ${lastUpdated}`, 
-          infoLabel: `Data from ${rangeLabel}`,
+          infoLabel: t('farmHealthGauge.dataFrom', { range: rangeLabel }),
           updateColor: updateColor
         };
       } else {
@@ -217,8 +219,8 @@ const FarmHealthGauge = () => {
           displayPercent: percent, 
           displayStatus: status, 
           displayColor: color, 
-          noteText: 'Current data • No timestamp available', 
-          infoLabel: `Data from ${rangeLabel}`,
+          noteText: t('farmHealthGauge.currentNoTimestamp'), 
+          infoLabel: t('farmHealthGauge.dataFrom', { range: rangeLabel }),
           updateColor: '#6b7280' // gray
         };
       }
@@ -230,7 +232,9 @@ const FarmHealthGauge = () => {
       if (raw) {
         const parsed = JSON.parse(raw || '{}');
         const d = parsed?.asOf ? new Date(parsed.asOf) : null;
-        const note = d ? `Not Latest Data (Cached) • Last updated: ${d.toLocaleString()}` : 'Not Latest Data (Cached) • Last updated: unknown';
+        const note = d
+          ? t('farmHealthGauge.cachedNotLatestWithLastUpdated', { datetime: d.toLocaleString() })
+          : t('farmHealthGauge.cachedNotLatestUnknown');
         const perc = typeof parsed.percent === 'number' ? parsed.percent : 100;
         const st = parsed.status || getStatus(perc).label;
         const col = parsed.color || getStatus(perc).color;
@@ -239,7 +243,7 @@ const FarmHealthGauge = () => {
           displayStatus: st, 
           displayColor: col, 
           noteText: note, 
-          infoLabel: 'Based on cached data',
+          infoLabel: t('farmHealthGauge.basedOnCachedData'),
           updateColor: '#f59e0b' // amber for cached
         };
       }
@@ -250,11 +254,11 @@ const FarmHealthGauge = () => {
       displayPercent: 100, 
       displayStatus: def.label, 
       displayColor: def.color, 
-      noteText: 'No data available', 
-      infoLabel: 'No recent data found',
+      noteText: t('farmHealthGauge.noDataAvailable'), 
+      infoLabel: t('farmHealthGauge.noRecentDataFound'),
       updateColor: '#ef4444' // red for no data
     };
-  }, [hasData, percent, status, color, cacheKey, latestMs, rangeLabel]);
+  }, [hasData, percent, status, color, cacheKey, latestMs, rangeLabel, t]);
 
   const chartData = useMemo(() => ([{ name: 'health', value: displayPercent, fill: displayColor }]), [displayPercent, displayColor]);
 
@@ -263,35 +267,35 @@ const FarmHealthGauge = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="chart-title" style={{ margin: 0 }}>
           {isAssignedToFarm 
-            ? `${assignedFarmName || currentUser.farm} Health`
-            : 'Farm Health'
+            ? t('farmHealthGauge.titleAssigned', { farm: assignedFarmName || currentUser.farm })
+            : t('farmHealthGauge.title')
           }
         </h3>
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setExportOpen(v => !v)}
             style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            aria-label="Export"
-            title="Export"
+            aria-label={t('farmHealthGauge.exportAriaLabel')}
+            title={t('farmHealthGauge.exportAriaLabel')}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
           {exportOpen && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
-              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? 'All Farms' : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'png', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
+              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'png', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health PNG'), u); } catch (_) {} setExportOpen(false); }}>{t('farmHealthGauge.downloadPNG')}</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
-              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? 'All Farms' : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'jpeg', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
+              <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'jpeg', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health JPEG'), u); } catch (_) {} setExportOpen(false); }}>{t('farmHealthGauge.downloadJPEG')}</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
               <button
                 style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
                 onClick={() => {
-                  const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? 'All Farms' : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm));
+                  const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm));
                   exportHealthGaugeCSV({ farmName, percent: displayPercent, status: displayStatus, asOf: new Date() }, 'farm_health.csv');
                   try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'farm health data'), u); } catch (_) {}
                   setExportOpen(false);
                 }}
               >
-                Export CSV
+                {t('farmHealthGauge.exportCSV')}
               </button>
             </div>
           )}
@@ -304,7 +308,7 @@ const FarmHealthGauge = () => {
             onChange={(e) => setSelectedFarm(e.target.value)}
             className="time-filter"
           >
-            <option value="all">All Farms</option>
+            <option value="all">{t('farmHealthGauge.allFarms')}</option>
             {farms.map(f => (
               <option key={f.key} value={f.key}>{f.name}</option>
             ))}
@@ -337,7 +341,7 @@ const FarmHealthGauge = () => {
         <div className="center-overlay">
           <div className="gauge-percent">{displayPercent}%</div>
           <div className="gauge-status" style={{ color: displayColor }}>
-            {displayStatus}
+            {t(`farmHealthGauge.status.${String(displayStatus || '').toLowerCase()}`, { defaultValue: displayStatus })}
           </div>
           {noteText ? (
             <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>

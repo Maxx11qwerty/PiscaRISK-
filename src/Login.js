@@ -270,7 +270,9 @@ export default function Login() {
           padding: '5px 10px', 
           borderRadius: '4px',
           fontSize: '12px',
-          zIndex: 9999
+          zIndex: 9999,
+          color: 'red',
+          fontWeight: 'bold',
         }}>
           {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
         </div>

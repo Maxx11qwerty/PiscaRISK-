@@ -7,8 +7,10 @@ import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
 import { useAuth } from '../contexts/AuthContext';
 import { logActivity, logMessages } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 function ReportsChart() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -251,7 +253,7 @@ function ReportsChart() {
   }, [timeFilter, isAssignedToFarm, currentUser?.farm]);
 
   if (loading) {
-    return <div className="loading-reports">Loading chart data...</div>;
+    return <div className="loading-reports">{t('reportsChart.loading')}</div>;
   }
 
   if (data.length === 0) {
@@ -259,8 +261,8 @@ function ReportsChart() {
       <div className="bar-chart-container" id="reports-chart-card">
         <h3 className="chart-title">
           {isAssignedToFarm 
-            ? `${assignedFarmName || currentUser.farm} Reports Submitted`
-            : 'Reports Submitted'
+            ? t('reportsChart.titleAssigned', { farm: assignedFarmName || currentUser.farm })
+            : t('reportsChart.title')
           }
         </h3>
         <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
@@ -269,9 +271,9 @@ function ReportsChart() {
             onChange={(e) => setTimeFilter(e.target.value)}
             className="time-filter"
           >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
+            <option value="daily">{t('reportsChart.daily')}</option>
+            <option value="weekly">{t('reportsChart.weekly')}</option>
+            <option value="monthly">{t('reportsChart.monthly')}</option>
           </select>
         </div>
         <div style={{ 
@@ -281,8 +283,8 @@ function ReportsChart() {
           fontSize: '16px'
         }}>
           {isAssignedToFarm 
-            ? `No reports found for ${assignedFarmName || currentUser.farm}`
-            : 'No reports found'
+            ? t('reportsChart.noReportsForFarm', { farm: assignedFarmName || currentUser.farm })
+            : t('reportsChart.noReports')
           }
         </div>
       </div>
@@ -293,8 +295,8 @@ function ReportsChart() {
     <div className="bar-chart-container" id="reports-chart-card">
       <h3 className="chart-title">
         {isAssignedToFarm 
-          ? `${assignedFarmName || currentUser.farm} Reports Submitted`
-          : 'Reports Submitted'
+          ? t('reportsChart.titleAssigned', { farm: assignedFarmName || currentUser.farm })
+          : t('reportsChart.title')
         }
       </h3>
         <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
@@ -303,9 +305,9 @@ function ReportsChart() {
           onChange={(e) => setTimeFilter(e.target.value)}
           className="time-filter"
         >
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
+          <option value="daily">{t('reportsChart.daily')}</option>
+          <option value="weekly">{t('reportsChart.weekly')}</option>
+          <option value="monthly">{t('reportsChart.monthly')}</option>
         </select>
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
           <button
@@ -345,7 +347,7 @@ function ReportsChart() {
           />
           <YAxis>
             <Label 
-              value="Reports Submitted" 
+              value={t('reportsChart.yAxisLabel')} 
               angle={-90} 
               position="insideLeft" 
             />
@@ -364,7 +366,7 @@ function ReportsChart() {
         </BarChart>
       </ResponsiveContainer>
       <div className="reports-last-updated">
-        As of {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        {t('reportsChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
       </div>
     </div>
   );

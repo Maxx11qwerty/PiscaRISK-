@@ -50,6 +50,7 @@ export default function AccountSettings() {
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const [verificationCheckInterval, setVerificationCheckInterval] = useState(null);
+  const hasShownVerifySuccessRef = useRef(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -110,7 +111,7 @@ const uploadImage = (file) => {
 
     // Check file type
     if (!file.type.startsWith('image/')) {
-      reject(new Error('File must be an image.'));
+      reject(new Error(t('profileSettings.fileMustBeImage')));
       return;
     }
 
@@ -119,7 +120,7 @@ const uploadImage = (file) => {
       resolve(event.target.result);
     };
     reader.onerror = (error) => {
-      reject(new Error('Error reading file.'));
+      reject(new Error(t('profileSettings.errorReadingFile')));
     };
     reader.readAsDataURL(file);
   });
@@ -146,7 +147,7 @@ const uploadImage = (file) => {
 
   const handleFullNameChange = async () => {
     if (!newFullName.trim()) {
-      setFullNameError('Full name cannot be empty');
+      setFullNameError(t('profileSettings.fullNameCannotBeEmpty'));
       return;
     }
     
@@ -175,16 +176,16 @@ const uploadImage = (file) => {
       
       setShowFullNameChangeForm(false);
       setFullNameError('');
-      setSuccess('Full name updated successfully!');
+      setSuccess(t('profileSettings.fullNameUpdated'));
     } catch (error) {
-      setFullNameError('Failed to update full name. Please try again.');
-      setError('Failed to update full name. Please try again.');
+      setFullNameError(t('profileSettings.failedToUpdateFullName'));
+      setError(t('profileSettings.failedToUpdateFullName'));
     }
   };
 
   const handleAddressChange = async () => {
     if (!newAddress.trim()) {
-      setAddressError('Address cannot be empty');
+      setAddressError(t('profileSettings.addressCannotBeEmpty'));
       return;
     }
     
@@ -213,16 +214,16 @@ const uploadImage = (file) => {
       
       setShowAddressChangeForm(false);
       setAddressError('');
-      setSuccess('Address updated successfully!');
+      setSuccess(t('profileSettings.addressUpdated'));
     } catch (error) {
-      setAddressError('Failed to update address. Please try again.');
-      setError('Failed to update address. Please try again.');
+      setAddressError(t('profileSettings.failedToUpdateAddress'));
+      setError(t('profileSettings.failedToUpdateAddress'));
     }
   };
 
   const handleContactChange = async () => {
     if (!newContact.trim()) {
-      setContactError('Contact cannot be empty');
+      setContactError(t('profileSettings.contactCannotBeEmpty'));
       return;
     }
     
@@ -251,16 +252,16 @@ const uploadImage = (file) => {
       
       setShowContactChangeForm(false);
       setContactError('');
-      setSuccess('Contact updated successfully!');
+      setSuccess(t('profileSettings.contactUpdated'));
     } catch (error) {
-      setContactError('Failed to update contact. Please try again.');
-      setError('Failed to update contact. Please try again.');
+      setContactError(t('profileSettings.failedToUpdateContact'));
+      setError(t('profileSettings.failedToUpdateContact'));
     }
   };
 
   const handleEmailChange = async () => {
     if (!newEmail.trim()) {
-      setEmailError('Email cannot be empty');
+      setEmailError(t('profileSettings.emailCannotBeEmpty'));
       return;
     }
     
@@ -293,7 +294,7 @@ const uploadImage = (file) => {
       await refreshCurrentUser();
       setShowEmailChangeForm(false);
       setEmailError('');
-      setSuccess(`Verification email sent to ${newEmail}. Please verify to log in with your new address.`);
+      setSuccess(t('profileSettings.verificationEmailSentTo', { email: newEmail }));
       setShowEmailVerifyNotice(true);
       
       // Begin periodic verification checks until verified
@@ -307,13 +308,13 @@ const uploadImage = (file) => {
         window.location.reload();
       }, 2000);
     } catch (error) {
-      let msg = 'Failed to update email. Please try again.';
+      let msg = t('profileSettings.failedToUpdateEmail');
       if (error?.code === 'auth/requires-recent-login') {
-        msg = 'Please re-login to change your email, then try again.';
+        msg = t('profileSettings.requiresRecentLogin');
       } else if (error?.code === 'auth/invalid-email') {
-        msg = 'The email address is invalid.';
+        msg = t('profileSettings.emailInvalid');
       } else if (error?.code === 'auth/email-already-in-use') {
-        msg = 'That email is already in use.';
+        msg = t('profileSettings.emailInUse');
       }
       setEmailError(msg);
       setError(msg);
@@ -661,7 +662,11 @@ const uploadImage = (file) => {
         } catch (_) {}
 
         setShowEmailVerifyNotice(false);
-        setSuccess(t('profileSettings.emailVerified'));
+        // Prevent repeated success flashes from subsequent renders/polls
+        if (!hasShownVerifySuccessRef.current) {
+          setSuccess(t('profileSettings.emailVerified'));
+          hasShownVerifySuccessRef.current = true;
+        }
         try { 
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
           logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
@@ -694,6 +699,7 @@ const handleSendVerificationEmail = async () => {
     } catch (_) {}
 
     // Start checking verification status every 5 seconds
+    hasShownVerifySuccessRef.current = false; // reset guard for a new verification flow
     const interval = setInterval(handleVerificationCheck, 5000);
     setVerificationCheckInterval(interval);
   
@@ -807,7 +813,7 @@ const handleSendVerificationEmail = async () => {
       }
       
       if (!hasChanges) {
-        setSuccess('No changes to save.');
+        setSuccess(t('profileSettings.noChangesToSave'));
         return;
       }
       
@@ -1122,8 +1128,8 @@ const handleSendVerificationEmail = async () => {
               </div>
             </div>
 
-            {/* Row 3: Email */}
-            <div className="fields-row">
+            {/* Row 3: Email + Password side by side */}
+            <div className="fields-row email-password-row">
               <div className="profile-field email-field">
                 <label>{t('profileSettings.email')}</label>
                 <div className="field-input-container">
@@ -1157,26 +1163,22 @@ const handleSendVerificationEmail = async () => {
                   />
                 </div>
                 { (showEmailVerifyNotice || currentUser?.emailVerified === false) && (
-                  <div className="verification-notice" style={{ marginTop: '8px', color: '#eab308' }}>
-                    Your email is unverified. We sent a verification link to your new address. You must verify before you can log in with it.
+                  <div className="verification-notice" style={{ marginTop: '8px' }}>
+                    {t('profileSettings.emailUnverifiedNotice')}
                     <div style={{ marginTop: '6px', display: 'flex', gap: '8px' }}>
                       <button className="send-verification-btn" onClick={handleSendVerificationEmail} disabled={isSendingVerification}>
-                        {isSendingVerification ? 'Sending…' : 'Resend verification email'}
+                        {isSendingVerification ? t('profileSettings.sending') : t('profileSettings.resendVerification')}
                       </button>
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Row 4: Password */}
-            <div className="fields-row">
               <div className="profile-field password-field">
                 <label>{t('profileSettings.password')}</label>
                 <div className="field-input-container">
                   <input
                     type="password"
-                    value="******"
+                    value="**********"
                     readOnly
                     className="field-input"
                   />
@@ -1184,7 +1186,7 @@ const handleSendVerificationEmail = async () => {
                     className="edit-icon-inside clickable-edit-icon" 
                     onClick={() => {
                       // This will open the password change functionality
-                      setShowPasswordChangeForm(true);
+                      setShowPasswordChangeForm((prev) => !prev);
                       try { 
                         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                         logActivity('profile', `Password change form opened in Profile Settings`, u); 
@@ -1192,22 +1194,22 @@ const handleSendVerificationEmail = async () => {
                     }}
                   />
                 </div>
+                {showPasswordChangeForm && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <button className="change-password-btn" onClick={handlePasswordReset}>{t('profileSettings.changePassword')}</button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Row 5: Change Password Button */}
-            <div className="fields-row">
-              <div className="profile-field">
-                <button className="change-password-btn" onClick={handlePasswordReset}>{t('profileSettings.changePassword')}</button>
+            {/* Row 6: Save Changes Button - Centered (show only when any field is in edit mode) */}
+            {(showUsernameChangeForm || showFullNameChangeForm || showAddressChangeForm || showContactChangeForm || showEmailChangeForm) && (
+              <div className="fields-row save-changes-row">
+                <div className="profile-field">
+                  <button className="save-changes-btn" onClick={handleSaveChanges}>{t('profileSettings.saveChanges')}</button>
+                </div>
               </div>
-            </div>
-
-            {/* Row 6: Save Changes Button - Centered */}
-            <div className="fields-row save-changes-row">
-              <div className="profile-field">
-                <button className="save-changes-btn" onClick={handleSaveChanges}>{t('profileSettings.saveChanges')}</button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
