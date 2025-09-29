@@ -14,10 +14,20 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
   const recaptchaVerifierRef = useRef(null);
+  const recaptchaWidgetIdRef = useRef(null);
+  const isInitializingRef = useRef(false);
 
   useEffect(() => {
     if (open) {
-      initializeRecaptcha();
+      // Initialize only once per open
+      if (!recaptchaVerifierRef.current && !isInitializingRef.current) {
+        initializeRecaptcha();
+      } else if (recaptchaVerifierRef.current && window.grecaptcha && recaptchaWidgetIdRef.current !== null) {
+        try {
+          window.grecaptcha.reset(recaptchaWidgetIdRef.current);
+          setRecaptchaReady(false);
+        } catch (_) {}
+      }
     } else {
       // Clean up reCAPTCHA when modal closes
       cleanupRecaptcha();
@@ -29,13 +39,21 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     };
   }, [open]);
 
+  // Ensure cleanup also runs when OTP verification succeeds (confirmationResult resolves)
+  useEffect(() => {
+    if (!open && recaptchaVerifierRef.current) {
+      cleanupRecaptcha();
+    }
+  }, [open, recaptchaVerifierRef.current]);
+
   const cleanupRecaptcha = () => {
     if (recaptchaVerifierRef.current) {
       try {
         recaptchaVerifierRef.current.clear();
         recaptchaVerifierRef.current = null;
       } catch (error) {
-        console.log("Error cleaning up reCAPTCHA:", error);
+        // Ignore cleanup errors from Firebase internals
+        console.debug("Ignored reCAPTCHA cleanup error", error);
       }
     }
     
@@ -44,8 +62,8 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       try {
         window.recaptchaVerifier.clear();
         window.recaptchaVerifier = null;
-      } catch (error) {
-        console.log("Error cleaning up global reCAPTCHA:", error);
+      } catch (_) {
+        // Swallow cleanup errors from Firebase internals
       }
     }
     
@@ -54,19 +72,21 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     recaptchaElements.forEach(element => element.remove());
     
     setRecaptchaReady(false);
+    recaptchaWidgetIdRef.current = null;
+    isInitializingRef.current = false;
   };
 
   const initializeRecaptcha = async () => {
     try {
-      // Clean up any existing reCAPTCHA first
-      cleanupRecaptcha();
+      if (recaptchaVerifierRef.current || isInitializingRef.current) return;
+      isInitializingRef.current = true;
 
       // Create reCAPTCHA verifier
       const recaptchaVerifier = new RecaptchaVerifier(
         auth,
         'recaptcha-container',
         {
-          'size': 'normal',
+          'size': 'invisible',
           'callback': () => {
             console.log("reCAPTCHA solved");
             setRecaptchaReady(true);
@@ -86,12 +106,16 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       window.recaptchaVerifier = recaptchaVerifier;
       
       // Render reCAPTCHA
-      await recaptchaVerifier.render();
+      const widgetId = await recaptchaVerifier.render();
+      recaptchaWidgetIdRef.current = widgetId;
       console.log("reCAPTCHA initialized successfully");
+      isInitializingRef.current = false;
+      setRecaptchaReady(true);
       
     } catch (error) {
       console.error("Failed to initialize reCAPTCHA:", error);
       setError("Security verification failed to load. Please refresh.");
+      isInitializingRef.current = false;
     }
   };
 
@@ -113,6 +137,13 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       const appVerifier = recaptchaVerifierRef.current;
       if (!appVerifier) {
         throw new Error("reCAPTCHA not ready");
+      }
+      // For invisible reCAPTCHA, explicitly trigger verification
+      try {
+        await appVerifier.verify();
+      } catch (vErr) {
+        console.error("reCAPTCHA verify failed:", vErr);
+        throw vErr;
       }
 
       const result = await signInWithPhoneNumber(
@@ -192,12 +223,37 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     }
   };
 
+  const pendingTimersRef = useRef([]);
+
+  useEffect(() => {
+    return () => {
+      pendingTimersRef.current.forEach(id => clearTimeout(id));
+      pendingTimersRef.current = [];
+    };
+  }, []);
+
+  const safeSetTimeout = (fn, ms) => {
+    const id = setTimeout(fn, ms);
+    pendingTimersRef.current.push(id);
+  };
+
   const handleResend = async () => {
     setError("");
     setOtp(["", "", "", "", "", ""]);
     setConfirmationResult(null);
-    cleanupRecaptcha();
-    setTimeout(() => initializeRecaptcha(), 500);
+    // Prefer resetting existing widget to avoid reloading scripts
+    if (window.grecaptcha && recaptchaWidgetIdRef.current !== null) {
+      try {
+        window.grecaptcha.reset(recaptchaWidgetIdRef.current);
+        setRecaptchaReady(false);
+      } catch (_) {
+        cleanupRecaptcha();
+        safeSetTimeout(() => initializeRecaptcha(), 300);
+      }
+    } else {
+      cleanupRecaptcha();
+      safeSetTimeout(() => initializeRecaptcha(), 300);
+    }
   };
 
   if (!open) return null;
@@ -237,7 +293,7 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
               <button
                 className="otp-send-btn"
                 onClick={sendOTP}
-                disabled={isSendingOTP || !recaptchaReady}
+                disabled={isSendingOTP}
               >
                 {isSendingOTP ? "Sending..." : "Send OTP"}
               </button>

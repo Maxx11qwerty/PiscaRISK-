@@ -1173,7 +1173,7 @@
   }
   
   .sidebar-wrapper {
-    width: 18% !important; /* COMMENT: Increased from 18% to 22% to show export text on small monitor screens */
+    width: 22% !important; /* COMMENT: Increased to improve text readability on 1280–1365px */
     top: 60px !important; /* COMMENT: Adjust this to control sidebar distance from top on small monitor screens */
     height: calc(100vh - 60px) !important;
   }
@@ -1186,7 +1186,7 @@
   .main-content {
     overflow-y: auto; /* COMMENT: Allows scrolling on small monitor screens */
     height: calc(100vh - 120px);
-    margin-left: 18% !important; /* COMMENT: Adjusted from 18% to 22% to match new sidebar width */
+    margin-left: 22% !important; /* COMMENT: Match increased sidebar width for readability */
   }
   
   .main-content.sidebar-collapsed {
@@ -1201,6 +1201,42 @@
   .right-sidebar {
     width: 30%;
     min-width: 250px;
+  }
+}
+
+/* COMMENT: Narrow desktop (1200px–1279px) – widen sidebar to fit labels */
+@media (min-width: 1200px) and (max-width: 1279px) {
+  .sidebar-wrapper {
+    width: 22% !important;
+    top: 60px !important;
+    height: calc(100vh - 60px) !important;
+  }
+
+  .main-content {
+    margin-left: 22% !important;
+    height: calc(100vh - 120px);
+  }
+
+  .main-content.sidebar-collapsed {
+    margin-left: 80px !important;
+  }
+}
+
+/* COMMENT: Laptop range (1366px–1533px) – increase width for readability when open */
+@media (min-width: 1366px) and (max-width: 1533px) {
+  .sidebar-wrapper {
+    width: 20% !important;
+    top: 60px !important;
+    height: calc(100vh - 60px) !important;
+  }
+
+  .main-content {
+    margin-left: 20% !important;
+    height: calc(100vh - 120px);
+  }
+
+  .main-content.sidebar-collapsed {
+    margin-left: 80px !important;
   }
 }
 

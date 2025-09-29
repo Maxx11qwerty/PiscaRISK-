@@ -57,6 +57,25 @@ export default function AccountSettings() {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [showEmailVerifyNotice, setShowEmailVerifyNotice] = useState(false);
+  const mountedRef = useRef(true);
+  const pendingTimersRef = useRef([]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      pendingTimersRef.current.forEach(id => clearTimeout(id));
+      pendingTimersRef.current = [];
+    };
+  }, []);
+
+  const safeSetTimeout = (fn, ms) => {
+    const id = setTimeout(() => {
+      if (!mountedRef.current) return;
+      fn();
+    }, ms);
+    pendingTimersRef.current.push(id);
+  };
   
   // Form state variables
   const [showFullNameChangeForm, setShowFullNameChangeForm] = useState(false);
@@ -239,7 +258,9 @@ const uploadImage = (file) => {
       // Update in Firestore directly in main user document
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, {
-        contactNumber: newContact
+        contactNumber: newContact,
+        phoneVerified: false,
+        lastModified: serverTimestamp()
       });
       
       // Update local state
@@ -303,10 +324,7 @@ const uploadImage = (file) => {
         setVerificationCheckInterval(interval);
       }
       
-      // Force a page reload to ensure UI updates with new email
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Avoid hard reload; rely on refreshCurrentUser and reactive state
     } catch (error) {
       let msg = t('profileSettings.failedToUpdateEmail');
       if (error?.code === 'auth/requires-recent-login') {
@@ -526,12 +544,14 @@ const uploadImage = (file) => {
         errorMessage += `Error: ${err.message}. Please try again or use file upload instead.`;
       }
       
-      setError(errorMessage);
-      setShowImageOptions(false);
-      setIsCameraActive(false);
+      if (mountedRef.current) {
+        setError(errorMessage);
+        setShowImageOptions(false);
+        setIsCameraActive(false);
+      }
       
       // Automatically switch to file upload option after error
-      setTimeout(() => {
+      safeSetTimeout(() => {
         setShowImageOptions(true);
       }, 3000);
     }
@@ -661,9 +681,11 @@ const uploadImage = (file) => {
           await updateDoc(userRef, { emailVerified: true, lastModified: serverTimestamp() });
         } catch (_) {}
 
+        if (!mountedRef.current) return;
         setShowEmailVerifyNotice(false);
         // Prevent repeated success flashes from subsequent renders/polls
         if (!hasShownVerifySuccessRef.current) {
+          if (!mountedRef.current) return;
           setSuccess(t('profileSettings.emailVerified'));
           hasShownVerifySuccessRef.current = true;
         }
@@ -680,8 +702,10 @@ const uploadImage = (file) => {
         await refreshCurrentUser();
       }
     } catch (error) {
+      if (!mountedRef.current) return;
       setError(t('profileSettings.failedToCheckVerification'));
     } finally {
+      if (!mountedRef.current) return;
       setIsCheckingVerification(false);
     }
   };
@@ -803,6 +827,7 @@ const handleSendVerificationEmail = async () => {
       // Check for contact changes
       if (newContact && newContact !== currentUser?.contact) {
         updates.contactNumber = newContact;
+        updates.phoneVerified = false;
         hasChanges = true;
       }
       
@@ -1015,7 +1040,7 @@ const handleSendVerificationEmail = async () => {
                     }}
                   />
                 </div>
-                {showUsernameChangeForm && (
+                {false && showUsernameChangeForm && (
                   <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem' }}>
                     {t('profileSettings.usernameWarning')}
                   </small>
@@ -1125,6 +1150,25 @@ const handleSendVerificationEmail = async () => {
                     }}
                   />
                 </div>
+                {showContactChangeForm && (
+                  <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem', display: 'inline-block' }}>
+                    {t('profileSettings.contactWarning')}
+                  </small>
+                )}
+                {!showContactChangeForm && currentUser && currentUser.phoneVerified === false && (
+                  <span style={{
+                    display: 'inline-block',
+                    marginTop: '6px',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: 'rgba(220,53,69,0.1)',
+                    color: '#dc3545',
+                    fontSize: '0.75rem',
+                    border: '1px solid rgba(220,53,69,0.4)'
+                  }}>
+                    {t('profileSettings.pendingVerification')}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1162,6 +1206,11 @@ const handleSendVerificationEmail = async () => {
                     }}
                   />
                 </div>
+                { showEmailChangeForm && (
+                  <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem' }}>
+                    {t('profileSettings.usernameWarning')}
+                  </small>
+                )}
                 { (showEmailVerifyNotice || currentUser?.emailVerified === false) && (
                   <div className="verification-notice" style={{ marginTop: '8px' }}>
                     {t('profileSettings.emailUnverifiedNotice')}

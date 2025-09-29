@@ -1842,14 +1842,14 @@
     flex-direction: column;
     gap: 0.75rem;
   }
-  /* Keep email and password side by side for this specific row on mobile */
+  /* Stack email and password in a column on mobile to prevent overlap */
   .email-password-row {
-    flex-direction: row;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.75rem;
   }
-  .email-password-row .email-field { flex: 2 1 0; }
-  .email-password-row .password-field { flex: 1 1 0; }
+  .email-password-row .email-field { flex: 1 1 100%; width: 100%; }
+  .email-password-row .password-field { flex: 1 1 100%; width: 100%; }
   .email-password-row .field-input { width: 100%; }
   /* Stack input and notice on mobile */
   .email-field .field-input-container {
@@ -1905,8 +1905,12 @@
   .success-message {
     top: 80px;
     min-width: auto;
-    max-width: calc(100% - 2rem);
-    width: calc(100% - 2rem);
+    max-width: 320px;
+    width: 80%;
+    left: 0%;
+    right: auto;
+    transform: translateX(-100%);
+    text-align: center;
   }
   /* Email change form fallback */
   .email-change-form {

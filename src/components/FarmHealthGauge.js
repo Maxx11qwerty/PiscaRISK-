@@ -316,7 +316,7 @@ const FarmHealthGauge = () => {
         </div>
       )}
       <div className="gauge-area" id="health-gauge-chart">
-        <ResponsiveContainer width="100%" aspect={1}>
+        <ResponsiveContainer width="100%" height="100%">
           <RadialBarChart
             key={displayPercent}
             innerRadius="70%"

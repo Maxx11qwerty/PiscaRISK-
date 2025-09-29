@@ -72,11 +72,15 @@ export const AuthProvider = ({ children }) => {
 
   // Phone verification functions
   const openPhoneVerificationModal = (phoneNumber, userId, userData) => {
-    setPhoneVerificationModal({
-      open: true,
-      phoneNumber,
-      userId,
-      userData
+    // Avoid opening multiple times (e.g., StrictMode double render or rapid calls)
+    setPhoneVerificationModal(prev => {
+      if (prev.open) return prev;
+      return {
+        open: true,
+        phoneNumber,
+        userId,
+        userData
+      };
     });
   };
 
@@ -363,27 +367,27 @@ export const AuthProvider = ({ children }) => {
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', user ? 'User logged in' : 'User logged out', 'Processing flag:', isProcessingLoginRef.current);
+      // Auth state changed (silenced in production)
       
       if (suppressAuthUpdatesRef.current) {
-        console.log('Auth state change suppressed');
+        // Auth state change suppressed
         return;
       }
       
       if (isProcessingLoginRef.current) {
-        console.log('Login processing - skipping auth state change');
+        // Login processing - skipping auth state change
         return;
       }
       
       // Clear logout flag when a user is detected (new login)
       if (user) {
         isLoggingOutRef.current = false;
-        console.log('User detected, cleared logout flag');
+        // User detected, cleared logout flag
       }
       
       // Only process login if we don't already have a current user
       if (user && !currentUserRef.current) {
-        console.log('Processing new login for user:', user.uid);
+        // Processing new login for user
         
         // Set a flag to prevent duplicate processing
         currentUserRef.current = { processing: true };
@@ -1945,6 +1949,7 @@ const resetPassword = async (email) => {
           profileImage: userData.profileImage || null,
           dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
           emailVerified: (userData.emailVerified !== undefined ? userData.emailVerified : auth.currentUser.emailVerified),
+          phoneVerified: (userData.phoneVerified !== undefined ? userData.phoneVerified : false),
           status: userData.status,
           // Add data from main user document
           address: userData.address || '',

@@ -197,3 +197,31 @@
     border-radius: 1.25rem;
     color: white;
   }
+
+  /* Mobile: up to 360px */
+  @media (max-width: 360px) {
+    .weather-display-content {
+      justify-content: flex-start; /* stop vertical centering so icon can move down */
+      padding-top: 7rem; /* move content further down */
+    }
+    .weather-condition-text {
+      margin-top: 6rem; /* move condition text even lower */
+    }
+    .weather-condition-icon {
+      display: none; /* hide icon on very small phones */
+    }
+  }
+
+  /* Mobile: 361px to 480px */
+  @media (min-width: 361px) and (max-width: 480px) {
+    .weather-display-content {
+      justify-content: flex-start; /* stop vertical centering so icon can move down */
+      padding-top: 6.5rem; /* move content further down */
+    }
+    .weather-condition-text {
+      margin-top: 5.5rem; /* move condition text even lower */
+    }
+    .weather-condition-icon {
+      display: none; /* hide icon on small phones */
+    }
+  }

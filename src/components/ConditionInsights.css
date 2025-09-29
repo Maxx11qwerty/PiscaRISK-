@@ -477,6 +477,18 @@
       opacity: 0.8;
     }
 
+    /* Mobile 360px and down */
+    @media screen and (max-width: 360px) {
+      .ci-card.ci-compact { padding-bottom: 56px; min-height: 120px; }
+      .ci-card.ci-compact::after { bottom: 0; right: 8px; font-size: 9px; }
+    }
+
+    /* Mobile 361px to 480px */
+    @media screen and (min-width: 361px) and (max-width: 480px) {
+      .ci-card.ci-compact { padding-bottom: 60px; min-height: 126px; }
+      .ci-card.ci-compact::after { bottom: 0; right: 8px; font-size: 9px; }
+    }
+
     /* Responsive Styles for Laptop Screens */
     @media screen and (min-width: 1024px) and (max-width: 1366px) {
       .condition-insights {

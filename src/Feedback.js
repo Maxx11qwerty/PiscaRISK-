@@ -115,7 +115,6 @@ const Feedback = () => {
     const fetchFeedbacks = async () => {
       try {
         setLoading(true);
-        console.log('Fetching feedbacks from Firebase...');
         
         const feedbacksRef = collection(db, 'PiscaRisk');
         let q;
@@ -132,13 +131,11 @@ const Feedback = () => {
 
         const querySnapshot = await getDocs(q);
         
-        console.log('Number of documents found:', querySnapshot.docs.length);
+        // number of documents fetched (silenced)
         
         const fetchedFeedbacks = await Promise.all(querySnapshot.docs.map(async (snap) => {
           const data = snap.data();
-          console.log('Document data:', data);
-          console.log('Status field:', data.status);
-          console.log('Archived fields:', { archivedAt: data.archivedAt, archivedBy: data.archivedBy });
+          // detailed document logging removed in production
           
           // Map the concern to the correct feedback type
           const concernToType = {
@@ -225,13 +222,7 @@ const Feedback = () => {
                   // ignore
                 }
               }
-              console.debug('Feedback sender farm resolution', {
-                feedbackId: snap.id,
-                senderId,
-                userEmail: data.userEmail,
-                resolvedUserFarm: userFarm,
-                resolvedAssignedFarmName: assignedFarmName
-              });
+              // sender farm resolution debug removed
             } catch (error) {
               console.warn('Could not fetch user farm data for feedback:', error);
             }
@@ -262,7 +253,7 @@ const Feedback = () => {
           };
         }));
 
-        console.log('Processed feedbacks (pre-filter):', fetchedFeedbacks);
+        // processed feedbacks debug removed
         setFeedbacks(fetchedFeedbacks);
       } catch (error) {
         console.error('Error fetching feedbacks:', error);
@@ -1107,12 +1098,113 @@ const Feedback = () => {
         <div className={`content-area ${isNarrow ? 'narrow' : ''}`}>
           {/* Mobile toggle to open inbox drawer */}
           {isNarrow && (
-            <button 
-              className="inbox-toggle-btn"
-              onClick={() => setInboxOpen(true)}
-            >
-              {t('feedback.inbox')}
-            </button>
+            <div className="mobile-tab-row">
+              <button 
+                className={`mobile-tab ${activeTab === 'inbox' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('inbox'); setInboxOpen(true); }}
+              >
+                {t('feedback.inbox')}
+                <span className="mobile-badge">{inboxCount}</span>
+              </button>
+              <button 
+                className={`mobile-tab ${activeTab === 'response' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('response'); setInboxOpen(true); }}
+              >
+                {t('feedback.response')}
+                <span className="mobile-badge">{responseCount}</span>
+              </button>
+              <button 
+                className={`mobile-tab ${activeTab === 'archive' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('archive'); setInboxOpen(true); }}
+              >
+                {t('feedback.archive')}
+                <span className="mobile-badge">{archiveCount}</span>
+              </button>
+            </div>
+          )}
+          {isNarrow && (
+            <div className="mobile-filter-container">
+              <button 
+                className="mobile-filter-btn"
+                onClick={() => {
+                  const isOpening = !showSearchFilters;
+                  setShowSearchFilters(!showSearchFilters);
+                  try { 
+                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                    logActivity('feedback', `Filter menu ${isOpening ? 'opened' : 'closed'} in Feedback (mobile)`, u); 
+                  } catch (_) {}
+                }}
+              >
+                <FaFilter className="filter-icon" /> {t('common.filter')}
+              </button>
+              {showSearchFilters && (
+                <div className="mobile-filter-dropdown">
+                  <div className="feedback-filter-header">
+                    <label>{t('feedback.category')}:</label>
+                    <div className="feedback-category-options">
+                      <button
+                        className={`feedback-category-option ${activeCategory === 'All' ? 'active' : ''}`}
+                        onClick={() => setActiveCategory('All')}
+                      >
+                        {t('common.all')}
+                      </button>
+                      {feedbackTypes.map(type => (
+                        <button
+                          key={type.id}
+                          className={`feedback-category-option ${activeCategory === type.label ? 'active' : ''}`}
+                          onClick={() => setActiveCategory(type.label)}
+                        >
+                          {getIconComponent(type.icon)}
+                          <span>{type.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="feedback-filter-header">
+                    <label>{t('feedback.filterType')}:</label>
+                    <select
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      className="feedback-filter-select"
+                    >
+                      <option value="all">{t('common.all')}</option>
+                      <option value="message">{t('feedback.message')}</option>
+                      <option value="username">{t('feedback.username')}</option>
+                      <option value="type">{t('feedback.type')}</option>
+                    </select>
+                  </div>
+
+                  {searchFilter !== 'all' && (
+                    <div className="feedback-filter-section">
+                      <label>{t('feedback.filterValue')}:</label>
+                      <input
+                        type="text"
+                        placeholder={t('feedback.enterFilterValue', { filterType: t(`feedback.${searchFilter}`) })}
+                        value={feedbackFilterValue}
+                        onChange={(e) => setFeedbackFilterValue(e.target.value)}
+                        className="feedback-filter-input"
+                      />
+                    </div>
+                  )}
+
+                  <div className="feedback-filter-actions">
+                    <button 
+                      className="feedback-apply-filter-btn"
+                      onClick={() => setShowSearchFilters(false)}
+                    >
+                      {t('common.apply')}
+                    </button>
+                    <button 
+                      className="feedback-clear-filter-btn"
+                      onClick={() => { setSearchFilter('all'); setFeedbackFilterValue(''); setActiveCategory('All'); setShowSearchFilters(false); }}
+                    >
+                      {t('common.clear')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           <div className={`inbox-container ${isNarrow ? (inboxOpen ? 'open' : 'closed') : ''}`}>
             {loading ? (

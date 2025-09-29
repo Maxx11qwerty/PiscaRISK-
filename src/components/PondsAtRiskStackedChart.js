@@ -44,7 +44,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       try {
         setLoading(true);
         const data = (await fetchRiskReportData()) || [];
-        console.log('PondsAtRiskStackedChart - Fetched data:', data.length, 'farms');
         setFarms(data);
       } finally {
         setLoading(false);
@@ -99,7 +98,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   }, [timeFilter, customStart, customEnd]);
 
   useEffect(() => {
-    console.log('PondsAtRiskStackedChart - Time filter changed to:', timeFilter);
     setLastUpdated(new Date());
   }, [timeFilter, customStart, customEnd, selectedFarm, groupMode]);
 

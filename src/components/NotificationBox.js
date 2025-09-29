@@ -405,11 +405,20 @@ const NotificationBox = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const mountedRef = React.useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Get current user from Firebase Auth
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!mountedRef.current) return;
       setCurrentUser(user);
       
       // Resolve assigned farm name for current user
@@ -422,11 +431,14 @@ const NotificationBox = () => {
             if (userData.farm) {
               const farmDoc = await getDoc(doc(db, 'farms', userData.farm));
               if (farmDoc.exists()) {
+                if (!mountedRef.current) return;
                 setAssignedFarmName(farmDoc.data().name || userData.farm);
               } else {
+                if (!mountedRef.current) return;
                 setAssignedFarmName(userData.farm);
               }
             } else {
+              if (!mountedRef.current) return;
               setAssignedFarmName('');
             }
           } else {
@@ -450,9 +462,11 @@ const NotificationBox = () => {
           }
         } catch (error) {
           console.warn('Could not fetch user farm data:', error);
+          if (!mountedRef.current) return;
           setAssignedFarmName('');
         }
       } else {
+        if (!mountedRef.current) return;
         setAssignedFarmName('');
       }
     });
@@ -480,13 +494,16 @@ const NotificationBox = () => {
       const updatedNotifications = notifications.map(n => 
         n.id === notification.id ? { ...n, read: true } : n
       );
+      if (!mountedRef.current) return;
       setNotifications(updatedNotifications);
     
       // Update unread count
       const newUnreadCount = updatedNotifications.filter(n => !n.read).length;
+      if (!mountedRef.current) return;
       setUnreadCount(newUnreadCount);
 
       // Close the notification dropdown
+      if (!mountedRef.current) return;
       setIsOpen(false);
 
       // Handle based on notification type
@@ -603,6 +620,7 @@ const NotificationBox = () => {
       );
 
       // Update state
+      if (!mountedRef.current) return;
       setNotifications(cleaned);
       const newUnreadCount = cleaned.filter(n => !n.read).length;
       setUnreadCount(newUnreadCount);

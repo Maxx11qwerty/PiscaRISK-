@@ -13,6 +13,21 @@
   height: auto;
   min-height: clamp(140px, 20vw, 200px);
   flex-wrap: wrap;
+  position: relative;
+}
+
+.gauge-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gauge-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .gauge-controls {
@@ -32,6 +47,12 @@
   height: clamp(110px, 16vw, 180px);
   position: relative;
   margin-top: .5rem;
+}
+
+/* Ensure Recharts fills the assigned area */
+.gauge-area .recharts-responsive-container {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .health-gauge-container .chart-title {
@@ -236,10 +257,14 @@
 
 /* up to 360px */
 @media (max-width: 360px) {
-  .health-gauge-container { height: 100%; }
-  .health-gauge-container .chart-title { font-size: 1rem; margin-top: 0; }
-  .gauge-controls { margin: 0 0 .4rem 0; }
-  .health-gauge-container .gauge-area { height: 150px; }
+  .health-gauge-container { height: 100%; padding: 56px 12px 12px; }
+  .gauge-header { align-items: flex-start; }
+  .health-gauge-container .chart-title { font-size: 1rem; margin-top: 0; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 90%; text-align: center; }
+  .gauge-controls { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); margin: 0; }
+  .gauge-controls .time-filter { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 16px; max-width: 75%; }
+  .health-gauge-container .gauge-area { height: 190px; }
+  .gauge-area .recharts-wrapper { transform: translateX(-10%); }
+  .center-overlay { transform: translateX(-10%); }
   .gauge-percent {
     font-size: 1.2rem;
   }
@@ -251,10 +276,14 @@
 
 /* 361px to 480px */
 @media (min-width: 361px) and (max-width: 480px) {
-  .health-gauge-container { height: 100%; }
-  .health-gauge-container .chart-title { font-size: 1.05rem; margin-top: 0; }
-  .gauge-controls { margin: 0 0 .4rem 0; }
-  .health-gauge-container .gauge-area { height: 155px; }
+  .health-gauge-container { height: 100%; padding: 56px 12px 12px; }
+  .gauge-header { align-items: flex-start; }
+  .health-gauge-container .chart-title { font-size: 1.05rem; margin-top: 0; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 90%; text-align: center; }
+  .gauge-controls { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); margin: 0; }
+  .gauge-controls .time-filter { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 16px; max-width: 75%; }
+  .health-gauge-container .gauge-area { height: 210px; }
+  .gauge-area .recharts-wrapper { transform: translateX(-10%); }
+  .center-overlay { transform: translateX(-10%); }
   .gauge-percent {
     font-size: 1.3rem;
   }

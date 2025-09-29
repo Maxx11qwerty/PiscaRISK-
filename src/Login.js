@@ -127,7 +127,6 @@ export default function Login() {
       const result = await login(formData.emailOrContact, formData.password);
       
       if (result.success) {
-        console.log('Login successful, preparing navigation...');
         
         // Log successful login first
         try {
@@ -140,11 +139,11 @@ export default function Login() {
         // Clear the login processing flag immediately
         if (isProcessingLoginRef) {
           isProcessingLoginRef.current = false;
-          console.log('Cleared login processing flag');
+          // Cleared login processing flag
         }
         
         // Navigate immediately without delay
-        console.log('Navigating to Homepage...');
+        // Navigating to Homepage
         navigate('/Homepage', { replace: true });
       } else {
         if (result.code === 'show_verification_modal') {
@@ -435,6 +434,10 @@ export default function Login() {
                   }, 3000);
                 } else {
                   // Small delay to ensure state is updated before navigation
+                  // Mark a short grace window to ignore late reCAPTCHA timeouts
+                  try { window.__otpGraceUntil = Date.now() + 60000; } catch (_) {}
+                  // Ensure modal is closed to unmount OTP and cleanup reCAPTCHA
+                  closePhoneVerificationModal();
                   setTimeout(() => {
                     navigate('/Homepage');
                   }, 100);

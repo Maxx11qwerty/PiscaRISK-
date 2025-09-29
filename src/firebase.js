@@ -35,16 +35,15 @@ if (typeof window !== "undefined") {
       .then(({ getAnalytics }) => {
         try {
           analytics = getAnalytics(app);
-          console.log('Analytics initialized successfully');
         } catch (error) {
-          console.warn('Analytics initialization failed:', error?.message || error);
+          // optional: console.warn('Analytics initialization failed:', error?.message || error);
         }
       })
       .catch((error) => {
-        console.warn('Analytics import failed:', error?.message || error);
+        // optional: console.warn('Analytics import failed:', error?.message || error);
       });
   } else {
-    console.log('Analytics disabled for this environment');
+    // Analytics disabled for this environment
   }
 }
 

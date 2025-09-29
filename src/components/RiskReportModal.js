@@ -18,6 +18,11 @@ const RiskReportModal = ({ isModal = false }) => {
   const { currentUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [farms, setFarms] = useState([]);
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const [detailsFarmKey, setDetailsFarmKey] = useState(null);
   const [actionsFarmKey, setActionsFarmKey] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -34,15 +39,18 @@ const RiskReportModal = ({ isModal = false }) => {
       try {
         if (currentUser?.farm) {
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+          if (!mountedRef.current) return;
           if (farmDoc.exists()) {
             setAssignedFarmName(farmDoc.data().name || currentUser.farm);
           } else {
             setAssignedFarmName(currentUser.farm);
           }
         } else {
+          if (!mountedRef.current) return;
           setAssignedFarmName('');
         }
       } catch (e) {
+        if (!mountedRef.current) return;
         setAssignedFarmName(String(currentUser?.farm || ''));
       }
     };
@@ -429,9 +437,11 @@ const RiskReportModal = ({ isModal = false }) => {
           });
         }
 
+        if (!mountedRef.current) return;
         setFarms(filteredFarms);
       } catch (error) {
       } finally {
+        if (!mountedRef.current) return;
         setLoading(false);
       }
     };
@@ -449,6 +459,7 @@ const RiskReportModal = ({ isModal = false }) => {
         const fb = await fetchFarmFeedback(f.farm_name);
         if (fb) updates[f.farm_key] = fb;
       }
+      if (!mountedRef.current) return;
       if (Object.keys(updates).length) {
         setFeedbackCache(prev => ({ ...prev, ...updates }));
       }

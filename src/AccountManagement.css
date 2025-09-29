@@ -4738,6 +4738,78 @@ Mobile Responsiveness
   .account-container { width: 1200px !important; }
 }
 
+/* 700px to 899px (Tablets) */
+@media (min-width: 700px) and (max-width: 899px) {
+  /* Header */
+  .account-header-bar { padding: 0.8rem 1rem; height: 60px; margin-bottom: 0.5rem; box-sizing: border-box; }
+
+  /* Sidebar behaves as slide-over at this size; keep content full width */
+  .account-main-content { margin-left: 0 !important; width: 100%; overflow-x: auto !important; }
+
+  /* Buttons area: prevent overlap and allow wrapping */
+  .add-user-button-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1rem auto;
+    padding: 0 1rem;
+  }
+
+  /* Table wrapper and content: use horizontal scroll with stable layout width */
+  html, body { overflow-x: auto; }
+  .manage-wrapper { max-width: 92%; margin: 9.5rem auto 1.5rem auto; }
+  .account-container { width: 92%; margin: 2rem auto; padding: 1.5rem; height: auto; }
+
+  /* Keep header and rows aligned via a consistent minimum width */
+  .manage-wrapper, .header-row, .user-row { min-width: 1200px !important; }
+  /* Make the overall container narrower, centered, and positioned lower on tablet */
+  .account-container { width: 88% !important; max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: 5rem; }
+
+  /* Align table header horizontally with the account container */
+  .table-header {
+    width: 72% !important; /* further reduce width to prevent right overflow */
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+    left: 0; /* remove left shift to prevent right overflow */
+    overflow-x: auto; /* allow header grid to scroll like the rows */
+  }
+
+  /* Push only the user grid lower; keep table header position */
+  .user-grid-container { margin-top: 4rem; }
+
+  /* Ensure the header grid matches the row grid to avoid misalignment */
+  .header-row { 
+    display: grid; 
+    /* Strongly emphasize Joined and shrink trailing Delete */
+    grid-template-columns: 50px 1.4fr 0.7fr 0.7fr 0.8fr 1.1fr 1.0fr 1.6fr 40px; 
+    gap: 0.4rem;
+  }
+
+  .user-row { 
+    /* Match header grid to keep columns aligned */
+    grid-template-columns: 50px 1.4fr 0.7fr 0.7fr 0.8fr 1.1fr 1.0fr 1.6fr 40px; 
+    gap: 0.4rem;
+    min-height: 104px; /* increased height for better spacing on tablets */
+    align-items: center;
+    padding: 0.8rem 0; /* more vertical breathing room */
+  }
+
+  /* Allow header labels to wrap if needed to avoid collision */
+  .table-header .header-cell { min-width: 0; }
+  .table-header .header-cell span { display: block; white-space: normal; word-break: break-word; overflow-wrap: anywhere; font-size: 0.9rem; }
+  .table-header .header-row { min-height: 56px; }
+  .table-header .header-cell.contact-cell span,
+  .table-header .header-cell.actions-cell span { font-size: 0.95rem; }
+
+  /* Cell-level padding for better touch targets and spacing */
+  .user-cell { padding: 0.8rem 0.6rem; }
+  .header-row { align-items: center; min-height: 64px; }
+}
+
 /* Deduplicated: horizontal scroll/min-width rules merged into the blocks above */
 
 /* =============================

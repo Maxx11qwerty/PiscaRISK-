@@ -67,23 +67,19 @@ const AppRoutes = () => {
 function App() {
   useEffect(() => {
     const testProxyConnection = async () => {
+      // Only attempt connectivity test in development
+      if (process.env.NODE_ENV !== 'development') return;
       try {
-        console.log('Testing proxy connection to backend...');
         const response = await fetch('/api/debug', { signal: AbortSignal.timeout(3000) }); // 3s timeout
         if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
-        const data = await response.json();
-        console.log('✅ Proxy connection successful:', data);
+        await response.json();
       } catch (error) {
-        console.warn('⚠️ Proxy connection failed:', error.message);
-        console.log('Trying direct connection to port 3001...');
         try {
           const directResponse = await fetch('http://localhost:3001/api/debug', { signal: AbortSignal.timeout(3000) });
           if (!directResponse.ok) throw new Error(`Direct connection error: ${directResponse.status}`);
-          const directData = await directResponse.json();
-          console.log('✅ Direct connection successful:', directData);
-        } catch (directError) {
-          console.warn('⚠️ Direct connection also failed. Backend is probably not running.');
-          // Do NOT throw here – keep app running
+          await directResponse.json();
+        } catch (_) {
+          // Silent in production
         }
       }
     };

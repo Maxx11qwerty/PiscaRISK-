@@ -205,15 +205,15 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         }
         
 
-        console.log('Setting final items:', finalItems.length, 'items');
+        // final items prepared
         setItems(finalItems);
         // onCountChange will be triggered by separate effect using active list
         setIndex(0);
         setLastFetchTime(Date.now());
         setIsLoading(false);
-        console.log('Data fetch complete, loading set to false');
+        // data fetch complete
       } catch (e) {
-        console.log('Data fetch error:', e);
+        // silent error in production
         setItems([]);
         setLastFetchTime(0);
         setIsLoading(false);
