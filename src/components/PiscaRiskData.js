@@ -6,6 +6,7 @@ import { exportConditionInsightsCSV } from '../utils/exportConditionInsights';
 import { exportRiskOverviewCSV } from '../utils/exportRiskReport';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { fetchAllUsers } from '../services/accountService';
 import { fetchWeatherData } from '../services/weatherService';
 import { exportPiscaRiskCSV, exportPiscaRiskPDF } from '../utils/exportPiscariskData';
 import { logActivity, logMessages } from '../utils/logger';
@@ -64,6 +65,7 @@ const PiscaRiskData = () => {
   const [loading, setLoading] = useState(true);
   const [farmReportsCount, setFarmReportsCount] = useState({});
   const [farmReviewedCount, setFarmReviewedCount] = useState({});
+  const [farmUserCount, setFarmUserCount] = useState({});
   const [weather, setWeather] = useState(null);
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [filterFarmKey, setFilterFarmKey] = useState('all');
@@ -98,6 +100,21 @@ const PiscaRiskData = () => {
         setLoading(true);
         const data = await fetchRiskReportData();
         let baseFarms = Array.isArray(data) ? data : [];
+        // Fetch users and count per farm across users + mobileUsers
+        try {
+          const users = await fetchAllUsers();
+          const userCounts = {};
+          users.forEach(u => {
+            const farmName = (u.farm || u.farm_name || '').toString().trim();
+            if (!farmName) return;
+            const key = normalizeFarmName(farmName);
+            if (key === 'unknown-farm') return;
+            userCounts[key] = (userCounts[key] || 0) + 1;
+          });
+          setFarmUserCount(userCounts);
+        } catch (_) {
+          setFarmUserCount({});
+        }
         // Count farm reports from 'reports' collection by farm name
         const counts = {};
         try {
@@ -411,6 +428,7 @@ const PiscaRiskData = () => {
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.overallRisk')}</span><Pill color={f.overall_risk === 'High' ? '#ef4444' : f.overall_risk === 'Medium' ? '#f59e0b' : '#22c55e'}>{f.overall_risk}</Pill></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.pondsWithReports')}</span><span>{f.ponds}</span></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.totalReports')}</span><span>{farmReportsCount[f.key] || 0}</span></div>
+                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Total Users</span><span>{farmUserCount[f.key] || 0}</span></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{t('piscaRiskData.farmData.reviewedReports')}</span>
                     {(() => {

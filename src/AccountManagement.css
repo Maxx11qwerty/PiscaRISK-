@@ -4760,43 +4760,48 @@ Mobile Responsiveness
   /* Table wrapper and content: use horizontal scroll with stable layout width */
   html, body { overflow-x: auto; }
   .manage-wrapper { max-width: 92%; margin: 9.5rem auto 1.5rem auto; }
-  .account-container { width: 92%; margin: 2rem auto; padding: 1.5rem; height: auto; }
+  .account-container { width: 92%; margin: 1rem auto; padding: 1.5rem; height: auto; min-height: 82vh; }
 
   /* Keep header and rows aligned via a consistent minimum width */
   .manage-wrapper, .header-row, .user-row { min-width: 1200px !important; }
   /* Make the overall container narrower, centered, and positioned lower on tablet */
-  .account-container { width: 88% !important; max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: 5rem; }
+  .account-container { width: 88% !important; max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: 5rem; min-height: 50vh; }
 
   /* Align table header horizontally with the account container */
   .table-header {
-    width: 72% !important; /* further reduce width to prevent right overflow */
-    max-width: 760px;
+    width: 85% !important; /* widen on tablets for better alignment */
+    max-width: 810px;
     margin-left: auto;
     margin-right: auto;
     position: relative;
-    left: 0; /* remove left shift to prevent right overflow */
+    left: .2rem; /* nudge header slightly to the left on tablets */
     overflow-x: auto; /* allow header grid to scroll like the rows */
+    margin-top: 0; /* keep header directly under filter buttons */
   }
 
   /* Push only the user grid lower; keep table header position */
-  .user-grid-container { margin-top: 4rem; }
+  .user-grid-container { margin-top: .5rem; padding-top: 1.9rem; }
 
   /* Ensure the header grid matches the row grid to avoid misalignment */
   .header-row { 
     display: grid; 
-    /* Strongly emphasize Joined and shrink trailing Delete */
-    grid-template-columns: 50px 1.4fr 0.7fr 0.7fr 0.8fr 1.1fr 1.0fr 1.6fr 40px; 
-    gap: 0.4rem;
+    /* Match DOM order: [checkbox, name, role, farm, status, contact, actions, joined, delete] */
+    grid-template-columns: 50px 1.3fr 0.9fr 0.9fr 1.4fr 0.8fr 2.0fr 1.1fr 40px; 
+    gap: 0.6rem;
   }
 
   .user-row { 
     /* Match header grid to keep columns aligned */
-    grid-template-columns: 50px 1.4fr 0.7fr 0.7fr 0.8fr 1.1fr 1.0fr 1.6fr 40px; 
-    gap: 0.4rem;
-    min-height: 104px; /* increased height for better spacing on tablets */
+    grid-template-columns: 50px 1.3fr 0.7fr 0.8fr 0.7fr 0.8fr 2.0fr 1.1fr 40px; 
+    gap: 0.6rem;
+    min-height: 112px; /* a touch more height for buttons */
     align-items: center;
     padding: 0.8rem 0; /* more vertical breathing room */
   }
+  /* Right-align header label for Actions and prevent wrapping collisions */
+  .table-header .header-cell.actions-cell { justify-content: flex-end; }
+  .table-header .header-cell.contact-cell span,
+  .table-header .header-cell.actions-cell span { white-space: nowrap; }
 
   /* Allow header labels to wrap if needed to avoid collision */
   .table-header .header-cell { min-width: 0; }
@@ -4808,9 +4813,74 @@ Mobile Responsiveness
   /* Cell-level padding for better touch targets and spacing */
   .user-cell { padding: 0.8rem 0.6rem; }
   .header-row { align-items: center; min-height: 64px; }
+
+  /* Keep pagination at bottom while content scrolls */
+  .account-container { display: flex; flex-direction: column; }
+  .user-grid-container { flex: 1; overflow: auto; }
+  .pagination-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 0;
+    background: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    z-index: 2;
+  }
+
+
+  /* Reset negative margins that can cause overlap on tablets */
+  .user-cell.name-cell,
+  .user-cell.role-cell,
+  .user-cell.status-cell,
+  .user-cell.contact-cell,
+  .user-cell.actions-cell,
+  .user-cell.joined-cell,
+  .user-cell.checkbox-cell {
+    margin-left: 0 !important;
+  }
+
+  /* Allow contact text to wrap safely */
+  .user-cell.contact-cell {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  /* Allow actions to wrap and avoid collision with neighboring columns */
+  .user-cell.actions-cell {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end; /* push action buttons to the right */
+  }
+
+  .user-cell.actions-cell .activate-tech-officer-btn,
+  .user-cell.actions-cell .reset-password-btn,
+  .user-cell.actions-cell .delete-user-btn {
+    min-width: 140px;
+    max-width: 100%;
+  }
+
+  /* Nudge Role column slightly to the right for better spacing */
+  .table-header .header-cell.role-cell { margin-left: 1rem; }
+  .user-cell.role-cell { margin-left: 0.4rem !important; }
+
+  /* Nudge Farm column slightly to the right for better alignment */
+  .table-header .header-cell.farm-cell { margin-left: 3rem; }
+  .table-header .header-cell.status-cell { margin-left: 4rem; }
+  .table-header .header-cell.contact-cell { margin-left: 2rem; }
+  .table-header .header-cell.actions-cell { margin-left: 3rem; }
+  .table-header .header-cell.joined-cell { margin-left: 3rem; }
+  .table-header .header-cell.delete-cell { margin-left: 3rem; }
+
+  /* Remove background and shadow from manage wrapper on tablets */
+  .manage-wrapper {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
 }
 
-/* Deduplicated: horizontal scroll/min-width rules merged into the blocks above */
 
 /* =============================
 Mobile Buttons Styling (Add User / Filter)

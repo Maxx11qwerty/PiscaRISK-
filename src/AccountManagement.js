@@ -69,6 +69,7 @@ const AccountManagement = () => {
 
   // Password reset states
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState(null);
+  const [resetNotices, setResetNotices] = useState({}); // { [userId]: { text, type } }
   
   // Farms for assignment when creator has no assigned farm
   const [farms, setFarms] = useState([]); // { id, name }
@@ -92,6 +93,8 @@ const AccountManagement = () => {
       return () => clearTimeout(timer);
     }
   }, [message, showAddUserForm]);
+
+  // Removed auto-dismiss success toast for admin password resets
 
   useEffect(() => {
   }, [currentUser]);
@@ -162,7 +165,9 @@ const AccountManagement = () => {
   const screen = useScreenSize();
 
   // Permissions
-  const isAdminUser = String(currentUser?.role || '').toLowerCase() === 'admin';
+  const roleNormalized = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
+  const isAdminUser = roleNormalized === 'admin';
+  const isTechOfficerUser = roleNormalized === 'tech_officer';
 
   useEffect(() => {
     const handleResize = () => {
@@ -533,7 +538,7 @@ const AccountManagement = () => {
         return;
       }
       
-      const allowedRoles = ['Admin', 'Tech Officer', 'Fish Farmer'];
+      const allowedRoles = currentUser?.farm ? ['Admin', 'Tech Officer', 'Fish Farmer'] : ['Admin'];
       if (!allowedRoles.includes(newUser.role)) {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
@@ -543,7 +548,8 @@ const AccountManagement = () => {
 
       // Determine farm assignment
       const farmForNewUser = currentUser?.farm ? currentUser.farm : selectedFarmId;
-      if (!currentUser?.farm && !farmForNewUser) {
+      // Super Admins (no assigned farm) can create only Admin users, which do not require farm
+      if (!currentUser?.farm && newUser.role !== 'Admin' && !farmForNewUser) {
         setMessage({ text: 'Please select a farm for the user', type: 'error' });
         return;
       }
@@ -636,7 +642,7 @@ const AccountManagement = () => {
       address: '',
       email: '',
       contactNumber: '',
-      role: 'User',
+      role: currentUser?.farm ? 'User' : 'Admin',
       status: 'Active', // Default status
       dateJoined: todayDate,
       password: ''
@@ -659,6 +665,7 @@ const AccountManagement = () => {
 
     try {
       setResettingPasswordUserId(user.id);
+      setResetNotices(prev => ({ ...prev, [user.id]: { text: `Sending password reset email...`, type: 'info' } }));
       setMessage({ text: `Sending password reset email to ${user.username}...`, type: 'info' });
       try { 
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
@@ -674,10 +681,15 @@ const AccountManagement = () => {
       // Send password reset email
       await sendPasswordResetEmail(auth, user.email);
       
-      setMessage({ 
-        text: `Password reset email sent successfully to ${user.username}! Check your email for reset instructions.`, 
-        type: 'success' 
-      });
+      // Keep inline notice only; global toast removed
+      setResetNotices(prev => ({ ...prev, [user.id]: { text: `Email sent ✔`, type: 'success' } }));
+      setTimeout(() => {
+        setResetNotices(prev => {
+          const next = { ...prev };
+          delete next[user.id];
+          return next;
+        });
+      }, 1000);
       
       try { 
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
@@ -698,7 +710,15 @@ const AccountManagement = () => {
         errorMessage = 'Network error. Please check your connection and try again.';
       }
       
-      setMessage({ text: `Error: ${errorMessage}`, type: 'error' });
+      // Keep inline error notice only; global toast removed
+      setResetNotices(prev => ({ ...prev, [user.id]: { text: `Failed to send`, type: 'error' } }));
+      setTimeout(() => {
+        setResetNotices(prev => {
+          const next = { ...prev };
+          delete next[user.id];
+          return next;
+        });
+      }, 1500);
     } finally {
       setResettingPasswordUserId(null);
     }
@@ -1036,6 +1056,43 @@ const handleActivateFishFarmer = async (user) => {
   const isIndeterminateAcrossAllPages = selectedUsers.size > 0 && selectedUsers.size < filteredUsers.length;
 
   const accountCSVData = prepareAccountCSVData(AccountUsers);
+  // Lightweight wrapper to support tooltips around disabled buttons (no external deps)
+  const TooltipWrapper = ({ showTooltip, tooltipText, onBlockedClick, children }) => {
+    const [open, setOpen] = useState(false);
+    if (!showTooltip) return children;
+    return (
+      <span
+        style={{ position: 'relative', display: 'inline-block' }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onClick={(e) => { e.stopPropagation(); if (typeof onBlockedClick === 'function') onBlockedClick(); }}
+      >
+        {open && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '50%',
+              transform: 'translateX(-50%) translateY(-6px)',
+              background: '#111827',
+              color: '#fff',
+              padding: '6px 8px',
+              fontSize: '12px',
+              borderRadius: 6,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+              zIndex: 20
+            }}
+            role="tooltip"
+          >
+            {tooltipText}
+          </div>
+        )}
+        {children}
+      </span>
+    );
+  };
+
 
 
 
@@ -1511,6 +1568,7 @@ const handleActivateFishFarmer = async (user) => {
         </div>
       </div>
       <div className={`account-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {/* Global toast removed per request */}
         <div className="account-container">
         {isAdminUser && showAddUserForm && (
             <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
@@ -1581,10 +1639,14 @@ const handleActivateFishFarmer = async (user) => {
                       onFocus={(e) => e.stopPropagation()}
                     required
                   >
-                                          <option value="">{t('accountManagement.add_user_form.select_position_option')}</option>
-                                          <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
-                      <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
-                      <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
+                      <option value="">{t('accountManagement.add_user_form.select_position_option')}</option>
+                      <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
+                      {currentUser?.farm && (
+                        <>
+                          <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
+                          <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
+                        </>
+                      )}
                   </select>
                 </div>
                   <div className="form-group">
@@ -1851,18 +1913,38 @@ const handleActivateFishFarmer = async (user) => {
                             </button>
                           ) : null}
                           {String(user.status || '').toLowerCase() === 'active' && (
-                            <button 
-                              className="reset-password-btn" 
-                              onClick={(e) => {
-                                e.stopPropagation(); // Prevent closing dropdowns when clicking reset password button
-                                closeAllDropdowns(); // Close all other dropdowns first
-                                handleResetPassword(user);
-                              }}
-                              disabled={resettingPasswordUserId === user.id}
+                            <TooltipWrapper
+                              showTooltip={isTechOfficerUser}
+                              tooltipText="You don't have permission to do this"
+                              onBlockedClick={() => setMessage({ text: "You don't have permission to reset passwords", type: 'error' })}
                             >
-                              <MdOutlineLockReset className="action-icon" />
-                              {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
-                            </button>
+                              <button 
+                                className="reset-password-btn" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isTechOfficerUser) return; // Block action for tech officers
+                                  closeAllDropdowns();
+                                  handleResetPassword(user);
+                                }}
+                                disabled={isTechOfficerUser || resettingPasswordUserId === user.id}
+                              >
+                                <MdOutlineLockReset className="action-icon" />
+                                {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
+                              </button>
+                              {resetNotices[user.id]?.text && (
+                                <span
+                                  style={{
+                                    marginLeft: 8,
+                                    fontSize: '0.85rem',
+                                    color: resetNotices[user.id].type === 'success' ? '#059669' : (resetNotices[user.id].type === 'error' ? '#b91c1c' : '#6b7280')
+                                  }}
+                                  role="status"
+                                  aria-live="polite"
+                                >
+                                  {resetNotices[user.id].text}
+                                </span>
+                              )}
+                            </TooltipWrapper>
                           )}
                           {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
                             <div className="password-reset-pending">

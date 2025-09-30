@@ -23,25 +23,10 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
   
-  // Check if user can mark reports as reviewed
+  // Check if user can mark reports as reviewed: only Tech Officers (role normalized)
   const canMarkAsReviewed = () => {
-    // Super admin (no assigned farm) can mark as reviewed
-    if (!currentUser?.farm) {
-      return true;
-    }
-    
-    // Tech officers can mark as reviewed regardless of farm assignment
-    if (currentUser?.role === 'Tech Officer') {
-      return true;
-    }
-    
-    // Admin users with assigned farms cannot mark as reviewed
-    if (currentUser?.role === 'Admin' && currentUser?.farm) {
-      return false;
-    }
-    
-    // Default to false for other cases
-    return false;
+    const role = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
+    return role === 'tech_officer';
   };
   
   const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');

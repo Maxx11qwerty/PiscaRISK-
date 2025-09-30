@@ -395,9 +395,13 @@ const PiscaRiskHome = () => {
             pond: p.fish_pond || 'Unknown Pond',
             risk: p.risk_level || 'Normal',
             farm: farm.name,
-            timestamp: getTimestamp(p.timestamp),
-            date: getTimestamp(p.timestamp).split(',')[0], // Just the date part
-            time: getTimestamp(p.timestamp).split(',')[1]?.trim() || 'Unknown time' // Just the time part
+            timestamp: getTimestamp(p.generated_timestamp || p.timestamp),
+            date: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
+            time: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
+            submitted: getTimestamp(p.submitted_timestamp),
+            submittedDate: getTimestamp(p.submitted_timestamp).split(',')[0],
+            generated: getTimestamp(p.generated_timestamp || p.timestamp),
+            generatedDate: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
           };
         });
         setDrilldownTitle(`Ponds at Risk — ${farm.name}`);
@@ -428,9 +432,13 @@ const PiscaRiskHome = () => {
               pond: p.fish_pond || 'Unknown Pond', 
               risk: lvl, 
               farm: f.name,
-              timestamp: getTimestamp(p.timestamp),
-              date: getTimestamp(p.timestamp).split(',')[0], // Just the date part
-              time: getTimestamp(p.timestamp).split(',')[1]?.trim() || 'Unknown time' // Just the time part
+              timestamp: getTimestamp(p.generated_timestamp || p.timestamp),
+              date: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
+              time: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
+              submitted: getTimestamp(p.submitted_timestamp),
+              submittedDate: getTimestamp(p.submitted_timestamp).split(',')[0],
+              generated: getTimestamp(p.generated_timestamp || p.timestamp),
+              generatedDate: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
             });
           }
         });
@@ -451,78 +459,20 @@ const PiscaRiskHome = () => {
     setShowDrilldown(true);
   };
 
-  // handlePasswordChange removed - using ProfileSettings password reset instead
 
-  // Memoize weather modal content to prevent re-renders on language change
-  const weatherModalContent = useMemo(() => {
-    if (!weatherData) return null;
-    
-    const timeOfDay = getTimeOfDay(new Date());
-    const weatherImage = getWeatherImage(weatherData);
-    const weatherIconData = getWeatherIcon(weatherData.weather[0].main, new Date(), weatherData);
-    const weatherIcon = weatherIconData.icon;
-    const isNight = weatherIconData.isNight;
-    const weatherCondition = weatherData.weather[0].main.toLowerCase();
-    
-    return (
-      <div className="weather-main-modal">
-        <div className={`weather-display-container ${timeOfDay}`}>
-          <div 
-            className="weather-display-background" 
-            style={{ 
-              backgroundImage: `url(${weatherImage})`,
-              transition: 'background-image 0.3s ease-in-out'
-            }}
-          />
-          <div className="weather-display-content">
-            <div className="weather-time-info">
-              <div className="location-name">
-                {weatherData.locationName}
-              </div>
-              <div className="current-date-time">
-                <div className="current-date">
-                  {new Date().toLocaleDateString([], { 
-                    weekday: 'long', 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
-                </div>
-                <div className="time-temp-container">
-                  <div className="current-time">
-                    {new Date().toLocaleTimeString([], { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </div>
-                  <div className="current-temp">
-                    {Math.round(weatherData.main.temp)}°C
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <img 
-              src={weatherIcon} 
-              alt={weatherCondition} 
-              className={`weather-condition-icon ${weatherCondition.replace(/\s+/g, '-')} ${
-                isNight ? 'night' : 'day'
-              }`}
-            />
-            <p className={`weather-condition-text ${timeOfDay}`}>
-              {weatherData.weather[0].description}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }, [weatherData]); // Only re-render when weather data changes, not language
+  // Removed memoized weather modal markup to ensure live ticking time via WeatherDisplay component
 
   // Create stable modal content based on box ID instead of translated titles
   const getModalContent = useMemo(() => {
     return (boxId) => {
       switch (boxId) {
-        case 1: // Weather Condition
-          return weatherModalContent;
+        case 1: // Weather Condition (use live component so time ticks every second)
+          return (
+            <div className="weather-main-modal">
+              <WeatherDisplay />
+            </div>
+          );
         case 2: // Fish Pond Condition
           return (
             <div className="pond-modal-content" key={modalKey}>
@@ -550,7 +500,7 @@ const PiscaRiskHome = () => {
           return null;
       }
     };
-  }, [weatherModalContent, selectedPond, t, location.state, modalKey]);
+  }, [selectedPond, t, location.state, modalKey]);
 
   return (
     <div className="homepage-container">
@@ -700,16 +650,16 @@ const PiscaRiskHome = () => {
                       <div style={{ flex: 2 }}>Pond</div>
                       <div style={{ flex: 1 }}>Risk</div>
                       <div style={{ flex: 2 }}>Farm</div>
-                      <div style={{ flex: 1.5 }}>Date</div>
-                      <div style={{ flex: 1 }}>Time</div>
+                      <div style={{ flex: 2.2 }}>Based on data submitted</div>
+                      <div style={{ flex: 2.2 }}>Prediction generated</div>
                     </div>
                     {drilldownItems.map((it, idx) => (
                       <div key={idx} style={{ display: 'flex', padding: '6px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
                         <div style={{ flex: 2 }}>{it.pond}</div>
                         <div style={{ flex: 1 }}>{it.risk}</div>
                         <div style={{ flex: 2 }}>{it.farm}</div>
-                        <div style={{ flex: 1.5, fontSize: '0.9em', color: '#666' }}>{it.date}</div>
-                        <div style={{ flex: 1, fontSize: '0.9em', color: '#666' }}>{it.time}</div>
+                        <div style={{ flex: 2.2, fontSize: '0.9em', color: '#666' }}>{it.submittedDate || '—'}</div>
+                        <div style={{ flex: 2.2, fontSize: '0.9em', color: '#666' }}>{it.generatedDate || it.date || '—'}</div>
                       </div>
                     ))}
                   </div>

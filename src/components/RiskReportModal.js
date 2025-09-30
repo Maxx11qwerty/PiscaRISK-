@@ -154,6 +154,9 @@ const RiskReportModal = ({ isModal = false }) => {
             farmKeyToName[farmKey] = farmName;
           }
           
+          const generatedTs = data.timestamp || data.createdAt || data.created_at || data.prediction?.timestamp;
+          const submittedTs = data.input_data?.timestamp || data.input_data?.created_at || data.prediction?.input_data?.timestamp;
+
           predictions.push({
             id: doc.id,
             farm: farmName,
@@ -167,7 +170,9 @@ const RiskReportModal = ({ isModal = false }) => {
             ready_for_harvest: typeof data.ready_for_harvest === 'boolean' ? data.ready_for_harvest : (data.input_data?.ready_for_harvest ?? null),
             conditions_summary: data.conditions_summary || data.input_data?.conditions_summary || null,
             recommended_actions: Array.isArray(data.recommended_actions) ? data.recommended_actions : (Array.isArray(data.actions) ? data.actions : []),
-            timestamp: data.timestamp || data.createdAt || data.input_data?.timestamp,
+            timestamp: generatedTs || submittedTs,
+            submitted_timestamp: submittedTs,
+            generated_timestamp: generatedTs,
             source: 'risk_predictions'
           });
         });
@@ -222,6 +227,8 @@ const RiskReportModal = ({ isModal = false }) => {
                 conditions_summary: pred.conditions_summary || pred.input_data?.conditions_summary || null,
                 recommended_actions: [],
                 timestamp: pred.timestamp || pred.input_data?.timestamp,
+                submitted_timestamp: pred.input_data?.timestamp,
+                generated_timestamp: pred.timestamp,
                 source: 'modal_feedback_prediction'
               });
             });
@@ -387,8 +394,8 @@ const RiskReportModal = ({ isModal = false }) => {
                     return bMs - aMs; // Latest first
                   })[0]
               : null;
-            // Get latest predictions for consistent calculations
-            const latestPredsForCounts = getLatestRiskPerPond(farm);
+            // Get latest batch predictions (same generated date) for consistent calculations
+            const latestPredsForCounts = getLatestBatchPerPond(farm);
             
             // Ready for harvest from latest predictions only
             const ready_count = latestPredsForCounts.filter(p => p.ready_for_harvest === true).length;
@@ -513,6 +520,8 @@ const RiskReportModal = ({ isModal = false }) => {
           const refreshedPredictions = [];
           predsSnap.forEach(doc => {
             const data = doc.data();
+            const generatedTs = data.timestamp || data.createdAt || data.created_at || data.prediction?.timestamp;
+            const submittedTs = data.input_data?.timestamp || data.input_data?.created_at || data.prediction?.input_data?.timestamp;
             refreshedPredictions.push({
               id: doc.id,
               farm: farmName,
@@ -520,7 +529,9 @@ const RiskReportModal = ({ isModal = false }) => {
               fish_pond: data.fish_pond || data.input_data?.fish_pond || 'Unknown Pond',
               risk_level: data.risk_level || data.prediction?.risk_level || 'Normal',
               confidence: data.confidence || data.prediction?.confidence || 0,
-              timestamp: data.timestamp || data.prediction?.timestamp || data.created_at,
+              timestamp: generatedTs || submittedTs,
+              submitted_timestamp: submittedTs,
+              generated_timestamp: generatedTs,
               fish_condition: data.fish_condition || data.input_data?.fish_condition,
               water_condition: data.water_condition || data.input_data?.water_condition,
               weather: data.weather || data.input_data?.weather,
@@ -659,14 +670,26 @@ const RiskReportModal = ({ isModal = false }) => {
       return bMs - aMs; // Latest first
     });
 
-    // Filter out ponds with old reports (only show reports from September 21st, 2025 and later)
-    const cutoffDate = new Date('2025-09-21T00:00:00');
-    const recentPonds = latestPerPond.filter(pred => {
-      const predDate = new Date(getTimestampMs(pred.timestamp));
-      return predDate >= cutoffDate;
-    });
+    // Return latest per pond regardless of absolute date
+    return latestPerPond;
+  };
 
-    return recentPonds;
+  // Get latest batch (same generated date) and dedupe per pond
+  const getLatestBatchPerPond = (farm) => {
+    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
+    const withTs = farm.predictions.filter(p => getTimestampMs(p.timestamp) > 0);
+    if (withTs.length === 0) return [];
+    const latestMs = Math.max(...withTs.map(p => getTimestampMs(p.timestamp)));
+    const latestDateKey = new Date(latestMs).toDateString();
+    const sameDay = withTs.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+    const pondMap = new Map();
+    sameDay
+      .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+      .forEach(pred => {
+        const pond = pred.fish_pond || 'Unknown Pond';
+        if (!pondMap.has(pond)) pondMap.set(pond, pred);
+      });
+    return Array.from(pondMap.values());
   };
 
   // Get all unique dates from farm predictions
@@ -1026,8 +1049,8 @@ const RiskReportModal = ({ isModal = false }) => {
                   <>
                     <div className="farm-risk-summary">
                       {(() => {
-                        // Get latest risk per pond for this farm
-                        const latestPonds = getLatestRiskPerPond(farm);
+                        // Get latest batch (same generated date) and then latest per pond
+                        const latestPonds = getLatestBatchPerPond(farm);
                         
                         // Calculate counts from latest ponds only
                         const latestCounts = { high: 0, medium: 0, low: 0, normal: 0 };
@@ -1138,8 +1161,26 @@ const RiskReportModal = ({ isModal = false }) => {
         // Get predictions based on selected timestamp
         let displayPredictions = [];
         if (selectedTimestamp === 'latest' || !showHistoryFilter) {
-          // Always show only latest per pond when not viewing history
-          displayPredictions = getLatestRiskPerPond(farm);
+          // Show only the latest batch generated (same date) across the farm
+          const allWithValidTs = (farm.predictions || []).filter(p => getTimestampMs(p.timestamp) > 0);
+          if (allWithValidTs.length > 0) {
+            // Find the latest timestamp across all predictions
+            const latestMs = Math.max(...allWithValidTs.map(p => getTimestampMs(p.timestamp)));
+            const latestDateKey = new Date(latestMs).toDateString();
+            // Keep only predictions generated on that latest date
+            const latestBatch = allWithValidTs.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+            // From that batch, keep latest per pond to avoid duplicates
+            const pondMap = new Map();
+            latestBatch
+              .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+              .forEach(pred => {
+                const pond = pred.fish_pond || 'Unknown Pond';
+                if (!pondMap.has(pond)) pondMap.set(pond, pred);
+              });
+            displayPredictions = Array.from(pondMap.values());
+          } else {
+            displayPredictions = [];
+          }
         } else {
           const selectedMs = parseInt(selectedTimestamp);
           // Get all reports from the same date as the selected timestamp
@@ -1216,23 +1257,31 @@ const RiskReportModal = ({ isModal = false }) => {
                 
                 <div className="pond-details-table">
                   <table className="pond-table">
-                    <thead>
-                      <tr>
-                        <th>{t('riskReportModal.pond')}</th>
-                        <th>{t('riskReportModal.riskLevel')}</th>
-                        <th>{t('riskReportModal.confidence')}</th>
-                      </tr>
-                    </thead>
+                <thead>
+                  <tr>
+                    <th>{t('riskReportModal.pond')}</th>
+                    <th>{t('riskReportModal.riskLevel')}</th>
+                    <th>{t('riskReportModal.confidence')}</th>
+                    <th>Based on data submitted</th>
+                    <th>Prediction generated</th>
+                  </tr>
+                </thead>
                     <tbody>
                       {displayPredictions.length > 0 ? displayPredictions.map((p, index) => {
                         const risk = normalizeRisk(p.risk_level);
                         const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
+                    const submittedMs = getTimestampMs(p.submitted_timestamp);
+                    const generatedMs = getTimestampMs(p.generated_timestamp || p.timestamp);
+                    const submittedDate = submittedMs ? new Date(submittedMs).toLocaleDateString() : '—';
+                    const generatedDate = generatedMs ? new Date(generatedMs).toLocaleDateString() : '—';
                         
                         return (
                         <tr key={p.id || index} className="pond-table-row">
                           <td className="pond-name">{p.fish_pond || '—'}</td>
                           <td>{emoji} {risk === 'High' ? t('riskReportModal.highRisk') : risk === 'Medium' ? t('riskReportModal.mediumRisk') : risk === 'Low' ? t('riskReportModal.lowRisk') : t('riskReportModal.normalRisk')}</td>
-                          <td className="confidence-value">{typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : '—'}</td>
+                      <td className="confidence-value">{typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : '—'}</td>
+                      <td>{submittedDate}</td>
+                      <td>{generatedDate}</td>
                         </tr>
                         );
                       }) : (
@@ -1310,7 +1359,7 @@ const RiskReportModal = ({ isModal = false }) => {
         if (!farm || !farm.has_reports) return null;
         
         // Get latest recommended actions from latest predictions only
-        const latestPredictions = getLatestRiskPerPond(farm);
+        const latestPredictions = getLatestBatchPerPond(farm);
         const actions = Array.from(new Set(
           latestPredictions.flatMap(p => p.recommended_actions || [])
         ));

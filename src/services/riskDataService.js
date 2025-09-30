@@ -98,6 +98,8 @@ export const fetchRiskReportData = async () => {
     const farmKey = normalizeFarmName(farmName);
     allFarms.add(farmKey);
     if (farmName && farmName !== 'Unknown Farm') farmKeyToName[farmKey] = farmName;
+    const generatedTs = data.timestamp || data.createdAt || data.created_at || data.prediction?.timestamp;
+    const submittedTs = data.input_data?.timestamp || data.input_data?.created_at || data.prediction?.input_data?.timestamp;
     predictions.push({
       id: doc.id,
       farm: farmName,
@@ -105,7 +107,9 @@ export const fetchRiskReportData = async () => {
       fish_pond: data.fish_pond || data.input_data?.fish_pond,
       risk_level: normalizeRisk(data.risk_level),
       confidence: typeof data.confidence === 'number' ? data.confidence : (typeof data.input_data?.confidence === 'number' ? data.input_data.confidence : undefined),
-      timestamp: data.timestamp || data.createdAt || data.input_data?.timestamp,
+      timestamp: generatedTs || submittedTs,
+      submitted_timestamp: submittedTs,
+      generated_timestamp: generatedTs,
     });
   });
 
@@ -225,6 +229,8 @@ export const fetchRiskReportData = async () => {
       fish_pond: p.fish_pond,
       risk_level: p.risk_level,
       timestamp: p.timestamp,
+      submitted_timestamp: p.submitted_timestamp,
+      generated_timestamp: p.generated_timestamp,
       farm_key: p.farm_key,
       farm: f.farm_name,
     })),

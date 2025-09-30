@@ -1407,6 +1407,16 @@
       border-radius: 16px;
     }
   }
+
+  /* Wider sidebar for tablets 768px–899px (homepage specific) */
+  @media (min-width: 768px) and (max-width: 899px) {
+    .sidebar-wrapper {
+      width: 340px;
+    }
+    .sidebar-wrapper.sidebarOpen {
+      width: 340px;
+    }
+  }
   
   .sidebar-backdrop {
     display: block;
@@ -1644,6 +1654,16 @@
     width: 95%;
     padding: 1rem;
     max-height: 90vh;
+  }
+}
+
+/* Wider sidebar for large phones/small tablets 700px–767px (homepage specific) */
+@media (min-width: 700px) and (max-width: 767px) {
+  .sidebar-wrapper {
+    width: 340px;
+  }
+  .sidebar-wrapper.sidebarOpen {
+    width: 340px;
   }
 }
 
