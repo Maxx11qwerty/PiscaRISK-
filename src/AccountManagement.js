@@ -324,6 +324,13 @@ const AccountManagement = () => {
 
   const filteredUsers = AccountUsers.filter(user => {
     if (!user || !user.username) return false;
+    // Exclude the currently logged-in user from the list
+    if (currentUser) {
+      const sameId = user.id && currentUser.uid && user.id === currentUser.uid;
+      const sameEmail = user.email && currentUser.email && user.email.toLowerCase() === currentUser.email.toLowerCase();
+      const sameUsername = user.username && currentUser.username && user.username.toLowerCase() === String(currentUser.username).toLowerCase();
+      if (sameId || sameEmail || sameUsername) return false;
+    }
     
     // Farm filter - if current user is assigned to a farm, only show users from the same farm
     const isAssignedToFarm = currentUser?.farm;
