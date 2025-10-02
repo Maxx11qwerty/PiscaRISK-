@@ -25,10 +25,9 @@ window.addEventListener('unhandledrejection', (event) => {
       stack.includes('grecaptcha');
     const isTimeout = message === 'Timeout' || message.toLowerCase().includes('timeout');
     const withinOtpGrace = typeof window.__otpGraceUntil === 'number' && Date.now() <= window.__otpGraceUntil;
-    if ((isTimeout && withinOtpGrace) || (isRecaptcha && isTimeout)) {
-      // Ignore this specific benign error
-      // eslint-disable-next-line no-console
-      console.warn('[recaptcha] Ignoring late Timeout after OTP flow');
+    const isRecaptchaContext = isRecaptcha || typeof window.grecaptcha !== 'undefined' || document.getElementById('recaptcha-container');
+    if ((isTimeout && (withinOtpGrace || isRecaptchaContext)) || (isRecaptcha && isTimeout)) {
+      // Silently ignore this specific benign error
       event.preventDefault();
     }
   } catch (_) {

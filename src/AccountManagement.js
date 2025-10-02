@@ -82,6 +82,13 @@ const AccountManagement = () => {
     }
     return map;
   }, [farms]);
+  // Track if a Tech Officer already exists (global singleton)
+  const hasTechOfficer = useMemo(() => {
+    return AccountUsers.some(u => {
+      const r = String(u?.role || '').toLowerCase();
+      return r === 'tech_officer' || r === 'tech officer';
+    });
+  }, [AccountUsers]);
 
   // Auto-close the Add User form shortly after a successful creation
   useEffect(() => {
@@ -168,6 +175,7 @@ const AccountManagement = () => {
   const roleNormalized = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
   const isAdminUser = roleNormalized === 'admin';
   const isTechOfficerUser = roleNormalized === 'tech_officer';
+  const isSuperAdminUser = !currentUser?.farm; // Super Admin: no farm assigned
 
   useEffect(() => {
     const handleResize = () => {
@@ -545,7 +553,8 @@ const AccountManagement = () => {
         return;
       }
       
-      const allowedRoles = currentUser?.farm ? ['Admin', 'Tech Officer', 'Fish Farmer'] : ['Admin'];
+      // Role permissions: Farm-assigned Admins can only create Fish Farmers; Super Admins (no farm) can create Admins and Tech Officers
+      const allowedRoles = currentUser?.farm ? ['Fish Farmer'] : (hasTechOfficer ? ['Admin'] : ['Admin', 'Tech Officer']);
       if (!allowedRoles.includes(newUser.role)) {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
@@ -554,9 +563,11 @@ const AccountManagement = () => {
       setMessage({ text: 'Creating user...', type: 'info' });
 
       // Determine farm assignment
-      const farmForNewUser = currentUser?.farm ? currentUser.farm : selectedFarmId;
-      // Super Admins (no assigned farm) can create only Admin users, which do not require farm
-      if (!currentUser?.farm && newUser.role !== 'Admin' && !farmForNewUser) {
+      // For Tech Officer created by Super Admin, enforce no farm assignment
+      const isCreatingTechOfficer = newUser.role === 'Tech Officer';
+      const farmForNewUser = isCreatingTechOfficer ? null : (currentUser?.farm ? currentUser.farm : selectedFarmId);
+      // Super Admins: Admin requires no farm; Tech Officer requires no farm; Fish Farmer requires farm
+      if (!currentUser?.farm && newUser.role === 'Fish Farmer' && !farmForNewUser) {
         setMessage({ text: 'Please select a farm for the user', type: 'error' });
         return;
       }
@@ -649,8 +660,9 @@ const AccountManagement = () => {
       address: '',
       email: '',
       contactNumber: '',
-      role: currentUser?.farm ? 'User' : 'Admin',
-      status: 'Active', // Default status
+      // Default role depends on creator (hide Tech Officer if already exists)
+      role: currentUser?.farm ? 'Fish Farmer' : (hasTechOfficer ? 'Admin' : 'Tech Officer'),
+      status: 'Active', // Default status, enforced later per role
       dateJoined: todayDate,
       password: ''
     });
@@ -832,6 +844,39 @@ const handleActivateFishFarmer = async (user) => {
     logActivity('error', `Failed to activate ${user.username}: ${error.message}`, adminUser);
   }
 };
+
+  // Activate Admin accounts
+  const handleActivateAdmin = async (user) => {
+    const roleDisplay = formatRoleForDisplay(user.role);
+    if (roleDisplay !== 'Admin') {
+      setMessage({ text: 'Only Admin accounts can be activated here', type: 'error' });
+      return;
+    }
+
+    // Only Super Admin (no farm) may activate self-registered Admins
+    const isSelfRegistered = String(user.createdBy || '').toLowerCase() === 'self';
+    if (isSelfRegistered && !isSuperAdminUser) {
+      setMessage({ text: 'Only Super Admin can activate Admins registered via signup', type: 'error' });
+      return;
+    }
+
+    try {
+      setMessage({ text: `Activating Admin ${user.username || user.email}...`, type: 'info' });
+      // Use AuthContext function
+      const result = await activateAdminAccount(user.email);
+      if (!result?.success) {
+        throw new Error(result?.message || 'Failed to activate Admin');
+      }
+      setMessage({ text: `Admin ${user.username || user.email} activated successfully!`, type: 'success' });
+      try {
+        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Admin ${user.username || user.email} activated in Account Management`, u);
+      } catch (_) {}
+      await fetchUsers();
+    } catch (error) {
+      setMessage({ text: `Error activating Admin: ${error.message}`, type: 'error' });
+    }
+  };
 
   // Fetch live status from Firestore for reconciliation
   const fetchLiveUserStatus = async (userId) => {
@@ -1647,18 +1692,23 @@ const handleActivateFishFarmer = async (user) => {
                     required
                   >
                       <option value="">{t('accountManagement.add_user_form.select_position_option')}</option>
-                      <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
-                      {currentUser?.farm && (
+                      {currentUser?.farm ? (
+                        // Farm-assigned Admins: only Fish Farmer
+                        <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
+                      ) : (
+                        // Super Admins (no farm): Admin, and Tech Officer if not yet created
                         <>
-                          <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
-                          <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
+                          <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
+                          {!hasTechOfficer && (
+                            <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
+                          )}
                         </>
                       )}
                   </select>
                 </div>
                   <div className="form-group">
                     <label>{t('accountManagement.add_user_form.status_label')}</label>
-                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin') ? (
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
                           <span className="status-indicator">
@@ -1702,19 +1752,23 @@ const handleActivateFishFarmer = async (user) => {
                 {!currentUser?.farm ? (
                   <div className="form-group" style={{ width: '100%' }}>
                     <label>Farm</label>
-                    <select
-                      name="farm"
-                      value={selectedFarmId}
-                      onChange={(e) => setSelectedFarmId(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.stopPropagation()}
-                      required
-                    >
-                      <option value="">Select farm</option>
-                      {farms.map(f => (
-                        <option key={f.id} value={f.id}>{f.name || f.id}</option>
-                      ))}
-                    </select>
+                    {newUser.role === 'Tech Officer' ? (
+                      <input type="text" value="No farm (global access)" readOnly />
+                    ) : (
+                      <select
+                        name="farm"
+                        value={selectedFarmId}
+                        onChange={(e) => setSelectedFarmId(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="">Select farm</option>
+                        {farms.map(f => (
+                          <option key={f.id} value={f.id}>{f.name || f.id}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 ) : (
                   <div className="form-group" style={{ width: '100%' }}>
@@ -1919,6 +1973,35 @@ const handleActivateFishFarmer = async (user) => {
                               {t('accountManagement.user_list.activate_button')}
                             </button>
                           ) : null}
+                          {formatRoleForDisplay(user.role) === 'Admin' && isInactive(user.status) && (
+                            (() => {
+                              const isSelfRegistered = String(user.createdBy || '').toLowerCase() === 'self';
+                              const canActivate = isSuperAdminUser || !isSelfRegistered;
+                              // Show button to all Admins (per requirement), but disable if not allowed
+                              return (
+                                <TooltipWrapper
+                                  showTooltip={!canActivate}
+                                  tooltipText={isSelfRegistered ? 'Only Super Admin can activate this account' : 'User must login first to auto-activate'}
+                                >
+                                  {canActivate ? (
+                                    <button className="activate-tech-officer-btn" onClick={(e) => {
+                                      e.stopPropagation();
+                                      closeAllDropdowns();
+                                      handleActivateAdmin(user);
+                                    }}>
+                                      <FaUserCheck className="action-icon" />
+                                      {t('accountManagement.user_list.activate_button')}
+                                    </button>
+                                  ) : (
+                                    <button className="activate-tech-officer-btn" disabled onClick={(e) => e.stopPropagation()}>
+                                      <FaUserCheck className="action-icon" />
+                                      {isSelfRegistered ? t('accountManagement.user_list.activate_button') : 'Login to activate'}
+                                    </button>
+                                  )}
+                                </TooltipWrapper>
+                              );
+                            })()
+                          )}
                           {String(user.status || '').toLowerCase() === 'active' && (
                             <TooltipWrapper
                               showTooltip={isTechOfficerUser}
@@ -1955,7 +2038,14 @@ const handleActivateFishFarmer = async (user) => {
                           )}
                           {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
                             <div className="password-reset-pending">
-                              <span className="pending-indicator">{t('accountManagement.user_list.activated_by_admin_notice')}</span>
+                              <span className="pending-indicator">
+                                {(
+                                  (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
+                                  && (user.phoneVerified === false || String(user.phoneVerified).toLowerCase() === 'false')
+                                )
+                                  ? t('accountManagement.user_list.activated_by_admin_otp_notice')
+                                  : t('accountManagement.user_list.activated_by_admin_notice')}
+                              </span>
                             </div>
                           )}
                         </div>

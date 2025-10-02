@@ -581,6 +581,7 @@
       "activate_button": "Activate",
       "reset_password_button": "Reset Password",
       "activated_by_admin_notice": "ℹ️ Activated by Admin. User must verify email to become Active.",
+      "activated_by_admin_otp_notice": "ℹ️ Activated by Admin. User must verify OTP to become Active again.",
   
       "unknown_date": "Unknown",
       "delete_button": "Delete",

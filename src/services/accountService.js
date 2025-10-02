@@ -121,6 +121,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
     const roleNormalized = String(role || '').toLowerCase();
     let collectionName = collectionHint || ((roleNormalized === 'fish farmer' || roleNormalized === 'fish_farmer') ? 'mobileUsers' : 'users');
     console.log('[updateUserStatus] Using collection:', collectionName);
+    const statusLower = String(status || '').toLowerCase();
     
     // Helper function to find user by email
     const findUserByEmail = async (email) => {
@@ -156,12 +157,17 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       console.log(`[tryUpdate] Document exists in ${coll}:`, snap.exists());
       if (!snap.exists()) return false;
       try {
-        await updateDoc(ref, {
+        const updateFields = {
           status: status || 'Active',
           adminActivated: true,
           pendingActivation: false,
           lastModified: serverTimestamp()
-        });
+        };
+        // If deactivating, also reset phoneVerified to false
+        if (statusLower === 'inactive') {
+          updateFields.phoneVerified = false;
+        }
+        await updateDoc(ref, updateFields);
         console.log(`[tryUpdate] Successfully updated ${coll} collection`);
         return true;
       } catch (updateError) {
@@ -195,12 +201,16 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
         // Update the correct document
         const ref = doc(db, userByEmail.collection, userByEmail.id);
         try {
-          await updateDoc(ref, {
+          const updateFields = {
             status: status || 'Active',
             adminActivated: true,
             pendingActivation: false,
             lastModified: serverTimestamp()
-          });
+          };
+          if (statusLower === 'inactive') {
+            updateFields.phoneVerified = false;
+          }
+          await updateDoc(ref, updateFields);
         } catch (updateError) {
           console.error('[updateUserStatus] Failed to update via email lookup:', updateError);
           throw updateError;

@@ -172,22 +172,46 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Temporarily sign in to resend verification email
-      const userCredential = await signInWithEmailAndPassword(auth, emailVerificationModal.email, emailVerificationModal.tempPassword);
-      
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        emailVerificationModal.email,
+        emailVerificationModal.tempPassword
+      );
+
+      // Refresh user data and short-circuit if already verified
+      try {
+        await userCredential.user.reload();
+      } catch (_) {}
+      if (userCredential.user.emailVerified) {
+        await signOut(auth);
+        return { success: false, message: 'Email is already verified' };
+      }
+
       try {
         await sendEmailVerification(userCredential.user, {
           url: window.location.origin + '/login',
           handleCodeInApp: true
         });
         
-        // Sign out immediately after sending
         await signOut(auth);
-        
         return { success: true, message: 'Verification email sent!' };
-      } catch (verificationError) {
-        // Sign out even if verification fails
+      } catch (error) {
         await signOut(auth);
-        throw verificationError;
+        // Map common Firebase errors to friendly messages
+        const code = error?.code || '';
+        if (code === 'auth/too-many-requests') {
+          return { success: false, message: 'Too many attempts. Please try again later.' };
+        }
+        if (code === 'auth/user-not-found') {
+          return { success: false, message: 'User not found.' };
+        }
+        if (code === 'auth/wrong-password') {
+          return { success: false, message: 'Invalid credentials.' };
+        }
+        if (code === 'auth/invalid-email') {
+          return { success: false, message: 'Invalid email address.' };
+        }
+        return { success: false, message: error?.message || 'Failed to send verification email' };
       }
     } catch (e) {
       return { success: false, message: e.message };
@@ -458,14 +482,14 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
-  // Signup function
+  // Signup function (Farm Admin self-signup)
   const signup = async (email, username, contactNumber, farmId, password) => {
     try {
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Create user document in Firestore with Tech Officer role and Inactive status
+      // Create user document in Firestore with Admin role and Inactive status
       const userData = {
         email,
         username,
@@ -473,7 +497,7 @@ export const AuthProvider = ({ children }) => {
         farm: farmId, // Store as 'farm' to match the field name used in filtering
         dateJoined: new Date().toISOString().split('T')[0],
         profileImage: null,
-        role: 'tech_officer',
+        role: 'admin',
         status: 'inactive',
         emailVerified: false,
         createdBy: 'self',
@@ -494,7 +518,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       // Log the registration
-      logActivity('account', `New Tech Officer registration: ${username}`, username);
+      logActivity('account', `New Admin registration: ${username}`, username);
 
       return user;
     } catch (error) {
@@ -548,9 +572,11 @@ const login = async (emailOrContact, password) => {
         };
       }
       
-      // Check adminActivated status first (this is the key fix)
+      // Require activation: Admins must be set Active by Super Admin; others need adminActivated flag
       const roleLower = String(userData.role || '').toLowerCase();
-      const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+      const isAdminActivated = roleLower === 'admin'
+        ? String(userData.status || '').toLowerCase() === 'active'
+        : !!userData.adminActivated;
       
       if (!isAdminActivated) {
         return { 
@@ -598,9 +624,11 @@ const login = async (emailOrContact, password) => {
         };
       }
       
-      // Check adminActivated status first (this is the key fix)
+      // Require activation: Admins must be set Active by Super Admin; others need adminActivated flag
       const roleLower = String(userData.role || '').toLowerCase();
-      const isAdminActivated = roleLower === 'admin' ? true : !!userData.adminActivated;
+      const isAdminActivated = roleLower === 'admin'
+        ? String(userData.status || '').toLowerCase() === 'active'
+        : !!userData.adminActivated;
       
       if (!isAdminActivated) {
         return { 

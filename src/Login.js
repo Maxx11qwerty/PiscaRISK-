@@ -404,9 +404,10 @@ export default function Login() {
       {emailVerificationModal && emailVerificationModal.open && (
         <EmailVerificationModal
           email={emailVerificationModal.email}
-          onResend={() => {
-            // Trigger resend in context
-            resendVerificationEmail();
+          onResend={async () => {
+            // Trigger resend in context and return the result so the modal can show feedback
+            const result = await resendVerificationEmail();
+            return result;
           }}
           onReturn={() => {
             closeEmailVerificationModal();

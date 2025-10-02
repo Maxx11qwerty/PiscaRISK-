@@ -31,27 +31,29 @@ export default function EmailVerificationModal({ email, onResend, onReturn }) {
   return (
     <div className="email-verification-modal-overlay">
       <div className="email-verification-modal-content">
-        <div className="modal-header">
+        <div className="email-modal-header">
           <h2>Verify your email address</h2>
+          <button className="email-modal-close" onClick={onReturn}>&times;</button>
         </div>
-        
-        <div className="modal-body">
+
+        <div className="email-modal-body">
+          <div className="email-rounded-line"></div>
           <div className="verification-text">
             <p>We have sent a verification link to <strong>{email}</strong>.</p>
             <p>Click the link to complete the verification process.</p>
             <p>You might need to check your spam folder.</p>
           </div>
-          
+
           {resendMessage && (
             <div className={`resend-message ${resendMessage.includes('successfully') ? 'success' : 'error'}`}>
               {resendMessage}
             </div>
           )}
         </div>
-        
-        <div className="modal-actions">
-          <button 
-            className="resend-button" 
+
+        <div className="email-modal-actions">
+          <button
+            className="resend-button"
             onClick={handleResend}
             disabled={isResending}
           >

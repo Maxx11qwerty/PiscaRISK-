@@ -13,9 +13,12 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
   const [isSendingOTP, setIsSendingOTP] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [recaptchaReady, setRecaptchaReady] = useState(false);
+  // Countdown timer for resend visibility (90 seconds total)
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const recaptchaVerifierRef = useRef(null);
   const recaptchaWidgetIdRef = useRef(null);
   const isInitializingRef = useRef(false);
+  const countdownIntervalRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -76,10 +79,53 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     isInitializingRef.current = false;
   };
 
+  const resetCountdown = () => {
+    // 90 seconds total
+    setSecondsLeft(90);
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    countdownIntervalRef.current = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const waitForContainer = async (maxMs = 1000) => {
+    let waited = 0;
+    while (!document.getElementById('recaptcha-container') && waited < maxMs) {
+      await new Promise(r => setTimeout(r, 50));
+      waited += 50;
+    }
+    return !!document.getElementById('recaptcha-container');
+  };
+
+  const waitForRecaptchaReady = async (maxMs = 2000) => {
+    let waited = 0;
+    while (!recaptchaReady && waited < maxMs) {
+      await new Promise(r => setTimeout(r, 50));
+      waited += 50;
+    }
+    return recaptchaReady;
+  };
+
   const initializeRecaptcha = async () => {
     try {
       if (recaptchaVerifierRef.current || isInitializingRef.current) return;
       isInitializingRef.current = true;
+
+      // Ensure container exists in DOM
+      const hasContainer = await waitForContainer(1200);
+      if (!hasContainer) {
+        throw new Error('reCAPTCHA container not found');
+      }
 
       // Create reCAPTCHA verifier
       const recaptchaVerifier = new RecaptchaVerifier(
@@ -154,6 +200,7 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
 
       setConfirmationResult(result);
       console.log("✅ OTP sent successfully");
+      resetCountdown();
       
     } catch (err) {
       console.error("Error sending OTP:", err);
@@ -238,21 +285,19 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
   };
 
   const handleResend = async () => {
-    setError("");
-    setOtp(["", "", "", "", "", ""]);
-    setConfirmationResult(null);
-    // Prefer resetting existing widget to avoid reloading scripts
-    if (window.grecaptcha && recaptchaWidgetIdRef.current !== null) {
-      try {
-        window.grecaptcha.reset(recaptchaWidgetIdRef.current);
-        setRecaptchaReady(false);
-      } catch (_) {
-        cleanupRecaptcha();
-        safeSetTimeout(() => initializeRecaptcha(), 300);
-      }
-    } else {
+    try {
+      setError("");
+      setOtp(["", "", "", "", "", ""]);
+      setConfirmationResult(null);
+      // Always fully cleanup and recreate the verifier to avoid stale widget references
       cleanupRecaptcha();
-      safeSetTimeout(() => initializeRecaptcha(), 300);
+      // Allow React to re-render DOM to include the container
+      await new Promise(r => setTimeout(r, 50));
+      await initializeRecaptcha();
+      await waitForRecaptchaReady();
+      await sendOTP();
+    } catch (e) {
+      setError(e?.message || "Failed to resend OTP. Please try again.");
     }
   };
 
@@ -329,16 +374,26 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
             </>
           )}
 
-          <div className="otp-resend">
-            <span>Didn't receive the code? </span>
-            <button
-              className="otp-resend-btn"
-              onClick={handleResend}
-              disabled={isLoading || isSendingOTP}
-            >
-              Resend
-            </button>
-          </div>
+          {confirmationResult && (
+            <div className="otp-resend">
+              {secondsLeft > 30 ? (
+                <span>
+                  Resend available in {String(Math.floor((secondsLeft - 30) / 60)).padStart(1, '0')}:{String((secondsLeft - 30) % 60).padStart(2, '0')}
+                </span>
+              ) : (
+                <>
+                  <span>Didn't receive the code? </span>
+                  <button
+                    className="otp-resend-btn"
+                    onClick={handleResend}
+                    disabled={isLoading || isSendingOTP}
+                  >
+                    Resend
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

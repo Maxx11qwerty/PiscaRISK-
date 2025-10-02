@@ -39,6 +39,9 @@ const Sidebar = ({
     return role;
   };
 
+  // Check if current user is Super Admin (role Admin and no farm assigned)
+  const isSuperAdmin = (!currentUser?.farm) && (String(currentUser?.role || '').toLowerCase() === 'admin');
+
   // Update language when it changes
   useEffect(() => {
     i18n.changeLanguage(language);
@@ -106,10 +109,13 @@ const Sidebar = ({
               <FaClipboardList className="sidebar-nav-icon" />
               <span>{t('sidebar.logs')}</span>
             </div>
-            <div className="sidebar-nav-item" onClick={onFeedbackClick}>
-              <FaComment className="sidebar-nav-icon" />
-              <span>{t('sidebar.feedback')}</span>
-            </div>
+            {/* Feedback button - only visible to Super Admin */}
+            {isSuperAdmin && (
+              <div className="sidebar-nav-item" onClick={onFeedbackClick}>
+                <FaComment className="sidebar-nav-icon" />
+                <span>{t('sidebar.feedback')}</span>
+              </div>
+            )}
 
             <div className="sidebar-export-container">
               <div
