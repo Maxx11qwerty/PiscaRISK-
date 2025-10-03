@@ -164,10 +164,10 @@ export default function SignupPage() {
       setError('');
       setSuccess('Registration successful! Your account is pending admin approval. You will be notified once your account is activated.');
       
-      // Navigate to login page after a delay
+      // Navigate to login page after a short delay
       setTimeout(() => {
         navigate("/");
-      }, 3000);
+      }, 1500);
     } catch (err) {
       setError(err.message);
       logActivity('error', logMessages.error.validation(err.message), formData.username);
@@ -303,6 +303,9 @@ export default function SignupPage() {
             </p>
             <div className="sign-rounded-line"></div>
             <div className={`sign-error-message ${error ? 'visible' : ''}`}> {error} </div>
+            {success && (
+              <div className="sign-success-message visible"> {success} </div>
+            )}
             <div className="input-with-icon">
               <FaEnvelope className="input-icon" />
             <input

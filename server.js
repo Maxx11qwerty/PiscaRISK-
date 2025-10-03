@@ -22,7 +22,7 @@ app.use(cors({
   credentials: true
 }));
 
-// Helmet CSP for reCAPTCHA + Firebase
+// Helmet CSP for reCAPTCHA + Firebase with all security headers
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -31,62 +31,80 @@ app.use(
         "script-src": [
           "'self'",
           "'unsafe-inline'",
+          "'unsafe-eval'",
           "https://www.gstatic.com",
+          "https://apis.google.com",
           "https://www.google.com",
           "https://www.recaptcha.net",
           "https://www.googletagmanager.com"
         ],
-        "frame-src": [
+        "style-src": [
           "'self'",
-          "https://www.google.com",
-          "https://www.gstatic.com",
-          "https://recaptcha.google.com",
-          "https://www.recaptcha.net"
+          "'unsafe-inline'",
+          "https://fonts.googleapis.com",
+          "https://www.gstatic.com"
         ],
-        "connect-src": [
+        "font-src": [
           "'self'",
-          "https://www.googleapis.com",
-          "https://firebase.googleapis.com",
-          "https://identitytoolkit.googleapis.com",
-          "https://securetoken.googleapis.com",
-          "https://firestore.googleapis.com",
-          "https://firebaseinstallations.googleapis.com",
-          "https://*.firebaseio.com",
-          "wss://*.firebaseio.com",
-          "https://*.firebaseapp.com",
-          "https://www.google.com",
-          "https://www.gstatic.com",
-          "https://recaptcha.google.com",
-          "https://www.recaptcha.net",
-          "https://www.google-analytics.com",
-          "https://api.openweathermap.org"
+          "https://fonts.gstatic.com",
+          "https://www.gstatic.com"
         ],
         "img-src": [
           "'self'",
           "data:",
+          "https:",
+          "blob:",
           "https://www.gstatic.com",
           "https://www.google.com",
-          "https://lh3.googleusercontent.com", // ← ADD THIS
-          "https://*.googleusercontent.com",  // ← ADD THIS
-          "blob:"
+          "https://lh3.googleusercontent.com",
+          "https://*.googleusercontent.com"
         ],
-        "style-src": [
+        "connect-src": [
           "'self'",
-          "'unsafe-inline'",
-          "https://www.gstatic.com",
-          "https://fonts.googleapis.com"
+          "https://*.firebaseio.com",
+          "https://*.googleapis.com",
+          "https://*.gstatic.com",
+          "wss://*.firebaseio.com",
+          "https://api.openweathermap.org",
+          "https://us-central1-piscarisk.cloudfunctions.net",
+          "https://www.google-analytics.com",
+          "https://www.google.com"
         ],
-        "font-src": [
+        "frame-src": [
           "'self'",
-          "data:",
-          "https://fonts.gstatic.com",
-          "https://www.gstatic.com"
+          "https://*.google.com",
+          "https://*.firebaseapp.com",
+          "https://*.firebase.com",
+          "https://piscarisk.firebaseapp.com",
+          "https://piscarisk.onrender.com"
         ],
+        "frame-ancestors": [
+          "'self'",
+          "https://*.google.com",
+          "https://piscarisk.onrender.com"
+        ],
+        "object-src": ["'none'"],
+        "base-uri": ["'self'"],
+        "form-action": ["'self'"],
         "worker-src": ["'self'", "blob:"]
       }
     },
-    crossOriginEmbedderPolicy: false,
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
+    crossOriginEmbedderPolicy: { policy: "unsafe-none" },
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    },
+    noSniff: true,
+    frameguard: { action: 'sameorigin' },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    permissionsPolicy: {
+      camera: ["self"],
+      microphone: [],
+      geolocation: [],
+      "interest-cohort": []
+    }
   })
 );
 
