@@ -86,7 +86,9 @@ app.use(
         "object-src": ["'none'"],
         "base-uri": ["'self'"],
         "form-action": ["'self'"],
-        "worker-src": ["'self'", "blob:"]
+        "worker-src": ["'self'", "blob:"],
+        "upgrade-insecure-requests": [],
+        "block-all-mixed-content": []
       }
     },
     crossOriginEmbedderPolicy: { policy: "unsafe-none" },
@@ -100,13 +102,39 @@ app.use(
     frameguard: { action: 'sameorigin' },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     permissionsPolicy: {
+      accelerometer: [],
+      "ambient-light-sensor": [],
+      autoplay: [],
       camera: ["self"],
-      microphone: [],
+      "cross-origin-isolated": [],
+      "display-capture": [],
+      "document-domain": [],
+      "encrypted-media": [],
+      fullscreen: ["self"],
       geolocation: [],
+      gyroscope: [],
+      magnetometer: [],
+      microphone: [],
+      midi: [],
+      payment: [],
+      "picture-in-picture": [],
+      "publickey-credentials-get": [],
+      "screen-wake-lock": [],
+      "sync-xhr": [],
+      usb: [],
+      "web-share": [],
+      "xr-spatial-tracking": [],
       "interest-cohort": []
     }
   })
 );
+
+// Explicit Permissions-Policy header for platforms that don't emit it via Helmet
+const PERMISSIONS_POLICY_HEADER_VALUE = "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(self), cross-origin-isolated=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=(), interest-cohort=()";
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', PERMISSIONS_POLICY_HEADER_VALUE);
+  next();
+});
 
 // Debug middleware - log all requests
 app.use((req, res, next) => {
