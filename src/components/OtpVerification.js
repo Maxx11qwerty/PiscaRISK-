@@ -134,7 +134,6 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
         {
           'size': 'invisible',
           'callback': () => {
-            console.log("reCAPTCHA solved");
             setRecaptchaReady(true);
           },
           'expired-callback': () => {
@@ -152,14 +151,25 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       window.recaptchaVerifier = recaptchaVerifier;
       
       // Render reCAPTCHA
-      const widgetId = await recaptchaVerifier.render();
+      // Add a defensive timeout in case the Google iframe hangs
+      const renderPromise = recaptchaVerifier.render();
+      const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('recaptcha-render-timeout')), 4000));
+      const widgetId = await Promise.race([renderPromise, timeoutPromise]);
       recaptchaWidgetIdRef.current = widgetId;
-      console.log("reCAPTCHA initialized successfully");
       isInitializingRef.current = false;
       setRecaptchaReady(true);
       
     } catch (error) {
-      console.error("Failed to initialize reCAPTCHA:", error);
+      // Retry once on render timeout by cleaning up and re-initializing
+      if (String(error?.message || '').includes('recaptcha-render-timeout')) {
+        cleanupRecaptcha();
+        try {
+          await new Promise(r => setTimeout(r, 150));
+          await initializeRecaptcha();
+          return;
+        } catch (_) {}
+      }
+      
       setError("Security verification failed to load. Please refresh.");
       isInitializingRef.current = false;
     }
@@ -199,7 +209,6 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       );
 
       setConfirmationResult(result);
-      console.log("✅ OTP sent successfully");
       resetCountdown();
       
     } catch (err) {

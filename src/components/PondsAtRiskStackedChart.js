@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useAuth } from '../contexts/AuthContext';
 import { fetchRiskReportData } from '../services/riskDataService';
 import { useTranslation } from 'react-i18next';
+import { useFarms } from '../contexts/FarmsContext';
 
 const RISK_COLORS = {
   High: '#FF4444',
@@ -27,6 +28,7 @@ const normalizeFarmName = (name) => {
 const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
+  const { farmsById, farmsNameByKey } = useFarms();
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [groupMode, setGroupMode] = useState('farm'); // 'farm' | 'risk'
@@ -38,6 +40,29 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   const [timeFilter, setTimeFilter] = useState('today'); // today | week | month | custom
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  // Legacy name → new name mapping (final UI guard)
+  const legacyNameMap = useMemo(() => ({
+    'salmon-hatchery-facility': 'Aquino Fish Farm',
+    'tilapia-production-center': "Vergara's Aqua Farm",
+    'freshwater-finfish-farm': 'Rojo Hatchery',
+    'blue-ocean-aquafarm': 'Maningas Fish Farm',
+    'marine-species-cultivation': 'Labay Fish Farm',
+  }), []);
+
+  const canonFromItem = (item) => {
+    const origName = item?.name || '';
+    const key = item?.key || normalizeFarmName(origName);
+    const legacyNew = legacyNameMap[key];
+    const liveFromKey = farmsNameByKey[key];
+    let name = liveFromKey || legacyNew || origName;
+    // Final guard: normalize any variant of "freshwater finfish" to Rojo Hatchery
+    if (String(name).toLowerCase().replace(/\s+/g,' ').includes('freshwater finfish')) {
+      name = 'Rojo Hatchery';
+    }
+    const newKey = normalizeFarmName(name);
+    return { key: newKey, name };
+  };
+
 
   useEffect(() => {
     const run = async () => {
@@ -53,23 +78,51 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   }, []);
 
   const isAssignedToFarm = Boolean(currentUser?.farm);
-  const assignedFarmKey = isAssignedToFarm ? normalizeFarmName(currentUser.farm) : null;
+  const assignedFarmName = isAssignedToFarm ? (farmsById[currentUser.farm]?.name || null) : null;
+  const assignedFarmKey = isAssignedToFarm
+    ? (assignedFarmName ? normalizeFarmName(assignedFarmName) : normalizeFarmName(currentUser.farm))
+    : null;
 
   const farmOptions = useMemo(() => {
     const opts = [{ key: 'all', name: t('pondsAtRiskChart.allFarms') }];
-    farms.forEach(f => opts.push({ key: f.key, name: f.name }));
+    farms.forEach(f0 => {
+      const f = canonFromItem(f0);
+      opts.push({ key: f.key, name: f.name });
+    });
     return opts;
-  }, [farms, t]);
+  }, [farms, t, farmsNameByKey, legacyNameMap]);
 
   const filteredFarms = useMemo(() => {
+    // Canonicalize all farms first
+    const canon = farms.map(f0 => ({ ...f0, ...canonFromItem(f0) }));
     if (isAssignedToFarm) {
-      return farms.filter(f => f.key === assignedFarmKey);
+      return canon.filter(f => f.key === assignedFarmKey);
     }
     if (selectedFarm && selectedFarm !== 'all') {
-      return farms.filter(f => f.key === selectedFarm);
+      return canon.filter(f => f.key === selectedFarm);
     }
-    return farms;
-  }, [farms, isAssignedToFarm, assignedFarmKey, selectedFarm]);
+    return canon;
+  }, [farms, isAssignedToFarm, assignedFarmKey, selectedFarm, farmsNameByKey, legacyNameMap]);
+
+  // Merge farms that now share the same canonical name (e.g., legacy + new)
+  const mergedFarms = useMemo(() => {
+    const map = new Map();
+    filteredFarms.forEach(f => {
+      const name = f.name || 'Unknown Farm';
+      if (!map.has(name)) {
+        map.set(name, { ...f });
+      } else {
+        const cur = map.get(name);
+        // Merge predictions arrays if present
+        const preds = [
+          ...(Array.isArray(cur.predictions) ? cur.predictions : []),
+          ...(Array.isArray(f.predictions) ? f.predictions : [])
+        ];
+        map.set(name, { ...cur, predictions: preds });
+      }
+    });
+    return Array.from(map.values());
+  }, [filteredFarms]);
 
   // Date range for aggregation
   const { rangeStart, rangeEnd } = useMemo(() => {
@@ -141,7 +194,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
 
   const byFarmData = useMemo(() => {
     
-    const farmsSorted = [...filteredFarms].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const farmsSorted = [...mergedFarms]
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const result = farmsSorted.map(f => {
       let high = 0, medium = 0, low = 0;
       let totalPredictions = 0;
@@ -162,7 +216,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       }
       
       return {
-        name: f.name, // Always show the actual farm name
+        name: f.name,
         High: high,
         Medium: medium,
         Low: low,
@@ -176,7 +230,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
 
   const byRiskData = useMemo(() => {
     // X-axis = High/Medium/Low, stacked by farm
-    const farmsSorted = [...filteredFarms].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const farmsSorted = [...mergedFarms]
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const riskBuckets = { High: {}, Medium: {}, Low: {} };
     farmsSorted.forEach(f => {
       let high = 0, medium = 0, low = 0;
@@ -359,7 +414,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     <div className="bar-chart-container" id="stacked-risk-chart">
       <h3 className="chart-title">
         {isAssignedToFarm 
-          ? `${filteredFarms[0]?.name || currentUser.farm} Pond Risk`
+          ? `${assignedFarmName || filteredFarms[0]?.name || currentUser.farm} Pond Risk`
           : t('pondsAtRiskChart.title')
         }
       </h3>
@@ -371,8 +426,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
               onChange={(e) => setSelectedFarm(e.target.value)}
               className="time-filter"
             >
-              {farmOptions.map(opt => (
-                <option key={opt.key} value={opt.key}>{opt.name}</option>
+              {farmOptions.map((opt, idx) => (
+                <option key={`${opt.key}-${idx}`} value={opt.key}>{opt.name}</option>
               ))}
             </select>
             <select
@@ -507,9 +562,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
             <YAxis type="category" dataKey="risk" width={110} />
             <Tooltip content={<CustomTooltip />} />
             <Legend content={renderLegend} />
-            {filteredFarms.map(f => (
+            {mergedFarms.map((f, idx) => {
+              return (
               <Bar
-                key={f.key}
+                key={`${f.key}-${idx}`}
                 dataKey={f.name}
                 name={f.name}
                 stackId="a"
@@ -518,7 +574,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                 onMouseEnter={() => setHoverSeriesKey(f.name)}
                 onMouseLeave={() => setHoverSeriesKey(null)}
               />
-            ))}
+            ); })}
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchRiskReportData } from '../services/riskDataService';
+import { useFarms } from '../contexts/FarmsContext';
 import './FarmHealthGauge.css';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadGaugeAsImage, exportHealthGaugeCSV } from '../utils/exportHealthGauge';
@@ -22,12 +23,13 @@ const getStatus = (pct) => {
 const FarmHealthGauge = () => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
+  const { farmsNameByKey } = useFarms();
   const [farms, setFarms] = useState([]);
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const isAssignedToFarm = Boolean(currentUser?.farm);
-  const assignedFarmKey = isAssignedToFarm ? normalizeFarmName(currentUser.farm) : null;
+  const assignedFarmKey = isAssignedToFarm ? normalizeFarmName(farmsNameByKey[currentUser.farm] || currentUser.farm) : null;
 
   // Resolve assigned farm name
   useEffect(() => {
@@ -54,9 +56,38 @@ const FarmHealthGauge = () => {
   useEffect(() => {
     (async () => {
       const data = await fetchRiskReportData();
-      setFarms(Array.isArray(data) ? data : []);
+      // Canonicalize farm display names with live map and legacy aliases
+      const legacyMap = {
+        'salmon-hatchery-facility': 'Aquino Fish Farm',
+        'tilapia-production-center': "Vergara's Aqua Farm",
+        'freshwater-finfish-farm': 'Rojo Hatchery',
+        'freshwater-finfish': 'Rojo Hatchery',
+        'blue-ocean-aquafarm': 'Maningas Fish Farm',
+        'marine-species-cultivation': 'Labay Fish Farm',
+      };
+      const canon = (Array.isArray(data) ? data : []).map(f => {
+        const live = farmsNameByKey[f.key];
+        const legacy = legacyMap[f.key];
+        const name = live || legacy || f.name;
+        return { ...f, name, key: normalizeFarmName(name) };
+      });
+      // Merge duplicates by name
+      const map = new Map();
+      canon.forEach(f => {
+        const name = f.name || 'Unknown Farm';
+        if (!map.has(name)) map.set(name, { ...f });
+        else {
+          const cur = map.get(name);
+          const preds = [
+            ...(Array.isArray(cur.predictions) ? cur.predictions : []),
+            ...(Array.isArray(f.predictions) ? f.predictions : [])
+          ];
+          map.set(name, { ...cur, predictions: preds });
+        }
+      });
+      setFarms(Array.from(map.values()));
     })();
-  }, []);
+  }, [farmsNameByKey]);
 
   useEffect(() => {
     if (isAssignedToFarm) {

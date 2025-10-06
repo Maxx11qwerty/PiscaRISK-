@@ -48,6 +48,7 @@ export const AuthProvider = ({ children }) => {
   const currentUserRef = useRef(null);
   const isLoggingOutRef = useRef(false);
   const isProcessingLoginRef = useRef(false);
+  const resendVerificationCooldownUntilRef = useRef(0);
 
   // Email verification modal state
   const [emailVerificationModal, setEmailVerificationModal] = useState({ 
@@ -92,6 +93,44 @@ export const AuthProvider = ({ children }) => {
       userData: null
     });
   };
+
+  // Process email verification links (only updates Firestore if the Firebase action code was used)
+  useEffect(() => {
+    const processEmailVerificationLink = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+        const oobCode = params.get('oobCode');
+        if (mode === 'verifyEmail' && oobCode) {
+          // Apply the verification code from Firebase. This marks the email as verified at the Auth level.
+          await applyActionCode(auth, oobCode);
+          // Reload user (if signed in) and persist to Firestore only if actually verified
+          if (auth.currentUser) {
+            try { await auth.currentUser.reload(); } catch (_) {}
+            if (auth.currentUser.emailVerified) {
+              try {
+                await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+                  emailVerified: true,
+                  lastModified: serverTimestamp()
+                });
+              } catch (_) {}
+              // Also reflect locally if we have state
+              setCurrentUser(prev => (prev ? { ...prev, emailVerified: true } : prev));
+            }
+          }
+          // Clean the query params from URL after processing
+          const url = new URL(window.location.href);
+          url.searchParams.delete('mode');
+          url.searchParams.delete('oobCode');
+          url.searchParams.delete('apiKey');
+          window.history.replaceState({}, document.title, url.pathname + (url.search ? '?' + url.search : ''));
+        }
+      } catch (_) {
+        // Silently ignore invalid/expired codes; UI can still prompt resend from Login
+      }
+    };
+    processEmailVerificationLink();
+  }, []);
 
   const handlePhoneVerificationSuccess = async (phoneAuthResult) => {
     try {
@@ -167,6 +206,13 @@ export const AuthProvider = ({ children }) => {
 
   const resendVerificationEmail = async () => {
     try {
+      // Cooldown to prevent rapid re-sends (client-side UX guard)
+      const now = Date.now();
+      if (now < resendVerificationCooldownUntilRef.current) {
+        const secondsLeft = Math.ceil((resendVerificationCooldownUntilRef.current - now) / 1000);
+        return { success: false, message: `Please wait ${secondsLeft}s before resending verification.` };
+      }
+
       if (!emailVerificationModal.email || !emailVerificationModal.tempPassword) {
         throw new Error('No credentials available for verification');
       }
@@ -174,8 +220,8 @@ export const AuthProvider = ({ children }) => {
       // Temporarily sign in to resend verification email
       const userCredential = await signInWithEmailAndPassword(
         auth,
-        emailVerificationModal.email,
-        emailVerificationModal.tempPassword
+        String(emailVerificationModal.email).trim(),
+        String(emailVerificationModal.tempPassword).trim()
       );
 
       // Refresh user data and short-circuit if already verified
@@ -192,26 +238,29 @@ export const AuthProvider = ({ children }) => {
           url: window.location.origin + '/login',
           handleCodeInApp: true
         });
-        
+
+        // Set 90s cooldown after a successful send
+        resendVerificationCooldownUntilRef.current = Date.now() + 90_000;
         await signOut(auth);
-        return { success: true, message: 'Verification email sent!' };
+        return { success: true, message: 'Verification email sent! Please check your inbox (and spam folder).' };
       } catch (error) {
         await signOut(auth);
-        // Map common Firebase errors to friendly messages
-        const code = error?.code || '';
-        if (code === 'auth/too-many-requests') {
-          return { success: false, message: 'Too many attempts. Please try again later.' };
-        }
-        if (code === 'auth/user-not-found') {
-          return { success: false, message: 'User not found.' };
-        }
-        if (code === 'auth/wrong-password') {
-          return { success: false, message: 'Invalid credentials.' };
-        }
-        if (code === 'auth/invalid-email') {
-          return { success: false, message: 'Invalid email address.' };
-        }
-        return { success: false, message: error?.message || 'Failed to send verification email' };
+        // Map common Firebase errors (SDK and REST) to friendly messages
+        const code = error?.code || error?.response?.data?.error?.message || '';
+        const map = {
+          'auth/too-many-requests': 'Too many attempts. Please try again in a few minutes.',
+          'TOO_MANY_ATTEMPTS_TRY_LATER': 'Too many attempts. Please try again in a few minutes.',
+          'auth/user-not-found': 'User not found.',
+          'EMAIL_NOT_FOUND': 'User not found.',
+          'auth/wrong-password': 'Invalid credentials.',
+          'INVALID_PASSWORD': 'Invalid credentials.',
+          'auth/invalid-email': 'Invalid email address.',
+          'INVALID_EMAIL': 'Invalid email address.',
+          'INVALID_CONTINUE_URI': 'Return URL is invalid.',
+          'DOMAIN_NOT_WHITELISTED': 'Return URL domain not authorized in Firebase Auth settings.'
+        };
+        const message = map[code] || 'Failed to send verification email. Please try again.';
+        return { success: false, message };
       }
     } catch (e) {
       return { success: false, message: e.message };
@@ -511,11 +560,7 @@ export const AuthProvider = ({ children }) => {
         displayName: username
       });
 
-      // Send email verification
-      await sendEmailVerification(user, {
-        url: window.location.origin + '/verify-email',
-        handleCodeInApp: true
-      });
+      // Email verification will be requested explicitly from Login (no auto-send here)
 
       // Log the registration
       logActivity('account', `New Admin registration: ${username}`, username);
@@ -530,15 +575,32 @@ export const AuthProvider = ({ children }) => {
 // Login function
 const login = async (emailOrContact, password) => {
   try {
+    // Basic client-side guards to avoid bad auth requests (prevents 400s)
+    const rawEmailOrContact = String(emailOrContact || '').trim();
+    const rawPassword = String(password || '').trim();
+
+    if (!rawEmailOrContact || !rawPassword) {
+      return { success: false, message: 'Please enter your email/contact and password.' };
+    }
+    if (rawEmailOrContact.includes('@')) {
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(rawEmailOrContact)) {
+        return { success: false, message: 'Please enter a valid email address.' };
+      }
+    }
+    if (rawPassword.length < 6) {
+      return { success: false, message: 'Password must be at least 6 characters.' };
+    }
+
     // Clear logout flag since user is actively trying to log in
     isLoggingOutRef.current = false;
     
-    let email = emailOrContact;
+    let email = rawEmailOrContact;
     let userData = null;
     let collectionName = 'users';
 
     // If input is not an email (doesn't contain @), treat it as contact number
-    if (!emailOrContact.includes('@')) {
+    if (!rawEmailOrContact.includes('@')) {
       // Query both collections to find user with this contact number
       const usersRef = collection(db, 'users');
       const mobileUsersRef = collection(db, 'mobileUsers');
@@ -596,12 +658,12 @@ const login = async (emailOrContact, password) => {
       const mobileUsersRef = collection(db, 'mobileUsers');
       
       // Check users collection first
-      let q = query(usersRef, where('email', '==', emailOrContact));
+      let q = query(usersRef, where('email', '==', rawEmailOrContact));
       let querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
         // Check mobileUsers collection
-        q = query(mobileUsersRef, where('email', '==', emailOrContact));
+        q = query(mobileUsersRef, where('email', '==', rawEmailOrContact));
         querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           collectionName = 'mobileUsers';
@@ -642,7 +704,7 @@ const login = async (emailOrContact, password) => {
     }
 
     // Now login with the email
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email, rawPassword);
     
     // Double check status in case email was used directly
     if (!userData) {
@@ -661,6 +723,14 @@ const login = async (emailOrContact, password) => {
     }
     
     if (userData) {
+      // Ensure Firestore reflects latest emailVerified status on every successful login
+      try {
+        const targetRef = doc(db, collectionName, userCredential.user.uid);
+        await updateDoc(targetRef, {
+          emailVerified: !!userCredential.user.emailVerified,
+          lastModified: serverTimestamp()
+        });
+      } catch (_) {}
 
       // Check if account is suspended (always block suspended accounts)
       if (userData.status === 'suspended') {
@@ -688,13 +758,7 @@ const login = async (emailOrContact, password) => {
 
       // For existing users, if email not verified: trigger verification flow instead of plain error
       if (!userCredential.user.emailVerified) {
-        try {
-          await sendEmailVerification(userCredential.user, {
-            url: window.location.origin + '/login',
-            handleCodeInApp: true
-          });
-        } catch (e) {
-        }
+        // Do not auto-send verification; require explicit user action from Login
         await signOut(auth);
         return {
           success: false,

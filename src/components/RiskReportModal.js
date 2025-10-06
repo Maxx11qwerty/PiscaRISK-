@@ -11,11 +11,13 @@ import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firesto
 import { sanitizeTimestamp } from '../utils/securityUtils';
 import { logActivity, logMessages } from '../utils/logger';
 import { AuthContext } from '../contexts/AuthContext';
+import { useFarms } from '../contexts/FarmsContext';
 import './RiskReportModal.css';
 
 const RiskReportModal = ({ isModal = false }) => {
   const { t } = useTranslation();
   const { currentUser } = useContext(AuthContext);
+  const { farms: liveFarms } = useFarms();
   const [loading, setLoading] = useState(true);
   const [farms, setFarms] = useState([]);
   const mountedRef = React.useRef(true);
@@ -32,6 +34,49 @@ const RiskReportModal = ({ isModal = false }) => {
   const [selectedTimestamp, setSelectedTimestamp] = useState('latest');
   const [availableTimestamps, setAvailableTimestamps] = useState([]);
   const [showHistoryFilter, setShowHistoryFilter] = useState(false);
+
+  // Allowed farm IDs and live names
+  const allowedFarmIds = useMemo(() => ([
+    'NyhjBvh9N9wfsOJ2qeEa',
+    'TP3p0y4iQlo2j0loELQb',
+    'WgS4mBVnPFPMGq7vfSYa',
+    'egGEARKL6Qk5jNgrY3Yu',
+    's5zKKXTBkF3voYnV8wuh',
+  ]), []);
+
+  const allowedIdToName = useMemo(() => {
+    const map = {};
+    allowedFarmIds.forEach(id => {
+      const f = liveFarms.find(x => x.id === id);
+      if (f && f.name) map[id] = f.name;
+    });
+    return map;
+  }, [allowedFarmIds, liveFarms]);
+
+  const normalizeName = (name) => {
+    if (!name || typeof name !== 'string') return 'unknown-farm';
+    return name.trim().toLowerCase().replace(/\s+/g, '-');
+  };
+
+  const allowedKeys = useMemo(() => {
+    const keys = new Set();
+    // include live names
+    Object.values(allowedIdToName).forEach(n => keys.add(normalizeName(n)));
+    // include legacy aliases so old records pass the filter
+    const legacyAliases = {
+      'NyhjBvh9N9wfsOJ2qeEa': ['salmon-hatchery-facility'],
+      'TP3p0y4iQlo2j0loELQb': ['tilapia-production-center'],
+      'WgS4mBVnPFPMGq7vfSYa': ['freshwater-finfish-farm'],
+      'egGEARKL6Qk5jNgrY3Yu': ['blue-ocean-aquafarm'],
+      's5zKKXTBkF3voYnV8wuh': ['marine-species-cultivation'],
+    };
+    Object.entries(legacyAliases).forEach(([id, aliases]) => {
+      if (allowedIdToName[id]) {
+        aliases.forEach(a => keys.add(a));
+      }
+    });
+    return keys;
+  }, [allowedIdToName]);
 
   // Resolve assigned farm name for current user
   useEffect(() => {
@@ -139,6 +184,7 @@ const RiskReportModal = ({ isModal = false }) => {
         // Get all unique farms from both collections and map keys to display names
         const allFarms = new Set();
         const farmKeyToName = {};
+        const keyToDisplayName = {}; // normalized key -> live display name
         let unknownFromPred = 0;
         let unknownFromFb = 0;
         
@@ -146,8 +192,19 @@ const RiskReportModal = ({ isModal = false }) => {
         const predictions = [];
         predsSnap.forEach(doc => {
           const data = doc.data();
-          const farmName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
-          const farmKey = normalizeFarmName(farmName);
+          const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
+          let farmKey = normalizeName(rawName);
+          const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
+          if (explicitId && allowedIdToName[explicitId]) {
+            farmKey = normalizeName(allowedIdToName[explicitId]);
+          }
+          if (!allowedKeys.has(farmKey)) return; // filter out non-allowed farms (including legacy aliases)
+          // Resolve live display name for this key
+          if (!keyToDisplayName[farmKey]) {
+            const live = Object.values(allowedIdToName).find(n => normalizeName(n) === farmKey);
+            if (live) keyToDisplayName[farmKey] = live;
+          }
+          const farmName = keyToDisplayName[farmKey] || rawName;
           allFarms.add(farmKey);
           if (farmName === 'Unknown Farm') unknownFromPred += 1;
           if (!farmKeyToName[farmKey] && farmName && farmName !== 'Unknown Farm') {
@@ -183,8 +240,18 @@ const RiskReportModal = ({ isModal = false }) => {
           const data = doc.data();
           if (data.is_aggregate) {
             // This is an aggregate feedback for a farm
-            const farmName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
-            const farmKey = normalizeFarmName(farmName);
+            const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
+            let farmKey = normalizeName(rawName);
+            const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
+            if (explicitId && allowedIdToName[explicitId]) {
+              farmKey = normalizeName(allowedIdToName[explicitId]);
+            }
+            if (!allowedKeys.has(farmKey)) return;
+            if (!keyToDisplayName[farmKey]) {
+              const live = Object.values(allowedIdToName).find(n => normalizeName(n) === farmKey);
+              if (live) keyToDisplayName[farmKey] = live;
+            }
+            const farmName = keyToDisplayName[farmKey] || rawName;
             allFarms.add(farmKey);
             if (farmName === 'Unknown Farm') unknownFromFb += 1;
             if (!farmKeyToName[farmKey] && farmName && farmName !== 'Unknown Farm') {
@@ -240,8 +307,18 @@ const RiskReportModal = ({ isModal = false }) => {
         if (condSnap) {
           condSnap.forEach(doc => {
             const data = doc.data();
-            const farmName = data.farm_name || data.farm || 'Unknown Farm';
-            const farmKey = normalizeFarmName(farmName);
+            const rawName = data.farm_name || data.farm || 'Unknown Farm';
+            let farmKey = normalizeName(rawName);
+            const explicitId = data.farm_id || data.farmId || null;
+            if (explicitId && allowedIdToName[explicitId]) {
+              farmKey = normalizeName(allowedIdToName[explicitId]);
+            }
+            if (!allowedKeys.has(farmKey)) return;
+            if (!keyToDisplayName[farmKey]) {
+              const live = Object.values(allowedIdToName).find(n => normalizeName(n) === farmKey);
+              if (live) keyToDisplayName[farmKey] = live;
+            }
+            const farmName = keyToDisplayName[farmKey] || rawName;
             allFarms.add(farmKey);
             if (!farmKeyToName[farmKey] && farmName && farmName !== 'Unknown Farm') {
               farmKeyToName[farmKey] = farmName;
@@ -261,7 +338,7 @@ const RiskReportModal = ({ isModal = false }) => {
         // Initialize all farms with empty data
         allFarms.forEach(farmKey => {
           byFarm[farmKey] = {
-            farm_name: farmKeyToName[farmKey] || farmKey.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+            farm_name: farmKeyToName[farmKey] || keyToDisplayName[farmKey] || farmKey.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
             farm_key: farmKey,
             predictions: [],
             avg_confidence: 0,
@@ -416,6 +493,22 @@ const RiskReportModal = ({ isModal = false }) => {
         });
 
         // Build farms array and sort by severity
+        // Build map: normalized key -> new display name (from allowed ids and live names)
+        const allowedKeyToName = (() => {
+          const m = {};
+          Object.values(allowedIdToName).forEach(n => { m[normalizeName(n)] = n; });
+          return m;
+        })();
+
+        // Legacy aliases -> new names (fallback if id not present on records)
+        const legacyKeyToNewName = {
+          [normalizeName('Salmon Hatchery Facility')]: 'Aquino Fish Farm',
+          [normalizeName('Tilapia Production Center')]: "Vergara's Aqua Farm",
+          [normalizeName('Freshwater Finfish Farm')]: 'Rojo Hatchery',
+          [normalizeName('Blue Ocean Aquafarm')]: 'Maningas Fish Farm',
+          [normalizeName('Marine Species Cultivation')]: 'Labay Fish Farm',
+        };
+
         const farmsArray = Object.values(byFarm)
           .sort((a, b) => {
             // Farms with reports first, then by severity
@@ -425,7 +518,82 @@ const RiskReportModal = ({ isModal = false }) => {
           });
 
         // Apply farm filtering if current user is assigned to a farm
-        let filteredFarms = farmsArray;
+        // Enforce canonical new display names before filtering/returning
+        const canonFarms = farmsArray.map(f => {
+          const key = f.farm_key;
+          const newName = allowedKeyToName[key] || legacyKeyToNewName[key] || f.farm_name;
+          return { ...f, farm_name: newName,
+            predictions: Array.isArray(f.predictions) ? f.predictions.map(p => ({ ...p, farm: newName })) : f.predictions };
+        });
+
+        // Collapse duplicates that now share the same canonical display name
+        const mergedByName = (() => {
+          const map = new Map();
+          canonFarms.forEach(f => {
+            const name = f.farm_name || 'Unknown Farm';
+            if (!map.has(name)) {
+              map.set(name, { ...f, farm_name: name });
+            } else {
+              const cur = map.get(name);
+              // Merge predictions
+              const preds = [
+                ...(Array.isArray(cur.predictions) ? cur.predictions : []),
+                ...(Array.isArray(f.predictions) ? f.predictions : [])
+              ];
+              // Sum counts
+              const counts = {
+                high: (cur.counts?.high || 0) + (f.counts?.high || 0),
+                medium: (cur.counts?.medium || 0) + (f.counts?.medium || 0),
+                low: (cur.counts?.low || 0) + (f.counts?.low || 0),
+                normal: (cur.counts?.normal || 0) + (f.counts?.normal || 0),
+              };
+              // Pick feedback with higher severity/aggregate
+              const pick = (a, b) => {
+                if (!a) return b; if (!b) return a;
+                const sevScore = (fb) => {
+                  const s = (fb?.corrected_risk_level || '').toLowerCase();
+                  const v = s.includes('high') ? 3 : s.includes('medium') ? 2 : s.includes('low') ? 1 : 0;
+                  return (fb?.is_aggregate ? 100 : 0) + v;
+                };
+                return sevScore(b) > sevScore(a) ? b : a;
+              };
+              const feedback = pick(cur.feedback, f.feedback);
+              // has_reports if either has
+              const has_reports = !!(cur.has_reports || f.has_reports || preds.length);
+              // overall risk as majority from merged counts
+              const overall_risk = (() => {
+                const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+                const top = entries[0]?.[0] || 'normal';
+                if (top === 'high') return 'High';
+                if (top === 'medium') return 'Medium';
+                if (top === 'low') return 'Low';
+                return 'Normal';
+              })();
+              // Merge summary taking latest last_update
+              const getMs = (ts) => {
+                if (!ts) return 0; if (ts.seconds) return ts.seconds*1000; const n = Date.parse(ts); return Number.isNaN(n)?0:n;
+              };
+              const pickSummary = () => {
+                const a = cur.summary, b = f.summary;
+                if (!a) return b || null; if (!b) return a || null;
+                const aMs = getMs(a.last_update), bMs = getMs(b.last_update);
+                return bMs > aMs ? b : a;
+              };
+              map.set(name, {
+                ...cur,
+                predictions: preds,
+                counts,
+                feedback,
+                has_reports,
+                overall_risk,
+                summary: pickSummary(),
+              });
+            }
+          });
+          return Array.from(map.values());
+        })();
+
+        let filteredFarms = mergedByName;
         if (currentUser?.farm && assignedFarmName) {
           const currentUserFarm = currentUser.farm;
           filteredFarms = farmsArray.filter(farm => {
@@ -454,7 +622,7 @@ const RiskReportModal = ({ isModal = false }) => {
     };
 
     fetchData();
-  }, [currentUser?.farm, assignedFarmName]);
+  }, [currentUser?.farm, assignedFarmName, allowedKeys, allowedIdToName]);
 
   // Lazy-fetch aggregate feedback per farm if missing from initial load
   useEffect(() => {

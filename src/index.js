@@ -3,12 +3,15 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
+import { FarmsProvider } from './contexts/FarmsContext';
 import reportWebVitals from './reportWebVitals';
 import './i18n'; // Import i18n configuration
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <App />
+  <FarmsProvider>
+    <App />
+  </FarmsProvider>
 );
 
 // Swallow late reCAPTCHA timeouts that can fire after OTP modal has unmounted

@@ -92,10 +92,38 @@ export const fetchRiskReportData = async () => {
   const predictions = [];
   const feedbacks = [];
 
+  // Mapping legacy names/ids to new canonical names
+  const legacyMap = {
+    'salmon-hatchery-facility': 'Aquino Fish Farm',
+    'tilapia-production-center': "Vergara's Aqua Farm",
+    'freshwater-finfish-farm': 'Rojo Hatchery',
+    'freshwater-finfish': 'Rojo Hatchery',
+    'blue-ocean-aquafarm': 'Maningas Fish Farm',
+    'marine-species-cultivation': 'Labay Fish Farm',
+  };
+  const idToNewName = {
+    'NyhjBvh9N9wfsOJ2qeEa': 'Aquino Fish Farm',
+    'TP3p0y4iQlo2j0loELQb': "Vergara's Aqua Farm",
+    'WgS4mBVnPFPMGq7vfSYa': 'Rojo Hatchery',
+    'egGEARKL6Qk5jNgrY3Yu': 'Maningas Fish Farm',
+    's5zKKXTBkF3voYnV8wuh': 'Labay Fish Farm',
+  };
+
   predsSnap.forEach(doc => {
     const data = doc.data();
-    const farmName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
-    const farmKey = normalizeFarmName(farmName);
+    const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
+    let farmKey = normalizeFarmName(rawName);
+    // If record contains an explicit id field, prefer mapping by id to new name
+    const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
+    let canonName = null;
+    if (explicitId && idToNewName[explicitId]) {
+      canonName = idToNewName[explicitId];
+      farmKey = normalizeFarmName(canonName);
+    } else if (legacyMap[farmKey]) {
+      canonName = legacyMap[farmKey];
+      farmKey = normalizeFarmName(canonName);
+    }
+    const farmName = canonName || rawName;
     allFarms.add(farmKey);
     if (farmName && farmName !== 'Unknown Farm') farmKeyToName[farmKey] = farmName;
     const generatedTs = data.timestamp || data.createdAt || data.created_at || data.prediction?.timestamp;
@@ -116,9 +144,16 @@ export const fetchRiskReportData = async () => {
   // Process feedback to mirror RiskReportModal behavior
   feedbackSnap.forEach(doc => {
     const data = doc.data();
-    const farmName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || data.prediction?.farm_name || data.prediction?.input_data?.farm_name || null;
-    if (!farmName) return;
-    const farmKey = normalizeFarmName(farmName);
+    const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || data.prediction?.farm_name || data.prediction?.input_data?.farm_name || null;
+    if (!rawName) return;
+    let farmKey = normalizeFarmName(rawName);
+    let canonName = legacyMap[farmKey] || null;
+    const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || data.prediction?.farm_id || data.prediction?.input_data?.farm_id || null;
+    if (explicitId && idToNewName[explicitId]) {
+      canonName = idToNewName[explicitId];
+      farmKey = normalizeFarmName(canonName);
+    }
+    const farmName = canonName || rawName;
     allFarms.add(farmKey);
     if (farmName && farmName !== 'Unknown Farm') farmKeyToName[farmKey] = farmName;
     const corrected = data.corrected_risk_level || data.correctedFinalRisk || data.final_risk || data.overall_risk || data.risk_level || data.prediction?.corrected_risk_level || data.prediction?.final_risk || data.prediction?.overall_risk || data.prediction?.risk_level || null;

@@ -6,6 +6,7 @@ import { db } from '../firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import './ConditionInsights.css';
 import { useAuth } from '../contexts/AuthContext';
+import { useFarms } from '../contexts/FarmsContext';
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
@@ -45,6 +46,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
+  const { farmsNameByKey } = useFarms();
   const [index, setIndex] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -122,13 +124,30 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         const snap = await getDocs(query(col));
         
         const list = [];
+        const legacyMap = {
+          'salmon-hatchery-facility': 'Aquino Fish Farm',
+          'tilapia-production-center': "Vergara's Aqua Farm",
+          'freshwater-finfish-farm': 'Rojo Hatchery',
+          'freshwater-finfish': 'Rojo Hatchery',
+          'blue-ocean-aquafarm': 'Maningas Fish Farm',
+          'marine-species-cultivation': 'Labay Fish Farm',
+        };
+        const canonName = (raw) => {
+          const key = (raw || '').toString().trim().toLowerCase().replace(/\s+/g, '-');
+          const live = farmsNameByKey[key];
+          const legacy = legacyMap[key];
+          let name = live || legacy || raw || '';
+          if (String(name).toLowerCase().includes('freshwater finfish')) name = 'Rojo Hatchery';
+          return name;
+        };
         snap.forEach((doc) => {
           const data = doc.data();
           const summary = data.conditions_summary || data.input_data?.conditions_summary;
           if (!summary) {
             return;
           }
-          const farm = data.farm_name || data.farm || data.input_data?.farm_name || 'Unknown Farm';
+          const rawFarm = data.farm_name || data.farm || data.input_data?.farm_name || 'Unknown Farm';
+          const farm = canonName(rawFarm);
           const pond = data.fish_pond || data.input_data?.fish_pond || 'Unknown Pond';
           const ts = data.createdAt || data.timestamp || data.input_data?.timestamp;
           list.push({
@@ -206,7 +225,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         
 
         // final items prepared
-        setItems(finalItems);
+        setItems(finalItems.map(it => ({ ...it, farm: canonName(it.farm) })));
         // onCountChange will be triggered by separate effect using active list
         setIndex(0);
         setLastFetchTime(Date.now());

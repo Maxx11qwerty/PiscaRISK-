@@ -20,6 +20,13 @@ const formatDateTime = (ts) => {
   return d ? d.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 };
 
+const formatCurrency = (value) => {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  if (!isFinite(num)) return `₱${value}`;
+  return `₱${num.toFixed(2)}`;
+};
+
 const SectionTitle = ({ icon, title }) => (
   <div style={{ fontWeight: 700, margin: '12px 0 8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
     <span>{icon}</span>
@@ -159,15 +166,15 @@ const StockFeedLogs = ({ farmId, farmName }) => {
           <div className="condition-grid">
             <Row label="Days to Harvest" value={selectedLog.estimated_days_to_harvest != null ? `${selectedLog.estimated_days_to_harvest} days` : null} />
             <Row label="Est. Weight" value={selectedLog.estimated_harvest_weight != null ? `${selectedLog.estimated_harvest_weight}` : null} />
-            <Row label="Est. Value" value={selectedLog.estimated_value != null ? `₱${selectedLog.estimated_value}` : null} />
-            <Row label="Est. Profit" value={selectedLog.estimated_profit != null ? `₱${selectedLog.estimated_profit}` : null} />
+            <Row label="Est. Value" value={selectedLog.estimated_value != null ? formatCurrency(selectedLog.estimated_value) : null} />
+            <Row label="Est. Profit" value={selectedLog.estimated_profit != null ? formatCurrency(selectedLog.estimated_profit) : null} />
           </div>
 
           <SectionTitle icon={<FaFish />} title="Feeding Info" />
           <div className="condition-grid">
             <Row label="Brand" value={selectedLog.feed_brand} />
             <Row label="Amount" value={selectedLog.feed_amount != null ? `${selectedLog.feed_amount}` : null} />
-            <Row label="Cost" value={selectedLog.feed_cost != null ? `₱${selectedLog.feed_cost}` : null} />
+            <Row label="Cost" value={selectedLog.feed_cost != null ? formatCurrency(selectedLog.feed_cost) : null} />
             <Row label="Frequency" value={selectedLog.frequency != null ? `${selectedLog.frequency}` : null} />
           </div>
 

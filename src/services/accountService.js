@@ -233,25 +233,21 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
 
 // Add this to accountService.js
 export const debugUserActivation = async (userId, email, collectionHint, username) => {
-  console.log('🔍 DEBUG ACTIVATION for:', { userId, email, username });
   
   // Prioritize mobileUsers for Fish Farmers
   const collections = collectionHint === 'mobileUsers' ? ['mobileUsers', 'users'] : ['users', 'mobileUsers'];
   
   for (const collectionName of collections) {
     try {
-      console.log(`\nChecking ${collectionName} collection...`);
       
       // Check by ID first
       const refById = doc(db, collectionName, userId);
       const snapById = await getDoc(refById);
       
       if (snapById.exists()) {
-        console.log(`✅ Found by ID in ${collectionName}:`, snapById.data());
-        console.log(`Document path: ${collectionName}/${userId}`);
         return { found: true, collection: collectionName, id: userId, method: 'id' };
       } else {
-        console.log(`❌ Not found by ID in ${collectionName}`);
+        // not found by ID
       }
       
       // Check by email (use provided email or extract from userId)
@@ -260,7 +256,6 @@ export const debugUserActivation = async (userId, email, collectionHint, usernam
         const parts = userId.split('_');
         if (parts.length > 1) {
           searchEmail = parts.slice(1).join('_');
-          console.log(`🔍 Extracted email from userId: ${searchEmail}`);
         }
       }
       
@@ -269,10 +264,7 @@ export const debugUserActivation = async (userId, email, collectionHint, usernam
         const snapEmail = await getDocs(qEmail);
         
         if (!snapEmail.empty) {
-          const docData = snapEmail.docs[0].data();
           const docId = snapEmail.docs[0].id;
-          console.log(`✅ Found by email in ${collectionName}:`, docData);
-          console.log(`Document path: ${collectionName}/${docId}`);
           return { found: true, collection: collectionName, id: docId, method: 'email' };
         }
       }
@@ -283,10 +275,7 @@ export const debugUserActivation = async (userId, email, collectionHint, usernam
         const snapUsername = await getDocs(qUsername);
         
         if (!snapUsername.empty) {
-          const docData = snapUsername.docs[0].data();
           const docId = snapUsername.docs[0].id;
-          console.log(`✅ Found by username in ${collectionName}:`, docData);
-          console.log(`Document path: ${collectionName}/${docId}`);
           return { found: true, collection: collectionName, id: docId, method: 'username' };
         }
       }
@@ -296,14 +285,13 @@ export const debugUserActivation = async (userId, email, collectionHint, usernam
     }
   }
   
-  console.log('❌ User not found in any collection');
   return { found: false };
 };
 
 // Add this to accountService.js
 export const directUpdateUserStatus = async (userId, email, username, collectionHint = 'mobileUsers') => {
   try {
-    console.log('🎯 DIRECT UPDATE called for:', { userId, email, username, collectionHint });
+    
     
     // First find the exact document location
     const debugResult = await debugUserActivation(userId, email, collectionHint, username);
@@ -314,7 +302,7 @@ export const directUpdateUserStatus = async (userId, email, username, collection
     
     const { collection: targetCollection, id: targetId } = debugResult;
     
-    console.log(`📝 Updating ${targetCollection}/${targetId}`);
+    
     
     // Try to update the document
     const ref = doc(db, targetCollection, targetId);
@@ -327,12 +315,11 @@ export const directUpdateUserStatus = async (userId, email, username, collection
         lastModified: serverTimestamp()
       });
       
-      console.log('✅ Direct update successful');
+      
       
       // Verify the update
       const updatedDoc = await getDoc(ref);
       if (updatedDoc.exists()) {
-        console.log('✅ Verification - Updated data:', updatedDoc.data());
         return { success: true, collection: targetCollection };
       } else {
         throw new Error('Document disappeared after update');
@@ -358,7 +345,6 @@ export const directUpdateUserStatus = async (userId, email, username, collection
 
 // Replace your activateFishFarmer function with this:
 export const activateFishFarmer = async (userId, email, collectionHint, username) => {
-  console.log('🐟 activateFishFarmer called with:', { userId, email, collectionHint, username });
   
   // Use the direct update method instead
   return directUpdateUserStatus(userId, email, username, collectionHint);

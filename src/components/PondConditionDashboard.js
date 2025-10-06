@@ -17,6 +17,61 @@ import StockFeedLogs from './StockFeedLogs';
 import { AuthContext } from '../contexts/AuthContext';
 import './PondCondition.css';
 
+// --- Canonicalization helpers (map legacy names/ids to new canonical names) ---
+const normalizeNameKey = (name) => {
+  if (!name || typeof name !== 'string') return 'unknown-farm';
+  return name.trim().toLowerCase().replace(/\s+/g, '-');
+};
+
+// Legacy name (normalized) -> Canonical display name
+const legacyNameToCanonical = {
+  'salmon-hatchery-facility': 'Aquino Fish Farm',
+  'tilapia-production-center': "Vergara's Aqua Farm",
+  'freshwater-finfish-farm': 'Rojo Hatchery',
+  'freshwater-finfish': 'Rojo Hatchery',
+  'blue-ocean-aquafarm': 'Maningas Fish Farm',
+  'marine-species-cultivation': 'Labay Fish Farm',
+};
+
+// Farm document id -> Canonical display name
+const idToCanonical = {
+  NyhjBvh9N9wfsOJ2qeEa: 'Aquino Fish Farm',
+  TP3p0y4iQlo2j0loELQb: "Vergara's Aqua Farm",
+  WgS4mBVnPFPMGq7vfSYa: 'Rojo Hatchery',
+  egGEARKL6Qk5jNgrY3Yu: 'Maningas Fish Farm',
+  s5zKKXTBkF3voYnV8wuh: 'Labay Fish Farm',
+};
+
+// Build reverse map: canonical -> [aliases including canonical]
+const canonicalToAliases = (() => {
+  const map = {};
+  const add = (canon, alias) => {
+    if (!map[canon]) map[canon] = new Set();
+    map[canon].add(alias);
+  };
+  // Seed with canonical self names
+  Object.values(idToCanonical).forEach((canon) => add(canon, canon));
+  // Add legacy aliases
+  Object.entries(legacyNameToCanonical).forEach(([legacyKey, canon]) => {
+    // Attempt to reconstruct a human alias from the key by replacing dashes with spaces and title-casing basics
+    const human = legacyKey.replace(/-/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .replace('Finfish', 'Finfish');
+    add(canon, human);
+  });
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, Array.from(v)]));
+})();
+
+const toCanonicalDisplay = (rawName, farmId) => {
+  if (farmId && idToCanonical[farmId]) return idToCanonical[farmId];
+  const key = normalizeNameKey(rawName);
+  return legacyNameToCanonical[key] || rawName || '';
+};
+
+const aliasesForCanonical = (canonName) => {
+  return canonicalToAliases[canonName] || [canonName].filter(Boolean);
+};
+
 const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPond, setSelectedPond: propSetSelectedPond, navigationState = null }) => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -119,6 +174,58 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     const fetchReports = async () => {
       try {
         setLoading(true);
+
+        // Helper: fetch reports for multiple farm aliases from main 'reports' collection
+        const fetchReportsByAliases = async (aliasNames) => {
+          const collected = [];
+          for (const alias of aliasNames) {
+            try {
+              const reportsRef = collection(db, 'reports');
+              const q1 = query(reportsRef, where('farm', '==', alias));
+              const snap1 = await getDocs(q1);
+              snap1.docs.forEach(d => collected.push({ ...d.data(), id: d.id, __collection: 'reports' }));
+            } catch (_) {}
+            try {
+              const reportsRef = collection(db, 'reports');
+              const q2 = query(reportsRef, where('farm_name', '==', alias));
+              const snap2 = await getDocs(q2);
+              snap2.docs.forEach(d => collected.push({ ...d.data(), id: d.id, __collection: 'reports' }));
+            } catch (_) {}
+          }
+          // Deduplicate by id
+          const seen = new Set();
+          const unique = [];
+          for (const r of collected) {
+            if (r.id && !seen.has(r.id)) { seen.add(r.id); unique.push(r); }
+          }
+          return unique;
+        };
+
+        // Build a strong dedupe key: canonical farm display + pond + precise timestamp ms
+        const buildDedupeKey = (report) => {
+          const farmName = report.farm || '';
+          const pondName = report.pond || '';
+          let ms = 0;
+          const ts = report.originalTimestamp || report.date;
+          try {
+            if (ts && typeof ts.toDate === 'function') ms = ts.toDate().getTime();
+            else if (ts && typeof ts.seconds === 'number') ms = ts.seconds * 1000 + (ts.nanoseconds ? Math.floor(ts.nanoseconds / 1e6) : 0);
+            else if (ts instanceof Date) ms = ts.getTime();
+            else if (typeof ts === 'number') ms = ts;
+            else if (typeof ts === 'string') ms = Date.parse(ts) || 0;
+          } catch (_) { ms = 0; }
+          return `${farmName}::${pondName}::${ms}`;
+        };
+
+        const dedupeReports = (reportsList) => {
+          const seen = new Set();
+          const out = [];
+          for (const r of reportsList) {
+            const k = buildDedupeKey(r);
+            if (!seen.has(k)) { seen.add(k); out.push(r); }
+          }
+          return out;
+        };
         
         // Determine which farms to load based on user's farm assignment
         let farmsToLoad = [];
@@ -154,23 +261,15 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           
           // Try to get the farm name from the farm document
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
-          const farmName = farmDoc.exists() ? farmDoc.data().name : currentUser.farm;
+          const rawFarmName = farmDoc.exists() ? farmDoc.data().name : currentUser.farm;
+          const canonicalName = toCanonicalDisplay(rawFarmName, currentUser.farm);
+          const aliases = aliasesForCanonical(canonicalName);
           
+          // Query reports collection for reports with any alias
+          const reportsFromCollection = await fetchReportsByAliases(aliases);
           
-          // Query reports collection for reports with matching farm field
-          let reportsSnapshot;
-          try {
-            const reportsRef = collection(db, 'reports');
-            const farmQuery = query(reportsRef, where('farm', '==', farmName));
-            reportsSnapshot = await getDocs(farmQuery);
-          } catch (error) {
-            if (!reportsSnapshot) {
-              reportsSnapshot = { docs: [] };
-            }
-          }
-          
-                      const items = reportsSnapshot.docs.map(doc => {
-              const data = doc.data();
+          const itemsRaw = reportsFromCollection.map(dataDoc => {
+            const data = dataDoc;
 
             // Normalize timestamp to Date regardless of Firestore Timestamp or stored string/number
             let normalizedDate = null;
@@ -189,9 +288,9 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             
 
             return {
-              id: doc.id,
+              id: data.id,
               date: normalizedDate,
-              farm: data.farm,
+              farm: canonicalName,
               pond: data.fish_pond,
               fish: data.fish_condition,
               water: data.water_condition,
@@ -208,11 +307,14 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               reviewedAt: data.reviewed_at || data.reviewedAt,
               source: data.source || 'web',
               originalTimestamp: data.timestamp,
-              __collection: 'reports'
+              __collection: 'reports',
+              __hadFarmField: Object.prototype.hasOwnProperty.call(data, 'farm')
             };
           });
 
-          nextReportsByFarm[currentUser.farm] = { farm: { id: currentUser.farm, name: farmName }, reports: items };
+          const items = dedupeReports(itemsRaw);
+
+          nextReportsByFarm[currentUser.farm] = { farm: { id: currentUser.farm, name: canonicalName }, reports: items };
           totalReports = totalReports.concat(items.map(r => ({ ...r, __farmId: currentUser.farm })));
           
         } else {
@@ -224,15 +326,14 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             
             // Only use reports collection with farm field (single source of truth)
             try {
-              const reportsRef = collection(db, 'reports');
-              const farmQuery = query(reportsRef, where('farm', '==', farm.name));
-              const reportsSnapshot = await getDocs(farmQuery);
-              const reportsFromCollection = reportsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, __collection: 'reports' }));
+              const canonicalName = toCanonicalDisplay(farm.name, farm.id);
+              const aliases = aliasesForCanonical(canonicalName);
+              const reportsFromCollection = await fetchReportsByAliases(aliases);
               farmReports = reportsFromCollection;
             } catch (error) {
             }
             
-            const items = farmReports.map(report => {
+            const itemsRaw = farmReports.map(report => {
               const data = report;
 
               // Normalize timestamp to Date regardless of Firestore Timestamp or stored string/number
@@ -253,7 +354,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               return {
                 id: data.id,
                 date: normalizedDate,
-                farm: data.farm,
+                farm: toCanonicalDisplay(data.farm || data.farm_name || farm.name, farm.id),
                 pond: data.fish_pond,
                 fish: data.fish_condition,
                 water: data.water_condition,
@@ -269,22 +370,44 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 reviewedBy: data.reviewed_by || data.reviewedBy,
                 reviewedAt: data.reviewed_at || data.reviewedAt,
                 source: data.source || 'web',
-                originalTimestamp: data.timestamp
+                originalTimestamp: data.timestamp,
+                __hadFarmField: Object.prototype.hasOwnProperty.call(data, 'farm')
               };
             });
 
-            nextReportsByFarm[farm.id] = { farm, reports: items };
+            const items = dedupeReports(itemsRaw);
+
+            nextReportsByFarm[farm.id] = { farm: { ...farm, name: toCanonicalDisplay(farm.name, farm.id) }, reports: items };
             totalReports = totalReports.concat(items.map(r => ({ ...r, __farmId: farm.id })));
           }
         }
 
-        // Deduplicate reports across all farms (same report might exist in multiple collections)
-        const uniqueTotalReports = totalReports.filter((report, index, self) => 
-          index === self.findIndex(r => r.id === report.id)
-        );
+        // Deduplicate reports across all farms (aliases may create logical duplicates)
+        // Use a strong key: canonical farm name + pond + exact timestamp ms
+        const keyOf = (r) => {
+          const farmName = r.farm || '';
+          const pondName = r.pond || '';
+          let ms = 0;
+          const ts = r.originalTimestamp || r.date;
+          try {
+            if (ts && typeof ts.toDate === 'function') ms = ts.toDate().getTime();
+            else if (ts && typeof ts.seconds === 'number') ms = ts.seconds * 1000 + (ts.nanoseconds ? Math.floor(ts.nanoseconds / 1e6) : 0);
+            else if (ts instanceof Date) ms = ts.getTime();
+            else if (typeof ts === 'number') ms = ts;
+            else if (typeof ts === 'string') ms = Date.parse(ts) || 0;
+          } catch (_) { ms = 0; }
+          return `${farmName}::${pondName}::${ms}`;
+        };
+        const seenKeys = new Set();
+        const uniqueTotalReports = [];
+        for (const r of totalReports) {
+          const k = keyOf(r);
+          if (!seenKeys.has(k)) { seenKeys.add(k); uniqueTotalReports.push(r); }
+        }
         
         setReportsByFarm(nextReportsByFarm);
-        setReports(uniqueTotalReports);
+        // Only include in the totals those reports whose original doc had a 'farm' field
+        setReports(uniqueTotalReports.filter(r => r.__hadFarmField));
       } catch (error) {
         logActivity('error', logMessages.error.database(`Error fetching reports: ${error.message}`), 'System');
       } finally {

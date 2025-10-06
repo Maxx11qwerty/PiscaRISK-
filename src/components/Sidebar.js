@@ -39,6 +39,15 @@ const Sidebar = ({
     return role;
   };
 
+  const getDisplayName = () => {
+    if (!currentUser) return '';
+    const fromProfile = (currentUser.username || currentUser.displayName || '').trim();
+    if (fromProfile) return fromProfile;
+    const email = String(currentUser.email || '').trim();
+    if (email.includes('@')) return email.split('@')[0];
+    return '';
+  };
+
   // Check if current user is Super Admin (role Admin and no farm assigned)
   const isSuperAdmin = (!currentUser?.farm) && (String(currentUser?.role || '').toLowerCase() === 'admin');
 
@@ -86,7 +95,7 @@ const Sidebar = ({
             <FaUserCircle className="user-icon" />
           )}
           <div className="welcome-text">
-            <h2>{currentUser?.username || 'User'}</h2>
+            <h2>{getDisplayName()}</h2>
             <span className="sidebar-username" data-role={formatRole(currentUser?.role)}>
               {formatRole(currentUser?.role)}
             </span>
@@ -103,7 +112,11 @@ const Sidebar = ({
             </div>
             <div className="sidebar-nav-item" onClick={onAccountManagementClick}>
               <MdManageAccounts className="sidebar-nav-icon" />
-              <span>{t('sidebar.accountManagement')}</span>
+              <span>
+                Account
+                <br />
+                Management
+              </span>
             </div>
             <div className="sidebar-nav-item" onClick={onLogsClick}>
               <FaClipboardList className="sidebar-nav-icon" />

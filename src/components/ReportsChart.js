@@ -6,12 +6,14 @@ import './ReportsChart.css';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
 import { useAuth } from '../contexts/AuthContext';
+import { useFarms } from '../contexts/FarmsContext';
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
 function ReportsChart() {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
+  const { farmsById } = useFarms();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('weekly'); // 'daily', 'weekly', 'monthly'
@@ -22,25 +24,25 @@ function ReportsChart() {
   // Check if user is assigned to a farm
   const isAssignedToFarm = Boolean(currentUser?.farm);
 
-  // Resolve assigned farm name
+  // Resolve assigned farm name from live Farms map first (fallback to Firestore fetch)
   useEffect(() => {
-    const resolveAssignedFarmName = async () => {
-      if (isAssignedToFarm && currentUser.farm) {
-        try {
-          const { doc, getDoc } = await import('firebase/firestore');
-          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
-          if (farmDoc.exists()) {
-            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
-          } else {
-            setAssignedFarmName(currentUser.farm);
-          }
-        } catch (error) {
-          setAssignedFarmName(currentUser.farm);
-        }
+    const run = async () => {
+      if (!isAssignedToFarm || !currentUser.farm) return;
+      const fromMap = farmsById[currentUser.farm]?.name;
+      if (fromMap) {
+        setAssignedFarmName(fromMap);
+        return;
+      }
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+        setAssignedFarmName((farmDoc.exists() && farmDoc.data().name) || currentUser.farm);
+      } catch (_) {
+        setAssignedFarmName(currentUser.farm);
       }
     };
-    resolveAssignedFarmName();
-  }, [isAssignedToFarm, currentUser?.farm]);
+    run();
+  }, [isAssignedToFarm, currentUser?.farm, farmsById]);
 
   useEffect(() => {
     const fetchReports = async () => {

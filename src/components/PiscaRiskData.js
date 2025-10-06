@@ -33,6 +33,26 @@ const normalizeFarmName = (name) => {
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 };
 
+// Canonicalization helpers: map legacy names to new canonical display names
+const legacyNameToCanonical = {
+  'salmon-hatchery-facility': 'Aquino Fish Farm',
+  'tilapia-production-center': "Vergara's Aqua Farm",
+  'freshwater-finfish-farm': 'Rojo Hatchery',
+  'freshwater-finfish': 'Rojo Hatchery',
+  'blue-ocean-aquafarm': 'Maningas Fish Farm',
+  'marine-species-cultivation': 'Labay Fish Farm',
+};
+
+const toCanonicalDisplay = (rawName) => {
+  const key = normalizeFarmName(rawName);
+  const canon = legacyNameToCanonical[key] || rawName || '';
+  // Final guard for any freshwater finfish variants
+  if (String(canon).toLowerCase().replace(/\s+/g, ' ').includes('freshwater finfish')) return 'Rojo Hatchery';
+  return canon;
+};
+
+const toCanonicalKey = (rawName) => normalizeFarmName(toCanonicalDisplay(rawName));
+
 const Section = ({ title, children, description }) => (
   <div className="prd-section">
     <div className="prd-section-header">
@@ -115,7 +135,7 @@ const PiscaRiskData = () => {
         } catch (_) {
           setFarmUserCount({});
         }
-        // Count farm reports from 'reports' collection by farm name
+        // Count farm reports from 'reports' collection by farm name (canonicalized)
         const counts = {};
         try {
           const reportsRef = collection(db, 'reports');
@@ -125,7 +145,7 @@ const PiscaRiskData = () => {
             const d = doc.data() || {};
             const farmRaw = (d.farm || '').toString().trim();
             if (!farmRaw) return; // skip unknown/missing farm
-            const key = normalizeFarmName(farmRaw);
+            const key = toCanonicalKey(farmRaw);
             if (key === 'unknown-farm') return;
             counts[key] = (counts[key] || 0) + 1;
             const status = (d.status || '').toString().toLowerCase();
@@ -142,7 +162,7 @@ const PiscaRiskData = () => {
           Object.keys(counts).forEach(k => {
             if (!baseKeys.has(k)) {
               if (k === 'unknown-farm') return; // never add unknown
-              const displayName = (Object.keys(reviewed).includes(k)) ? k.replace(/-/g, ' ') : k.replace(/-/g, ' ');
+              const displayName = toCanonicalDisplay(k.replace(/-/g, ' '));
               toAdd.push({
                 key: k,
                 name: displayName,
@@ -181,7 +201,28 @@ const PiscaRiskData = () => {
           });
         }
         
-        setFarms(filteredFarms);
+        // Canonicalize farm display and merge duplicates (old name -> new canonical)
+        const merged = (() => {
+          const byName = new Map();
+          filteredFarms.forEach(f => {
+            const canonName = toCanonicalDisplay(f.name);
+            const canonKey = normalizeFarmName(canonName);
+            const existing = byName.get(canonName);
+            if (!existing) {
+              byName.set(canonName, { ...f, name: canonName, key: canonKey });
+            } else {
+              // merge predictions arrays
+              const preds = [
+                ...(Array.isArray(existing.predictions) ? existing.predictions : []),
+                ...(Array.isArray(f.predictions) ? f.predictions : [])
+              ];
+              byName.set(canonName, { ...existing, predictions: preds });
+            }
+          });
+          return Array.from(byName.values()).sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+        })();
+
+        setFarms(merged);
         // Weather
         const w = await fetchWeatherData();
         setWeather(w);
@@ -192,7 +233,11 @@ const PiscaRiskData = () => {
   }, [currentUser?.farm, assignedFarmName]);
 
   const allPonds = useMemo(() => {
-    return farms.flatMap(f => (f.predictions || []).map(p => ({ ...p, farm_name: f.name })));
+    return farms.flatMap(f => (f.predictions || []).map(p => ({
+      ...p,
+      farm_name: toCanonicalDisplay(p.farm || p.farm_name || f.name),
+      farm_key: normalizeFarmName(toCanonicalDisplay(p.farm || p.farm_name || f.name))
+    })));
   }, [farms]);
 
   const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {

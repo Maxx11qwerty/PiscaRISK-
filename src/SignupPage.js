@@ -68,33 +68,36 @@ export default function SignupPage() {
     localStorage.removeItem('allUsers');
     localStorage.removeItem('userData');
     localStorage.removeItem('currentUser');
-    // Fetch farms from Firebase
-    fetchFarms();
   }, []);
 
-  // Function to fetch farms from Firebase
-  const fetchFarms = async () => {
-    try {
-      setLoadingFarms(true);
-      const { collection, getDocs } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
-      
-      const farmsCollection = collection(db, 'farms');
-      const farmsSnapshot = await getDocs(farmsCollection);
-      
-      const farmsList = farmsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setFarms(farmsList);
-    } catch (error) {
-      console.error('Error fetching farms:', error);
-      setError('Failed to load farms. Please try again.');
-    } finally {
-      setLoadingFarms(false);
-    }
-  };
+  // Subscribe to farms collection in real-time so renamed farms are reflected immediately
+  useEffect(() => {
+    let unsubscribe;
+    (async () => {
+      try {
+        setLoadingFarms(true);
+        const { collection, onSnapshot } = await import('firebase/firestore');
+        const { db } = await import('./firebase');
+        const farmsCollection = collection(db, 'farms');
+        unsubscribe = onSnapshot(farmsCollection, (snapshot) => {
+          const farmsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setFarms(farmsList);
+          setLoadingFarms(false);
+        }, (err) => {
+          console.error('Error subscribing to farms:', err);
+          setError('Failed to load farms. Please try again.');
+          setLoadingFarms(false);
+        });
+      } catch (error) {
+        console.error('Error subscribing to farms:', error);
+        setError('Failed to load farms. Please try again.');
+        setLoadingFarms(false);
+      }
+    })();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (error) {
@@ -160,15 +163,16 @@ export default function SignupPage() {
       );
       logActivity('account', logMessages.account.userCreated('system', formData.username), formData.username);
       
-      // Show success message about account activation
+      // Show success message
       setError('');
-      setSuccess('Registration successful! Your account is pending admin approval. You will be notified once your account is activated.');
+      setSuccess('Account successfully created. Redirecting to login...');
       
       // Navigate to login page after a short delay
       setTimeout(() => {
         navigate("/");
-      }, 1500);
+      }, 3000);
     } catch (err) {
+      setSuccess('');
       setError(err.message);
       logActivity('error', logMessages.error.validation(err.message), formData.username);
     }
@@ -302,10 +306,15 @@ export default function SignupPage() {
               Fill in your details to get started.
             </p>
             <div className="sign-rounded-line"></div>
-            <div className={`sign-error-message ${error ? 'visible' : ''}`}> {error} </div>
-            {success && (
-              <div className="sign-success-message visible"> {success} </div>
-            )}
+            <div className="sign-messages">
+              {error && (
+                <div className="sign-error-message visible">{error}</div>
+              )}
+              {success && !error && (
+                <div className="sign-success-message visible">{success}</div>
+              )}
+            </div>
+            <div className="sign-fields">
             <div className="input-with-icon">
               <FaEnvelope className="input-icon" />
             <input
@@ -389,6 +398,7 @@ export default function SignupPage() {
                 )}
               </button>
             </div>
+            </div>{/* end sign-fields */}
 
             <div className="signup-password-wrapper">
             <FaLock className="login-lock-icon" />
