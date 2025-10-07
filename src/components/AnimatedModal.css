@@ -11,6 +11,12 @@
     animation: modal-fade-in 0.25s ease-out;
 }
 
+/* Subtle left offset for overlays */
+.modal-overlay.left-shift {
+    justify-content: flex-start;
+    padding-left: 250px; /* adjust as needed */
+}
+
 /* Overlay variant to left-align the container only for specific modals */
 .modal-overlay.align-left {
     justify-content: flex-start;
@@ -32,6 +38,26 @@
 	position: relative;
 	border: 1px solid rgba(230, 233, 240, 0.8);
 	animation: modal-scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Compact container variant */
+.modal-container.small-modal {
+    max-width: 420px;
+    width: min(92vw, 420px);
+    max-height: none; /* let content define height */
+}
+
+/* Subtle left offset for small modal */
+.modal-container.small-modal.left-shift {
+    transform: translateX(88px);
+}
+
+/* Make body fit content for small modal */
+.modal-container.small-modal .modal-body {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 12px 16px 16px;
 }
 
 /* Optional explicit centering helper if needed */

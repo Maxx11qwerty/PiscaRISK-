@@ -2,9 +2,10 @@ import { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { logActivity, logMessages } from '../utils/logger';
-import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle } from 'react-icons/fa';
+import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
+import { FormControl, InputLabel, Select, MenuItem, OutlinedInput } from '@mui/material';
 import AnimatedModal from './AnimatedModal';
 import { FaFileExport } from 'react-icons/fa6';
 import { 
@@ -101,6 +102,88 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const [expandedFarms, setExpandedFarms] = useState(new Set());
   const [openLogsModal, setOpenLogsModal] = useState(null); // { farmId, farmName }
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [showAddFishpondForm, setShowAddFishpondForm] = useState(false);
+  const [newPondNumber, setNewPondNumber] = useState('');
+  const [addingPond, setAddingPond] = useState(false);
+  const [nextPondFromDb, setNextPondFromDb] = useState(null);
+  const [pondNameByNumber, setPondNameByNumber] = useState({});
+  const [pondStatusByNumber, setPondStatusByNumber] = useState({});
+  const [pondInactiveByFarm, setPondInactiveByFarm] = useState({}); // farmId -> Set(numbers)
+  const [isPondDropdownOpen, setIsPondDropdownOpen] = useState(false);
+  const [deactivateConfirm, setDeactivateConfirm] = useState({ open: false, pondNum: null, farmId: null, targetId: null, nextStatus: 'Inactive' });
+
+  const pondMenuProps = {
+    PaperProps: {
+      style: { maxHeight: 48 * 4.5 + 8, width: 260 }
+    }
+  };
+
+  // Keep pondOptions in sync with Firestore fishPonds for the active farm
+  useEffect(() => {
+    let isCancelled = false;
+    const loadPonds = async () => {
+      try {
+        // Determine which farm to use: assigned farm id or selectedFarmId for admins
+        let farmIdToUse = null;
+        if (currentUser?.farm) {
+          farmIdToUse = await getUserAssignedFarmId();
+        } else if (selectedFarmId && selectedFarmId !== 'all') {
+          farmIdToUse = selectedFarmId;
+        }
+        const buildForFarm = async (fid) => {
+          const snap = await getDocs(collection(db, 'farms', fid, 'fishPonds'));
+          let maxNum = 0;
+          const pondMap = {};
+          const statusMap = {};
+          const numbersSet = new Set();
+          const inactiveSet = new Set();
+          snap.forEach(docSnap => {
+            const data = docSnap.data() || {};
+            const nm = String(data.name || '').trim();
+            const st = String(data.status || 'Active');
+            const m = nm.match(/^\s*fish\s*pond\s*(\d+)\s*$/i);
+            if (m && m[1]) {
+              const n = parseInt(m[1], 10);
+              if (!isNaN(n)) maxNum = Math.max(maxNum, n);
+              if (!isNaN(n)) { numbersSet.add(n); if (!pondMap[n]) pondMap[n] = nm; statusMap[n] = st; if (st.trim().toLowerCase()==='inactive') inactiveSet.add(n); }
+            } else {
+              const n2 = parseInt(nm, 10);
+              if (!isNaN(n2)) maxNum = Math.max(maxNum, n2);
+              if (!isNaN(n2)) { numbersSet.add(n2); if (!pondMap[n2]) pondMap[n2] = nm; statusMap[n2] = st; if (st.trim().toLowerCase()==='inactive') inactiveSet.add(n2); }
+            }
+          });
+          return { pondMap, statusMap, numbers: Array.from(numbersSet).sort((a,b)=>a-b), inactiveSet };
+        };
+
+        if (!farmIdToUse && selectedFarmId === 'all') {
+          // Admin/all farms view: build inactive map for all farms
+          const inactiveByFarm = {};
+          // Keep current dropdown options as-is; we only need inactive map
+          for (const f of farms) {
+            try {
+              const r = await buildForFarm(f.id);
+              inactiveByFarm[f.id] = r.inactiveSet;
+            } catch (_) {}
+          }
+          if (!isCancelled) setPondInactiveByFarm(inactiveByFarm);
+          return;
+        }
+
+        if (!farmIdToUse) return; // No specific farm context
+        const r = await buildForFarm(farmIdToUse);
+        if (!isCancelled) {
+          setPondOptions(r.numbers.length ? r.numbers : [1]);
+          setPondNameByNumber(r.pondMap);
+          setPondStatusByNumber(r.statusMap);
+          setPondInactiveByFarm(prev => ({ ...prev, [farmIdToUse]: r.inactiveSet }));
+        }
+      } catch (_) {
+        // ignore; keep existing options
+      }
+    };
+    loadPonds();
+    return () => { isCancelled = true; };
+  }, [currentUser?.farm, selectedFarmId, farms]);
 
   // Ensure pond filter defaults to 'all' when opened as a modal
   useEffect(() => {
@@ -406,8 +489,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         }
         
         setReportsByFarm(nextReportsByFarm);
-        // Only include in the totals those reports whose original doc had a 'farm' field
-        setReports(uniqueTotalReports.filter(r => r.__hadFarmField));
+        // Include all unique reports (per-farm filtering manages visibility)
+        setReports(uniqueTotalReports);
       } catch (error) {
         logActivity('error', logMessages.error.database(`Error fetching reports: ${error.message}`), 'System');
       } finally {
@@ -421,8 +504,40 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   // Get and sort reports
   const allReports = [...reports].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  // Extract numeric pond number from names like "Fish pond 2" or plain numbers
+  function extractPondNumber(value) {
+    if (!value) return null;
+    const text = String(value).trim();
+    const m = text.match(/(\d+)/);
+    if (m && m[1]) {
+      const n = parseInt(m[1], 10);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }
+
+  function getReportPondNumber(report) {
+    return extractPondNumber(report?.pond ?? report?.fish_pond ?? '');
+  }
+
+  function matchesSelectedPond(report, selectedPondNum) {
+    if (!selectedPondNum) return true;
+    const repNum = getReportPondNumber(report);
+    if (repNum === selectedPondNum) return true;
+    const reportName = String(report?.pond ?? report?.fish_pond ?? '').trim().toLowerCase();
+    const officialName = String(pondNameByNumber[selectedPondNum] || '').trim().toLowerCase();
+    return officialName && reportName === officialName;
+  }
+
   // Filter reports based on selected filter and pond selection
   const getFilteredReports = () => {
+    // If a specific pond is selected and it's marked Inactive, hide reports for it
+    if (selectedPond !== 'all') {
+      const st = String(pondStatusByNumber[Number(selectedPond)] || 'Active').trim().toLowerCase();
+      if (st === 'inactive') {
+        return [];
+      }
+    }
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -431,7 +546,24 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const pondFilterVal = (selectedPond && selectedPond !== 'all') ? `Fish Pond ${selectedPond}` : null;
+    const selectedPondNum = (selectedPond && selectedPond !== 'all') ? Number(selectedPond) : null;
+    const hideIfInactive = (r) => {
+      const pondNum = getReportPondNumber(r);
+      // 1) use embedded farmId if present
+      let farmId = r.__farmId;
+      // 2) else resolve by farm name against loaded farms
+      if (!farmId && r.farm) {
+        const lower = String(r.farm).trim().toLowerCase();
+        const match = farms.find(f => String(f.name || '').trim().toLowerCase() === lower);
+        if (match) farmId = match.id;
+      }
+      // 3) if farmId found, use per-farm inactive map
+      if (farmId && pondInactiveByFarm[farmId] instanceof Set) {
+        return !pondInactiveByFarm[farmId].has(pondNum);
+      }
+      // 4) fallback to global map (assigned farm view)
+      return String(pondStatusByNumber[pondNum] || 'Active').trim().toLowerCase() !== 'inactive';
+    };
 
     let filteredResults = [];
 
@@ -441,8 +573,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           const reportDate = new Date(report.date);
           const reportDateString = reportDate.toDateString();
           const matchesDate = reportDateString === today.toDateString();
-          const matchesPond = !pondFilterVal || report.pond === pondFilterVal;
-          return matchesDate && matchesPond;
+          const matchesPond = matchesSelectedPond(report, selectedPondNum);
+          return matchesDate && matchesPond && hideIfInactive(report);
         });
         break;
         
@@ -450,8 +582,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         filteredResults = allReports.filter(report => {
           const reportDate = new Date(report.date);
           const matchesDate = reportDate >= sevenDaysAgo;
-          const matchesPond = !pondFilterVal || report.pond === pondFilterVal;
-          return matchesDate && matchesPond;
+          const matchesPond = matchesSelectedPond(report, selectedPondNum);
+          return matchesDate && matchesPond && hideIfInactive(report);
         });
         break;
         
@@ -466,15 +598,15 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         filteredResults = allReports.filter(report => {
           const reportDate = new Date(report.date);
           const matchesDate = reportDate >= selectedCustomDate && reportDate < nextDay;
-          const matchesPond = !pondFilterVal || report.pond === pondFilterVal;
-          return matchesDate && matchesPond;
+          const matchesPond = matchesSelectedPond(report, selectedPondNum);
+          return matchesDate && matchesPond && hideIfInactive(report);
         });
         break;
         
       default:
         filteredResults = allReports.filter(report => {
-          const matchesPond = !pondFilterVal || report.pond === pondFilterVal;
-          return matchesPond;
+          const matchesPond = matchesSelectedPond(report, selectedPondNum);
+          return matchesPond && hideIfInactive(report);
         });
     }
     
@@ -647,12 +779,182 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     return currentUser.farm;
   };
 
+  // Helper to resolve the assigned farm ID reliably
+  const getUserAssignedFarmId = async () => {
+    if (!currentUser?.farm) return null;
+    // 0) Try to read user's profile for a canonical farmId
+    try {
+      const userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDocSnap.exists()) {
+        const u = userDocSnap.data() || {};
+        const directFarmId = u.farmId || u.farm;
+        if (directFarmId) {
+          const farmSnap = await getDoc(doc(db, 'farms', String(directFarmId)));
+          if (farmSnap.exists()) return farmSnap.id;
+        }
+      }
+    } catch {}
+    // 1) Check loaded farms array (fast path) by id or by name, preferring canonical Firestore IDs (20-char base62)
+    const byId = farms.find(f => f.id === currentUser.farm);
+    if (byId && /^[A-Za-z0-9]{20}$/.test(byId.id)) return byId.id;
+    const normalizedTarget = String(currentUser.farm).trim().toLowerCase();
+    const byName = farms.find(f => String(f.name || '').trim().toLowerCase() === normalizedTarget && /^[A-Za-z0-9]{20}$/.test(f.id));
+    if (byName) return byName.id;
+    // 2) Query by name (prefer canonical 20-char IDs)
+    try {
+      const q = query(collection(db, 'farms'), where('name', '==', currentUser.farm), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const doc0 = snap.docs[0];
+        if (/^[A-Za-z0-9]{20}$/.test(doc0.id)) return doc0.id;
+      }
+    } catch {}
+    // 3) Fallback: load all farms and match by normalized name (tolerate case/spacing), preferring canonical IDs
+    try {
+      const allSnap = await getDocs(collection(db, 'farms'));
+      let matchId = null;
+      const target = String(currentUser.farm).trim().toLowerCase();
+      allSnap.forEach(d => {
+        const nm = String((d.data() || {}).name || '').trim().toLowerCase();
+        if (!matchId && nm === target && /^[A-Za-z0-9]{20}$/.test(d.id)) matchId = d.id;
+      });
+      if (matchId) return matchId;
+    } catch {}
+    // 4) Not resolvable
+    return null;
+  };
+
   // Helper function to get the count of reports for user's assigned farm
   const getAssignedFarmReportCount = () => {
     if (!currentUser?.farm) return 0;
     
     const farmReports = reportsByFarm[currentUser.farm]?.reports || [];
     return farmReports.length;
+  };
+
+  // Helper function to get the next pond number
+  const getNextPondNumber = () => {
+    const maxPondNumber = Math.max(...pondOptions);
+    return maxPondNumber + 1;
+  };
+
+  // Check if a pond number has any data under current filter context
+  const hasDataForPond = (pondNumber) => {
+    const normalizePondNum = (val) => {
+      if (typeof val === 'number' && Number.isFinite(val)) return val;
+      if (typeof val === 'string') {
+        const parsed = parseInt(val.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(parsed)) return parsed;
+      }
+      return null;
+    };
+    let farmIds = [];
+    if (currentUser?.farm) {
+      farmIds = [currentUser.farm];
+    } else if (selectedFarmId && selectedFarmId !== 'all') {
+      farmIds = [selectedFarmId];
+    } else {
+      farmIds = farms.map(f => f.id);
+    }
+    for (const fid of farmIds) {
+      const reps = (reportsByFarm[fid]?.reports) || [];
+      for (const r of reps) {
+        const pn = normalizePondNum(r.pond);
+        if (pn === pondNumber) return true;
+      }
+    }
+    return false;
+  };
+
+  // Compute next pond number by reading existing fishPonds under the assigned farm
+  const getNextPondNumberFromDb = async (farmId) => {
+    try {
+      const snap = await getDocs(collection(db, 'farms', farmId, 'fishPonds'));
+      const currentMaxFromState = Number.isFinite(Math.max(...pondOptions)) ? Math.max(...pondOptions) : 0;
+      let maxNum = currentMaxFromState > 0 ? currentMaxFromState : 0;
+      snap.forEach(docSnap => {
+        const data = docSnap.data() || {};
+        const nm = String(data.name || '').trim();
+        // Match patterns like "Fish pond 12" or numeric-only names
+        const m = nm.match(/^\s*fish\s*pond\s*(\d+)\s*$/i);
+        if (m && m[1]) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n)) maxNum = Math.max(maxNum, n);
+        } else {
+          const n2 = parseInt(nm, 10);
+          if (!isNaN(n2)) maxNum = Math.max(maxNum, n2);
+        }
+      });
+      return (maxNum || 0) + 1;
+    } catch (_) {
+      // Safe fallback
+      return 1;
+    }
+  };
+
+  // Function to handle adding a new fishpond
+  const handleAddFishpond = async () => {
+    if (!newPondNumber.trim()) return;
+    
+    setAddingPond(true);
+    try {
+      const assignedFarmId = await getUserAssignedFarmId();
+      if (!assignedFarmId) {
+        throw new Error('Could not resolve your farm from users.farm. Please ensure it matches a farms.name.');
+      }
+      // Verify farm doc exists (authoritative)
+      const farmDocSnap = await getDoc(doc(db, 'farms', assignedFarmId));
+      if (!farmDocSnap.exists()) {
+        throw new Error('Assigned farm document does not exist. Please contact admin.');
+      }
+      const assignedFarmName = farmDocSnap.data()?.name || getUserAssignedFarmName();
+      console.log('Adding fishpond under farm id:', assignedFarmId, 'name:', assignedFarmName);
+      // Choose pond number: honor user's numeric input if available and not taken; otherwise use next available
+      const requestedNum = extractPondNumber(newPondNumber);
+      const takenSet = new Set(pondOptions);
+      const fallbackNext = nextPondFromDb || await getNextPondNumberFromDb(assignedFarmId);
+      const chosenNum = (requestedNum && !takenSet.has(requestedNum)) ? requestedNum : fallbackNext;
+      const nameToSave = `Fish pond ${chosenNum}`;
+
+      // Document to be stored in top-level collection "fishPonds"
+      const pondData = {
+        name: nameToSave,
+        createdAt: serverTimestamp(),
+        farmName: assignedFarmName,
+        created_by: currentUser?.uid,
+      };
+
+      // Add to fishPonds subcollection under the assigned farm id
+      const docRef = await addDoc(collection(db, 'farms', assignedFarmId, 'fishPonds'), pondData);
+
+      // Log the activity
+      await logActivity(
+        'fishpond',
+        `Added new fishpond "${nameToSave}" to ${assignedFarmName}`,
+        currentUser?.username || currentUser?.email || 'Unknown',
+        null,
+        currentUser?.role || null
+      );
+
+      // Add to pond options if it's a number
+      if (!pondOptions.includes(chosenNum)) {
+        setPondOptions(prev => [...prev, chosenNum].sort((a, b) => a - b));
+      }
+      setSelectedPond(chosenNum);
+
+      console.log('Fishpond added successfully:', docRef.id);
+      
+      // Reset form
+      setNewPondNumber(String(chosenNum + 1));
+      setNextPondFromDb(chosenNum + 1);
+      setShowAddFishpondForm(false);
+    } catch (err) {
+      console.error('Error adding fishpond:', err);
+      const message = err?.message || 'Unknown error';
+      alert(`Failed to add fishpond: ${message}`);
+    } finally {
+      setAddingPond(false);
+    }
   };
 
   if (loading || isProcessingNotification) {
@@ -678,6 +980,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               `${t('pondCondition.comprehensive_overview')} - ${getUserAssignedFarmName() || 'Assigned Farm'}` : 
               t('pondCondition.comprehensive_overview')
             }
+            {selectedPond !== 'all' ? ` — Fish pond ${selectedPond}` : ''}
           </p>
 
         </div>
@@ -692,6 +995,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               {currentUser?.farm ? `${t('pondCondition.total_reports')} (${getUserAssignedFarmName()})` : t('pondCondition.total_reports')}
             </span>
           </div>
+          
         </div>
       </div>
 
@@ -723,16 +1027,134 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         
         <div className="filter-group">
           <label>{t('pondCondition.pond')}:</label>
-          <select 
-            value={selectedPond} 
-            onChange={(e) => setSelectedPond(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="filter-select"
-          >
-            <option value="all">{t('pondCondition.all_ponds')}</option>
-            {pondOptions.map(n => (
-              <option key={n} value={n}>{`${t('pondCondition.pond')} ${n}`}</option>
-            ))}
-          </select>
+          <div className="pond-filter-container">
+            <FormControl sx={{ minWidth: 160,
+              '& .MuiOutlinedInput-root': { height: 40, borderRadius: '8px' },
+              '& .MuiOutlinedInput-notchedOutline': { borderWidth: '2px', borderColor: '#e2e8f0' },
+              '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1A4375' },
+              '& .MuiSelect-select': { padding: '8px 12px', fontSize: '0.95rem', color: '#1f2937' }
+            }} size="small">
+              <InputLabel id="pond-select-label">{t('pondCondition.pond')}</InputLabel>
+              <Select
+                labelId="pond-select-label"
+                id="pond-select"
+                value={selectedPond}
+                label={t('pondCondition.pond')}
+                input={<OutlinedInput label={t('pondCondition.pond')} />}
+                onOpen={() => setIsPondDropdownOpen(true)}
+                onClose={() => setIsPondDropdownOpen(false)}
+                onChange={(e) => setSelectedPond(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                MenuProps={pondMenuProps}
+              >
+                <MenuItem value={'all'}>{t('pondCondition.all_ponds')}</MenuItem>
+                {pondOptions
+                  .filter((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() !== 'inactive')
+                  .map((n) => {
+                    const hasData = hasDataForPond(n);
+                    const indicator = hasData ? '🟢' : '🔴';
+                    return (
+                      <MenuItem key={n} value={n}>{`${indicator} ${t('pondCondition.pond')} ${n}`}</MenuItem>
+                    );
+                  })}
+                {pondOptions.some((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() === 'inactive') && (
+                  <MenuItem disabled divider>──────── Deactivated ────────</MenuItem>
+                )}
+                {pondOptions
+                  .filter((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() === 'inactive')
+                  .map((n) => (
+                    <MenuItem key={`inactive-${n}`} value={n}>{`⚫ ${t('pondCondition.pond')} ${n} (Deactivated)`}</MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+            
+            {/* Add New Fishpond Button - Only visible for users with assigned farms */}
+            {currentUser?.farm && (
+            <button 
+              className="add-fishpond-btn-small"
+              onClick={async () => {
+                const opening = !showAddFishpondForm;
+                setShowAddFishpondForm(opening);
+                if (opening) {
+                  try {
+                    const farmId = await getUserAssignedFarmId();
+                    if (farmId) {
+                      const next = await getNextPondNumberFromDb(farmId);
+                      setNextPondFromDb(next);
+                      setNewPondNumber(String(next));
+                    } else {
+                      const fallback = getNextPondNumber();
+                      setNextPondFromDb(fallback);
+                      setNewPondNumber(String(fallback));
+                    }
+                  } catch {
+                    const fallback = getNextPondNumber();
+                    setNextPondFromDb(fallback);
+                    setNewPondNumber(String(fallback));
+                  }
+                } else {
+                  setNextPondFromDb(null);
+                }
+              }}
+                title="Add a new fishpond to your assigned farm"
+              >
+                <FaPlus className="btn-icon" />
+                {showAddFishpondForm ? 'Cancel' : 'Add'}
+              </button>
+            )}
+            {selectedPond !== 'all' && (
+              <button
+                className="deactivate-pond-btn"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  try {
+                    const farmId = await getUserAssignedFarmId();
+                    if (!farmId || !selectedPond) return;
+                    // Find the fishPonds doc for the selected pond number
+                    const snap = await getDocs(collection(db, 'farms', farmId, 'fishPonds'));
+                    let targetId = null;
+                    let currentStatus = 'Active';
+                    snap.forEach(d => {
+                      const data = d.data() || {};
+                      const nm = String(data.name || '').trim();
+                      const m = nm.match(/^\s*fish\s*pond\s*(\d+)\s*$/i);
+                      const num = m && m[1] ? parseInt(m[1], 10) : parseInt(nm, 10);
+                      if (!isNaN(num) && num === Number(selectedPond)) {
+                        targetId = d.id;
+                        currentStatus = String(data.status || 'Active');
+                      }
+                    });
+                    if (!targetId) return;
+                    const nextStatus = currentStatus.toLowerCase() === 'inactive' ? 'Active' : 'Inactive';
+                    // If deactivating and pond has data, show styled modal instead of window.confirm
+                    if (nextStatus === 'Inactive' && hasDataForPond(Number(selectedPond))) {
+                      setDeactivateConfirm({ open: true, pondNum: Number(selectedPond), farmId, targetId, nextStatus });
+                      return;
+                    }
+                    await updateDoc(doc(db, 'farms', farmId, 'fishPonds', targetId), { status: nextStatus });
+                    // Refresh pond lists/status
+                    const refreshed = await getDocs(collection(db, 'farms', farmId, 'fishPonds'));
+                    const numbersSet = new Set();
+                    const nameMap = {}; const statusMap = {};
+                    refreshed.forEach(dd => {
+                      const dat = dd.data() || {};
+                      const nm = String(dat.name || '').trim();
+                      const st = String(dat.status || 'Active');
+                      const m2 = nm.match(/^\s*fish\s*pond\s*(\d+)\s*$/i);
+                      const val = m2 && m2[1] ? parseInt(m2[1], 10) : parseInt(nm, 10);
+                      if (!isNaN(val)) { numbersSet.add(val); if (!nameMap[val]) nameMap[val] = nm; statusMap[val] = st; }
+                    });
+                    setPondOptions(Array.from(numbersSet).sort((a,b)=>a-b));
+                    setPondNameByNumber(nameMap);
+                    setPondStatusByNumber(statusMap);
+                  } catch (_) {}
+                }}
+                title="Deactivate/Activate selected pond"
+              >
+                {String(pondStatusByNumber[selectedPond] || 'Active').toLowerCase() === 'inactive' ? 'Activate' : 'Deactivate'}
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="filter-group">
@@ -851,6 +1273,53 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         )}
       </div>
 
+      {/* Add Fishpond Form - Inline Dropdown */}
+      {currentUser?.farm && showAddFishpondForm && (
+        <div className="add-fishpond-dropdown">
+          <div className="dropdown-content">
+            <h4>Add New Fishpond to {getUserAssignedFarmName()}</h4>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Pond Number/Name</label>
+                <input
+                  type="text"
+                  value={newPondNumber}
+                  onChange={(e) => setNewPondNumber(e.target.value)}
+                  placeholder={`Suggested: ${getNextPondNumber()}`}
+                  className="pond-input"
+                />
+                <small className="form-hint">
+                  Enter a number (e.g., 11) or custom name (e.g., "Main Pond A")
+                </small>
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowAddFishpondForm(false);
+                    setNewPondNumber('');
+                  }}
+                  className="btn btn-cancel"
+                  disabled={addingPond}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddFishpond(); }}
+                  className="btn btn-add"
+                  disabled={addingPond || !newPondNumber.trim()}
+                >
+                  {addingPond ? 'Adding...' : 'Add Fishpond'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="farm-cards-list">
         {farms.length === 0 ? (
           <div className="no-reports">
@@ -883,7 +1352,10 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               
               const today = new Date(); today.setHours(0,0,0,0);
               const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); sevenDaysAgo.setHours(0,0,0,0);
-              const pondFilterVal = (selectedPond && selectedPond !== 'all') ? `Fish Pond ${selectedPond}` : null;
+              const selectedPondNum = (selectedPond && selectedPond !== 'all') ? Number(selectedPond) : null;
+              if (selectedPondNum && String(pondStatusByNumber[selectedPondNum] || 'Active').toLowerCase() === 'inactive') {
+                return [];
+              }
               
               let filteredReports = [];
               
@@ -892,7 +1364,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   filteredReports = farmReports.filter(r => {
                     const reportDate = new Date(r.date);
                     const matchesDate = reportDate.toDateString() === today.toDateString();
-                    const matchesPond = !pondFilterVal || r.pond === pondFilterVal;
+                    const matchesPond = !selectedPondNum || getReportPondNumber(r) === selectedPondNum;
                     return matchesDate && matchesPond;
                   });
                   break;
@@ -900,7 +1372,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   filteredReports = farmReports.filter(r => {
                     const reportDate = new Date(r.date);
                     const matchesDate = reportDate >= sevenDaysAgo;
-                    const matchesPond = !pondFilterVal || r.pond === pondFilterVal;
+                    const matchesPond = !selectedPondNum || getReportPondNumber(r) === selectedPondNum;
                     return matchesDate && matchesPond;
                   });
                   break;
@@ -911,12 +1383,12 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   filteredReports = farmReports.filter(r => {
                     const reportDate = new Date(r.date);
                     const matchesDate = reportDate >= d0 && reportDate < d1;
-                    const matchesPond = !pondFilterVal || r.pond === pondFilterVal;
+                    const matchesPond = !selectedPondNum || getReportPondNumber(r) === selectedPondNum;
                     return matchesDate && matchesPond;
                   });
                   break;
                 default:
-                  filteredReports = pondFilterVal ? farmReports.filter(r => r.pond === pondFilterVal) : farmReports;
+                  filteredReports = selectedPondNum ? farmReports.filter(r => getReportPondNumber(r) === selectedPondNum) : farmReports;
               }
               
               return filteredReports;
@@ -1064,6 +1536,55 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           })
         )}
       </div>
+
+      {/* Deactivate Confirmation Modal */}
+      <AnimatedModal
+        isOpen={deactivateConfirm.open}
+        onClose={() => setDeactivateConfirm({ open: false, pondNum: null, farmId: null, targetId: null, nextStatus: 'Inactive' })}
+        title={deactivateConfirm.pondNum ? `Deactivate Fish pond ${deactivateConfirm.pondNum}?` : 'Deactivate Pond?'}
+        icon={<FaExclamationTriangle />}
+        containerClassName="small-modal"
+        overlayClassName="left-shift"
+      >
+        <div style={{ padding: 8 }}>
+          <p style={{ marginTop: 0, color: '#374151', fontSize: '0.92rem', lineHeight: 1.35 }}>This pond has existing reports. If you deactivate it, those reports will be hidden in this dashboard until you activate the pond again.</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button
+              className="btn btn-cancel"
+              onClick={() => setDeactivateConfirm({ open: false, pondNum: null, farmId: null, targetId: null, nextStatus: 'Inactive' })}
+            >
+              Cancel
+            </button>
+            <button
+              className="deactivate-pond-btn"
+              onClick={async () => {
+                try {
+                  const { farmId, targetId, nextStatus } = deactivateConfirm;
+                  if (!farmId || !targetId) return;
+                  await updateDoc(doc(db, 'farms', farmId, 'fishPonds', targetId), { status: nextStatus });
+                  const refreshed = await getDocs(collection(db, 'farms', farmId, 'fishPonds'));
+                  const numbersSet = new Set(); const nameMap = {}; const statusMap = {};
+                  refreshed.forEach(dd => {
+                    const dat = dd.data() || {};
+                    const nm = String(dat.name || '').trim();
+                    const st = String(dat.status || 'Active');
+                    const m2 = nm.match(/^\s*fish\s*pond\s*(\d+)\s*$/i);
+                    const val = m2 && m2[1] ? parseInt(m2[1], 10) : parseInt(nm, 10);
+                    if (!isNaN(val)) { numbersSet.add(val); if (!nameMap[val]) nameMap[val] = nm; statusMap[val] = st; }
+                  });
+                  setPondOptions(Array.from(numbersSet).sort((a,b)=>a-b));
+                  setPondNameByNumber(nameMap);
+                  setPondStatusByNumber(statusMap);
+                } catch (_) {}
+                setDeactivateConfirm({ open: false, pondNum: null, farmId: null, targetId: null, nextStatus: 'Inactive' });
+              }}
+            >
+              Deactivate
+            </button>
+          </div>
+        </div>
+      </AnimatedModal>
+
       <AnimatedModal
         isOpen={!!openLogsModal}
         onClose={() => setOpenLogsModal(null)}
@@ -1077,6 +1598,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           <StockFeedLogs farmId={openLogsModal.farmId} farmName={openLogsModal.farmName} />
         )}
       </AnimatedModal>
+
     </div>
   );
 };
