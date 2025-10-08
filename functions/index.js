@@ -5,6 +5,32 @@ const admin = require("firebase-admin");
 if (!admin.apps.length) {
   admin.initializeApp();
 }
+/**
+ * Scheduled job: auto-deactivate temporary tech officers after effectiveTo
+ */
+exports.autoDeactivateTempTOs = functions.pubsub.schedule('every 1 hours').onRun(async (context) => {
+  const db = admin.firestore();
+  const now = new Date();
+  const batch = db.batch();
+  try {
+    const snap = await db.collection('users').where('temporaryTechOfficer', '==', true).get();
+    for (const docSnap of snap.docs) {
+      const u = docSnap.data() || {};
+      if (!u.effectiveTo) continue;
+      const toDate = new Date(u.effectiveTo);
+      // If end date has passed (end of day), ensure status is Inactive
+      if (now > new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59, 999)) {
+        if (String(u.status || '').toLowerCase() !== 'inactive') {
+          batch.update(docSnap.ref, { status: 'Inactive' });
+        }
+      }
+    }
+    await batch.commit();
+  } catch (e) {
+    console.error('autoDeactivateTempTOs failed:', e);
+  }
+  return null;
+});
 
 const cors = require('cors')({ origin: true });
 
@@ -69,7 +95,7 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
       email: data.email,
       username: data.username,
       role: data.role || "Staff",
-      status: data.status || "Active", // Use status from form data or fallback to Active
+      status: data.status || "Active", // default; will be overridden for temporary TO
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdBy: context.auth.uid,
       address: data.address || "",
@@ -85,6 +111,23 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
       userData.accessLevel = 'mobile';
     }
     
+    // Apply Temporary Tech Officer fields when applicable
+    if (data.isTemporary === true || data.temporaryTechOfficer === true) {
+      userData.isTemporary = true;
+      userData.temporaryTechOfficer = true;
+      userData.effectiveFrom = data.effectiveFrom || null;
+      userData.effectiveTo = data.effectiveTo || null;
+      userData.tempTOReason = data.tempTOReason || null;
+      userData.tempTORemarks = data.tempTORemarks || null;
+      // Enforce canonical role and inactive status
+      userData.role = 'temp_tech_officer';
+      userData.status = 'Inactive';
+      // Deactivation tracking fields (initially null)
+      userData.deactivatedBy = null;
+      userData.deactivatedAt = null;
+      userData.deactivationReason = null;
+    }
+
     await admin.firestore().collection(collectionName).doc(userRecord.uid).set(userData);
     console.log(`Firestore document created successfully in ${collectionName} collection`);
   } catch (err) {

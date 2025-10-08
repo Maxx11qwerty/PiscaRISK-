@@ -740,7 +740,7 @@ const login = async (emailOrContact, password) => {
           message: "Your account has been suspended. Please contact support for assistance."
         };
       }
-      
+
       // Allow Admin accounts to login regardless of status (except suspended)
       const roleLower = String(userData.role || '').toLowerCase();
       if (roleLower === 'admin') {
@@ -754,6 +754,55 @@ const login = async (emailOrContact, password) => {
           });
           userData.status = 'Active';
         }
+      }
+
+      // Check for Temporary Tech Officer restriction for main Tech Officers
+      if ((roleLower === 'tech_officer' || roleLower === 'tech officer') && !userData.temporaryTechOfficer) {
+        try {
+          // Check if there's an active Temporary Tech Officer
+          const usersRef = collection(db, 'users');
+          const activeTTOQuery = query(
+            usersRef, 
+            where('temporaryTechOfficer', '==', true),
+            where('status', '==', 'Active')
+          );
+          const ttoSnapshot = await getDocs(activeTTOQuery);
+          
+          if (!ttoSnapshot.empty) {
+            const activeTTO = ttoSnapshot.docs[0].data();
+            const effectiveTo = activeTTO.effectiveTo;
+            
+            if (effectiveTo) {
+              const expirationDate = new Date(effectiveTo);
+              const expirationString = expirationDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              await signOut(auth);
+              return {
+                success: false,
+                message: `Login restricted: A Temporary Tech Officer is active until ${expirationString}. If you need early access, contact the Super Admin to deactivate the temporary account.`
+              };
+            }
+          }
+        } catch (error) {
+          // Continue with login if check fails
+        }
+      }
+
+      // Check if account is deactivated (block inactive accounts) - but only after TTO check
+      if (String(userData.status || '').toLowerCase() === 'inactive') {
+        await signOut(auth);
+        return {
+          success: false,
+          message: "This account has been deactivated by the Admin. Access is no longer available."
+        };
       }
 
       // For existing users, if email not verified: trigger verification flow instead of plain error
@@ -1359,9 +1408,15 @@ const login = async (emailOrContact, password) => {
 
       // Determine target collection, canonical role and status
       const requestedRole = userData.role;
+      const isTempTO = (
+        userData?.temporaryTechOfficer === true ||
+        userData?.isTemporary === true ||
+        String(requestedRole || '').toLowerCase() === 'temporary tech officer' ||
+        String(requestedRole || '').toLowerCase() === 'temp_tech_officer'
+      );
       const canonicalStatus = String(
         userData.status || (
-          (requestedRole === 'Admin' || requestedRole === 'Tech Officer' || requestedRole === 'Fish Farmer')
+          (requestedRole === 'Admin' || requestedRole === 'Tech Officer' || requestedRole === 'Temporary Tech Officer' || requestedRole === 'Fish Farmer')
             ? 'Inactive'
             : 'Active'
         )
@@ -1373,9 +1428,12 @@ const login = async (emailOrContact, password) => {
       if (requestedRole === 'Admin') {
         targetCollection = 'users';
         canonicalRole = 'admin';
-      } else if (requestedRole === 'Tech Officer') {
+      } else if (requestedRole === 'Tech Officer' || String(requestedRole || '').toLowerCase() === 'tech_officer') {
         targetCollection = 'users';
         canonicalRole = 'tech_officer';
+      } else if (requestedRole === 'Temporary Tech Officer' || String(requestedRole || '').toLowerCase() === 'temp_tech_officer') {
+        targetCollection = 'users';
+        canonicalRole = 'temp_tech_officer';
       } else if (requestedRole === 'Fish Farmer') {
         // Fish Farmers belong to mobileUsers
         targetCollection = 'mobileUsers';
@@ -1400,7 +1458,20 @@ const login = async (emailOrContact, password) => {
         // Add farm assignment if provided
         farm: userData.farm || null,
         // Admin activation flag (Firestore does not allow undefined)
-        adminActivated: (requestedRole === 'Admin') ? true : false
+        adminActivated: (requestedRole === 'Admin') ? true : false,
+        // Persist temporary flag for temporary tech officers
+        temporaryTechOfficer: isTempTO,
+        isTemporary: isTempTO,
+        effectiveFrom: userData.effectiveFrom || null,
+        effectiveTo: userData.effectiveTo || null,
+        tempTOReason: userData.tempTOReason || null,
+        tempTORemarks: userData.tempTORemarks || null,
+        // If provided, store the selected farm/admin mapping for temp tech officer (legacy)
+        tempAssignedFarm: userData.tempAssignedFarm || null,
+        tempAssignedFarmName: userData.tempAssignedFarmName || null,
+        tempAssignedAdminId: userData.tempAssignedAdminId || null,
+        tempAssignedAdminName: userData.tempAssignedAdminName || null,
+        tempAssignedAdminEmail: userData.tempAssignedAdminEmail || null
       });
 
       return { success: true };
@@ -2193,7 +2264,17 @@ const resetPassword = async (email) => {
     requiresOTP,
     otpSent,
     sendOTP,
-    verifyOTP
+    verifyOTP,
+    // Helper: check if a temporary tech officer is within their effective period
+    isTempTechOfficerWithinEffectivePeriod: (user) => {
+      if (!user || !user.temporaryTechOfficer) return false;
+      const from = user.effectiveFrom ? new Date(user.effectiveFrom) : null;
+      const to = user.effectiveTo ? new Date(user.effectiveTo) : null;
+      const today = new Date();
+      const startOk = from ? today >= new Date(from.getFullYear(), from.getMonth(), from.getDate()) : true;
+      const endOk = to ? today <= new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999) : true;
+      return startOk && endOk;
+    }
   };
 
   return (

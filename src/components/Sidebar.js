@@ -33,9 +33,10 @@ const Sidebar = ({
   const formatRole = (role) => {
     if (!role) return 'User';
     const r = String(role).toLowerCase();
+    const hasFarm = !!(currentUser?.farm && String(currentUser.farm).trim() !== '');
     if (r === 'tech_officer' || r === 'tech officer') return 'Tech Officer';
     if (r === 'fish_farmer' || r === 'fish farmer') return 'Fish Farmer';
-    if (r === 'admin') return 'Admin';
+    if (r === 'admin') return hasFarm ? 'Farm Admin' : 'Admin';
     return role;
   };
 

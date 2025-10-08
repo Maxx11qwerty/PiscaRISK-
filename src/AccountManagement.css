@@ -1701,6 +1701,14 @@ z-index: 1000;
   font-size: 13px;
 }
 
+/* Temporary Tech Officer badge matches existing role badge styling */
+.role-temporary-tech-officer {
+  background-color: #7FB2FE;
+  color: black;
+  font-family: 'ReadexPro-Regular2';
+  font-size: 13px;
+}
+
 /* Status Indicator Styles */
 .status-indicator {
   display: flex;

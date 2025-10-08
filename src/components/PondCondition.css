@@ -1,3 +1,13 @@
+.form-error {
+  margin-top: 6px;
+  color: #b3261e;
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: 'ReadexPro-Regular';
+}
 @font-face {
   font-family: 'customfont1';
   src: url('../assets/fonts/ReadexPro-bold.ttf') format('truetype');

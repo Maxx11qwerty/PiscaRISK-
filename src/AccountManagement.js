@@ -14,7 +14,7 @@ import UserPopup from './components/UserPopup';
 import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, updateUserStatus as serviceUpdateUserStatus } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
-import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 import { logActivity, logMessages } from './utils/logger';
 
@@ -71,10 +71,22 @@ const AccountManagement = () => {
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState(null);
   const [resetNotices, setResetNotices] = useState({}); // { [userId]: { text, type } }
   
+  // Timer states for Temporary Tech Officers
+  const [ttoTimers, setTtoTimers] = useState({}); // { [userId]: { remaining, status } }
+  
+  // Track if there's an active Temporary Tech Officer
+  const [hasActiveTTO, setHasActiveTTO] = useState(false);
+  
+  // Track TTO creation mode
+  const [ttoCreationMode, setTtoCreationMode] = useState(''); // 'reuse' or 'create'
+  
   // Farms for assignment when creator has no assigned farm
   const [farms, setFarms] = useState([]); // { id, name }
   const [selectedFarmId, setSelectedFarmId] = useState('');
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  // Temporary Tech Officer: reason/remarks handled below
+
+  // Derived UI flags (none needed here; use !currentUser?.farm inline where required)
   const farmIdToName = useMemo(() => {
     const map = {};
     for (const f of farms) {
@@ -100,6 +112,196 @@ const AccountManagement = () => {
       return () => clearTimeout(timer);
     }
   }, [message, showAddUserForm]);
+
+  // Timer logic for Temporary Tech Officers
+  useEffect(() => {
+    const updateTimers = () => {
+      const now = new Date();
+      const newTimers = {};
+      
+      AccountUsers.forEach(user => {
+        if ((String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && 
+            user.effectiveFrom && user.effectiveTo && 
+            String(user.status || '').toLowerCase() === 'active') {
+          const effectiveFrom = new Date(user.effectiveFrom);
+          const effectiveTo = new Date(user.effectiveTo);
+          
+          // Calculate remaining time from effectiveFrom to effectiveTo
+          const totalDuration = effectiveTo.getTime() - effectiveFrom.getTime();
+          const elapsed = now.getTime() - effectiveFrom.getTime();
+          const remaining = effectiveTo.getTime() - now.getTime();
+          
+          let status = 'active';
+          if (remaining <= 0) {
+            status = 'expired';
+          } else if (remaining <= 24 * 60 * 60 * 1000) { // Less than 24 hours
+            status = 'expiring';
+          }
+          
+          newTimers[user.id] = {
+            remaining: Math.max(0, remaining),
+            status: status,
+            totalDuration: totalDuration,
+            elapsed: Math.max(0, elapsed)
+          };
+        }
+      });
+      
+      setTtoTimers(newTimers);
+      
+      // Check if there's any active Temporary Tech Officer
+      const activeTTO = AccountUsers.find(user => 
+        (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && 
+        String(user.status || '').toLowerCase() === 'active'
+      );
+      setHasActiveTTO(!!activeTTO);
+    };
+
+    // Update timers immediately
+    updateTimers();
+    
+    // Update every minute
+    const interval = setInterval(updateTimers, 60000);
+    
+    return () => clearInterval(interval);
+  }, [AccountUsers]);
+
+  // Auto-deactivate expired Temporary Tech Officers and sync main TO status
+  useEffect(() => {
+    const autoDeactivateExpired = async () => {
+      const expiredUsers = [];
+      
+      Object.entries(ttoTimers).forEach(([userId, timer]) => {
+        if (timer.status === 'expired') {
+          const user = AccountUsers.find(u => u.id === userId);
+          if (user && (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && user.status?.toLowerCase() === 'active') {
+            expiredUsers.push(user);
+          }
+        }
+      });
+
+      if (expiredUsers.length > 0) {
+        for (const user of expiredUsers) {
+          try {
+            const { updateDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('./firebase');
+            const now = new Date();
+            
+            await updateDoc(doc(db, 'users', user.id), { 
+              status: 'Inactive',
+              lastModified: now.toISOString(),
+              deactivatedBy: 'System (Auto)',
+              deactivatedAt: now.toISOString(),
+              deactivationReason: 'Temporary assignment expired',
+              tempTORemarks: user.tempTORemarks || null,
+              temporaryTechOfficer: false,
+              adminActivated: false,
+              emailVerified: false
+            });
+            
+            // Log the auto-deactivation
+            try {
+              const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'System';
+              logActivity('account', `Temporary Tech Officer ${user.username} automatically deactivated due to expiration`, adminUser);
+            } catch (_) {}
+            
+            // Update local state
+            setAccountUsers(prev => prev.map(u => 
+              u.id === user.id ? { 
+                ...u, 
+                status: 'inactive',
+                deactivatedBy: 'System (Auto)',
+                deactivatedAt: now.toISOString(),
+                deactivationReason: 'Temporary assignment expired',
+                tempTORemarks: user.tempTORemarks || null,
+                temporaryTechOfficer: false,
+                adminActivated: false,
+                emailVerified: false
+              } : u
+            ));
+
+            // Reactivate main Tech Officer when Temporary Tech Officer is auto-deactivated
+            try {
+              const mainTO = AccountUsers.find(x => {
+                const r = String(x?.role || '').toLowerCase();
+                return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.temporarilyInactiveDueToTempTO;
+              });
+              
+              if (mainTO && mainTO.id) {
+                const { updateDoc, doc } = await import('firebase/firestore');
+                const { db } = await import('./firebase');
+                await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
+                  status: 'Active',
+                  temporarilyInactiveDueToTempTO: false,
+                  temporaryReplacementReason: null,
+                  temporaryEffectiveFrom: null,
+                  temporaryEffectiveTo: null
+                });
+                
+                // Update local state for main Tech Officer
+                setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
+                  ...u,
+                  status: 'active',
+                  temporarilyInactiveDueToTempTO: false,
+                  temporaryReplacementReason: null,
+                  temporaryEffectiveFrom: null,
+                  temporaryEffectiveTo: null
+                } : u));
+              }
+            } catch (e) {
+              console.error("Failed to reactivate main Tech Officer:", e);
+            }
+          } catch (error) {
+            console.error(`Failed to auto-deactivate ${user.username}:`, error);
+          }
+        }
+      }
+    };
+
+    // Also sync main TO status when there's an active TTO
+    const syncMainTOStatus = async () => {
+      const activeTTO = AccountUsers.find(u => 
+        (String(u.role || '').toLowerCase() === 'temp_tech_officer' || u.temporaryTechOfficer === true) && 
+        String(u.status || '').toLowerCase() === 'active'
+      );
+      
+      if (activeTTO) {
+        const mainTO = AccountUsers.find(x => {
+          const r = String(x?.role || '').toLowerCase();
+          return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer;
+        });
+        
+        if (mainTO && !mainTO.temporarilyInactiveDueToTempTO) {
+          try {
+            const { updateDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('./firebase');
+            await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
+              status: 'Inactive',
+              temporarilyInactiveDueToTempTO: true,
+              temporaryReplacementReason: activeTTO.tempTOReason || 'Temporary assignment',
+              temporaryEffectiveFrom: activeTTO.effectiveFrom || null,
+              temporaryEffectiveTo: activeTTO.effectiveTo || null
+            });
+            
+            // Update local state
+            setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
+              ...u,
+              status: 'inactive',
+              temporarilyInactiveDueToTempTO: true,
+              temporaryReplacementReason: activeTTO.tempTOReason || 'Temporary assignment',
+              temporaryEffectiveFrom: activeTTO.effectiveFrom || null,
+              temporaryEffectiveTo: activeTTO.effectiveTo || null
+            } : u));
+          } catch (e) {
+            console.error("Failed to sync main Tech Officer status:", e);
+          }
+        }
+      }
+    };
+
+    autoDeactivateExpired();
+    syncMainTOStatus();
+  }, [ttoTimers, AccountUsers, currentUser]);
 
   // Removed auto-dismiss success toast for admin password resets
 
@@ -139,6 +341,8 @@ const AccountManagement = () => {
     loadFarms();
     resolveAssignedFarmName();
   }, [currentUser?.farm]);
+
+  // Removed creation mode/farm-admin selection logic
 
   
   const useScreenSize = () => {
@@ -314,6 +518,7 @@ const AccountManagement = () => {
     if (!role) return '';
     const lower = String(role).toLowerCase();
     if (lower === 'tech_officer' || lower === 'tech officer') return 'Tech Officer';
+    if (lower === 'temp_tech_officer' || lower === 'temp tech officer') return 'Temporary Tech Officer';
     if (lower === 'admin') return 'Admin';
     if (lower === 'fish_farmer' || lower === 'fish farmer') return 'Fish Farmer';
     return role;
@@ -328,6 +533,155 @@ const AccountManagement = () => {
     if (s === 'active') return 'Active';
     if (s === 'inactive') return 'Inactive';
     return status || 'Unknown';
+  };
+
+  // Helper function to format remaining time
+  const formatRemainingTime = (remainingMs) => {
+    if (remainingMs <= 0) return 'Expired';
+    
+    const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
+
+  // Helper function to format full expiration details
+  const formatFullExpirationDetails = (user, timer) => {
+    if (!user.effectiveFrom || !user.effectiveTo) return 'No effective period set';
+    
+    const effectiveFrom = new Date(user.effectiveFrom);
+    const effectiveTo = new Date(user.effectiveTo);
+    const now = new Date();
+    const isExpired = timer.status === 'expired';
+    
+    const fromDate = effectiveFrom.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    
+    const toDate = effectiveTo.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    
+    const toTime = effectiveTo.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    if (isExpired) {
+      return `Period: ${fromDate} - ${toDate} (Expired)`;
+    } else {
+      const remaining = formatRemainingTime(timer.remaining);
+      return `Period: ${fromDate} - ${toDate} (${remaining} left)`;
+    }
+  };
+
+  // Helper function to get timer status color
+  const getTimerStatusColor = (status) => {
+    switch (status) {
+      case 'expired': return '#ef4444'; // Red
+      case 'expiring': return '#f59e0b'; // Yellow/Orange
+      case 'active': return '#10b981'; // Green
+      default: return '#6b7280'; // Gray
+    }
+  };
+
+  // Manual deactivate function for Temporary Tech Officers
+  const handleManualDeactivateTTO = async (user) => {
+    if (!isSuperAdminUser) {
+      setMessage({ text: 'Only Super Admin can manually deactivate Temporary Tech Officers', type: 'error' });
+      return;
+    }
+
+    try {
+      setMessage({ text: `Deactivating ${user.username}...`, type: 'info' });
+      
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      const now = new Date();
+      const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      
+      await updateDoc(doc(db, 'users', user.id), { 
+        status: 'Inactive',
+        lastModified: now.toISOString(),
+        deactivatedBy: adminUser,
+        deactivatedAt: now.toISOString(),
+        deactivationReason: 'Manually deactivated by Super Admin',
+        tempTORemarks: user.tempTORemarks || null,
+        temporaryTechOfficer: false,
+        adminActivated: false,
+        emailVerified: false
+      });
+      
+      // Log the manual deactivation
+      try {
+        logActivity('account', `Temporary Tech Officer ${user.username} manually deactivated by Super Admin`, adminUser);
+      } catch (_) {}
+      
+      // Update local state
+      setAccountUsers(prev => prev.map(u => 
+        u.id === user.id ? { 
+          ...u, 
+          status: 'inactive',
+          deactivatedBy: adminUser,
+          deactivatedAt: now.toISOString(),
+          deactivationReason: 'Manually deactivated by Super Admin',
+          tempTORemarks: user.tempTORemarks || null,
+          temporaryTechOfficer: false,
+          adminActivated: false,
+          emailVerified: false
+        } : u
+      ));
+
+      // Reactivate main Tech Officer when Temporary Tech Officer is manually deactivated
+      try {
+        const mainTO = AccountUsers.find(x => {
+          const r = String(x?.role || '').toLowerCase();
+          return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.temporarilyInactiveDueToTempTO;
+        });
+        
+        if (mainTO && mainTO.id) {
+          const { updateDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
+            status: 'Active',
+            temporarilyInactiveDueToTempTO: false,
+            temporaryReplacementReason: null,
+            temporaryEffectiveFrom: null,
+            temporaryEffectiveTo: null
+          });
+          
+          // Update local state for main Tech Officer
+          setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
+            ...u,
+            status: 'active',
+            temporarilyInactiveDueToTempTO: false,
+            temporaryReplacementReason: null,
+            temporaryEffectiveFrom: null,
+            temporaryEffectiveTo: null
+          } : u));
+        }
+      } catch (e) {
+        console.error("Failed to reactivate main Tech Officer:", e);
+      }
+      
+      setMessage({ text: `${user.username} deactivated successfully!`, type: 'success' });
+    } catch (error) {
+      setMessage({ text: `Error deactivating ${user.username}: ${error.message}`, type: 'error' });
+    }
   };
 
   const filteredUsers = AccountUsers.filter(user => {
@@ -466,7 +820,7 @@ const AccountManagement = () => {
     
     // Special handling for role changes
     if (name === 'role') {
-      const newStatus = (value === 'Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
+      const newStatus = (value === 'Tech Officer' || value === 'Temporary Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
 
       
     setNewUser(prev => ({
@@ -494,8 +848,25 @@ const AccountManagement = () => {
     role: 'User',
     status: 'Active',
     dateJoined: new Date().toISOString().split('T')[0],
-    password: ''
+    password: '',
+    effectiveFrom: '',
+    effectiveTo: '',
+    tempTOReason: '',
+    tempTORemarks: '',
+    selectedExistingTTO: ''
   });
+
+  // Ensure Temporary Tech Officer is always Inactive until verification
+  useEffect(() => {
+    if (newUser.role === 'Temporary Tech Officer') {
+      if (newUser.status !== 'Inactive') {
+        setNewUser(prev => ({ ...prev, status: 'Inactive' }));
+      }
+    }
+  }, [newUser.role]);
+
+  // Show manual entry fields unless super admin selected Temporary Tech Officer with "Select farm admin" mode
+  const showManualFields = true;
 
   // Define resetForm function
   const resetForm = () => {
@@ -508,8 +879,14 @@ const AccountManagement = () => {
       role: '',
       password: '',
       dateJoined: getTodayDate(),
-      status: 'Active' // Will be updated when role is selected
+      status: 'Active', // Will be updated when role is selected
+      effectiveFrom: '',
+      effectiveTo: '',
+      tempTOReason: '',
+      tempTORemarks: '',
+      selectedExistingTTO: ''
     });
+    setTtoCreationMode('');
   };
 
   const handleAddUser = async () => {
@@ -523,19 +900,23 @@ const AccountManagement = () => {
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
         logActivity('account', `User creation attempted for ${newUser.username} (${newUser.role}) in Account Management`, u); 
       } catch (_) {}
-      if (newUser.password.length < 6) {
+      // Skip password validation for reuse mode since we're reusing an existing account
+      if (ttoCreationMode !== 'reuse' && newUser.password.length < 6) {
         setMessage({ text: 'Password must be at least 6 characters', type: 'error' });
         return;
       }
-      if (!newUser.username || !newUser.role || !newUser.password || !newUser.email) {
+      // Skip username and email validation for reuse mode since we're reusing an existing account
+      if (ttoCreationMode !== 'reuse' && (!newUser.username || !newUser.role || !newUser.password || !newUser.email)) {
         setMessage({ text: 'All fields are required', type: 'error' });
         return;
       }
-      if (!/^\S+@\S+\.\S+$/.test(newUser.email)) {
+      // Skip email validation for reuse mode since we're reusing an existing account
+      if (ttoCreationMode !== 'reuse' && !/^\S+@\S+\.\S+$/.test(newUser.email)) {
         setMessage({ text: 'Please enter a valid email address', type: 'error' });
         return;
       }
-      if (newUser.password.length < 8) {
+      // Skip password validation for reuse mode since we're reusing an existing account
+      if (ttoCreationMode !== 'reuse' && newUser.password.length < 8) {
         setMessage({ text: 'Password must be at least 8 characters', type: 'error' });
         return;
       }
@@ -552,19 +933,99 @@ const AccountManagement = () => {
         setMessage({ text: 'Invalid date format. Please use YYYY-MM-DD format', type: 'error' });
         return;
       }
+
+      // For Temporary Tech Officer, require effective period and validate range
+      if (newUser.role === 'Temporary Tech Officer') {
+        if (!newUser.effectiveFrom || !newUser.effectiveTo) {
+          setMessage({ text: 'Please set Effective Period (From) and (To) for Temporary Tech Officer', type: 'error' });
+          return;
+        }
+        const fromOk = dateRegex.test(newUser.effectiveFrom);
+        const toOk = dateRegex.test(newUser.effectiveTo);
+        if (!fromOk || !toOk) {
+          setMessage({ text: 'Effective Period must be in YYYY-MM-DD format', type: 'error' });
+          return;
+        }
+        if (new Date(newUser.effectiveFrom) > new Date(newUser.effectiveTo)) {
+          setMessage({ text: 'Effective Period (From) must be before or equal to (To)', type: 'error' });
+          return;
+        }
+      }
       
-      // Role permissions: Farm-assigned Admins can only create Fish Farmers; Super Admins (no farm) can create Admins and Tech Officers
-      const allowedRoles = currentUser?.farm ? ['Fish Farmer'] : (hasTechOfficer ? ['Admin'] : ['Admin', 'Tech Officer']);
+      // Handle reuse existing TTO account
+      if (newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') {
+        if (!newUser.selectedExistingTTO) {
+          setMessage({ text: 'Please select an existing Temporary Tech Officer account to reuse', type: 'error' });
+          return;
+        }
+        
+        // Find the selected TTO account
+        const selectedTTO = AccountUsers.find(user => user.id === newUser.selectedExistingTTO);
+        if (!selectedTTO) {
+          setMessage({ text: 'Selected Temporary Tech Officer account not found', type: 'error' });
+          return;
+        }
+        
+        // Update the existing TTO account with new effective period and reason
+        try {
+          const { updateDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          
+          await updateDoc(doc(db, 'users', selectedTTO.id), {
+            effectiveFrom: newUser.effectiveFrom || null,
+            effectiveTo: newUser.effectiveTo || null,
+            tempTOReason: newUser.tempTOReason || null,
+            tempTORemarks: newUser.tempTORemarks || null,
+            lastModified: new Date().toISOString(),
+            // Clear deactivation fields to show activation button instead of deactivation message
+            deactivatedBy: null,
+            deactivatedAt: null,
+            deactivationReason: null
+          });
+          
+          // Update local state to reflect the changes
+          setAccountUsers(prev => prev.map(user => 
+            user.id === selectedTTO.id 
+              ? { 
+                  ...user, 
+                  effectiveFrom: newUser.effectiveFrom || null,
+                  effectiveTo: newUser.effectiveTo || null,
+                  tempTOReason: newUser.tempTOReason || null,
+                  tempTORemarks: newUser.tempTORemarks || null,
+                  lastModified: new Date().toISOString(),
+                  // Clear deactivation fields to show activation button instead of deactivation message
+                  deactivatedBy: null,
+                  deactivatedAt: null,
+                  deactivationReason: null
+                }
+              : user
+          ));
+          
+          setMessage({ text: `Temporary Tech Officer account "${selectedTTO.username}" has been updated with new assignment details. The account is now ready for activation.`, type: 'success' });
+          resetForm();
+          setShowAddUserForm(false);
+          return;
+        } catch (error) {
+          console.error('Error updating TTO account:', error);
+          setMessage({ text: 'Failed to update Temporary Tech Officer account', type: 'error' });
+          return;
+        }
+      }
+      
+      // Role permissions: Farm-assigned Admins can only create Fish Farmers; Super Admins (no farm) can create Admins, Tech Officers, and Temporary Tech Officers
+      const allowedRoles = currentUser?.farm ? ['Fish Farmer'] : ['Admin', 'Tech Officer', 'Temporary Tech Officer'];
       if (!allowedRoles.includes(newUser.role)) {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
       }
 
+      // Removed farm-admin selection requirement for Temporary Tech Officer
+
       setMessage({ text: 'Creating user...', type: 'info' });
 
       // Determine farm assignment
-      // For Tech Officer created by Super Admin, enforce no farm assignment
-      const isCreatingTechOfficer = newUser.role === 'Tech Officer';
+      // For Tech Officer or Temporary Tech Officer created by Super Admin, enforce no farm assignment
+      const isCreatingTechOfficer = (newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer');
       const farmForNewUser = isCreatingTechOfficer ? null : (currentUser?.farm ? currentUser.farm : selectedFarmId);
       // Super Admins: Admin requires no farm; Tech Officer requires no farm; Fish Farmer requires farm
       if (!currentUser?.farm && newUser.role === 'Fish Farmer' && !farmForNewUser) {
@@ -572,7 +1033,8 @@ const AccountManagement = () => {
         return;
       }
 
-      const enforcedStatus = (newUser.role === 'Admin' || newUser.role === 'Tech Officer' || newUser.role === 'Fish Farmer')
+      // Enforce default Inactive for privileged roles (including Temporary Tech Officer)
+      const enforcedStatus = (newUser.role === 'Admin' || newUser.role === 'Tech Officer' || newUser.role === 'Fish Farmer' || newUser.role === 'Temporary Tech Officer')
         ? 'Inactive'
         : newUser.status;
 
@@ -582,12 +1044,21 @@ const AccountManagement = () => {
         fullName: newUser.fullName,
         address: newUser.address,
         contactNumber: newUser.contactNumber,
-        role: newUser.role,
+        // Map Temporary Tech Officer to temp_tech_officer role, with a flag
+        role: (newUser.role === 'Temporary Tech Officer') ? 'temp_tech_officer' : newUser.role,
         password: newUser.password,
         dateJoined: newUser.dateJoined,
         status: enforcedStatus,
-        farm: farmForNewUser || null
+        farm: farmForNewUser || null,
+        temporaryTechOfficer: newUser.role === 'Temporary Tech Officer',
+        isTemporary: newUser.role === 'Temporary Tech Officer',
+        effectiveFrom: newUser.effectiveFrom || null,
+        effectiveTo: newUser.effectiveTo || null,
+        tempTOReason: newUser.tempTOReason || null,
+        tempTORemarks: newUser.tempTORemarks || null
       };
+
+      // Removed farm-admin pairing persistence for Temporary Tech Officer
 
 
 
@@ -600,6 +1071,7 @@ const AccountManagement = () => {
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
           logActivity('account', `User ${newUser.username} (${newUser.role}) created successfully in Account Management`, u); 
         } catch (_) {}
+        // Main Tech Officer status will only change when TTO is activated, not when created
         // Keep form open so success is visible, clear inputs for next entry
         resetForm();
         await fetchUsers();
@@ -618,10 +1090,6 @@ const AccountManagement = () => {
 
   const handleCancelAddUser = () => {
     setShowAddUserForm(false);
-    try { 
-      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-      logActivity('account', `Add User form cancelled in Account Management`, u); 
-    } catch (_) {}
     setNewUser({
       username: '',
       fullName: '',
@@ -664,7 +1132,11 @@ const AccountManagement = () => {
       role: currentUser?.farm ? 'Fish Farmer' : (hasTechOfficer ? 'Admin' : 'Tech Officer'),
       status: 'Active', // Default status, enforced later per role
       dateJoined: todayDate,
-      password: ''
+      password: '',
+        effectiveFrom: '',
+        effectiveTo: '',
+        tempTOReason: '',
+        tempTORemarks: ''
     });
     setShowAddUserForm(true);
     setMessage({ text: '', type: '' });
@@ -747,7 +1219,7 @@ const AccountManagement = () => {
 
   // Function to activate Tech Officer accounts
   const handleActivateTechOfficer = async (user) => {
-    if (formatRoleForDisplay(user.role) !== 'Tech Officer') {
+    if (formatRoleForDisplay(user.role) !== 'Tech Officer' && formatRoleForDisplay(user.role) !== 'Temporary Tech Officer') {
       setMessage({ text: 'Only Tech Officer accounts can be activated', type: 'error' });
       return;
     }
@@ -784,8 +1256,55 @@ const AccountManagement = () => {
       
       // Update local state (optimistic)
       setAccountUsers(prev => prev.map(u => 
-        u.id === user.id ? { ...u, adminActivated: true, _justActivated: true } : u
+        u.id === user.id ? { ...u, status: 'active', adminActivated: true, _justActivated: true } : u
       ));
+
+      // Update Firestore to set status to Active
+      try {
+        const { updateDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('./firebase');
+        await updateDoc(doc(db, 'users', user.id), {
+          status: 'Active',
+          adminActivated: true,
+          lastModified: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Failed to update Firestore status:", e);
+      }
+
+      // If this is a Temporary Tech Officer being activated, set main Tech Officer to Inactive
+      if (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) {
+        try {
+          const mainTO = AccountUsers.find(x => {
+            const r = String(x?.role || '').toLowerCase();
+            return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer;
+          });
+          
+          if (mainTO && mainTO.id) {
+            const { updateDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('./firebase');
+            await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
+              status: 'Inactive',
+              temporarilyInactiveDueToTempTO: true,
+              temporaryReplacementReason: user.tempTOReason || 'Temporary assignment',
+              temporaryEffectiveFrom: user.effectiveFrom || null,
+              temporaryEffectiveTo: user.effectiveTo || null
+            });
+            
+            // Update local state for main Tech Officer
+            setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
+              ...u,
+              status: 'inactive',
+              temporarilyInactiveDueToTempTO: true,
+              temporaryReplacementReason: user.tempTOReason || 'Temporary assignment',
+              temporaryEffectiveFrom: user.effectiveFrom || null,
+              temporaryEffectiveTo: user.effectiveTo || null
+            } : u));
+          }
+        } catch (e) {
+          console.error("Failed to inactivate main Tech Officer:", e);
+        }
+      }
       
       // Refresh users list
       await fetchUsers();
@@ -1299,10 +1818,6 @@ const handleActivateFishFarmer = async (user) => {
             e.stopPropagation();
             const isOpening = !showFilterDropdown;
             setShowFilterDropdown(!showFilterDropdown);
-            try { 
-              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-              logActivity('account', `Filter menu ${isOpening ? 'opened' : 'closed'} in Account Management`, u); 
-            } catch (_) {}
           }}
         >
           <FaFilter className="filter-icon" />
@@ -1318,10 +1833,6 @@ const handleActivateFishFarmer = async (user) => {
                     onChange={(e) => {
                       e.stopPropagation();
                       setSelectedFilterType(e.target.value);
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('account', `Filter type changed to ${e.target.value} in Account Management`, u); 
-                      } catch (_) {}
                     }}
                   >
                     <option value="All">{t('accountManagement.filters.all_option')}</option>
@@ -1341,10 +1852,6 @@ const handleActivateFishFarmer = async (user) => {
                       onChange={(e) => {
                         e.stopPropagation();
                         setFilterValue(e.target.value);
-                        try { 
-                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('account', `Filter value changed to "${e.target.value}" in Account Management`, u); 
-                        } catch (_) {}
                       }}
                       className="filter-input"
                     />
@@ -1357,10 +1864,6 @@ const handleActivateFishFarmer = async (user) => {
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowFilterDropdown(false);
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('account', `Filter applied in Account Management`, u); 
-                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.filters.apply_button')}
@@ -1372,10 +1875,6 @@ const handleActivateFishFarmer = async (user) => {
                       setSelectedFilterType('All');
                       setFilterValue('');
                       setShowFilterDropdown(false);
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('account', `Filter cleared in Account Management`, u); 
-                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.filters.clear_button')}
@@ -1388,10 +1887,6 @@ const handleActivateFishFarmer = async (user) => {
               <button className="add-user-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
                 closeAllDropdowns(); // Close all other dropdowns first
-                try { 
-                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                  logActivity('account', `Add User form opened in Account Management`, u); 
-                } catch (_) {}
                 handleOpenAddUserForm();
               }}>
                 <FaUserPlus className="button-icon" />
@@ -1643,6 +2138,24 @@ const handleActivateFishFarmer = async (user) => {
                     </div>
                   </div>
                 )}
+                {newUser.role === 'Temporary Tech Officer' && (
+                  <div className="form-role-notice">
+                    <div className="role-notice-icon">⚠️</div>
+                    <div className="role-notice-content">
+                      {ttoCreationMode === 'reuse' ? (
+                        <>
+                          <strong>Heads up! You are about to reuse an existing temporary tech officer account. The new effective period will be updated.</strong>
+                        </>
+                      ) : (
+                        <>
+                          <strong>Heads up! You are about to create a Temporary Tech Officer account.</strong>
+                          <p>The user will temporarily act as a Tech Officer and can access all farms' data and reports.</p>
+                          <p>Make sure to set an expiration date and disable access once the main Tech Officer is available again.</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {newUser.role === 'Fish Farmer' && (
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
@@ -1652,6 +2165,7 @@ const handleActivateFishFarmer = async (user) => {
                     </div>
                   </div>
                 )}
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.username_label')}</label>
@@ -1680,6 +2194,7 @@ const handleActivateFishFarmer = async (user) => {
                   />
                 </div>
               </div>
+              )}
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.job_position_label')}</label>
@@ -1696,19 +2211,231 @@ const handleActivateFishFarmer = async (user) => {
                         // Farm-assigned Admins: only Fish Farmer
                         <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
                       ) : (
-                        // Super Admins (no farm): Admin, and Tech Officer if not yet created
+                        // Super Admins (no farm): Admin, Tech Officer (if not yet created), and Temporary Tech Officer (if no active TTO)
                         <>
                           <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
                           {!hasTechOfficer && (
                             <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
                           )}
+                          <option 
+                            value="Temporary Tech Officer" 
+                            disabled={hasActiveTTO}
+                          >
+                            {hasActiveTTO ? 'Temporary Tech Officer (Already Active)' : 'Temporary Tech Officer'}
+                          </option>
                         </>
                       )}
                   </select>
                 </div>
+                
+                {/* TTO Creation Mode Selection */}
+                {newUser.role === 'Temporary Tech Officer' && (
+                  <div className="form-group" style={{ width: '100%' }}>
+                    <label>Select Creation Mode</label>
+                    <select
+                      name="ttoCreationMode"
+                      value={ttoCreationMode}
+                      onChange={(e) => setTtoCreationMode(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                      required
+                    >
+                      <option value="">Select an option</option>
+                      <option value="reuse">Reuse Existing Temporary Tech Officer Account</option>
+                      <option value="create">Create New Temporary Tech Officer Account</option>
+                    </select>
+                  </div>
+                )}
+                
+                {/* For Temporary Tech Officer: reason and optional remarks */}
+                {newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'create' && (
+                  <>
+                    <div className="form-group" style={{ width: '100%' }}>
+                      <label>Reason for Temporary Assignment</label>
+                      <select
+                        name="tempTOReason"
+                        value={newUser.tempTOReason}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, tempTOReason: e.target.value }))}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="">Select reason</option>
+                        <option value="Vacation Leave">Vacation Leave</option>
+                        <option value="Sick Leave">Sick Leave</option>
+                        <option value="Training / Seminar">Training / Seminar</option>
+                        <option value="Personal Emergency">Personal Emergency</option>
+                        
+                        
+                        <option value="Other">Other (Specify Below)</option>
+                      </select>
+                    </div>
+                    {(newUser.tempTOReason === 'Other') && (
+                      <div className="form-group" style={{ width: '100%' }}>
+                        <label>Remarks</label>
+                        <textarea
+                          name="tempTORemarks"
+                          value={newUser.tempTORemarks}
+                          onChange={(e) => setNewUser(prev => ({ ...prev, tempTORemarks: e.target.value }))}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          placeholder="Provide details for the selected reason"
+                          rows={3}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {/* Reuse Existing TTO Account */}
+                {newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse' && (
+                  <>
+                    <div className="form-group" style={{ width: '100%' }}>
+                      <label>Select Existing Temporary Tech Officer Account</label>
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          name="selectedExistingTTO"
+                          value={newUser.selectedExistingTTO || ''}
+                          onChange={(e) => setNewUser(prev => ({ ...prev, selectedExistingTTO: e.target.value }))}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          required
+                          style={{ 
+                            width: '100%', 
+                            padding: '8px 12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <option value="">Select an existing TTO account</option>
+                          {AccountUsers
+                            .filter(user => 
+                              (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) &&
+                              String(user.status || '').toLowerCase() === 'inactive'
+                            )
+                            .map(user => {
+                              // Format the dates for display
+                              const formatDate = (dateString) => {
+                                if (!dateString) return 'No dates';
+                                const date = new Date(dateString);
+                                return date.toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                });
+                              };
+                              
+                              const fromDate = formatDate(user.effectiveFrom);
+                              const toDate = formatDate(user.effectiveTo);
+                              const lastUsed = user.effectiveFrom && user.effectiveTo ? 
+                                `${fromDate}–${toDate}` : 'No dates';
+                              const reason = user.tempTOReason || 'No reason specified';
+                              
+                              return (
+                                <option key={user.id} value={user.id}>
+                                  {user.username} — Last used: {lastUsed} (Reason: {reason})
+                                </option>
+                              );
+                            })
+                          }
+                        </select>
+                        {/* Display selected account details below the dropdown */}
+                        {newUser.selectedExistingTTO && (() => {
+                          const selectedUser = AccountUsers.find(user => user.id === newUser.selectedExistingTTO);
+                          if (!selectedUser) return null;
+                          
+                          const formatDate = (dateString) => {
+                            if (!dateString) return 'No dates';
+                            const date = new Date(dateString);
+                            return date.toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            });
+                          };
+                          
+                          const fromDate = formatDate(selectedUser.effectiveFrom);
+                          const toDate = formatDate(selectedUser.effectiveTo);
+                          const lastUsed = selectedUser.effectiveFrom && selectedUser.effectiveTo ? 
+                            `${fromDate}–${toDate}` : 'No dates';
+                          const reason = selectedUser.tempTOReason || 'No reason specified';
+                          
+                          return (
+                            <div style={{
+                              marginTop: '8px',
+                              padding: '8px 12px',
+                              backgroundColor: '#f9fafb',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              lineHeight: '1.4'
+                            }}>
+                              <div style={{ fontWeight: '500', color: '#374151' }}>
+                                {selectedUser.username}
+                              </div>
+                              <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                                Last used: {lastUsed}
+                              </div>
+                              <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                                (Reason: {reason})
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        color: '#6b7280',
+                        marginTop: '4px',
+                        fontStyle: 'italic'
+                      }}>
+                        Only inactive Temporary Tech Officer accounts are available for reuse.
+                      </div>
+                    </div>
+                    
+                    {/* Reason for Reuse */}
+                    <div className="form-group" style={{ width: '100%' }}>
+                      <label>Reason for Temporary Assignment</label>
+                      <select
+                        name="tempTOReason"
+                        value={newUser.tempTOReason}
+                        onChange={(e) => setNewUser(prev => ({ ...prev, tempTOReason: e.target.value }))}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="">Select reason</option>
+                        <option value="Vacation Leave">Vacation Leave</option>
+                        <option value="Sick Leave">Sick Leave</option>
+                        <option value="Training / Seminar">Training / Seminar</option>
+                        <option value="Personal Emergency">Personal Emergency</option>
+                        <option value="Other (Specify Below)">Other (Specify Below)</option>
+                      </select>
+                    </div>
+                    
+                    {/* Remarks for Reuse */}
+                    {newUser.tempTOReason === 'Other (Specify Below)' && (
+                      <div className="form-group" style={{ width: '100%' }}>
+                        <label>Remarks</label>
+                        <textarea
+                          name="tempTORemarks"
+                          value={newUser.tempTORemarks}
+                          onChange={(e) => setNewUser(prev => ({ ...prev, tempTORemarks: e.target.value }))}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          placeholder="Provide details for the selected reason"
+                          rows={3}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+                
                   <div className="form-group">
-                    <label>{t('accountManagement.add_user_form.status_label')}</label>
-                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer') ? (
+                  <label>{t('accountManagement.add_user_form.status_label')}</label>
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer' || newUser.role === 'Temporary Tech Officer') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
                           <span className="status-indicator">
@@ -1732,6 +2459,7 @@ const handleActivateFishFarmer = async (user) => {
                     )}
                   </div>
                 </div>
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.email_label')}</label>
@@ -1747,12 +2475,14 @@ const handleActivateFishFarmer = async (user) => {
                   />
                 </div>
               </div>
+              )}
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 {/* Conditional Farm Selector */}
                 {!currentUser?.farm ? (
                   <div className="form-group" style={{ width: '100%' }}>
                     <label>Farm</label>
-                    {newUser.role === 'Tech Officer' ? (
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer') ? (
                       <input type="text" value="No farm (global access)" readOnly />
                     ) : (
                       <select
@@ -1777,6 +2507,34 @@ const handleActivateFishFarmer = async (user) => {
                   </div>
                 )}
               </div>
+              )}
+              {(newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer') && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Effective Period (From)</label>
+                    <input 
+                      type="date" 
+                      name="effectiveFrom" 
+                      value={newUser.effectiveFrom} 
+                      onChange={handleInputChange} 
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Effective Period (To)</label>
+                    <input 
+                      type="date" 
+                      name="effectiveTo" 
+                      value={newUser.effectiveTo} 
+                      onChange={handleInputChange} 
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+              )}
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.address_label')}</label>
@@ -1804,6 +2562,8 @@ const handleActivateFishFarmer = async (user) => {
                   />
                 </div>
               </div>
+              )}
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.password_label')}</label>
@@ -1830,6 +2590,7 @@ const handleActivateFishFarmer = async (user) => {
                   />
                 </div>
               </div>
+              )}
               <div className="form-buttons">
                   <button 
                     className="add-button" 
@@ -1894,65 +2655,128 @@ const handleActivateFishFarmer = async (user) => {
                         <div className="user-cell role-cell" data-label="Role">
                           {(() => {
                             const roleDisplayValue = formatRoleForDisplay(user.role);
-                            const roleClassValue = (roleDisplayValue || '').toLowerCase().replace(' ', '-');
+                            const roleClassValue = (roleDisplayValue || '')
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]+/g, '-')
+                              .replace(/(^-|-$)/g, '');
+                            const isTempTO = String(user.role || '').toLowerCase() === 'temp_tech_officer' || !!user.temporaryTechOfficer;
+                            const isDeactivated = String(user.status || '').toLowerCase() === 'inactive';
+                            
                             return (
-                              <span className={`role-badge role-${roleClassValue}`}>
-                                {roleDisplayValue || t('accountManagement.user_list.no_role')}
-                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                <span className={`role-badge role-${roleClassValue}`} style={isTempTO ? { whiteSpace: 'pre-line', color: '#000' } : undefined}>
+                                  {isTempTO ? (<><span>Temporary</span><br /><span>Tech Officer</span></>) : (roleDisplayValue || t('accountManagement.user_list.no_role'))}
+                                </span>
+                              </div>
                             );
                           })()}
                         </div>
                         <div className="user-cell farm-cell" data-label="Farm">
-                          {user.farmName || farmIdToName[user.farmId] || farmIdToName[user.farm] || user.farmId || user.farm || 'N/A'}
+                          {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) ? (
+                            <div>
+                              <div>
+                                {(user.tempAssignedFarmName || user.tempAssignedFarm || user.farmName || user.farm || 'N/A')}
+                              </div>
+                              {ttoTimers[user.id] && String(user.status || '').toLowerCase() === 'active' && (
+                                <div style={{ 
+                                  marginTop: 4, 
+                                  fontSize: '0.75rem',
+                                  color: getTimerStatusColor(ttoTimers[user.id].status),
+                                  fontWeight: 'bold',
+                                  lineHeight: '1.2'
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span>🕒</span>
+                                    <span>{formatRemainingTime(ttoTimers[user.id].remaining)}</span>
+                                  </div>
+                                  <div style={{ 
+                                    fontSize: '0.7rem', 
+                                    fontWeight: 'normal', 
+                                    color: '#6b7280',
+                                    marginTop: '2px'
+                                  }}>
+                                    {formatFullExpirationDetails(user, ttoTimers[user.id])}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            user.farmName || farmIdToName[user.farmId] || farmIdToName[user.farm] || user.farmId || user.farm || 'N/A'
+                          )}
                         </div>
                         <div className="user-cell status-cell" data-label="Status">
-                          <div
-                            className="status-indicator"
-                            title={(currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? `Click to deactivate this account (${user.username || user.email || 'User'})` : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` : undefined}
-                            aria-label={(currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? `Click to deactivate this account (${user.username || user.email || 'User'})` : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` : undefined}
-                            style={{ cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') ? 'pointer' : 'default' }}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (currentUser?.role !== 'Admin') return;
-                              const current = String(user.status || '').toLowerCase();
-                              // Only allow deactivation via click. Activation must use the Activate button.
-                              if (current !== 'active') return;
-                              const nextStatus = 'Inactive';
-                              try {
-                                // Optimistic UI update
-                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
-                                const result = await serviceUpdateUserStatus(
-                                  user.id,
-                                  nextStatus,
-                                  user.role,
-                                  user.collection || undefined,
-                                  user.email || undefined,
-                                  user.username || undefined
-                                );
-                                if (!result?.success) {
-                                  throw new Error(result?.error || 'Failed to update status');
-                                }
-                                setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
-                                try {
-                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                                  logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
-                                } catch (_) {}
-                              } catch (error) {
-                                // Revert UI on error
-                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
-                                setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+                          <div className="status-cell-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                            <div
+                              className="status-indicator"
+                              title={
+                                user.temporaryTechOfficer 
+                                  ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
+                                  : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
+                                    ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                    : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') 
+                                      ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
+                                      : undefined
                               }
-                            }}
-                          >
-                            <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
-                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
+                              aria-label={
+                                user.temporaryTechOfficer 
+                                  ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
+                                  : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
+                                    ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                    : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') 
+                                      ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
+                                      : undefined
+                              }
+                              style={{ 
+                                cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer) 
+                                  ? 'pointer' 
+                                  : 'default' 
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (currentUser?.role !== 'Admin') return;
+                                // Disable deactivation for Temporary Tech Officer users
+                                if (user.temporaryTechOfficer) return;
+                                const current = String(user.status || '').toLowerCase();
+                                // Only allow deactivation via click. Activation must use the Activate button.
+                                if (current !== 'active') return;
+                                const nextStatus = 'Inactive';
+                                try {
+                                  // Optimistic UI update
+                                  setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
+                                  const result = await serviceUpdateUserStatus(
+                                    user.id,
+                                    nextStatus,
+                                    user.role,
+                                    user.collection || undefined,
+                                    user.email || undefined,
+                                    user.username || undefined
+                                  );
+                                  if (!result?.success) {
+                                    throw new Error(result?.error || 'Failed to update status');
+                                  }
+                                  setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
+                                  try {
+                                    const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                    logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
+                                  } catch (_) {}
+                                } catch (error) {
+                                  // Revert UI on error
+                                  setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
+                                  setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+                                }
+                              }}
+                            >
+                              <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
+                              <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
+                            </div>
                           </div>
                         </div>
                         <div className="user-cell contact-cell" data-label="Contact">
                           {user.contactNumber || t('accountManagement.user_list.no_contact')}
                         </div>
                         <div className="user-cell actions-cell" data-label="Actions">
-                          {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && !(user.adminActivated || user._justActivated) ? (
+                          {/* Show activate button for Tech Officers (including Temporary Tech Officers) - hide for deactivated TTOs */}
+                          {(formatRoleForDisplay(user.role) === 'Tech Officer' || formatRoleForDisplay(user.role) === 'Temporary Tech Officer') && isInactive(user.status) && !(user.adminActivated || user._justActivated) && !(String(user.role || '').toLowerCase() === 'temp_tech_officer' && (user.deactivatedBy || user.deactivationReason)) ? (
                             <button className="activate-tech-officer-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking activate button
                               closeAllDropdowns(); // Close all other dropdowns first
@@ -2002,7 +2826,32 @@ const handleActivateFishFarmer = async (user) => {
                               );
                             })()
                           )}
-                          {String(user.status || '').toLowerCase() === 'active' && (
+                          {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && String(user.status || '').toLowerCase() === 'active' && isSuperAdminUser && (
+                            <button 
+                              className="deactivate-tto-btn" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                closeAllDropdowns();
+                                handleManualDeactivateTTO(user);
+                              }}
+                              style={{
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                padding: '6px 12px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <RiDeleteBin6Line className="action-icon" />
+                              Deactivate TTO
+                            </button>
+                          )}
+                          {String(user.status || '').toLowerCase() === 'active' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
                             <TooltipWrapper
                               showTooltip={isTechOfficerUser}
                               tooltipText="You don't have permission to do this"
@@ -2036,15 +2885,61 @@ const handleActivateFishFarmer = async (user) => {
                               )}
                             </TooltipWrapper>
                           )}
-                          {formatRoleForDisplay(user.role) === 'Tech Officer' && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
+                          {/* Show deactivation message for Temporary Tech Officers when deactivated */}
+        {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && isInactive(user.status) && (user.deactivatedBy || user.deactivationReason) && (
+          <div className="password-reset-pending">
+            <span className="pending-indicator">
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                color: '#dc2626',
+                backgroundColor: '#fef2f2',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                border: '1px solid #fecaca',
+                display: 'inline-block',
+                marginTop: '4px'
+              }}>
+                ⚠️ Account deactivated — access disabled.
+              </span>
+            </span>
+          </div>
+        )}
+                          {/* Show status messages for main Tech Officers only */}
+                          {formatRoleForDisplay(user.role) === 'Tech Officer' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && isInactive(user.status) && (user.adminActivated || user._justActivated) && (
                             <div className="password-reset-pending">
                               <span className="pending-indicator">
-                                {(
-                                  (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
+                                {(() => {
+                                  // Show reason message for main Tech Officers when TTO is active
+                                  const hasActiveTTO = AccountUsers.some(u => 
+                                    (String(u.role || '').toLowerCase() === 'temp_tech_officer' || u.temporaryTechOfficer === true) && 
+                                    String(u.status || '').toLowerCase() === 'active'
+                                  );
+                                  
+                                  if (hasActiveTTO && user.temporarilyInactiveDueToTempTO && user.temporaryReplacementReason) {
+                                    return (
+                                      <span style={{
+                                        fontSize: '0.95rem',
+                                        fontWeight: 'bold',
+                                        color: '#f59e0b',
+                                        backgroundColor: '#fef3c7',
+                                        padding: '6px 10px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #fbbf24',
+                                        display: 'inline-block',
+                                        marginTop: '4px'
+                                      }}>
+                                        ℹ️ Reason: {user.temporaryReplacementReason}
+                                      </span>
+                                    );
+                                  }
+                                  
+                                  // Show regular activation message for main Tech Officers
+                                  return (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
                                   && (user.phoneVerified === false || String(user.phoneVerified).toLowerCase() === 'false')
-                                )
-                                  ? t('accountManagement.user_list.activated_by_admin_otp_notice')
-                                  : t('accountManagement.user_list.activated_by_admin_notice')}
+                                    ? t('accountManagement.user_list.activated_by_admin_otp_notice')
+                                    : t('accountManagement.user_list.activated_by_admin_notice');
+                                })()}
                               </span>
                             </div>
                           )}
@@ -2079,10 +2974,6 @@ const handleActivateFishFarmer = async (user) => {
                       e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
                       const newPage = Math.max(1, currentPage - 1);
                       setCurrentPage(newPage);
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('account', `Pagination: moved to page ${newPage} in Account Management`, u); 
-                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.pagination.prev_button')}
@@ -2100,10 +2991,6 @@ const handleActivateFishFarmer = async (user) => {
                       if (!showPageNumbers) setShowPageNumbers(true);
                       const newPage = Math.min(totalPages, currentPage + 1);
                       setCurrentPage(newPage);
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('account', `Pagination: moved to page ${newPage} in Account Management`, u); 
-                      } catch (_) {}
                     }}
                   >
                     {t('accountManagement.pagination.next_button')}

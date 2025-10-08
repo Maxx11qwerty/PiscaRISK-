@@ -191,6 +191,18 @@
   box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
 }
 
+/* Farm Admin (Admin assigned to a farm) */
+.sidebar-username[data-role="Farm Admin"] {
+  color: #0d47a1;
+  font-weight: 600;
+  font-family: 'ReadexPro-Regular';
+  background: linear-gradient(135deg, #e8f0fe, #c5d9ff);
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #1e88e5;
+  box-shadow: 0 2px 4px rgba(30, 136, 229, 0.2);
+}
+
 .sidebar-username[data-role="Tech Officer"] {
   color: #2e7d32;
   font-weight: 600;
