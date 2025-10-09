@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import './Feedback.css';
 import {FaUserCircle, FaEllipsisV, FaBug, FaPalette, 
         FaLightbulb, FaTachometerAlt, FaQuestionCircle, 
-        FaTimes, FaPaperPlane, FaFilter, FaFileDownload, FaFilePdf, FaFileCsv, FaSearch, FaUser, FaSignOutAlt, FaBars, FaComment} from 'react-icons/fa';
+        FaTimes, FaPaperPlane, FaFilter, FaSearch, FaUser, FaSignOutAlt, FaBars, FaComment} from 'react-icons/fa';
 import { MdOutlineMarkChatRead, MdOutlineMarkChatUnread } from "react-icons/md";
 import logo from './assets/images/PISCARISK_LOGO.png';
 import { useNavigate } from 'react-router-dom';

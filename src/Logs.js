@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaEllipsisV, FaBars, FaSearch, FaUserCircle, FaUser, FaSignOutAlt, FaFilter } from 'react-icons/fa';
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import NotificationBox from './components/NotificationBox';
-import { getAllLogs, isTemporaryTechOfficer, logTemporaryTechOfficerActivity, logMessages } from './utils/logger';
+import { getAllLogs } from './utils/logger';
 import { exportLogs } from './utils/exportLogs';
 import Sidebar from './components/Sidebar';
 import { db } from './firebase';

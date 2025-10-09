@@ -2,15 +2,13 @@ import { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
-import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
+import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
 import { FormControl, InputLabel, Select, MenuItem, OutlinedInput } from '@mui/material';
 import AnimatedModal from './AnimatedModal';
 import { FaFileExport } from 'react-icons/fa6';
-import { 
-  exportFishConditionCSV, 
-  exportFishConditionPDF, 
+import {
   exportFishConditionWithLogsCSV,
   exportFishConditionWithLogsPDF
 } from '../utils/exportFishCondition';
@@ -1202,7 +1200,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         console.error('Error adding fishpond:', err);
       }
       const message = err?.message || 'Unknown error';
-      alert(`Failed to add fishpond: ${message}`);
+      alert(`${t('pondCondition.addPond_failed')}: ${message}`);
     } finally {
       setAddingPond(false);
     }
@@ -1602,16 +1600,16 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             )}
             <div className="form-row">
               <div className="form-group">
-                <label>Pond Number/Name</label>
+                <label>{t('pondCondition.addPond_number_label')}</label>
                 <input
                   type="text"
                   value={newPondNumber}
                   onChange={(e) => setNewPondNumber(e.target.value)}
-                  placeholder={`Suggested: ${getNextPondNumber()}`}
+                  placeholder={`${t('pondCondition.addPond_suggested')}: ${getNextPondNumber()}`}
                   className="pond-input"
                 />
                 <small className="form-hint">
-                  Enter a number (e.g., 11) or custom name (e.g., "Main Pond A")
+                  {t('pondCondition.addPond_hint')}
                 </small>
                 {addPondError && (
                   <div className="form-error">{addPondError}</div>
@@ -1629,7 +1627,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   className="btn btn-cancel"
                   disabled={addingPond}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -1637,7 +1635,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   className="btn btn-add"
                   disabled={addingPond || !newPondNumber.trim()}
                 >
-                  {addingPond ? 'Adding...' : 'Add Fishpond'}
+                  {addingPond ? t('pondCondition.adding') : t('pondCondition.addPond')}
                 </button>
               </div>
             </div>

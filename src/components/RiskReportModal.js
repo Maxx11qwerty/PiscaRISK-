@@ -5,7 +5,7 @@ import { RiAlertFill } from 'react-icons/ri';
 import { PiNoteFill } from 'react-icons/pi';
 import { IoTimeSharp } from 'react-icons/io5';
 import { FaFileExport } from 'react-icons/fa6';
-import { exportRiskOverviewCSV, exportRiskOverviewPDF, exportFarmPondCSV, exportFarmPondPDF } from '../utils/exportRiskReport';
+import { exportRiskOverviewCSV, exportRiskOverviewPDF} from '../utils/exportRiskReport';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { sanitizeTimestamp } from '../utils/securityUtils';
@@ -32,7 +32,6 @@ const RiskReportModal = ({ isModal = false }) => {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [selectedTimestamp, setSelectedTimestamp] = useState('latest');
-  const [availableTimestamps, setAvailableTimestamps] = useState([]);
   const [showHistoryFilter, setShowHistoryFilter] = useState(false);
 
   // Allowed farm IDs and live names

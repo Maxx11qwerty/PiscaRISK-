@@ -7,7 +7,7 @@ import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
 import { useAuth } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
-import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
+import { logActivity, logMessages, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
 function ReportsChart() {

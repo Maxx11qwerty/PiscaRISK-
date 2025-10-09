@@ -41,6 +41,7 @@ const AccountManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showMenu, setShowMenu] = useState(false);
+  const [notificationCloseSignal, setNotificationCloseSignal] = useState(0);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [AccountUsers, setAccountUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -1775,11 +1776,15 @@ const handleActivateFishFarmer = async (user) => {
           </div>
             </div>
           
-          <NotificationBox />
+          <NotificationBox 
+            onOpen={() => { setShowMenu(false); }}
+            externalCloseSignal={notificationCloseSignal}
+          />
           <div className="user-menu">
               <button onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking user menu
                 closeAllDropdowns(); // Close all other dropdowns first
+                setNotificationCloseSignal((v) => v + 1); // Close notifications when opening user menu
                 setShowMenu(!showMenu);
               }}>
                 {currentUser?.profileImage ? (
@@ -2160,13 +2165,14 @@ const handleActivateFishFarmer = async (user) => {
                     <div className="role-notice-content">
                       {ttoCreationMode === 'reuse' ? (
                         <>
-                          <strong>Heads up! You are about to reuse an existing temporary tech officer account. The new effective period will be updated.</strong>
+                          <strong>{t('accountManagement.add_user_form.tto_reuse_notice_title')}</strong>
+                          <p>{t('accountManagement.add_user_form.tto_reuse_notice_body')}</p>
                         </>
                       ) : (
                         <>
-                          <strong>Heads up! You are about to create a Temporary Tech Officer account.</strong>
-                          <p>The user will temporarily act as a Tech Officer and can access all farms' data and reports.</p>
-                          <p>Make sure to set an expiration date and disable access once the main Tech Officer is available again.</p>
+                          <strong>{t('accountManagement.add_user_form.tto_create_notice_title')}</strong>
+                          <p>{t('accountManagement.add_user_form.tto_create_notice_body1')}</p>
+                          <p>{t('accountManagement.add_user_form.tto_create_notice_body2')}</p>
                         </>
                       )}
                     </div>
@@ -2237,7 +2243,7 @@ const handleActivateFishFarmer = async (user) => {
                             value="Temporary Tech Officer" 
                             disabled={hasActiveTTO}
                           >
-                            {hasActiveTTO ? 'Temporary Tech Officer (Already Active)' : 'Temporary Tech Officer'}
+                            {hasActiveTTO ? t('accountManagement.add_user_form.temp_tech_officer_option_already_active') : t('accountManagement.add_user_form.temp_tech_officer_option')}
                           </option>
                         </>
                       )}
@@ -2247,7 +2253,7 @@ const handleActivateFishFarmer = async (user) => {
                 {/* TTO Creation Mode Selection */}
                 {newUser.role === 'Temporary Tech Officer' && (
                   <div className="form-group" style={{ width: '100%' }}>
-                    <label>Select Creation Mode</label>
+                    <label>{t('accountManagement.add_user_form.tto_creation_mode_label')}</label>
                     <select
                       name="ttoCreationMode"
                       value={ttoCreationMode}
@@ -2256,9 +2262,9 @@ const handleActivateFishFarmer = async (user) => {
                       onFocus={(e) => e.stopPropagation()}
                       required
                     >
-                      <option value="">Select an option</option>
-                      <option value="reuse">Reuse Existing Temporary Tech Officer Account</option>
-                      <option value="create">Create New Temporary Tech Officer Account</option>
+                      <option value="">{t('accountManagement.add_user_form.tto_creation_mode_select')}</option>
+                      <option value="reuse">{t('accountManagement.add_user_form.tto_creation_mode_reuse')}</option>
+                      <option value="create">{t('accountManagement.add_user_form.tto_creation_mode_create')}</option>
                     </select>
                   </div>
                 )}
@@ -2267,7 +2273,7 @@ const handleActivateFishFarmer = async (user) => {
                 {newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'create' && (
                   <>
                     <div className="form-group" style={{ width: '100%' }}>
-                      <label>Reason for Temporary Assignment</label>
+                      <label>{t('accountManagement.add_user_form.tto_reason_label')}</label>
                       <select
                         name="tempTOReason"
                         value={newUser.tempTOReason}
@@ -2276,26 +2282,24 @@ const handleActivateFishFarmer = async (user) => {
                         onFocus={(e) => e.stopPropagation()}
                         required
                       >
-                        <option value="">Select reason</option>
-                        <option value="Vacation Leave">Vacation Leave</option>
-                        <option value="Sick Leave">Sick Leave</option>
-                        <option value="Training / Seminar">Training / Seminar</option>
-                        <option value="Personal Emergency">Personal Emergency</option>
-                        
-                        
-                        <option value="Other">Other (Specify Below)</option>
+                        <option value="">{t('accountManagement.add_user_form.tto_reason_select')}</option>
+                        <option value="Vacation Leave">{t('accountManagement.add_user_form.tto_reason_vacation')}</option>
+                        <option value="Sick Leave">{t('accountManagement.add_user_form.tto_reason_sick')}</option>
+                        <option value="Training / Seminar">{t('accountManagement.add_user_form.tto_reason_training')}</option>
+                        <option value="Personal Emergency">{t('accountManagement.add_user_form.tto_reason_emergency')}</option>
+                        <option value="Other">{t('accountManagement.add_user_form.tto_reason_other')}</option>
                       </select>
                     </div>
                     {(newUser.tempTOReason === 'Other') && (
                       <div className="form-group" style={{ width: '100%' }}>
-                        <label>Remarks</label>
+                        <label>{t('accountManagement.add_user_form.tto_remarks_label')}</label>
                         <textarea
                           name="tempTORemarks"
                           value={newUser.tempTORemarks}
                           onChange={(e) => setNewUser(prev => ({ ...prev, tempTORemarks: e.target.value }))}
                           onClick={(e) => e.stopPropagation()}
                           onFocus={(e) => e.stopPropagation()}
-                          placeholder="Provide details for the selected reason"
+                          placeholder={t('accountManagement.add_user_form.tto_remarks_placeholder')}
                           rows={3}
                         />
                       </div>
@@ -2307,7 +2311,7 @@ const handleActivateFishFarmer = async (user) => {
                 {newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse' && (
                   <>
                     <div className="form-group" style={{ width: '100%' }}>
-                      <label>Select Existing Temporary Tech Officer Account</label>
+                      <label>{t('accountManagement.add_user_form.tto_select_existing_label')}</label>
                       <div style={{ position: 'relative' }}>
                         <select
                           name="selectedExistingTTO"
@@ -2325,7 +2329,7 @@ const handleActivateFishFarmer = async (user) => {
                             backgroundColor: 'white'
                           }}
                         >
-                          <option value="">Select an existing TTO account</option>
+                          <option value="">{t('accountManagement.add_user_form.tto_select_existing_placeholder')}</option>
                           {AccountUsers
                             .filter(user => 
                               (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) &&
@@ -2334,7 +2338,7 @@ const handleActivateFishFarmer = async (user) => {
                             .map(user => {
                               // Format the dates for display
                               const formatDate = (dateString) => {
-                                if (!dateString) return 'No dates';
+                                if (!dateString) return t('accountManagement.add_user_form.tto_no_dates');
                                 const date = new Date(dateString);
                                 return date.toLocaleDateString('en-US', { 
                                   month: 'short', 
@@ -2346,12 +2350,12 @@ const handleActivateFishFarmer = async (user) => {
                               const fromDate = formatDate(user.effectiveFrom);
                               const toDate = formatDate(user.effectiveTo);
                               const lastUsed = user.effectiveFrom && user.effectiveTo ? 
-                                `${fromDate}–${toDate}` : 'No dates';
-                              const reason = user.tempTOReason || 'No reason specified';
+                                `${fromDate}–${toDate}` : t('accountManagement.add_user_form.tto_no_dates');
+                              const reason = user.tempTOReason || t('accountManagement.add_user_form.tto_no_reason');
                               
                               return (
                                 <option key={user.id} value={user.id}>
-                                  {user.username} — Last used: {lastUsed} (Reason: {reason})
+                                  {user.username} — {t('accountManagement.add_user_form.tto_last_used')} {lastUsed} ({t('accountManagement.add_user_form.tto_reason')}: {reason})
                                 </option>
                               );
                             })
@@ -2363,7 +2367,7 @@ const handleActivateFishFarmer = async (user) => {
                           if (!selectedUser) return null;
                           
                           const formatDate = (dateString) => {
-                            if (!dateString) return 'No dates';
+                            if (!dateString) return t('accountManagement.add_user_form.tto_no_dates');
                             const date = new Date(dateString);
                             return date.toLocaleDateString('en-US', { 
                               month: 'short', 
@@ -2375,8 +2379,8 @@ const handleActivateFishFarmer = async (user) => {
                           const fromDate = formatDate(selectedUser.effectiveFrom);
                           const toDate = formatDate(selectedUser.effectiveTo);
                           const lastUsed = selectedUser.effectiveFrom && selectedUser.effectiveTo ? 
-                            `${fromDate}–${toDate}` : 'No dates';
-                          const reason = selectedUser.tempTOReason || 'No reason specified';
+                            `${fromDate}–${toDate}` : t('accountManagement.add_user_form.tto_no_dates');
+                          const reason = selectedUser.tempTOReason || t('accountManagement.add_user_form.tto_no_reason');
                           
                           return (
                             <div style={{
@@ -2392,10 +2396,10 @@ const handleActivateFishFarmer = async (user) => {
                                 {selectedUser.username}
                               </div>
                               <div style={{ color: '#6b7280', fontSize: '13px' }}>
-                                Last used: {lastUsed}
+                                {t('accountManagement.add_user_form.tto_last_used')} {lastUsed}
                               </div>
                               <div style={{ color: '#6b7280', fontSize: '13px' }}>
-                                (Reason: {reason})
+                                ({t('accountManagement.add_user_form.tto_reason')}: {reason})
                               </div>
                             </div>
                           );
@@ -2407,13 +2411,13 @@ const handleActivateFishFarmer = async (user) => {
                         marginTop: '4px',
                         fontStyle: 'italic'
                       }}>
-                        Only inactive Temporary Tech Officer accounts are available for reuse.
+                        {t('accountManagement.add_user_form.tto_reuse_only_inactive_note')}
                       </div>
                     </div>
                     
                     {/* Reason for Reuse */}
                     <div className="form-group" style={{ width: '100%' }}>
-                      <label>Reason for Temporary Assignment</label>
+                      <label>{t('accountManagement.add_user_form.tto_reason_label')}</label>
                       <select
                         name="tempTOReason"
                         value={newUser.tempTOReason}
@@ -2422,26 +2426,26 @@ const handleActivateFishFarmer = async (user) => {
                         onFocus={(e) => e.stopPropagation()}
                         required
                       >
-                        <option value="">Select reason</option>
-                        <option value="Vacation Leave">Vacation Leave</option>
-                        <option value="Sick Leave">Sick Leave</option>
-                        <option value="Training / Seminar">Training / Seminar</option>
-                        <option value="Personal Emergency">Personal Emergency</option>
-                        <option value="Other (Specify Below)">Other (Specify Below)</option>
+                        <option value="">{t('accountManagement.add_user_form.tto_reason_select')}</option>
+                        <option value="Vacation Leave">{t('accountManagement.add_user_form.tto_reason_vacation')}</option>
+                        <option value="Sick Leave">{t('accountManagement.add_user_form.tto_reason_sick')}</option>
+                        <option value="Training / Seminar">{t('accountManagement.add_user_form.tto_reason_training')}</option>
+                        <option value="Personal Emergency">{t('accountManagement.add_user_form.tto_reason_emergency')}</option>
+                        <option value="Other (Specify Below)">{t('accountManagement.add_user_form.tto_reason_other_specify')}</option>
                       </select>
                     </div>
                     
                     {/* Remarks for Reuse */}
                     {newUser.tempTOReason === 'Other (Specify Below)' && (
                       <div className="form-group" style={{ width: '100%' }}>
-                        <label>Remarks</label>
+                        <label>{t('accountManagement.add_user_form.tto_remarks_label')}</label>
                         <textarea
                           name="tempTORemarks"
                           value={newUser.tempTORemarks}
                           onChange={(e) => setNewUser(prev => ({ ...prev, tempTORemarks: e.target.value }))}
                           onClick={(e) => e.stopPropagation()}
                           onFocus={(e) => e.stopPropagation()}
-                          placeholder="Provide details for the selected reason"
+                          placeholder={t('accountManagement.add_user_form.tto_remarks_placeholder')}
                           rows={3}
                         />
                       </div>

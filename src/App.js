@@ -7,7 +7,6 @@ import Login from "./Login";
 import Homepage from "./Homepage";
 import ProfileSettings from "./ProfileSettings";
 import AccountManagement from "./AccountManagement";
-import RewardManagment from "./RewardManagement";
 import Feedback from "./Feedback";
 import Logs from './Logs';
 import ForgotPassword from './components/ForgotPassword';
@@ -55,7 +54,6 @@ const AppRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/ProfileSettings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
       <Route path="/Homepage" element={<ProtectedRoute><Homepage /></ProtectedRoute>} />
-      <Route path="/RewardManagement" element={<ProtectedRoute><RewardManagment /></ProtectedRoute>} />
       <Route path="/AccountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
       <Route path="/Feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
       <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />

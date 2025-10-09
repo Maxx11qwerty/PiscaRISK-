@@ -1,11 +1,8 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import { fetchRiskReportData } from '../services/riskDataService';
-import { exportHealthGaugeCSV } from '../utils/exportHealthGauge';
-import { exportConditionInsightsCSV } from '../utils/exportConditionInsights';
-import { exportRiskOverviewCSV } from '../utils/exportRiskReport';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { fetchAllUsers } from '../services/accountService';
 import { fetchWeatherData } from '../services/weatherService';
 import { exportPiscaRiskCSV, exportPiscaRiskPDF } from '../utils/exportPiscariskData';

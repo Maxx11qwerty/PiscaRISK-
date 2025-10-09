@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useMemo } from "react";
-import {FaUserCircle,FaImage,FaCloudSun,FaFish,
+import {FaUserCircle,FaCloudSun,FaFish,
         FaExclamationTriangle,FaUser,FaDatabase,FaSignOutAlt,
-        FaSearch,FaBars,FaCalendarAlt} from "react-icons/fa";
+        FaBars} from "react-icons/fa";
 import { useTranslation } from 'react-i18next';
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,7 +9,6 @@ import "./Homepage.css";
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthContext } from './contexts/AuthContext';
 import { fetchWeatherData } from './services/weatherService';
-import { getTimeOfDay, getWeatherImage, getWeatherIcon } from './utils/weatherUtils';
 import WeatherBox from './components/WeatherBox';
 import WeatherDisplay from './components/WeatherDisplay';
 import { exportBoxData } from './utils/exportBoxData';
@@ -18,7 +17,7 @@ import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
 import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
 import { fetchRiskReportData } from './services/riskDataService';
-import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from './utils/logger';
+import { logMessages, logTemporaryTechOfficerActivity } from './utils/logger';
 import AnimatedModal from './components/AnimatedModal';
 // PasswordChangeModal removed - using ProfileSettings password reset instead
 import Sidebar from './components/Sidebar';
@@ -26,15 +25,6 @@ import RiskReportModal from './components/RiskReportModal';
 import PiscaRiskData from './components/PiscaRiskData';
 import ConditionInsights from './components/ConditionInsights';
 
-// Import data from localStorage or use default values
-const getInitialData = () => {
-  return {
-    users: JSON.parse(localStorage.getItem('users')) || [],
-    rewards: JSON.parse(localStorage.getItem('rewards')) || [],
-    AccountUsers: JSON.parse(localStorage.getItem('AccountUsers')) || [],
-    feedbacks: JSON.parse(localStorage.getItem('feedbacks')) || []
-  };
-};
 
 const PiscaRiskHome = () => {
   const navigate = useNavigate();
@@ -119,7 +109,6 @@ const PiscaRiskHome = () => {
   const [selectedPond, setSelectedPond] = useState(1);
   const { currentUser, handleLogout } = useContext(AuthContext);
   const [errorMessage, setErrorMessage] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
   
@@ -192,35 +181,7 @@ const PiscaRiskHome = () => {
     requireSpecialChars: true
   });
 
-  const useScreenSize = () => {
-    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
-    
-    useEffect(() => {
-      const handleResize = () => setScreenWidth(window.innerWidth);
-      
-      let timeoutId;
-      const debouncedResize = () => {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(handleResize, 100);
-      };
-      
-      window.addEventListener('resize', debouncedResize);
-      return () => {
-        window.removeEventListener('resize', debouncedResize);
-        clearTimeout(timeoutId);
-      };
-    }, []);
-    
-    return {
-      width: screenWidth,
-      isMobile: screenWidth < 480,
-      isTablet: screenWidth < 900,
-      isDesktop: screenWidth >= 1200
-    };
-  };
-
-  // Use the hook
-  const screen = useScreenSize();
+  // removed unused useScreenSize hook and value
   
   const refreshWeather = async () => {
     setLoading(true);

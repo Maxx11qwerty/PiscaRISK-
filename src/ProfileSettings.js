@@ -4,13 +4,13 @@ import "./ProfileSettings.css";
 import { AuthContext } from './contexts/AuthContext';
 import { useLanguage } from './contexts/LanguageContext';
 import { useTranslation } from 'react-i18next';
-import { FaEllipsisV, FaCamera, FaUpload, FaTimes, FaCheck, FaEye, FaEyeSlash, FaUserCircle, FaUser, FaSignOutAlt, FaBars } from "react-icons/fa";
+import { FaCamera, FaUpload, FaTimes, FaCheck,FaUserCircle, FaUser, FaSignOutAlt, FaBars } from "react-icons/fa";
 import { LiaEdit } from "react-icons/lia";
 import { useNavigate } from "react-router-dom";
 import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
 import Sidebar from './components/Sidebar';
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc,serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { auth } from './firebase';
 import { sendPasswordResetEmail, updateEmail as fbUpdateEmail, sendEmailVerification as fbSendEmailVerification } from 'firebase/auth';
@@ -41,12 +41,6 @@ export default function AccountSettings() {
   const [showUsernameOptions, setShowUsernameOptions] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showEmailPassword, setShowEmailPassword] = useState(false);
-  const toggleCurrentPasswordVisibility = () => setShowCurrentPassword(!showCurrentPassword);
-  const toggleNewPasswordVisibility = () => setShowNewPassword(!showNewPassword);
-  const toggleEmailPasswordVisibility = () => setShowEmailPassword(!showEmailPassword);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
   const [isCheckingVerification, setIsCheckingVerification] = useState(false);
   const [verificationCheckInterval, setVerificationCheckInterval] = useState(null);
@@ -90,14 +84,12 @@ export default function AccountSettings() {
   const [addressError, setAddressError] = useState('');
   const [contactError, setContactError] = useState('');
   
-  const {handleLogout, refreshCurrentUser, updateUser } = useContext(AuthContext);
+  const {handleLogout, refreshCurrentUser } = useContext(AuthContext);
 
   const { 
-    currentUser, 
-    updateEmail, 
+    currentUser,
     changePassword, 
-    updateProfileImage, 
-    setCurrentUser,
+    updateProfileImage,
     sendVerificationEmail,
     checkEmailVerification 
   } = useContext(AuthContext);
@@ -361,22 +353,6 @@ const uploadImage = (file) => {
     } catch (_) {}
   };
 
-  const toggleRemoveButton = () => {
-    if (profileImage) {
-      setShowRemoveButton(!showRemoveButton);
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('profile', `Profile image remove button toggled in Profile Settings`, u); 
-      } catch (_) {}
-    } else {
-      setShowImageOptions(true);
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('profile', `Image options opened in Profile Settings`, u); 
-      } catch (_) {}
-    }
-  };
-
   const captureImage = () => {
     if (videoRef.current) {
       try {
@@ -593,41 +569,6 @@ const uploadImage = (file) => {
     }
   };
 
-  const handlePasswordChange = async () => {
-    try {
-      setError('');
-      setSuccess('');
-
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('profile', `Password change attempted in Profile Settings`, u); 
-      } catch (_) {}
-
-      // Validate new password
-      if (newPassword.length < 6) {
-        setError(t('profileSettings.passwordTooShort'));
-        return;
-      }
-
-      // Proceed with password update
-      const result = await changePassword(currentPassword, newPassword);
-      
-      if (result.success) {
-        setSuccess(result.message);
-        setError('');
-        setCurrentPassword('');
-        setNewPassword('');
-        try { 
-          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-          logActivity('profile', `Password changed successfully in Profile Settings`, u); 
-        } catch (_) {}
-      }
-    } catch (err) {
-      setError(err.message);
-      setSuccess('');
-    }
-  };
-
   const handlePasswordReset = async () => {
     try {
       setError('');
@@ -658,14 +599,6 @@ const uploadImage = (file) => {
       
       setError(errorMessage);
     }
-  };
-
-  const handleUsernameClick = () => {
-    setShowUsernameOptions(!showUsernameOptions);
-    try { 
-      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-      logActivity('profile', `Username options ${showUsernameOptions ? 'closed' : 'opened'} in Profile Settings`, u); 
-    } catch (_) {}
   };
 
   // Add function to handle verification check
