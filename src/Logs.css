@@ -700,16 +700,39 @@ body {
 
 .logs-user-info .username {
   margin-left: 1rem;
-  color: #5D5D5D;
-  font-size: 0.9rem;
+  color: #374151; /* a bit darker for readability */
+  font-size: 0.92rem;
   font-family: 'ReadexPro-Regular2';
   font-weight: 600;
+  line-height: 1.1;
+}
+
+.logs-user-info .user-role {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0;
+  font-weight: 500;
+  background: rgba(31, 41, 55, 0.05);
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
 }
 
 .log-cell.source-cell {
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 6px;
   min-width: 120px;
-  margin-left: 2.5rem;
+  margin-left: .5rem;
+}
+
+.log-cell.row-actions-cell .row-actions-button {
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.log-cell.row-actions-cell .row-actions-button:hover {
+  background: rgba(0,0,0,0.06);
 }
 
 .log-cell.actions-cell {
@@ -729,9 +752,17 @@ body {
 /* User Info Cell */
 .logs-user-info {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 0.15rem;
   color: #212529;
+}
+
+/* Stack username over role in performed-by cell */
+.log-cell.performed-by-cell .logs-user-info {
+  flex-direction: column;
+}
+.log-cell.performed-by-cell .logs-user-info .username {
+  margin-left: 0;
 }
 
 /* Role Badge Styles */
@@ -879,7 +910,8 @@ body {
 .log-message {
   color: #5D5D5D;
   line-height: 1.5;
-  overflow: hidden;
+  word-wrap: break-word;
+  white-space: normal;
   word-break: break-word;
   overflow-wrap: break-word;
   max-width: 100%;

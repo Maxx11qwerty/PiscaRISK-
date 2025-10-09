@@ -1,6 +1,5 @@
 // Logger utility for system activities
 import { db, getData } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
 
 // Helper function to create a readable and unique ID
 const createUniqueId = (category, timestamp) => {
@@ -10,7 +9,7 @@ const createUniqueId = (category, timestamp) => {
   return `${category}_${dateStr}_${randomPart}`;
 };
 
-export const logActivity = async (category, message, username, originalTimestamp = null, userRole = null) => {
+export const logActivity = async (category, message, username, originalTimestamp = null, userRole = null, isTemporaryTechOfficer = false) => {
   // Use the original timestamp if provided, otherwise use current time
   let timestamp;
   try {
@@ -56,7 +55,8 @@ export const logActivity = async (category, message, username, originalTimestamp
     category,
     message,
     username,
-    userRole: userRole || 'Unknown'
+    userRole: userRole || 'Unknown',
+    isTemporaryTechOfficer: isTemporaryTechOfficer || false
   };
 
   // Debug logging for timestamp issues
@@ -64,7 +64,8 @@ export const logActivity = async (category, message, username, originalTimestamp
   }
 
   try {
-    // Save to Firebase
+    // Save to Firebase (lazy import to avoid HMR disposing issues)
+    const { doc, setDoc } = await import('firebase/firestore');
     await setDoc(doc(db, 'systemLogs', logsUniqueId), newLog);
     
     // Also keep a local copy in localStorage
@@ -159,13 +160,23 @@ export const getAllLogs = async () => {
       if (logs.indexOf(log) < 3) {
       }
       
+      // Determine role - prioritize log's userRole, then userData role, then check for temporaryTechOfficer flag
+      let role = 'Unknown';
+      if (log.userRole && log.userRole !== 'Unknown') {
+        role = log.userRole;
+      } else if (userData && userData.role) {
+        role = userData.role;
+      } else if (log.isTemporaryTechOfficer) {
+        role = 'temp_tech_officer';
+      }
+      
       return {
         ...log,
         username: log.username || 'Unknown User',
         message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
         category: String(log.category || ''),
         timestamp: validTimestamp, // Use validated timestamp
-        role: userData ? userData.role : 'Unknown',
+        role: role,
         isMobileUser: userData ? userData.isMobileUser : false,
         source: source,
         // Prefer farm info carried by the log (from Cloud Function) for filtering
@@ -478,6 +489,16 @@ export const logMessages = {
     userReactivated: (admin, username) => `Admin ${admin} reactivated user ${username}`
   },
 
+  // Temporary Tech Officer related
+  temporaryTechOfficer: {
+    login: (username) => `Temporary Tech Officer ${username} logged in`,
+    logout: (username) => `Temporary Tech Officer ${username} logged out`,
+    reportReview: (username, pondId, farmName) => `Temporary Tech Officer ${username} reviewed report for Fish Pond ${pondId} at ${farmName}`,
+    reportMarkReviewed: (username, pondId, farmName) => `Temporary Tech Officer ${username} marked report as reviewed for Fish Pond ${pondId} at ${farmName}`,
+    exportAttempt: (username, dataType) => `Temporary Tech Officer ${username} attempted to export ${dataType} (restricted)`,
+    restrictedAccess: (username, feature) => `Temporary Tech Officer ${username} attempted to access restricted feature: ${feature}`,
+  },
+
   // Data Export related
   export: {
     pdfDownload: (username, dataType) => `${username} exported ${dataType} data to PDF`,
@@ -593,7 +614,7 @@ export const ensureReportLog = async (reportId, reportData) => {
   try {
     if (!reportId || !reportData) return;
 
-    const { doc: fsDoc, getDoc } = await import('firebase/firestore');
+    const { doc: fsDoc, getDoc, setDoc } = await import('firebase/firestore');
 
     // Check if a log already exists for this report
     const logDocRef = fsDoc(db, 'systemLogs', `report_${reportId}`);
@@ -653,7 +674,7 @@ export const ensureStockFeedLog = async (farmerLogId, farmerLogData) => {
   try {
     if (!farmerLogId || !farmerLogData) return;
 
-    const { doc: fsDoc, getDoc } = await import('firebase/firestore');
+    const { doc: fsDoc, getDoc, setDoc } = await import('firebase/firestore');
     const logDocRef = fsDoc(db, 'systemLogs', `stock_${farmerLogId}`);
     const existing = await getDoc(logDocRef);
     if (existing.exists()) return;
@@ -822,6 +843,21 @@ export const fixReportLogsFromConsole = async () => {
     
   } catch (error) {
     console.error('❌ Error analyzing report logs:', error);
+  }
+};
+
+// Helper function to check if user is temporaryTechOfficer
+export const isTemporaryTechOfficer = (user) => {
+  if (!user) return false;
+  return user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer';
+};
+
+// Helper function to log temporaryTechOfficer activities
+export const logTemporaryTechOfficerActivity = async (category, message, username, userRole = null, originalTimestamp = null) => {
+  try {
+    await logActivity(category, message, username, originalTimestamp, userRole, true);
+  } catch (error) {
+    console.error('Error logging temporaryTechOfficer activity:', error);
   }
 };
 

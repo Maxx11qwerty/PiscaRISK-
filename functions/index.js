@@ -6,31 +6,36 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 /**
- * Scheduled job: auto-deactivate temporary tech officers after effectiveTo
- */
-exports.autoDeactivateTempTOs = functions.pubsub.schedule('every 1 hours').onRun(async (context) => {
-  const db = admin.firestore();
-  const now = new Date();
-  const batch = db.batch();
-  try {
-    const snap = await db.collection('users').where('temporaryTechOfficer', '==', true).get();
-    for (const docSnap of snap.docs) {
-      const u = docSnap.data() || {};
-      if (!u.effectiveTo) continue;
-      const toDate = new Date(u.effectiveTo);
-      // If end date has passed (end of day), ensure status is Inactive
-      if (now > new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59, 999)) {
-        if (String(u.status || '').toLowerCase() !== 'inactive') {
-          batch.update(docSnap.ref, { status: 'Inactive' });
+* Scheduled job: auto-deactivate temporary tech officers after effectiveTo
+* Guarded so deployment to older firebase-functions versions won't fail analysis.
+*/
+if (functions.pubsub && typeof functions.pubsub.schedule === 'function') {
+  exports.autoDeactivateTempTOs = functions.pubsub.schedule('every 1 hours').onRun(async (context) => {
+    const db = admin.firestore();
+    const now = new Date();
+    const batch = db.batch();
+    try {
+      const snap = await db.collection('users').where('temporaryTechOfficer', '==', true).get();
+      for (const docSnap of snap.docs) {
+        const u = docSnap.data() || {};
+        if (!u.effectiveTo) continue;
+        const toDate = new Date(u.effectiveTo);
+        // If end date has passed (end of day), ensure status is Inactive
+        if (now > new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate(), 23, 59, 59, 999)) {
+          if (String(u.status || '').toLowerCase() !== 'inactive') {
+            batch.update(docSnap.ref, { status: 'Inactive' });
+          }
         }
       }
+      await batch.commit();
+    } catch (e) {
+      console.error('autoDeactivateTempTOs failed:', e);
     }
-    await batch.commit();
-  } catch (e) {
-    console.error('autoDeactivateTempTOs failed:', e);
-  }
-  return null;
-});
+    return null;
+  });
+} else {
+  console.warn('[deploy] Skipping autoDeactivateTempTOs: functions.pubsub.schedule is unavailable in this runtime.');
+}
 
 const cors = require('cors')({ origin: true });
 
@@ -142,29 +147,33 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
 /**
  * Deletes a Firebase Auth user by email (HTTP endpoint with CORS)
  */
-exports.deleteAuthUser = functions.https.onRequest(async (req, res) => {
-  // Set CORS headers
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
+exports.deleteAuthUser = functions.https.onRequest((req, res) => {
+  return cors(req, res, async () => {
+    // Dynamic CORS: echo back origin for credentialed requests
+    const origin = req.headers.origin || '*';
+    res.set('Vary', 'Origin');
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  // Only allow POST requests
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
 
   console.log("=== STARTING DELETE AUTH USER FUNCTION ===");
   console.log("Received data:", JSON.stringify(req.body));
 
   try {
-    const { email, authToken } = req.body;
+    const { email, authToken, userId } = req.body;
     
     // Validate request data
     if (!email) {
@@ -205,7 +214,8 @@ exports.deleteAuthUser = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    // Delete Firebase Auth user
+    // Delete Firebase Auth user and related Firestore docs
+    let authDeleted = false;
     try {
       console.log("Attempting to delete Firebase Auth user with email:", email);
       
@@ -215,24 +225,84 @@ exports.deleteAuthUser = functions.https.onRequest(async (req, res) => {
       
       // Delete the user
       await admin.auth().deleteUser(userRecord.uid);
+      authDeleted = true;
       console.log("Firebase Auth user deleted successfully");
+      
+      // Also delete Firestore documents in both possible collections by uid or email
+      const db = admin.firestore();
+      const collections = ['users', 'mobileUsers'];
+      let deletedDocs = 0;
+      for (const coll of collections) {
+        try {
+          // 1) Try by document id (UID) if provided
+          if (userId) {
+            const byIdRef = db.collection(coll).doc(userId);
+            const byIdSnap = await byIdRef.get();
+            if (byIdSnap.exists) {
+              await byIdRef.delete();
+              deletedDocs += 1;
+              console.log(`Deleted doc by id from ${coll}: ${userId}`);
+              continue; // skip email query if deleted by id
+            }
+          }
+          // 2) Fallback: query by email
+          if (email) {
+            const snap = await db.collection(coll).where('email', '==', email).get();
+            if (!snap.empty) {
+              const batch = db.batch();
+              snap.docs.forEach(d => batch.delete(d.ref));
+              await batch.commit();
+              deletedDocs += snap.size;
+              console.log(`Deleted ${snap.size} doc(s) from ${coll} for ${email}`);
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed deleting docs from ${coll} for ${email}:`, e);
+        }
+      }
       
       res.status(200).json({ 
         success: true, 
-        message: "User deleted from Firebase Auth successfully" 
+        message: authDeleted ? "User deleted from Firebase Auth successfully" : "User not found in Auth (may have been deleted already)",
+        firestoreDeleted: deletedDocs
       });
       
     } catch (err) {
       console.error("FAIL: Error deleting Firebase Auth user:", err);
       
-      // If user not found, that's okay - they might have been deleted already
+      // If user not found in Auth, still attempt Firestore cleanup and return success
       if (err.code === 'auth/user-not-found') {
-        console.log("User not found in Firebase Auth - may have been deleted already");
-        res.status(200).json({ 
-          success: true, 
-          message: "User not found in Auth (may have been deleted already)" 
-        });
-        return;
+        try {
+          const db = admin.firestore();
+          const collections = ['users', 'mobileUsers'];
+          let deletedDocs = 0;
+          for (const coll of collections) {
+            // By id if available
+            if (userId) {
+              const byIdRef = db.collection(coll).doc(userId);
+              const byIdSnap = await byIdRef.get();
+              if (byIdSnap.exists) { await byIdRef.delete(); deletedDocs += 1; }
+            }
+            // By email fallback
+            if (email) {
+              const snap = await db.collection(coll).where('email', '==', email).get();
+              if (!snap.empty) {
+                const batch = db.batch();
+                snap.docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+                deletedDocs += snap.size;
+              }
+            }
+          }
+          return res.status(200).json({
+            success: true,
+            message: "User not found in Auth (may have been deleted already)",
+            firestoreDeleted: deletedDocs
+          });
+        } catch (cleanupErr) {
+          console.warn('Firestore cleanup after user-not-found failed:', cleanupErr);
+          return res.status(200).json({ success: true, message: "User not found in Auth (may have been deleted already)", firestoreDeleted: 0 });
+        }
       }
       
       res.status(500).json({ error: 'Failed to delete Firebase Auth user' });
@@ -242,6 +312,7 @@ exports.deleteAuthUser = functions.https.onRequest(async (req, res) => {
     console.error("Unexpected error:", error);
     res.status(500).json({ error: 'Internal server error' });
   }
+  });
 });
 
 /**
@@ -458,11 +529,12 @@ exports.forcePasswordChange = functions.https.onCall(async (data, context) => {
 /**
  * Log every new report creation into systemLogs so Logs page stays in sync with notifications
  */
-exports.logReportOnCreate = functions.firestore
-  .document('reports/{reportId}')
-  .onCreate(async (snap, context) => {
-    try {
-      const data = snap.data() || {};
+if (functions.firestore && typeof functions.firestore.document === 'function') {
+  exports.logReportOnCreate = functions.firestore
+    .document('reports/{reportId}')
+    .onCreate(async (snap, context) => {
+      try {
+        const data = snap.data() || {};
 
       // Extract fields with safe fallbacks
       const username = data.submitted_by || data.user || data.user_email || 'Unknown User';
@@ -506,13 +578,16 @@ exports.logReportOnCreate = functions.firestore
         farm: farm || null,
       };
 
-      await admin.firestore().collection('systemLogs').add(log);
-      return null;
-    } catch (err) {
-      console.error('Failed to log report creation:', err);
-      return null;
-    }
-  });
+        await admin.firestore().collection('systemLogs').add(log);
+        return null;
+      } catch (err) {
+        console.error('Failed to log report creation:', err);
+        return null;
+      }
+    });
+} else {
+  console.warn('[deploy] Skipping logReportOnCreate: functions.firestore.document is unavailable in this runtime.');
+}
 
 /**
  * Check if user needs to change password after admin reset

@@ -493,14 +493,29 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
           <div style={{ position: 'relative' }}>
             <button
-              onClick={(e) => { e.stopPropagation(); setExportOpen(v => !v); }}
-              style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+                if (!isTemporaryTechOfficer) {
+                  setExportOpen(v => !v);
+                }
+              }}
+              disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
+                cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+                display: 'flex', 
+                alignItems: 'center',
+                opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              }}
               aria-label="Export"
-              title="Export"
+              title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
             >
               <GiHamburgerMenu style={{ fontSize: '20px' }} />
             </button>
-            {exportOpen && (
+            {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
               <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
                 <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'png', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
                 <div style={{ height: 1, background: '#e5e7eb' }} />

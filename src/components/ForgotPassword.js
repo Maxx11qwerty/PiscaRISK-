@@ -33,7 +33,10 @@ function ForgotPassword() {
       });
       
     } catch (error) {
-      console.error('Error sending password reset email:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error sending password reset email:', error);
+      }
       let errorMessage = t('forgotPassword.errors.failedToSend');
       
       if (error.code === 'auth/user-not-found') {

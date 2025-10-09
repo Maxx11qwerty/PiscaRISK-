@@ -82,7 +82,10 @@ export const fetchAllUsers = async () => {
       return dateB - dateA; // Newest first
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching users:', error);
+    }
     throw error;
   }
 };
@@ -109,7 +112,10 @@ export const addNewUser = async (userData, currentUser) => {
     logActivity('account', logMessages.account.userCreated(currentUser.username, userData.username), currentUser.username, null, currentUser.role);
     return newUserData;
   } catch (error) {
-    console.error('Error adding user:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error adding user:', error);
+    }
     throw error;
   }
 };
@@ -117,10 +123,16 @@ export const addNewUser = async (userData, currentUser) => {
 // Update user status
 export const updateUserStatus = async (userId, status, role, collectionHint, userEmail, userName) => {
   try {
-    console.log('[updateUserStatus] Called with:', { userId, status, role, collectionHint, userEmail, userName });
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log('[updateUserStatus] Called with:', { userId, status, role, collectionHint, userEmail, userName });
+    }
     const roleNormalized = String(role || '').toLowerCase();
     let collectionName = collectionHint || ((roleNormalized === 'fish farmer' || roleNormalized === 'fish_farmer') ? 'mobileUsers' : 'users');
-    console.log('[updateUserStatus] Using collection:', collectionName);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.log('[updateUserStatus] Using collection:', collectionName);
+    }
     const statusLower = String(status || '').toLowerCase();
     
     // Helper function to find user by email
@@ -152,9 +164,15 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
 
     const tryUpdate = async (coll) => {
       const ref = doc(db, coll, userId);
-      console.log(`[tryUpdate] Trying collection: ${coll}, userId: ${userId}, ref:`, ref);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.log(`[tryUpdate] Trying collection: ${coll}, userId: ${userId}, ref:`, ref);
+      }
       const snap = await getDoc(ref);
-      console.log(`[tryUpdate] Document exists in ${coll}:`, snap.exists());
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.log(`[tryUpdate] Document exists in ${coll}:`, snap.exists());
+      }
       if (!snap.exists()) return false;
       try {
         const updateFields = {
@@ -168,10 +186,16 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           updateFields.phoneVerified = false;
         }
         await updateDoc(ref, updateFields);
-        console.log(`[tryUpdate] Successfully updated ${coll} collection`);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log(`[tryUpdate] Successfully updated ${coll} collection`);
+        }
         return true;
       } catch (updateError) {
-        console.error(`[tryUpdate] Failed to update ${coll}:`, updateError);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error(`[tryUpdate] Failed to update ${coll}:`, updateError);
+        }
         throw updateError;
       }
     };
@@ -180,24 +204,36 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
     try {
       updated = await tryUpdate(collectionName);
     } catch (error) {
-      console.error('[updateUserStatus] First tryUpdate failed:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('[updateUserStatus] First tryUpdate failed:', error);
+      }
     }
     if (!updated) {
       collectionName = collectionName === 'users' ? 'mobileUsers' : 'users';
       try {
         updated = await tryUpdate(collectionName);
       } catch (error) {
-        console.error('[updateUserStatus] Second tryUpdate failed:', error);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error('[updateUserStatus] Second tryUpdate failed:', error);
+        }
       }
     }
     
     // If still not updated, try to find by email
     if (!updated && userEmail) {
-      console.log('[updateUserStatus] Direct ID lookup failed, trying email lookup...');
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.log('[updateUserStatus] Direct ID lookup failed, trying email lookup...');
+      }
       const userByEmail = await findUserByEmail(userEmail);
       
       if (userByEmail) {
-        console.log('[updateUserStatus] Found user by email:', userByEmail);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[updateUserStatus] Found user by email:', userByEmail);
+        }
         // Update the correct document
         const ref = doc(db, userByEmail.collection, userByEmail.id);
         try {
@@ -212,10 +248,16 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           }
           await updateDoc(ref, updateFields);
         } catch (updateError) {
-          console.error('[updateUserStatus] Failed to update via email lookup:', updateError);
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error('[updateUserStatus] Failed to update via email lookup:', updateError);
+          }
           throw updateError;
         }
-        console.log('[updateUserStatus] Successfully updated via email lookup');
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.log('[updateUserStatus] Successfully updated via email lookup');
+        }
         return { success: true, collection: userByEmail.collection };
       }
     }
@@ -226,7 +268,10 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
     
     return { success: true, collection: collectionName };
   } catch (error) {
-    console.error('Error updating user status:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error updating user status:', error);
+    }
     return { success: false, error: error.message };
   }
 };
@@ -281,7 +326,10 @@ export const debugUserActivation = async (userId, email, collectionHint, usernam
       }
       
     } catch (error) {
-      console.error(`Error checking ${collectionName}:`, error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error(`Error checking ${collectionName}:`, error);
+      }
     }
   }
   
@@ -326,11 +374,17 @@ export const directUpdateUserStatus = async (userId, email, username, collection
       }
       
     } catch (updateError) {
-      console.error('❌ Direct update failed:', updateError);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('❌ Direct update failed:', updateError);
+      }
       
       // Check if it's a permissions error
       if (updateError.code === 'permission-denied') {
-        console.error('🔥 FIRESTORE RULES BLOCKING UPDATE!');
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error('🔥 FIRESTORE RULES BLOCKING UPDATE!');
+        }
         throw new Error('Firestore rules prevent updates. Check security rules.');
       }
       
@@ -338,7 +392,10 @@ export const directUpdateUserStatus = async (userId, email, username, collection
     }
     
   } catch (error) {
-    console.error('Error in directUpdateUserStatus:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error in directUpdateUserStatus:', error);
+    }
     return { success: false, error: error.message };
   }
 };
@@ -357,7 +414,10 @@ export const deleteUser = async (userId, role, username, currentUser) => {
     await deleteDoc(doc(db, collectionName, userId));
     logActivity('account', `User ${username} deleted`, currentUser.username);
   } catch (error) {
-    console.error('Error deleting user:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error deleting user:', error);
+    }
     throw error;
   }
 }; 
@@ -409,7 +469,10 @@ export const fetchLiveUserStatus = async (userId) => {
     
     return null;
   } catch (e) {
-    console.warn('Failed to fetch live user status:', e);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to fetch live user status:', e);
+    }
     return null;
   }
 };
@@ -432,7 +495,10 @@ export const activateTechOfficer = async (userId) => {
     });
     return { success: true, collection: collectionName };
   } catch (error) {
-    console.error('Error activating Tech Officer:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error activating Tech Officer:', error);
+    }
     return { success: false, error: error.message };
   }
 };
@@ -441,21 +507,19 @@ export const activateTechOfficer = async (userId) => {
 // Delete user: resolve collection, delete doc, then try deleting from Auth via Cloud Function
 export const deleteUserById = async (userId) => {
   try {
+    // Resolve the user email first (from either collection)
     let ref = doc(db, 'users', userId);
     let snap = await getDoc(ref);
-    let collectionName = 'users';
     if (!snap.exists()) {
       ref = doc(db, 'mobileUsers', userId);
       snap = await getDoc(ref);
       if (!snap.exists()) {
         return { success: false, error: 'User not found in any collection' };
       }
-      collectionName = 'mobileUsers';
     }
     const data = snap.data();
-    await deleteDoc(ref);
-    
-    // Call Cloud Function to delete from Firebase Auth
+
+    // Call Cloud Function once to delete from Auth and Firestore
     try {
       if (data?.email) {
         // Get current user's auth token
@@ -472,26 +536,68 @@ export const deleteUserById = async (userId) => {
             },
             body: JSON.stringify({
               email: data.email,
+              userId: userId,
               authToken: authToken
             })
           });
           
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorMessage = `HTTP error! status: ${response.status}`;
+            try {
+              const errBody = await response.json();
+              if (errBody && errBody.error) errorMessage = errBody.error;
+            } catch (_) { /* ignore parse error */ }
+            throw new Error(errorMessage);
           }
           
           const result = await response.json();
-          console.log('Firebase Auth deletion result:', result);
+
+          // Ensure local Firestore cleanup so UI reflects immediately
+          try {
+            if (userId) {
+              const refUsers = doc(db, 'users', userId);
+              const snapUsers = await getDoc(refUsers);
+              if (snapUsers.exists()) {
+                await deleteDoc(refUsers);
+              }
+              const refMobile = doc(db, 'mobileUsers', userId);
+              const snapMobile = await getDoc(refMobile);
+              if (snapMobile.exists()) {
+                await deleteDoc(refMobile);
+              }
+            }
+            if (data?.email) {
+              // Fallback: query by email and delete any leftover docs
+              const qUsers = query(collection(db, 'users'), where('email', '==', data.email));
+              const qsUsers = await getDocs(qUsers);
+              if (!qsUsers.empty) {
+                for (const d of qsUsers.docs) { await deleteDoc(doc(db, 'users', d.id)); }
+              }
+              const qMobile = query(collection(db, 'mobileUsers'), where('email', '==', data.email));
+              const qsMobile = await getDocs(qMobile);
+              if (!qsMobile.empty) {
+                for (const d of qsMobile.docs) { await deleteDoc(doc(db, 'mobileUsers', d.id)); }
+              }
+            }
+          } catch (cleanupErr) {
+            console.warn('Local Firestore cleanup failed:', cleanupErr);
+          }
         } else {
           console.warn('No authenticated user found, skipping Firebase Auth deletion');
         }
       }
     } catch (authErr) {
-      console.warn('Could not delete from Firebase Auth:', authErr?.message || authErr);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.warn('Could not delete from Firebase Auth:', authErr?.message || authErr);
+      }
     }
-    return { success: true, collection: collectionName };
+    return { success: true };
   } catch (error) {
-    console.error('Firebase delete error:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Firebase delete error:', error);
+    }
     return { success: false, error: error.message || 'Failed to delete user from database' };
   }
 };
@@ -504,7 +610,10 @@ export const checkUserLoginStatus = async (userEmail) => {
     const result = await checkFn({ userEmail });
     return result.data;
   } catch (error) {
-    console.warn('Could not check user login status:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('Could not check user login status:', error);
+    }
     return { isLoggedIn: false, error: error.message };
   }
 };
@@ -516,7 +625,10 @@ export const resetUserPassword = async (userEmail, newPassword) => {
     const result = await adminResetPassword({ userEmail, newPassword });
     return result.data;
   } catch (error) {
-    console.warn('adminResetPassword function failed:', error);
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('adminResetPassword function failed:', error);
+    }
     return { success: false, error: error.message };
   }
 };

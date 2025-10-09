@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.js
 import { createContext, useState, useEffect, useContext, useRef } from 'react';
-import { logActivity, logMessages } from '../utils/logger';
+import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { auth, db, firebaseConfig } from '../firebase';
 import { fetchAllUsers } from '../services/accountService';
 import firebase from 'firebase/compat/app';
@@ -199,7 +199,10 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true };
     } catch (error) {
-      console.error('Error updating phone verification status:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error updating phone verification status:', error);
+      }
       return { success: false, message: 'Failed to update phone verification status' };
     }
   };
@@ -510,7 +513,25 @@ export const AuthProvider = ({ children }) => {
             address: userData.address || '',
             fullName: userData.fullName || user.displayName || '',
             contact: userData.contactNumber || userData.contact || '',
-            farm: userData.farm || userData.farmId || null
+            farm: userData.farm || userData.farmId || null,
+            // TTO-specific fields
+            temporaryTechOfficer: userData.temporaryTechOfficer || false,
+            isTemporary: userData.isTemporary || false,
+            effectiveFrom: userData.effectiveFrom || null,
+            effectiveTo: userData.effectiveTo || null,
+            tempTOReason: userData.tempTOReason || null,
+            tempTORemarks: userData.tempTORemarks || null,
+            // Additional fields that might be present
+            adminActivated: userData.adminActivated || false,
+            phoneVerified: userData.phoneVerified || false,
+            pendingActivation: userData.pendingActivation || false,
+            isMobileUser: userData.isMobileUser || false,
+            createdAt: userData.createdAt || null,
+            createdBy: userData.createdBy || null,
+            lastModified: userData.lastModified || null,
+            deactivatedBy: userData.deactivatedBy || null,
+            deactivatedAt: userData.deactivatedAt || null,
+            deactivationReason: userData.deactivationReason || null
           };
           setCurrentUser(newCurrentUser);
           currentUserRef.current = newCurrentUser;
@@ -791,6 +812,30 @@ const login = async (emailOrContact, password) => {
               };
             }
           }
+          
+          // Fallback check: If the main Tech Officer has temporarilyInactiveDueToTempTO flag,
+          // it means there should be an active TTO, so we should block the login
+          if (userData.temporarilyInactiveDueToTempTO && userData.temporaryReplacementReason) {
+            const effectiveTo = userData.temporaryEffectiveTo;
+            if (effectiveTo) {
+              const expirationDate = new Date(effectiveTo);
+              const expirationString = expirationDate.toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              await signOut(auth);
+              return {
+                success: false,
+                message: `Login restricted: A Temporary Tech Officer is active until ${expirationString}. If you need early access, contact the Super Admin to deactivate the temporary account.`
+              };
+            }
+          }
         } catch (error) {
           // Continue with login if check fails
         }
@@ -895,6 +940,22 @@ const login = async (emailOrContact, password) => {
     setCurrentUser(userCredential.user);
     currentUserRef.current = userCredential.user;
     
+    // Log login success with proper role identification
+    if (isTemporaryTechOfficer(userData)) {
+      try {
+        await logTemporaryTechOfficerActivity(
+          'temporaryTechOfficer',
+          logMessages.temporaryTechOfficer.login(username),
+          username,
+          userData.role || 'temp_tech_officer'
+        );
+      } catch (_) {}
+    } else {
+      try {
+        await logActivity('login', logMessages.login.success(username), username, null, userData.role);
+      } catch (_) {}
+    }
+    
     return { success: true, user: userCredential.user, username: username };
   } catch (error) {
     
@@ -931,10 +992,23 @@ const login = async (emailOrContact, password) => {
   const logout = async () => {
     // Capture user info at the very beginning before any state changes
     const username = currentUser?.username || auth.currentUser?.email || 'Unknown';
+    const userData = currentUser;
     
     
     try {
-      try { logActivity('logout', logMessages.logout.logoutAttempt(username), username); } catch (_) {}
+      // Log logout attempt with proper role identification
+      if (isTemporaryTechOfficer(userData)) {
+        try { 
+          await logTemporaryTechOfficerActivity(
+            'temporaryTechOfficer',
+            logMessages.temporaryTechOfficer.logout(username),
+            username,
+            userData?.role || 'temp_tech_officer'
+          ); 
+        } catch (_) {}
+      } else {
+        try { logActivity('logout', logMessages.logout.logoutAttempt(username), username); } catch (_) {}
+      }
       
       // 1. Suppress auth state changes during logout
       suppressAuthUpdatesRef.current = true;
@@ -972,7 +1046,19 @@ const login = async (emailOrContact, password) => {
       // Keep isLoggingOutRef active until we have a real login
       // isLoggingOutRef will be cleared in the auth state listener when login is processed
       
-      try { logActivity('logout', logMessages.logout.success(username), username); } catch (_) {}
+      // Log successful logout with proper role identification
+      if (isTemporaryTechOfficer(userData)) {
+        try { 
+          await logTemporaryTechOfficerActivity(
+            'temporaryTechOfficer',
+            logMessages.temporaryTechOfficer.logout(username),
+            username,
+            userData?.role || 'temp_tech_officer'
+          ); 
+        } catch (_) {}
+      } else {
+        try { logActivity('logout', logMessages.logout.success(username), username); } catch (_) {}
+      }
       
     } catch (error) {
       try { logActivity('logout', logMessages.logout.logoutError(username, error.message), username); } catch (_) {}

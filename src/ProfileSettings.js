@@ -782,6 +782,14 @@ const handleSendVerificationEmail = async () => {
   };
 
   const handleAccountManagementClick = () => {
+    const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+    
+    if (isTemporaryTechOfficer) {
+      setError('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
+      setTimeout(() => setError(''), 5000);
+      return;
+    }
+    
     navigate('/AccountManagement');
   };
 
@@ -1125,34 +1133,42 @@ const handleSendVerificationEmail = async () => {
                     type="text"
                     value={showContactChangeForm ? newContact : (currentUser?.contact || '')}
                     onChange={(e) => setNewContact(e.target.value)}
-                    readOnly={!showContactChangeForm}
-                    className={`field-input ${showContactChangeForm ? 'editing' : ''}`}
+                    readOnly={!showContactChangeForm || (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer')}
+                    className={`field-input ${showContactChangeForm ? 'editing' : ''} ${(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'disabled-field' : ''}`}
                     placeholder={t('profileSettings.contactPlaceholder')}
+                    disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
                   />
-                  <LiaEdit 
-                    className="edit-icon-inside clickable-edit-icon" 
-                    onClick={() => {
-                      if (showContactChangeForm) {
-                        // Save changes
-                        handleContactChange();
-                        // Remove focus from the input field
-                        const input = document.querySelector('.profile-field:nth-child(4) .field-input');
-                        if (input) input.blur();
-                      } else {
-                        // Start editing
-                        setNewContact(currentUser?.contact || '');
-                        setShowContactChangeForm(true);
-                        try { 
-                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('profile', `Contact editing started in Profile Settings`, u); 
-                        } catch (_) {}
-                      }
-                    }}
-                  />
+                  {!(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+                    <LiaEdit 
+                      className="edit-icon-inside clickable-edit-icon" 
+                      onClick={() => {
+                        if (showContactChangeForm) {
+                          // Save changes
+                          handleContactChange();
+                          // Remove focus from the input field
+                          const input = document.querySelector('.profile-field:nth-child(4) .field-input');
+                          if (input) input.blur();
+                        } else {
+                          // Start editing
+                          setNewContact(currentUser?.contact || '');
+                          setShowContactChangeForm(true);
+                          try { 
+                            const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                            logActivity('profile', `Contact editing started in Profile Settings`, u); 
+                          } catch (_) {}
+                        }
+                      }}
+                    />
+                  )}
                 </div>
                 {showContactChangeForm && (
                   <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem', display: 'inline-block' }}>
                     {t('profileSettings.contactWarning')}
+                  </small>
+                )}
+                {(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+                  <small style={{ fontSize: '0.8rem', color: '#6c757d', marginTop: '0.25rem', display: 'block' }}>
+                    🔒 Contact editing disabled for temporary accounts
                   </small>
                 )}
                 {!showContactChangeForm && currentUser && currentUser.phoneVerified === false && (
@@ -1181,34 +1197,42 @@ const handleSendVerificationEmail = async () => {
                     type="email"
                     value={showEmailChangeForm ? newEmail : (currentUser?.email || '')}
                     onChange={(e) => setNewEmail(e.target.value)}
-                    readOnly={!showEmailChangeForm}
-                    className={`field-input ${showEmailChangeForm ? 'editing' : ''}`}
+                    readOnly={!showEmailChangeForm || (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer')}
+                    className={`field-input ${showEmailChangeForm ? 'editing' : ''} ${(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'disabled-field' : ''}`}
                     placeholder={t('profileSettings.emailPlaceholder')}
+                    disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
                   />
-                  <LiaEdit 
-                    className="edit-icon-inside clickable-edit-icon" 
-                    onClick={() => {
-                      if (showEmailChangeForm) {
-                        // Save changes
-                        handleEmailChange();
-                        // Remove focus from the input field
-                        const input = document.querySelector('.profile-field:nth-child(5) .field-input');
-                        if (input) input.blur();
-                      } else {
-                        // Start editing
-                        setNewEmail(currentUser?.email || '');
-                        setShowEmailChangeForm(true);
-                        try { 
-                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('profile', `Email editing started in Profile Settings`, u); 
-                        } catch (_) {}
-                      }
-                    }}
-                  />
+                  {!(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+                    <LiaEdit 
+                      className="edit-icon-inside clickable-edit-icon" 
+                      onClick={() => {
+                        if (showEmailChangeForm) {
+                          // Save changes
+                          handleEmailChange();
+                          // Remove focus from the input field
+                          const input = document.querySelector('.profile-field:nth-child(5) .field-input');
+                          if (input) input.blur();
+                        } else {
+                          // Start editing
+                          setNewEmail(currentUser?.email || '');
+                          setShowEmailChangeForm(true);
+                          try { 
+                            const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                            logActivity('profile', `Email editing started in Profile Settings`, u); 
+                          } catch (_) {}
+                        }
+                      }}
+                    />
+                  )}
                 </div>
                 { showEmailChangeForm && (
                   <small style={{ fontSize: '0.8rem', color: '#dc3545', marginTop: '0.25rem' }}>
                     {t('profileSettings.usernameWarning')}
+                  </small>
+                )}
+                {(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+                  <small style={{ fontSize: '0.8rem', color: '#6c757d', marginTop: '0.25rem', display: 'block' }}>
+                    🔒 Email editing disabled for temporary accounts
                   </small>
                 )}
                 { (showEmailVerifyNotice || currentUser?.emailVerified === false) && (

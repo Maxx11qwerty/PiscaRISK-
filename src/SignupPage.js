@@ -84,12 +84,18 @@ export default function SignupPage() {
           setFarms(farmsList);
           setLoadingFarms(false);
         }, (err) => {
-          console.error('Error subscribing to farms:', err);
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error('Error subscribing to farms:', err);
+          }
           setError('Failed to load farms. Please try again.');
           setLoadingFarms(false);
         });
       } catch (error) {
-        console.error('Error subscribing to farms:', error);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error('Error subscribing to farms:', error);
+        }
         setError('Failed to load farms. Please try again.');
         setLoadingFarms(false);
       }

@@ -403,15 +403,27 @@ const PiscaRiskData = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span className="prd-export-label">{t('piscaRiskData.export.label')}</span>
           <div className="prd-export-menu">
-          <button className="prd-export-btn" onClick={(e) => {
-            const menu = e.currentTarget.nextSibling;
-            const isOpening = menu.style.display !== 'block';
-            if (menu) menu.style.display = isOpening ? 'block' : 'none';
-            try { 
-              const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-              logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in PiscaRisk data`, u); 
-            } catch (_) {}
-          }}>{t('piscaRiskData.export.select')}</button>
+          <button 
+            className="prd-export-btn" 
+            onClick={(e) => {
+              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (!isTemporaryTechOfficer) {
+                const menu = e.currentTarget.nextSibling;
+                const isOpening = menu.style.display !== 'block';
+                if (menu) menu.style.display = isOpening ? 'block' : 'none';
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in PiscaRisk data`, u); 
+                } catch (_) {}
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('piscaRiskData.export.select')}
+            style={{
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1,
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer'
+            }}
+          >{t('piscaRiskData.export.select')}</button>
           <div className="prd-export-menu-list" style={{ display: 'none' }}>
             <button className="prd-export-menu-item" onClick={(e) => {
               e.currentTarget.parentElement.style.display = 'none';

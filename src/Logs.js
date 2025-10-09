@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaEllipsisV, FaBars, FaSearch, FaUserCircle, FaUser, FaSignOutAlt, FaFilter } from 'react-icons/fa';
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import NotificationBox from './components/NotificationBox';
-import { getAllLogs } from './utils/logger';
+import { getAllLogs, isTemporaryTechOfficer, logTemporaryTechOfficerActivity, logMessages } from './utils/logger';
 import { exportLogs } from './utils/exportLogs';
 import Sidebar from './components/Sidebar';
 import { db } from './firebase';
@@ -36,6 +36,9 @@ const Logs = () => {
   const [selectedFilterType, setSelectedFilterType] = useState('All');
   const [filterValue, setFilterValue] = useState('');
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [rowActionsOpenId, setRowActionsOpenId] = useState(null);
+  const [deletingLogId, setDeletingLogId] = useState(null);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -46,6 +49,7 @@ const Logs = () => {
     setShowMenu(false);
     setShowDownloadOptions(false);
     setShowFilterDropdown(false);
+    setRowActionsOpenId(null);
   };
 
   // Close sidebar when window is resized to desktop
@@ -241,6 +245,37 @@ const Logs = () => {
     setCurrentPage(1); // Reset to first page
   };
 
+  // Row-level deletion helpers
+  const isAdminLike = () => {
+    const role = String(currentUser?.role || '').toLowerCase();
+    return role === 'super_admin' || role === 'superadmin' || role === 'admin';
+  };
+
+  // Allow row deletion regardless of log age; still require Admin/Super Admin
+  const canDeleteLog = (log) => Boolean(isAdminLike() && log?.id);
+
+  const deleteSingleLog = async (log) => {
+    try {
+      if (!canDeleteLog(log)) {
+        setErrorMessage('Only Admin/Super Admin can delete logs older than 3 months.');
+        setTimeout(() => setErrorMessage(''), 4000);
+        return;
+      }
+      if (!window.confirm('Delete this log permanently?')) return;
+      setDeletingLogId(log.id);
+      const { deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'systemLogs', log.id));
+      setLogs(prev => prev.filter(l => l.id !== log.id));
+      setFilteredLogs(prev => prev.filter(l => l.id !== log.id));
+    } catch (e) {
+      setErrorMessage('Failed to delete log.');
+      setTimeout(() => setErrorMessage(''), 4000);
+    } finally {
+      setDeletingLogId(null);
+      setRowActionsOpenId(null);
+    }
+  };
+
   const categories = [
     { id: 'all', label: t('logs.categories.all_logs') },
     { id: 'login', label: t('logs.categories.login') },
@@ -281,6 +316,16 @@ const Logs = () => {
     }
     return 'Web';
   };
+
+  // Role-based access for row actions
+  const roleLower = String(currentUser?.role || '').toLowerCase();
+  const isTemporaryTechOfficer = !!(currentUser?.temporaryTechOfficer || roleLower === 'temp_tech_officer');
+  const isTechOfficer = roleLower === 'tech_officer' || roleLower === 'tech officer';
+  const isAdmin = roleLower === 'admin';
+  const isSuperAdmin = roleLower === 'super_admin' || (isAdmin && !currentUser?.farm);
+  const isFarmAdmin = isAdmin && !!currentUser?.farm;
+  // Visible for super admin (enabled), and visible but disabled for farm admin / tech officer / temp tech officer
+  const shouldShowRowActions = isSuperAdmin || isFarmAdmin || isTechOfficer || isTemporaryTechOfficer;
 
   return (
     <div className="logs">
@@ -341,6 +386,13 @@ const Logs = () => {
         </div>
       </header>
 
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="error-message visible">
+          {errorMessage}
+        </div>
+      )}
+
       {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && window.innerWidth <= 1023 && (
         <div 
@@ -357,7 +409,17 @@ const Logs = () => {
         setShowDownloadOptions={setShowDownloadOptions}
         handleExport={handleSidebarExport}
         onDashboardClick={() => navigate('/Homepage')}
-        onAccountManagementClick={() => navigate('/AccountManagement')}
+        onAccountManagementClick={() => {
+          const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+          
+          if (isTemporaryTechOfficer) {
+            setErrorMessage('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
+            setTimeout(() => setErrorMessage(''), 5000);
+            return;
+          }
+          
+          navigate('/AccountManagement');
+        }}
         onLogsClick={() => navigate('/logs')}
         onFeedbackClick={() => navigate('/Feedback')}
         nightMode={nightMode}
@@ -559,7 +621,7 @@ const Logs = () => {
               <div className="loading-logs">{t('logs.loading_message')}</div>
             ) : currentLogs.length > 0 ? (
               currentLogs.map((log, index) => (
-                <div key={index} className="log-row">
+                <div key={index} className="log-row" onClick={(e) => e.stopPropagation()}>
                   <div className="log-cell timestamp-cell">
                     <div className="timestamp-display">
                       {log.timestamp ? (
@@ -582,6 +644,15 @@ const Logs = () => {
                   <div className="log-cell performed-by-cell">
                     <div className="logs-user-info">
                       <div className="username">{log.username}</div>
+                      {log.role && log.role !== 'Unknown' && (
+                        <div className="user-role">
+                          {log.role === 'temp_tech_officer' ? 'Temporary Tech Officer' : 
+                           log.role === 'tech_officer' ? 'Tech Officer' :
+                           log.role === 'super_admin' ? 'Super Admin' :
+                           log.role === 'admin' ? 'Admin' :
+                           log.role}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="log-cell actions-cell">
@@ -590,10 +661,34 @@ const Logs = () => {
                   <div className="log-cell action-target-cell">
                     <div className="log-message">{log.message}</div>
                   </div>
-                  <div className="log-cell source-cell">
+                  <div className="log-cell source-cell" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <span className={`source-badge ${getSourceType(log)}`}>
                       {getSourceType(log)}
                     </span>
+                    {shouldShowRowActions && (
+                      <>
+                        <button
+                          className="row-actions-button"
+                          title={isSuperAdmin ? 'Actions' : 'Actions (disabled)'}
+                          onClick={(e) => { if (!isSuperAdmin) return; e.stopPropagation(); setRowActionsOpenId(prev => prev === log.id ? null : log.id); }}
+                          disabled={!isSuperAdmin}
+                          style={{ background: 'transparent', border: 'none', cursor: isSuperAdmin ? 'pointer' : 'not-allowed', color: isSuperAdmin ? '#6b7280' : '#9ca3af', marginLeft: 6 }}
+                        >
+                          <FaEllipsisV />
+                        </button>
+                        {isSuperAdmin && rowActionsOpenId === log.id && (
+                          <div className="row-actions-menu" style={{ position: 'absolute', right: 8, top: 24, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 240, overflow: 'hidden', zIndex: 5 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteSingleLog(log); }}
+                              disabled={deletingLogId === log.id}
+                              style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer', color: '#111827' }}
+                            >
+                              {deletingLogId === log.id ? 'Deleting…' : 'Delete this log'}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               ))

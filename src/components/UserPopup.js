@@ -30,7 +30,10 @@ const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
       }
       return 'N/A';
     } catch (error) {
-      console.error('Error formatting date:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error formatting date:', error);
+      }
       return 'N/A';
     }
   };
@@ -61,7 +64,10 @@ const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
       
       setTimeout(() => setMessage({ text: '', type: '' }), 3000);
     } catch (error) {
-      console.error('Error updating user:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error updating user:', error);
+      }
       setMessage({ text: error.message, type: 'error' });
     }
   };
@@ -86,8 +92,11 @@ const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
         
         onClose();
         setMessage({ text: 'User deleted successfully!', type: 'success' });
-      } catch (error) {
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
         console.error('Error deleting user:', error);
+      }
         setMessage({ text: error.message, type: 'error' });
       }
     }

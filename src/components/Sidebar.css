@@ -225,6 +225,24 @@
   box-shadow: 0 2px 4px rgba(255, 152, 0, 0.2);
 }
 
+.sidebar-username[data-role="Temporary Tech Officer"] {
+  color: #7b1fa2;
+  font-weight: 600;
+  font-family: 'ReadexPro-Regular';
+  background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid #9c27b0;
+  box-shadow: 0 2px 4px rgba(156, 39, 176, 0.2);
+  position: relative;
+}
+
+.sidebar-username[data-role="Temporary Tech Officer"]::before {
+  content: "⏰";
+  margin-right: 0.3rem;
+  font-size: 0.9rem;
+}
+
 .sidebar {
   background-color: #ffffff;
   padding: 1rem;
@@ -380,6 +398,18 @@
 
 .sidebar-wrapper *::-webkit-scrollbar-thumb {
   display: none !important;
+}
+
+/* Disabled export button styling */
+.sidebar-nav-item.export-nav-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #6c757d;
+}
+
+.sidebar-nav-item.export-nav-item.disabled:hover {
+  background-color: transparent;
+  color: #6c757d;
 }
 
 

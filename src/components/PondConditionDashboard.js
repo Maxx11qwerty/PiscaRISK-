@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, getDoc, doc, orderBy, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
-import { logActivity, logMessages } from '../utils/logger';
+import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaFilter, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
 import { FormControl, InputLabel, Select, MenuItem, OutlinedInput } from '@mui/material';
 import AnimatedModal from './AnimatedModal';
@@ -79,10 +79,11 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
   
-  // Check if user can mark reports as reviewed: only Tech Officers (role normalized)
+  // Check if user can mark reports as reviewed: Tech Officers and Temporary Tech Officers
   const canMarkAsReviewed = () => {
     const role = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
-    return role === 'tech_officer';
+    const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || role === 'temp_tech_officer';
+    return role === 'tech_officer' || isTemporaryTechOfficer;
   };
   
   const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');
@@ -349,8 +350,11 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         // Determine which farms to load based on user's farm assignment
         let farmsToLoad = [];
         
-        if (currentUser?.farm && !notificationFarmFilter) {
-          // User has a specific farm assigned - ONLY load that farm (unless coming from notification)
+        // Check if user is a Temporary Tech Officer (should have access to all farms like main Tech Officer)
+        const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+        
+        if (currentUser?.farm && !notificationFarmFilter && !isTemporaryTechOfficer) {
+          // User has a specific farm assigned - ONLY load that farm (unless coming from notification or is TTO)
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
           if (farmDoc.exists()) {
             const farmData = farmDoc.data();
@@ -363,7 +367,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             setSelectedFarmId(currentUser.farm);
           }
         } else {
-          // User has no farm assigned, is admin, or coming from notification - load all farms
+          // User has no farm assigned, is admin, is TTO, or coming from notification - load all farms
           const farmsSnap = await getDocs(collection(db, 'farms'));
           farmsToLoad = farmsSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
         }
@@ -375,8 +379,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         const nextReportsByFarm = {};
         let totalReports = [];
         
-        if (currentUser?.farm) {
-          // User has assigned farm - fetch reports by farm field
+        if (currentUser?.farm && !isTemporaryTechOfficer) {
+          // User has assigned farm - fetch reports by farm field (but not for TTOs)
           
           // Try to get the farm name from the farm document
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
@@ -421,7 +425,8 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               contact: data.user_contact,
               email: data.user_email,
               status: data.status,
-              reviewedBy: data.reviewed_by || data.reviewedBy,
+                reviewedBy: data.reviewed_by || data.reviewedBy,
+                reviewedByRole: data.reviewed_by_role || data.reviewedByRole,
               reviewedAt: data.reviewed_at || data.reviewedAt,
               source: data.source || 'web',
               originalTimestamp: data.timestamp,
@@ -484,6 +489,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 email: data.user_email,
                 status: data.status,
                 reviewedBy: data.reviewed_by || data.reviewedBy,
+                reviewedByRole: data.reviewed_by_role || data.reviewedByRole,
                 reviewedAt: data.reviewed_at || data.reviewedAt,
                 source: data.source || 'web',
                 originalTimestamp: data.timestamp,
@@ -672,34 +678,54 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const filteredReports = getFilteredReports();
 
   const toggleExpanded = (farmId) => {
-    const newExpanded = new Set(expandedFarms);
-    const isExpanding = !newExpanded.has(farmId);
-    if (newExpanded.has(farmId)) {
-      newExpanded.delete(farmId);
-    } else {
-      newExpanded.add(farmId);
+    // Single-open behavior: open the clicked farm and close others
+    const isCurrentlyOpen = expandedFarms.has(farmId);
+    const isExpanding = !isCurrentlyOpen;
+    const next = new Set();
+    if (isExpanding) {
+      next.add(farmId);
     }
-    setExpandedFarms(newExpanded);
-    try { 
-      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-      const farm = farms.find(f => f.id === farmId);
-      const farmName = farm?.name || 'Unknown Farm';
-      logActivity('report', `Farm ${farmName} ${isExpanding ? 'expanded' : 'collapsed'} to view reports`, u); 
-    } catch (_) {}
+    setExpandedFarms(next);
+    
+    // Log the activity for regular users only
+    const username = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+    const farm = farms.find(f => f.id === farmId);
+    const farmName = farm?.name || 'Unknown Farm';
+    
+    if (!isTemporaryTechOfficer(currentUser)) {
+      try { 
+        logActivity('report', `Farm ${farmName} ${isExpanding ? 'expanded' : 'collapsed'} to view reports`, username); 
+      } catch (_) {}
+    }
   };
 
   const markReportAsReviewed = async (report, farmContext) => {
     try {
       const reviewerName = currentUser?.fullName || currentUser?.displayName || currentUser?.email || currentUser?.uid || 'Unknown Reviewer';
       const reviewedAtIso = new Date().toISOString();
+      
+      // Define variables for logging
+      const username = currentUser?.username || currentUser?.email || 'Unknown';
+      const pondId = report.pond || 'Unknown Pond';
+      const farmName = report.farm || 'Unknown Farm';
+
+      // Determine reviewer role label for display
+      const reviewerRoleLabel = (() => {
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (currentUser?.temporaryTechOfficer || role === 'temp_tech_officer') return 'Temporary Tech Officer';
+        if (role === 'tech_officer' || role === 'tech officer') return 'Tech Officer';
+        if (role === 'super_admin' || role === 'super admin' || role === 'superadmin') return 'Super Admin';
+        if (role === 'admin') return 'Admin';
+        return currentUser?.role || 'User';
+      })();
 
       // Optimistic UI update: update local states first
-      setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedAt: reviewedAtIso } : r));
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedByRole: reviewerRoleLabel, reviewedAt: reviewedAtIso } : r));
       setReportsByFarm(prev => {
         const next = { ...prev };
         const group = next[farmContext?.id || farmContext] || next[report.__farmId];
         if (group) {
-          group.reports = group.reports.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedAt: reviewedAtIso } : r);
+          group.reports = group.reports.map(r => r.id === report.id ? { ...r, status: 'Reviewed', reviewedBy: reviewerName, reviewedByRole: reviewerRoleLabel, reviewedAt: reviewedAtIso } : r);
         }
         return next;
       });
@@ -709,6 +735,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
       const updates = [updateDoc(mainDocRef, {
         status: 'Reviewed',
         reviewed_by: reviewerName,
+        reviewed_by_role: reviewerRoleLabel,
         reviewed_at: Timestamp.now()
       })];
 
@@ -753,6 +780,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
                 status: 'Reviewed',
                 reviewed_by: reviewerName,
+                reviewed_by_role: reviewerRoleLabel,
                 reviewed_at: Timestamp.now()
               }));
               subUpdated = true;
@@ -771,6 +799,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
                     status: 'Reviewed',
                     reviewed_by: reviewerName,
+                    reviewed_by_role: reviewerRoleLabel,
                     reviewed_at: Timestamp.now()
                   }));
                 });
@@ -782,6 +811,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                     updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
                       status: 'Reviewed',
                       reviewed_by: reviewerName,
+                      reviewed_by_role: reviewerRoleLabel,
                       reviewed_at: Timestamp.now()
                     }));
                   });
@@ -817,6 +847,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   updates.push(updateDoc(doc(db, 'farms', f.id, 'reports', d.id), {
                     status: 'Reviewed',
                     reviewed_by: reviewerName,
+                    reviewed_by_role: reviewerRoleLabel,
                     reviewed_at: Timestamp.now()
                   }));
                 });
@@ -864,8 +895,20 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               reviewed_by: reviewerName,
               reviewed_at: Timestamp.now()
             });
-            try { logActivity('report', `Report marked as reviewed for ${report.pond || 'Unknown Pond'}`, currentUser?.username || currentUser?.email || 'Unknown'); } catch (_) {}
-            return;
+            // Log the activity with proper role identification
+      if (isTemporaryTechOfficer(currentUser)) {
+        try { 
+          await logTemporaryTechOfficerActivity(
+            'temporaryTechOfficer', 
+            logMessages.temporaryTechOfficer.reportMarkReviewed(username, pondId, farmName), 
+            username, 
+            currentUser?.role || 'temp_tech_officer'
+          ); 
+        } catch (_) {}
+      } else {
+        try { logActivity('report', `Report marked as reviewed for ${pondId}`, username); } catch (_) {}
+      }
+      return;
           }
         } catch (e) {
           // fall through to final throw
@@ -873,7 +916,20 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
         throw new Error('Failed to update report status in any known location');
       }
-      try { logActivity('report', `Report marked as reviewed for ${report.pond || 'Unknown Pond'}`, currentUser?.username || currentUser?.email || 'Unknown'); } catch (_) {}
+      
+      // Log the activity with proper role identification
+      if (isTemporaryTechOfficer(currentUser)) {
+        try { 
+          await logTemporaryTechOfficerActivity(
+            'temporaryTechOfficer', 
+            logMessages.temporaryTechOfficer.reportMarkReviewed(username, pondId, farmName), 
+            username, 
+            currentUser?.role || 'temp_tech_officer'
+          ); 
+        } catch (_) {}
+      } else {
+        try { logActivity('report', `Report marked as reviewed for ${pondId}`, username); } catch (_) {}
+      }
     } catch (error) {
       // Revert optimistic update on error
       setReports(prev => prev.map(r => r.id === report.id ? { ...r, status: report.status, reviewedBy: report.reviewedBy, reviewedAt: report.reviewedAt } : r));
@@ -1141,7 +1197,10 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
       setNextPondFromDb(chosenNum + 1);
       setShowAddFishpondForm(false);
     } catch (err) {
-      console.error('Error adding fishpond:', err);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error adding fishpond:', err);
+      }
       const message = err?.message || 'Unknown error';
       alert(`Failed to add fishpond: ${message}`);
     } finally {
@@ -1387,24 +1446,44 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         <div className="filter-group" style={{ alignSelf: 'end', position: 'relative' }}>
           <label style={{ visibility: 'hidden' }}>Export</label>
           <button
-            onClick={(e) => { e.stopPropagation(); setExportMenuOpen((v) => !v); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (isTTO) {
+                // Log the restricted access attempt
+                const username = currentUser?.username || currentUser?.email || 'Unknown';
+                try {
+                  logTemporaryTechOfficerActivity(
+                    'temporaryTechOfficer',
+                    logMessages.temporaryTechOfficer.exportAttempt(username, 'pond condition data'),
+                    username,
+                    currentUser?.role || 'temp_tech_officer'
+                  );
+                } catch (_) {}
+              } else {
+                setExportMenuOpen((v) => !v);
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
             style={{
               background: 'transparent',
               border: 'none',
               padding: 0,
               margin: 0,
-              color: '#1A4375',
-              cursor: 'pointer',
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
               fontSize: '0.95rem',
               display: 'flex',
               alignItems: 'center',
-              gap: 6
+              gap: 6,
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
             }}
           >
             <FaFileExport />
             <span style={{ textDecoration: 'underline' }}>Export</span>
           </button>
-          {exportMenuOpen && (
+          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
             <div
               style={{
                 position: 'absolute',
@@ -1782,7 +1861,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                                 <div className="meta-item">
                                   <span className="meta-label">Reviewed</span>
                                   <span className="meta-value">
-                                    {report.reviewedBy ? `by ${report.reviewedBy}` : ''}
+                                    {report.reviewedBy ? `by ${report.reviewedBy}${report.reviewedByRole ? ` (${report.reviewedByRole})` : ''}` : ''}
                                     {report.reviewedAt ? ` on ${formatTimestamp(report.reviewedAt)}` : ''}
                                   </span>
                                 </div>

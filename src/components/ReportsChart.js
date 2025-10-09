@@ -7,7 +7,7 @@ import { GiHamburgerMenu } from 'react-icons/gi';
 import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
 import { useAuth } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
-import { logActivity, logMessages } from '../utils/logger';
+import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
 function ReportsChart() {
@@ -21,8 +21,9 @@ function ReportsChart() {
   const [exportOpen, setExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
 
-  // Check if user is assigned to a farm
-  const isAssignedToFarm = Boolean(currentUser?.farm);
+  // Check if user is assigned to a farm (but not TTOs - they should see all farms)
+  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+  const isAssignedToFarm = Boolean(currentUser?.farm) && !isTemporaryTechOfficer;
 
   // Resolve assigned farm name from live Farms map first (fallback to Firestore fetch)
   useEffect(() => {
@@ -313,14 +314,39 @@ function ReportsChart() {
         </select>
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
           <button
-            onClick={() => setExportOpen(v => !v)}
-            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            onClick={() => {
+              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (isTTO) {
+                // Log the restricted access attempt
+                const username = currentUser?.username || currentUser?.email || 'Unknown';
+                try {
+                  logTemporaryTechOfficerActivity(
+                    'temporaryTechOfficer',
+                    logMessages.temporaryTechOfficer.exportAttempt(username, 'reports chart'),
+                    username,
+                    currentUser?.role || 'temp_tech_officer'
+                  );
+                } catch (_) {}
+              } else {
+                setExportOpen(v => !v);
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              display: 'flex', 
+              alignItems: 'center',
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+            }}
             aria-label="Export"
-            title="Export"
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
-          {exportOpen && (
+          {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 220, overflow: 'hidden', zIndex: 5 }}>
               <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('#reports-chart-card', 'png', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />

@@ -45,7 +45,10 @@ const FarmHealthGauge = () => {
             setAssignedFarmName(currentUser.farm);
           }
         } catch (error) {
-          console.error('Error resolving farm name:', error);
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error('Error resolving farm name:', error);
+          }
           setAssignedFarmName(currentUser.farm);
         }
       }
@@ -304,14 +307,28 @@ const FarmHealthGauge = () => {
         </h3>
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => setExportOpen(v => !v)}
-            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            onClick={() => {
+              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (!isTemporaryTechOfficer) {
+                setExportOpen(v => !v);
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              display: 'flex', 
+              alignItems: 'center',
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+            }}
             aria-label={t('farmHealthGauge.exportAriaLabel')}
-            title={t('farmHealthGauge.exportAriaLabel')}
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('farmHealthGauge.exportAriaLabel')}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
-          {exportOpen && (
+          {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
               <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'png', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health PNG'), u); } catch (_) {} setExportOpen(false); }}>{t('farmHealthGauge.downloadPNG')}</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />

@@ -29,6 +29,10 @@
 }
 
 .error-message {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
   padding: 15px;
   margin: 20px;
   background-color: #f8d7da;
@@ -36,6 +40,162 @@
   border: 1px solid #f5c6cb;
   border-radius: 4px;
   text-align: center;
+  z-index: 9999;
+  max-width: 400px;
+  min-width: 300px;
+}
+
+/* Temporary Tech Officer Floating Warning Banner */
+.tto-floating-banner {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+  border: 2px solid #ff9800;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(255, 152, 0, 0.3);
+  animation: slideDownFloating 0.5s ease-out, autoHide 8s ease-in-out forwards;
+  max-width: 85vw;
+  width: 500px;
+}
+
+.tto-floating-content {
+  display: flex;
+  align-items: flex-start;
+  padding: 15px;
+  gap: 12px;
+  position: relative;
+}
+
+.tto-floating-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tto-floating-text {
+  flex: 1;
+  color: #e65100;
+}
+
+.tto-floating-title {
+  font-family: 'ReadexPro-Regular';
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #bf360c;
+}
+
+.tto-floating-message {
+  font-family: 'ReadexPro-Light';
+  font-size: 0.95rem;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.tto-floating-subtitle {
+  font-family: 'ReadexPro-Light';
+  font-size: 0.85rem;
+  color: #d84315;
+  font-style: italic;
+}
+
+.tto-floating-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: #bf360c;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tto-floating-close:hover {
+  color: #d84315;
+  background-color: rgba(191, 54, 12, 0.1);
+  transform: scale(1.1);
+}
+
+@keyframes slideDownFloating {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes autoHide {
+  0%, 80% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+    pointer-events: none;
+  }
+}
+
+/* Responsive design for floating TTO banner */
+@media (max-width: 768px) {
+  .tto-floating-banner {
+    top: 50px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  
+  .tto-floating-content {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .tto-floating-title {
+    font-size: 1rem;
+  }
+  
+  .tto-floating-message {
+    font-size: 0.9rem;
+  }
+  
+  .tto-floating-subtitle {
+    font-size: 0.8rem;
+  }
+  
+  .error-message {
+    top: 100px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  
+  .error-popup {
+    top: 180px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
 }
 
 /* SIDEBAR STYLES - Fixed positioning and responsive behavior */
@@ -905,7 +1065,7 @@
 
 .error-popup {
   position: fixed;
-  top: 20px;
+  top: 200px;
   left: 50%;
   transform: translateX(-50%);
   background-color: #ff4444;
@@ -913,8 +1073,10 @@
   padding: 15px 30px;
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  animation: fadeInOut 3s ease-in-out;
+  z-index: 9999;
+  animation: fadeInOut 5s ease-in-out;
+  max-width: 400px;
+  min-width: 300px;
 }
 
 @keyframes fadeInOut {

@@ -141,7 +141,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
             setError("reCAPTCHA expired. Please try again.");
           },
           'error-callback': (error) => {
-            console.error("reCAPTCHA error:", error);
+            if (process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.error("reCAPTCHA error:", error);
+            }
             setError("Security verification failed. Please try again.");
           }
         }
@@ -198,7 +201,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       try {
         await appVerifier.verify();
       } catch (vErr) {
-        console.error("reCAPTCHA verify failed:", vErr);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error("reCAPTCHA verify failed:", vErr);
+        }
         throw vErr;
       }
 
@@ -212,7 +218,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       resetCountdown();
       
     } catch (err) {
-      console.error("Error sending OTP:", err);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Error sending OTP:", err);
+      }
       handleAuthError(err);
     } finally {
       setIsSendingOTP(false);
@@ -251,7 +260,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       const result = await confirmationResult.confirm(otpString);
       await onVerify(result);
     } catch (err) {
-      console.error("Error verifying OTP:", err);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Error verifying OTP:", err);
+      }
       setError("Invalid or expired code. Please try again.");
     } finally {
       setIsLoading(false);

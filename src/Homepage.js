@@ -18,6 +18,7 @@ import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
 import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
 import { fetchRiskReportData } from './services/riskDataService';
+import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from './utils/logger';
 import AnimatedModal from './components/AnimatedModal';
 // PasswordChangeModal removed - using ProfileSettings password reset instead
 import Sidebar from './components/Sidebar';
@@ -48,10 +49,72 @@ const PiscaRiskHome = () => {
   });
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Timer states for Temporary Tech Officers
+  const [ttoTimers, setTtoTimers] = useState({}); // { [userId]: { remaining, status } }
+  
+  // Track if TTO banner has been shown for this login session
+  const [ttoBannerShown, setTtoBannerShown] = useState(false);
+  
+  // Helper function to format remaining time
+  const formatRemainingTime = (remainingMs) => {
+    if (remainingMs <= 0) return 'Expired';
+    
+    const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
+  
+  // Helper function to get timer status color
+  const getTimerStatusColor = (status) => {
+    switch (status) {
+      case 'expired': return '#dc2626';
+      case 'warning': return '#f59e0b';
+      case 'normal': return '#059669';
+      default: return '#6b7280';
+    }
+  };
+  
+  // Helper function to format full expiration details
+  const formatFullExpirationDetails = (user, timer) => {
+    if (!user.effectiveFrom || !user.effectiveTo) return 'No effective period set';
+    
+    const effectiveFrom = new Date(user.effectiveFrom);
+    const effectiveTo = new Date(user.effectiveTo);
+    const now = new Date();
+    
+    const fromDate = effectiveFrom.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+    const toDate = effectiveTo.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
+    const isExpired = now > effectiveTo;
+    if (isExpired) {
+      return `Period: ${fromDate} - ${toDate} (Expired)`;
+    } else {
+      const remaining = formatRemainingTime(timer.remaining);
+      return `Period: ${fromDate} - ${toDate} (${remaining} left)`;
+    }
+  };
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [closeNotificationsSignal, setCloseNotificationsSignal] = useState(0);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [selectedPond, setSelectedPond] = useState(1);
   const { currentUser, handleLogout } = useContext(AuthContext);
@@ -59,6 +122,67 @@ const PiscaRiskHome = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
+  
+  // Check if TTO banner should be shown (only once per login session)
+  useEffect(() => {
+    if (!currentUser || (!currentUser.temporaryTechOfficer && String(currentUser.role || '').toLowerCase() !== 'temp_tech_officer')) {
+      return;
+    }
+    
+    // Check if banner was already shown for this login session
+    const bannerKey = `tto_banner_shown_${currentUser.uid}`;
+    const wasShown = sessionStorage.getItem(bannerKey);
+    
+    if (!wasShown) {
+      setTtoBannerShown(true);
+      // Mark as shown for this session
+      sessionStorage.setItem(bannerKey, 'true');
+    }
+  }, [currentUser]);
+
+  // Timer effect for TTO
+  useEffect(() => {
+    if (!currentUser || (!currentUser.temporaryTechOfficer && String(currentUser.role || '').toLowerCase() !== 'temp_tech_officer')) {
+      return;
+    }
+    
+    const updateTimer = () => {
+      // Check for various possible date fields
+      const effectiveTo = currentUser.effectiveTo || currentUser.temporaryEffectiveTo || currentUser.expirationDate;
+      
+      if (!effectiveTo) {
+        return;
+      }
+      
+      const now = new Date();
+      const expirationDate = new Date(effectiveTo);
+      const remaining = expirationDate.getTime() - now.getTime();
+      
+      let status = 'normal';
+      if (remaining <= 0) {
+        status = 'expired';
+      } else if (remaining <= 24 * 60 * 60 * 1000) { // Less than 24 hours
+        status = 'warning';
+      }
+      
+      setTtoTimers(prev => ({
+        ...prev,
+        [currentUser.uid]: {
+          remaining: Math.max(0, remaining),
+          status: status
+        }
+      }));
+    };
+    
+    // Update immediately
+    updateTimer();
+    
+    // Update every minute
+    const interval = setInterval(updateTimer, 60000);
+    
+    return () => clearInterval(interval);
+  }, [currentUser]);
+  
   // Password change modal removed - using ProfileSettings password reset instead
   const [setPasswordChangeRequirements] = useState({
     minLength: 8,
@@ -153,11 +277,9 @@ const PiscaRiskHome = () => {
         });
         // Open the modal
         setShowModal(true);
-        console.log('Homepage opened pond modal');
       }
       if (location.state.selectedPond) {
         setSelectedPond(location.state.selectedPond);
-        console.log('Homepage set selected pond:', location.state.selectedPond);
       }
       // Don't clear the navigation state immediately - let PondConditionDashboard read it first
       // The state will be cleared by PondConditionDashboard after it processes it
@@ -254,11 +376,31 @@ const PiscaRiskHome = () => {
   };
 
   const handleAccountManagementClick = async () => {
+    const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+    
     if (currentUser?.role === 'Tech Officer') {
       setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
       return;
     }
+    
+    if (isTTO) {
+      // Log the restricted access attempt
+      const username = currentUser?.username || currentUser?.email || 'Unknown';
+      try {
+        await logTemporaryTechOfficerActivity(
+          'temporaryTechOfficer',
+          logMessages.temporaryTechOfficer.restrictedAccess(username, 'Account Management'),
+          username,
+          currentUser?.role || 'temp_tech_officer'
+        );
+      } catch (_) {}
+      
+      setErrorMessage('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
+      setTimeout(() => setErrorMessage(''), 5000);
+      return;
+    }
+    
     navigate('/AccountManagement');
   };
 
@@ -345,7 +487,7 @@ const PiscaRiskHome = () => {
         setAllFarmsRiskData(Array.isArray(farms) ? farms : []);
       } catch (_) {}
     })();
-  }, []);
+  }, [currentUser]);
 
   const openDrilldown = ({ type, farmKey, risk, farms, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];
@@ -516,9 +658,12 @@ const PiscaRiskHome = () => {
           <div className="header-right">
           <div className="header-search-container">
             </div>
-            <NotificationBox />
+            <NotificationBox 
+              onOpen={() => setShowMenu(false)}
+              externalCloseSignal={closeNotificationsSignal}
+            />
             <div className="user-menu">
-              <button onClick={() => setShowMenu(!showMenu)}>
+              <button onClick={() => { setShowMenu(!showMenu); setCloseNotificationsSignal(v => v + 1); }}>
                 {currentUser?.profileImage ? (
                   <img 
                     src={currentUser.profileImage} 
@@ -572,10 +717,87 @@ const PiscaRiskHome = () => {
 
         <div className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           {errorMessage && (
-            <div className="error-popup">
+            <div className="error-message visible">
               {errorMessage}
             </div>
           )}
+          
+          {/* Temporary Tech Officer Floating Warning Banner */}
+          {currentUser && (currentUser.temporaryTechOfficer || String(currentUser.role || '').toLowerCase() === 'temp_tech_officer') && ttoBannerShown && (
+            <div className="tto-floating-banner">
+              <div className="tto-floating-content">
+                <div className="tto-floating-icon">⚠️</div>
+                <div className="tto-floating-text">
+                  <div className="tto-floating-title">Temporary Account Active</div>
+                  <div className="tto-floating-message">
+                    {(() => {
+                      const effectiveTo = currentUser.effectiveTo || currentUser.temporaryEffectiveTo || currentUser.expirationDate;
+                      if (effectiveTo) {
+                        const timer = ttoTimers[currentUser.uid];
+                        if (timer) {
+                          return (
+                            <>This account will expire in <strong style={{ color: getTimerStatusColor(timer.status) }}>
+                              {formatRemainingTime(timer.remaining)}
+                            </strong>.</>
+                          );
+                        } else {
+                          const expirationDate = new Date(effectiveTo);
+                          return (
+                            <>This account will expire on <strong>
+                              {expirationDate.toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </strong>.</>
+                          );
+                        }
+                      } else {
+                        return <>This is a temporary account. <strong style={{ color: '#f59e0b' }}>Expiration date not configured.</strong></>;
+                      }
+                    })()}
+                  </div>
+                  <div className="tto-floating-subtitle">
+                    {(() => {
+                      const effectiveTo = currentUser.effectiveTo || currentUser.temporaryEffectiveTo || currentUser.expirationDate;
+                      if (effectiveTo) {
+                        const timer = ttoTimers[currentUser.uid];
+                        if (timer) {
+                          return (
+                            <>After expiration, access will be automatically restricted. {formatFullExpirationDetails(currentUser, timer)}</>
+                          );
+                        } else {
+                          return <>After this date, access will be automatically restricted.</>;
+                        }
+                      } else {
+                        return (
+                          <>
+                            <strong>Action Required:</strong> The Super Admin needs to set an expiration date for this temporary account. 
+                            Without an expiration date, this account will remain active indefinitely.
+                          </>
+                        );
+                      }
+                    })()}
+                  </div>
+                </div>
+                <button 
+                  className="tto-floating-close"
+                  onClick={() => {
+                    // Hide banner for this session
+                    setTtoBannerShown(false);
+                  }}
+                  aria-label="Close warning banner"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+          
           <section className="dashboard">
             <div className="dashboard-top-row">
               <div className="main-box">

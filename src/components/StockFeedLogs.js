@@ -106,9 +106,11 @@ const StockFeedLogs = ({ farmId, farmName }) => {
 
         // Filter by role
         const role = String(currentUser?.role || '').toLowerCase();
+        const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || role === 'temp_tech_officer';
         const userFarm = currentUser?.farm ? String(currentUser.farm).trim() : '';
         const filteredByRole = withUser.filter(l => {
           if (role === 'super_admin' || role === 'superadmin' || role === 'super admin') return true;
+          if (isTemporaryTechOfficer) return true; // TTOs can see all logs like main Tech Officer
           if (!userFarm) return true; // fallback: if no farm, show all
           const farmIdMatch = l._farm === userFarm || nameToFarmId.get(userFarm.toLowerCase()) === l._farm;
           const farmNameMatch = (String(l._farmName || '').trim().toLowerCase() === userFarm.toLowerCase());

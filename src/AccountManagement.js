@@ -20,6 +20,23 @@ import { logActivity, logMessages } from './utils/logger';
 
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
+  const { currentUser } = useContext(AuthContext);
+  const navigate = useNavigate();
+  
+  // Check if user is a Temporary Tech Officer and block access
+  useEffect(() => {
+    const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+    
+    if (isTemporaryTechOfficer) {
+      navigate('/Homepage', { 
+        state: { 
+          errorMessage: '⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.' 
+        } 
+      });
+      return;
+    }
+  }, [currentUser, navigate]);
+  
   const [isMobile, setIsMobile] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,10 +44,9 @@ const AccountManagement = () => {
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [AccountUsers, setAccountUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
-  const { currentUser,createStaffAccount,isAdmin,isTechOfficer, handleLogout, activateAdminAccount, resetAdminPassword } = useContext(AuthContext);
+  const { createStaffAccount, isAdmin, isTechOfficer, handleLogout, activateAdminAccount, resetAdminPassword } = useContext(AuthContext);
   const [csvFilename, setCsvFilename] = useState('piscarisk_useraccounts.csv');
   const [errors, setErrors] = useState({ email: '' });
-  const navigate = useNavigate();
 
   // Sidebar UI state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -933,7 +949,7 @@ const AccountManagement = () => {
         setMessage({ text: 'Invalid date format. Please use YYYY-MM-DD format', type: 'error' });
         return;
       }
-
+      
       // For Temporary Tech Officer, require effective period and validate range
       if (newUser.role === 'Temporary Tech Officer') {
         if (!newUser.effectiveFrom || !newUser.effectiveTo) {
@@ -2434,7 +2450,7 @@ const handleActivateFishFarmer = async (user) => {
                 )}
                 
                   <div className="form-group">
-                  <label>{t('accountManagement.add_user_form.status_label')}</label>
+                    <label>{t('accountManagement.add_user_form.status_label')}</label>
                     {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer' || newUser.role === 'Temporary Tech Officer') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
@@ -2666,7 +2682,7 @@ const handleActivateFishFarmer = async (user) => {
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                                 <span className={`role-badge role-${roleClassValue}`} style={isTempTO ? { whiteSpace: 'pre-line', color: '#000' } : undefined}>
                                   {isTempTO ? (<><span>Temporary</span><br /><span>Tech Officer</span></>) : (roleDisplayValue || t('accountManagement.user_list.no_role'))}
-                                </span>
+                              </span>
                               </div>
                             );
                           })()}
@@ -2706,10 +2722,10 @@ const handleActivateFishFarmer = async (user) => {
                         </div>
                         <div className="user-cell status-cell" data-label="Status">
                           <div className="status-cell-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                            <div
-                              className="status-indicator"
+                          <div
+                            className="status-indicator"
                               title={
-                                user.temporaryTechOfficer 
+                                (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                   ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
                                   : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
                                     ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
@@ -2718,7 +2734,7 @@ const handleActivateFishFarmer = async (user) => {
                                       : undefined
                               }
                               aria-label={
-                                user.temporaryTechOfficer 
+                                (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                   ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
                                   : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
                                     ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
@@ -2727,47 +2743,47 @@ const handleActivateFishFarmer = async (user) => {
                                       : undefined
                               }
                               style={{ 
-                                cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer) 
+                                cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
                                   ? 'pointer' 
                                   : 'default' 
                               }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (currentUser?.role !== 'Admin') return;
-                                // Disable deactivation for Temporary Tech Officer users
-                                if (user.temporaryTechOfficer) return;
-                                const current = String(user.status || '').toLowerCase();
-                                // Only allow deactivation via click. Activation must use the Activate button.
-                                if (current !== 'active') return;
-                                const nextStatus = 'Inactive';
-                                try {
-                                  // Optimistic UI update
-                                  setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
-                                  const result = await serviceUpdateUserStatus(
-                                    user.id,
-                                    nextStatus,
-                                    user.role,
-                                    user.collection || undefined,
-                                    user.email || undefined,
-                                    user.username || undefined
-                                  );
-                                  if (!result?.success) {
-                                    throw new Error(result?.error || 'Failed to update status');
-                                  }
-                                  setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
-                                  try {
-                                    const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                                    logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
-                                  } catch (_) {}
-                                } catch (error) {
-                                  // Revert UI on error
-                                  setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
-                                  setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (currentUser?.role !== 'Admin') return;
+                              // Disable deactivation for Temporary Tech Officer users
+                              if (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer') return;
+                              const current = String(user.status || '').toLowerCase();
+                              // Only allow deactivation via click. Activation must use the Activate button.
+                              if (current !== 'active') return;
+                              const nextStatus = 'Inactive';
+                              try {
+                                // Optimistic UI update
+                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
+                                const result = await serviceUpdateUserStatus(
+                                  user.id,
+                                  nextStatus,
+                                  user.role,
+                                  user.collection || undefined,
+                                  user.email || undefined,
+                                  user.username || undefined
+                                );
+                                if (!result?.success) {
+                                  throw new Error(result?.error || 'Failed to update status');
                                 }
-                              }}
-                            >
-                              <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
-                              <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
+                                setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
+                                try {
+                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                  logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
+                                } catch (_) {}
+                              } catch (error) {
+                                // Revert UI on error
+                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
+                                setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+                              }
+                            }}
+                          >
+                            <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
+                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
                             </div>
                           </div>
                         </div>
@@ -2851,7 +2867,7 @@ const handleActivateFishFarmer = async (user) => {
                               Deactivate TTO
                             </button>
                           )}
-                          {String(user.status || '').toLowerCase() === 'active' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
+                          {String(user.status || '').toLowerCase() === 'active' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && !(currentUser && (currentUser.temporaryTechOfficer || String(currentUser.role || '').toLowerCase() === 'temp_tech_officer')) && (
                             <TooltipWrapper
                               showTooltip={isTechOfficerUser}
                               tooltipText="You don't have permission to do this"
@@ -2887,8 +2903,8 @@ const handleActivateFishFarmer = async (user) => {
                           )}
                           {/* Show deactivation message for Temporary Tech Officers when deactivated */}
         {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && isInactive(user.status) && (user.deactivatedBy || user.deactivationReason) && (
-          <div className="password-reset-pending">
-            <span className="pending-indicator">
+                            <div className="password-reset-pending">
+                              <span className="pending-indicator">
               <span style={{
                 fontSize: '0.75rem',
                 fontWeight: 'bold',
@@ -2937,7 +2953,7 @@ const handleActivateFishFarmer = async (user) => {
                                   // Show regular activation message for main Tech Officers
                                   return (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
                                   && (user.phoneVerified === false || String(user.phoneVerified).toLowerCase() === 'false')
-                                    ? t('accountManagement.user_list.activated_by_admin_otp_notice')
+                                  ? t('accountManagement.user_list.activated_by_admin_otp_notice')
                                     : t('accountManagement.user_list.activated_by_admin_notice');
                                 })()}
                               </span>

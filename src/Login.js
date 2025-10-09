@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useContext } from "react";
-import { FaEye, FaEyeSlash, FaEnvelope, FaLock, FaGoogle } from "react-icons/fa";
+import React, { useState, useEffect, useContext } from "react";
+import { FaEye, FaEyeSlash, FaEnvelope, FaLock } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next'; // Add this import
 import logo from "./assets/images/PISCARISK_LOGO.png";
@@ -12,6 +12,12 @@ import { logActivity } from './utils/logger';
 
 export default function Login() {
   const { t } = useTranslation(); // Add this hook
+  const devError = (...args) => {
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error(...args);
+    }
+  };
   // Custom hook for screen size tracking
   const useScreenSize = () => {
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
@@ -49,10 +55,7 @@ export default function Login() {
   });
   
   const { 
-    currentUser,
     login, 
-    signInWithGoogle, 
-    resetPassword, 
     emailVerificationModal,
     openEmailVerificationModal,
     resendVerificationEmail,
@@ -65,13 +68,11 @@ export default function Login() {
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const errorTimeoutRef = useRef();
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
   const [contactError, setContactError] = useState("");
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -90,13 +91,7 @@ export default function Login() {
     return "";
   };
 
-  // Phone number validation with country code
-  const validatePhoneNumber = (phone) => {
-    if (!phone) return 'Phone number is required';
-    // Check if it starts with +63 and has 10 digits after
-    if (!/^\+63\d{10}$/.test(phone)) return 'Please enter a valid Philippine phone number with country code (+63)';
-    return "";
-  };
+  // (removed unused validatePhoneNumber)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -133,7 +128,7 @@ export default function Login() {
           const username = result.username || formData.emailOrContact;
           await logActivity('login', `User ${username} logged in successfully`, username);
         } catch (logError) {
-          console.error('Failed to log login activity:', logError);
+          devError('Failed to log login activity:', logError);
         }
         
         // Clear the login processing flag immediately
@@ -171,91 +166,23 @@ export default function Login() {
         try {
           await logActivity('login', `Failed login attempt for ${formData.emailOrContact}: ${result.message}`, formData.emailOrContact);
         } catch (logError) {
-          console.error('Failed to log activity:', logError);
+          devError('Failed to log activity:', logError);
         }
       }
     } catch (error) {
-      console.error('Login error:', error);
+      devError('Login error:', error);
       setError(t('login.unexpectedError'));
       
       try {
         await logActivity('error', `Login system error: ${error.message}`, formData.emailOrContact);
       } catch (logError) {
-        console.error('Failed to log activity:', logError);
+        devError('Failed to log activity:', logError);
       }
     }
   };
 
 
-  const handleGoogleLogin = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setError('');
-    setIsGoogleLoading(true);
-    
-    let result;
-    try {
-      result = await signInWithGoogle();
-      
-      if (result.isRedirect) {
-        // Show a message that we're redirecting to Google
-        setError('Redirecting to Google sign-in...');
-        // Don't set loading to false yet, as we're redirecting
-      } else if (result.success) {
-        // Small delay to ensure state is updated before navigation
-        setTimeout(() => {
-          navigate('/Homepage');
-        }, 100);
-        setIsGoogleLoading(false);
-      } else if (result.code === 'show_phone_verification') {
-        setError('');
-        if (result.phoneNumber) {
-          openPhoneVerificationModal(result.phoneNumber, result.userId, result.userData);
-        } else {
-          setError('Phone number not found. Please contact support.');
-        }
-        setIsGoogleLoading(false);
-      }
-    } catch (error) {
-      console.error('Google login error:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = t('login.failedToLoginWithGoogle');
-      if (error.message.includes('cancelled')) {
-        errorMessage = 'Google sign-in was cancelled. Please try again.';
-      } else if (error.message.includes('popup blocked')) {
-        errorMessage = 'Google sign-in popup was blocked. Please allow popups for this site and try again.';
-      } else if (error.message.includes('security settings')) {
-        errorMessage = 'Browser security settings are blocking Google sign-in popups. This is likely due to Cross-Origin-Opener-Policy restrictions. Please try using a different browser (Chrome, Firefox, or Edge) or disable popup blocking for this site.';
-      } else if (error.message.includes('already exists')) {
-        errorMessage = 'An account with this email already exists. Please use the login page instead.';
-      } else if (error.message.includes('verify your email')) {
-        errorMessage = 'Please verify your email before logging in. Check your inbox for a verification link.';
-      } else if (error.message.includes('pending admin approval')) {
-        errorMessage = 'Your account is pending admin approval. Please wait for activation.';
-      } else {
-        errorMessage = error.message || t('login.failedToLoginWithGoogle');
-      }
-      
-      setError(errorMessage);
-      setIsGoogleLoading(false);
-    }
-    
-    // Clear error after 5 seconds (only if not redirecting)
-    if (!result?.isRedirect) {
-      setTimeout(() => {
-        setError('');
-      }, 5000);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current);
-      }
-    };
-  }, []);
+  // (removed unused unmount cleanup for errorTimeoutRef)
 
 
   return (

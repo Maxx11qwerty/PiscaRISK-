@@ -78,6 +78,7 @@ const Feedback = () => {
   const [isReplying, setIsReplying] = useState(false);
   const [isMarkingRead, setIsMarkingRead] = useState(false);
   const [isMarkingUnread, setIsMarkingUnread] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [nightMode, setNightMode] = useState(false);
@@ -761,6 +762,14 @@ const Feedback = () => {
   };
 
   const handleAccountManagementClick = () => {
+    const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+    
+    if (isTemporaryTechOfficer) {
+      setErrorMessage('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
+      setTimeout(() => setErrorMessage(''), 5000);
+      return;
+    }
+    
     navigate('/AccountManagement');
   };
 
@@ -899,6 +908,13 @@ const Feedback = () => {
           </div>
         </div>
       </header>
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="error-message visible">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && window.innerWidth <= 1023 && (

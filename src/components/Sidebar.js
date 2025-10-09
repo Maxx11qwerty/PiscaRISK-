@@ -35,6 +35,7 @@ const Sidebar = ({
     const r = String(role).toLowerCase();
     const hasFarm = !!(currentUser?.farm && String(currentUser.farm).trim() !== '');
     if (r === 'tech_officer' || r === 'tech officer') return 'Tech Officer';
+    if (r === 'temp_tech_officer' || r === 'temporary tech officer') return 'Temporary Tech Officer';
     if (r === 'fish_farmer' || r === 'fish farmer') return 'Fish Farmer';
     if (r === 'admin') return hasFarm ? 'Farm Admin' : 'Admin';
     return role;
@@ -133,14 +134,20 @@ const Sidebar = ({
 
             <div className="sidebar-export-container">
               <div
-                className="sidebar-nav-item export-nav-item"
-                onClick={() => setShowDownloadOptions(!showDownloadOptions)}
+                className={`sidebar-nav-item export-nav-item ${(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'disabled' : ''}`}
+                onClick={() => {
+                  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+                  if (!isTemporaryTechOfficer) {
+                    setShowDownloadOptions(!showDownloadOptions);
+                  }
+                }}
+                title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('common.export')}
               >
                 <FaFileExport className="sidebar-nav-icon" />
                 <span>{t('common.export')}</span>
               </div>
 
-              {showDownloadOptions && (
+              {showDownloadOptions && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
                 <div className="sidebar-download-options">
                   <div
                     className="sidebar-download-option"

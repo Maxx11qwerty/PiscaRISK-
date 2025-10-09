@@ -398,7 +398,7 @@ const removeOldNotifications = (notifications) => {
   });
 };
 
-const NotificationBox = () => {
+const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -522,15 +522,13 @@ const NotificationBox = () => {
                 farmName: notification.farmName,
                 farmFilter: notification.farmName
               };
-              console.log('Notification click - navigating with state:', navigationState);
-              console.log('Notification data:', {
-                pondId: notification.pondId,
-                farmName: notification.farmName,
-                reportData: notification.reportData
-              });
+              // dev-only logs removed for production
               navigate('/Homepage', { state: navigationState });
             } else {
-              console.warn('Invalid pond number in notification:', notification.pondId);
+              if (process.env.NODE_ENV === 'development') {
+                // eslint-disable-next-line no-console
+                console.warn('Invalid pond number in notification:', notification.pondId);
+              }
             }
           }
           break;
@@ -544,10 +542,16 @@ const NotificationBox = () => {
           });
           break;
         default:
-          console.warn('Unknown notification type:', notification.type);
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.warn('Unknown notification type:', notification.type);
+          }
       }
     } catch (error) {
-      console.error('Error handling notification click:', error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('Error handling notification click:', error);
+      }
     }
   };
 
@@ -664,8 +668,19 @@ const NotificationBox = () => {
   const toggleNotifications = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsOpen(!isOpen);
+    const next = !isOpen;
+    setIsOpen(next);
+    try {
+      if (next) { onOpen && onOpen(); } else { onClose && onClose(); }
+    } catch (_) {}
   };
+
+  // Close from outside (e.g., when user menu opens)
+  useEffect(() => {
+    if (externalCloseSignal === undefined) return;
+    setIsOpen(false);
+    try { onClose && onClose(); } catch (_) {}
+  }, [externalCloseSignal]);
 
   const formatTime = (timestamp) => {
     try {

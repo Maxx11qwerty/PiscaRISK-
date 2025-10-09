@@ -706,11 +706,7 @@ const RiskReportModal = ({ isModal = false }) => {
             });
           });
           
-          console.log('Refreshed predictions from database:', refreshedPredictions.map(p => ({
-            pond: p.fish_pond,
-            timestamp: new Date(getTimestampMs(p.timestamp)).toLocaleString(),
-            risk: p.risk_level
-          })));
+          // dev-only logs removed for production
           
           // Update the farm data with latest predictions and recalculate main_issue
           setFarms(prevFarms => 
@@ -766,7 +762,10 @@ const RiskReportModal = ({ isModal = false }) => {
           );
         }
       } catch (error) {
-        console.error('Error refreshing farm data:', error);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error('Error refreshing farm data:', error);
+        }
       } finally {
         setDetailsLoading(false);
       }
@@ -1077,30 +1076,36 @@ const RiskReportModal = ({ isModal = false }) => {
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
           <button
             onClick={() => {
-              const isOpening = !exportMenuOpen;
-              setExportMenuOpen(v => !v);
-              try { 
-                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in Risk Reports`, u); 
-              } catch (_) {}
+              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (!isTemporaryTechOfficer) {
+                const isOpening = !exportMenuOpen;
+                setExportMenuOpen(v => !v);
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in Risk Reports`, u); 
+                } catch (_) {}
+              }
             }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
             style={{
               background: 'transparent',
               border: 'none',
               padding: 0,
               margin: 0,
-              color: '#1A4375',
-              cursor: 'pointer',
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
               fontSize: '0.95rem',
               display: 'flex',
               alignItems: 'center',
-              gap: 6
+              gap: 6,
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
             }}
           >
             <FaFileExport />
             <span style={{ textDecoration: 'underline' }}>Export</span>
           </button>
-          {exportMenuOpen && (
+          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
             <div
               style={{
                 position: 'absolute',
