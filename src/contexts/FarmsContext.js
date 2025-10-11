@@ -9,7 +9,9 @@ export const FarmsProvider = ({ children }) => {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'farms'), (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const items = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(farm => farm.id !== 'WgS4mBVnPFPMGq7vfSYa'); // Exclude Rojo Hatchery
       setFarms(items);
     });
     return () => unsub();

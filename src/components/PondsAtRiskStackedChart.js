@@ -44,7 +44,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   const legacyNameMap = useMemo(() => ({
     'salmon-hatchery-facility': 'Aquino Fish Farm',
     'tilapia-production-center': "Vergara's Aqua Farm",
-    'freshwater-finfish-farm': 'Rojo Hatchery',
     'blue-ocean-aquafarm': 'Maningas Fish Farm',
     'marine-species-cultivation': 'Labay Fish Farm',
   }), []);
@@ -55,10 +54,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     const legacyNew = legacyNameMap[key];
     const liveFromKey = farmsNameByKey[key];
     let name = liveFromKey || legacyNew || origName;
-    // Final guard: normalize any variant of "freshwater finfish" to Rojo Hatchery
-    if (String(name).toLowerCase().replace(/\s+/g,' ').includes('freshwater finfish')) {
-      name = 'Rojo Hatchery';
-    }
     const newKey = normalizeFarmName(name);
     return { key: newKey, name };
   };
@@ -69,7 +64,17 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       try {
         setLoading(true);
         const data = (await fetchRiskReportData()) || [];
-        setFarms(data);
+        // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
+        const filteredData = data.filter(f => 
+          f.farm_key !== 'rojo-hatchery' && 
+          f.name !== 'Rojo Hatchery' &&
+          f.key !== 'rojo-hatchery' &&
+          f.farm_key !== 'freshwater-finfish-farm' &&
+          f.name !== 'Freshwater Finfish Farm' &&
+          f.key !== 'freshwater-finfish-farm' &&
+          !f.name?.toLowerCase().includes('freshwater finfish')
+        );
+        setFarms(filteredData);
       } finally {
         setLoading(false);
       }

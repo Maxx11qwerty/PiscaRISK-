@@ -34,8 +34,6 @@ const normalizeFarmName = (name) => {
 const legacyNameToCanonical = {
   'salmon-hatchery-facility': 'Aquino Fish Farm',
   'tilapia-production-center': "Vergara's Aqua Farm",
-  'freshwater-finfish-farm': 'Rojo Hatchery',
-  'freshwater-finfish': 'Rojo Hatchery',
   'blue-ocean-aquafarm': 'Maningas Fish Farm',
   'marine-species-cultivation': 'Labay Fish Farm',
 };
@@ -43,8 +41,6 @@ const legacyNameToCanonical = {
 const toCanonicalDisplay = (rawName) => {
   const key = normalizeFarmName(rawName);
   const canon = legacyNameToCanonical[key] || rawName || '';
-  // Final guard for any freshwater finfish variants
-  if (String(canon).toLowerCase().replace(/\s+/g, ' ').includes('freshwater finfish')) return 'Rojo Hatchery';
   return canon;
 };
 
@@ -117,6 +113,15 @@ const PiscaRiskData = () => {
         setLoading(true);
         const data = await fetchRiskReportData();
         let baseFarms = Array.isArray(data) ? data : [];
+        
+        // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
+        baseFarms = baseFarms.filter(f => 
+          f.farm_key !== 'rojo-hatchery' && 
+          f.name !== 'Rojo Hatchery' &&
+          f.farm_key !== 'freshwater-finfish-farm' &&
+          f.name !== 'Freshwater Finfish Farm' &&
+          !f.name?.toLowerCase().includes('freshwater finfish')
+        );
         // Fetch users and count per farm across users + mobileUsers
         try {
           const users = await fetchAllUsers();
@@ -124,6 +129,12 @@ const PiscaRiskData = () => {
           users.forEach(u => {
             const farmName = (u.farm || u.farm_name || '').toString().trim();
             if (!farmName) return;
+            
+            // Skip users assigned to Rojo Hatchery or Freshwater Finfish Farm
+            if (farmName === 'Rojo Hatchery' || 
+                farmName === 'Freshwater Finfish Farm' ||
+                farmName?.toLowerCase().includes('freshwater finfish')) return;
+                
             const key = normalizeFarmName(farmName);
             if (key === 'unknown-farm') return;
             userCounts[key] = (userCounts[key] || 0) + 1;
@@ -142,6 +153,12 @@ const PiscaRiskData = () => {
             const d = doc.data() || {};
             const farmRaw = (d.farm || '').toString().trim();
             if (!farmRaw) return; // skip unknown/missing farm
+            
+            // Skip reports from Rojo Hatchery or Freshwater Finfish Farm
+            if (farmRaw === 'Rojo Hatchery' || 
+                farmRaw === 'Freshwater Finfish Farm' ||
+                farmRaw?.toLowerCase().includes('freshwater finfish')) return;
+                
             const key = toCanonicalKey(farmRaw);
             if (key === 'unknown-farm') return;
             counts[key] = (counts[key] || 0) + 1;
@@ -159,7 +176,19 @@ const PiscaRiskData = () => {
           Object.keys(counts).forEach(k => {
             if (!baseKeys.has(k)) {
               if (k === 'unknown-farm') return; // never add unknown
+              
+              // Skip adding farms that are Rojo Hatchery or Freshwater Finfish Farm
+              if (k === 'rojo-hatchery' || 
+                  k === 'freshwater-finfish-farm' ||
+                  k.includes('freshwater-finfish')) return;
+                  
               const displayName = toCanonicalDisplay(k.replace(/-/g, ' '));
+              
+              // Additional check for display name
+              if (displayName === 'Rojo Hatchery' || 
+                  displayName === 'Freshwater Finfish Farm' ||
+                  displayName?.toLowerCase().includes('freshwater finfish')) return;
+                  
               toAdd.push({
                 key: k,
                 name: displayName,

@@ -96,15 +96,12 @@ export const fetchRiskReportData = async () => {
   const legacyMap = {
     'salmon-hatchery-facility': 'Aquino Fish Farm',
     'tilapia-production-center': "Vergara's Aqua Farm",
-    'freshwater-finfish-farm': 'Rojo Hatchery',
-    'freshwater-finfish': 'Rojo Hatchery',
     'blue-ocean-aquafarm': 'Maningas Fish Farm',
     'marine-species-cultivation': 'Labay Fish Farm',
   };
   const idToNewName = {
     'NyhjBvh9N9wfsOJ2qeEa': 'Aquino Fish Farm',
     'TP3p0y4iQlo2j0loELQb': "Vergara's Aqua Farm",
-    'WgS4mBVnPFPMGq7vfSYa': 'Rojo Hatchery',
     'egGEARKL6Qk5jNgrY3Yu': 'Maningas Fish Farm',
     's5zKKXTBkF3voYnV8wuh': 'Labay Fish Farm',
   };
@@ -115,6 +112,13 @@ export const fetchRiskReportData = async () => {
     let farmKey = normalizeFarmName(rawName);
     // If record contains an explicit id field, prefer mapping by id to new name
     const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
+    
+    // Skip Rojo Hatchery and Freshwater Finfish Farm data
+    if (explicitId === 'WgS4mBVnPFPMGq7vfSYa' || 
+        rawName === 'Rojo Hatchery' ||
+        rawName === 'Freshwater Finfish Farm' ||
+        rawName?.toLowerCase().includes('freshwater finfish')) return;
+    
     let canonName = null;
     if (explicitId && idToNewName[explicitId]) {
       canonName = idToNewName[explicitId];
@@ -149,6 +153,13 @@ export const fetchRiskReportData = async () => {
     let farmKey = normalizeFarmName(rawName);
     let canonName = legacyMap[farmKey] || null;
     const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || data.prediction?.farm_id || data.prediction?.input_data?.farm_id || null;
+    
+    // Skip Rojo Hatchery and Freshwater Finfish Farm data
+    if (explicitId === 'WgS4mBVnPFPMGq7vfSYa' || 
+        rawName === 'Rojo Hatchery' ||
+        rawName === 'Freshwater Finfish Farm' ||
+        rawName?.toLowerCase().includes('freshwater finfish')) return;
+    
     if (explicitId && idToNewName[explicitId]) {
       canonName = idToNewName[explicitId];
       farmKey = normalizeFarmName(canonName);
@@ -170,13 +181,13 @@ export const fetchRiskReportData = async () => {
   // Ensure transparency by including certain farms even if no reports exist
   // Only add if not already present from prediction data
   const requiredFarms = [
-    'Freshwater FinFish'
+    // No required farms to add
   ];
   requiredFarms.forEach((farmName) => {
     const farmKey = normalizeFarmName(farmName);
-    // Check if we already have a similar farm (e.g., "Freshwater Finfish Farm" vs "Freshwater FinFish")
+    // Check if we already have a similar farm
     const existingFarm = Array.from(allFarms).find(key => 
-      key.includes('freshwater') && key.includes('finfish')
+      key.includes(farmName.toLowerCase().replace(/\s+/g, '-'))
     );
     
     if (!existingFarm) {

@@ -26,8 +26,6 @@ const normalizeNameKey = (name) => {
 const legacyNameToCanonical = {
   'salmon-hatchery-facility': 'Aquino Fish Farm',
   'tilapia-production-center': "Vergara's Aqua Farm",
-  'freshwater-finfish-farm': 'Rojo Hatchery',
-  'freshwater-finfish': 'Rojo Hatchery',
   'blue-ocean-aquafarm': 'Maningas Fish Farm',
   'marine-species-cultivation': 'Labay Fish Farm',
 };
@@ -36,7 +34,6 @@ const legacyNameToCanonical = {
 const idToCanonical = {
   NyhjBvh9N9wfsOJ2qeEa: 'Aquino Fish Farm',
   TP3p0y4iQlo2j0loELQb: "Vergara's Aqua Farm",
-  WgS4mBVnPFPMGq7vfSYa: 'Rojo Hatchery',
   egGEARKL6Qk5jNgrY3Yu: 'Maningas Fish Farm',
   s5zKKXTBkF3voYnV8wuh: 'Labay Fish Farm',
 };
@@ -353,21 +350,30 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         
         if (currentUser?.farm && !notificationFarmFilter && !isTemporaryTechOfficer) {
           // User has a specific farm assigned - ONLY load that farm (unless coming from notification or is TTO)
-          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
-          if (farmDoc.exists()) {
-            const farmData = farmDoc.data();
-            farmsToLoad = [{ id: farmDoc.id, ...farmData }];
-            // Force the selected farm to user's assigned farm
-            setSelectedFarmId(currentUser.farm);
+          // Skip if user is assigned to Rojo Hatchery
+          if (currentUser.farm === 'WgS4mBVnPFPMGq7vfSYa') {
+            farmsToLoad = [];
+            setSelectedFarmId('all');
           } else {
-            // Create a placeholder farm entry so the UI can still render
-            farmsToLoad = [{ id: currentUser.farm, name: currentUser.farm, location: 'Assigned Farm' }];
-            setSelectedFarmId(currentUser.farm);
+            const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
+            if (farmDoc.exists()) {
+              const farmData = farmDoc.data();
+              farmsToLoad = [{ id: farmDoc.id, ...farmData }];
+              // Force the selected farm to user's assigned farm
+              setSelectedFarmId(currentUser.farm);
+            } else {
+              // Create a placeholder farm entry so the UI can still render
+              farmsToLoad = [{ id: currentUser.farm, name: currentUser.farm, location: 'Assigned Farm' }];
+              setSelectedFarmId(currentUser.farm);
+            }
           }
         } else {
           // User has no farm assigned, is admin, is TTO, or coming from notification - load all farms
           const farmsSnap = await getDocs(collection(db, 'farms'));
-          farmsToLoad = farmsSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+          farmsToLoad = farmsSnap.docs
+            .map(d => ({ id: d.id, ...(d.data() || {}) }))
+            .filter(farm => farm.id !== 'WgS4mBVnPFPMGq7vfSYa') // Exclude Rojo Hatchery
+            .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
         }
         
         // Set farms state - this controls what farms are displayed in the UI

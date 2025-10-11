@@ -116,33 +116,40 @@ function ReportsChart() {
         
         const querySnapshot = await getDocs(q);
         
-        let allReports = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          let date;
-          try {
-            // Try different timestamp field names
-            if (data.timestamp && data.timestamp.toDate) {
-              date = data.timestamp.toDate();
-            } else if (data.createdAt && data.createdAt.toDate) {
-              date = data.createdAt.toDate();
-            } else if (data.date) {
-              date = new Date(data.date);
-            } else if (data.timestamp) {
-              date = new Date(data.timestamp);
-            } else {
+        let allReports = querySnapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            let date;
+            try {
+              // Try different timestamp field names
+              if (data.timestamp && data.timestamp.toDate) {
+                date = data.timestamp.toDate();
+              } else if (data.createdAt && data.createdAt.toDate) {
+                date = data.createdAt.toDate();
+              } else if (data.date) {
+                date = new Date(data.date);
+              } else if (data.timestamp) {
+                date = new Date(data.timestamp);
+              } else {
+                date = new Date(); // Fallback to current date
+              }
+            } catch (error) {
               date = new Date(); // Fallback to current date
             }
-          } catch (error) {
-            date = new Date(); // Fallback to current date
-          }
-          
-          return {
-            date,
-            farm: data.farm || data.farm_name || data.farmId || data.farm_id || 'Unknown Farm',
-            farmId: data.farmId || data.farm_id || data.farm,
-            farmName: data.farm_name || data.farm
-          };
-        });
+            
+            return {
+              date,
+              farm: data.farm || data.farm_name || data.farmId || data.farm_id || 'Unknown Farm',
+              farmId: data.farmId || data.farm_id || data.farm,
+              farmName: data.farm_name || data.farm
+            };
+          })
+          .filter(report => 
+            report.farmId !== 'WgS4mBVnPFPMGq7vfSYa' && 
+            report.farm !== 'Rojo Hatchery' &&
+            report.farm !== 'Freshwater Finfish Farm' &&
+            !report.farm?.toLowerCase().includes('freshwater finfish')
+          ); // Exclude Rojo Hatchery and Freshwater Finfish Farm reports
 
         // If user is assigned to a farm and we got all reports, filter client-side
         if (isAssignedToFarm && allReports.length > 0) {

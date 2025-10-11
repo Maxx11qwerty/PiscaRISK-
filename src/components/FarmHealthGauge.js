@@ -63,17 +63,23 @@ const FarmHealthGauge = () => {
       const legacyMap = {
         'salmon-hatchery-facility': 'Aquino Fish Farm',
         'tilapia-production-center': "Vergara's Aqua Farm",
-        'freshwater-finfish-farm': 'Rojo Hatchery',
-        'freshwater-finfish': 'Rojo Hatchery',
         'blue-ocean-aquafarm': 'Maningas Fish Farm',
         'marine-species-cultivation': 'Labay Fish Farm',
       };
-      const canon = (Array.isArray(data) ? data : []).map(f => {
-        const live = farmsNameByKey[f.key];
-        const legacy = legacyMap[f.key];
-        const name = live || legacy || f.name;
-        return { ...f, name, key: normalizeFarmName(name) };
-      });
+      const canon = (Array.isArray(data) ? data : [])
+        .filter(f => 
+          f.farm_key !== 'rojo-hatchery' && 
+          f.name !== 'Rojo Hatchery' &&
+          f.farm_key !== 'freshwater-finfish-farm' &&
+          f.name !== 'Freshwater Finfish Farm' &&
+          !f.name?.toLowerCase().includes('freshwater finfish')
+        ) // Additional filtering
+        .map(f => {
+          const live = farmsNameByKey[f.key];
+          const legacy = legacyMap[f.key];
+          const name = live || legacy || f.name;
+          return { ...f, name, key: normalizeFarmName(name) };
+        });
       // Merge duplicates by name
       const map = new Map();
       canon.forEach(f => {

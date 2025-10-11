@@ -79,7 +79,14 @@ export default function SignupPage() {
         const { db } = await import('./firebase');
         const farmsCollection = collection(db, 'farms');
         unsubscribe = onSnapshot(farmsCollection, (snapshot) => {
-          const farmsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const farmsList = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(farm => 
+              farm.id !== 'WgS4mBVnPFPMGq7vfSYa' && // Exclude Rojo Hatchery
+              farm.name !== 'Rojo Hatchery' &&
+              farm.name !== 'Freshwater Finfish Farm' &&
+              !farm.name?.toLowerCase().includes('freshwater finfish')
+            );
           setFarms(farmsList);
           setLoadingFarms(false);
         }, (err) => {

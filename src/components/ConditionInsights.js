@@ -130,8 +130,6 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         const legacyMap = {
           'salmon-hatchery-facility': 'Aquino Fish Farm',
           'tilapia-production-center': "Vergara's Aqua Farm",
-          'freshwater-finfish-farm': 'Rojo Hatchery',
-          'freshwater-finfish': 'Rojo Hatchery',
           'blue-ocean-aquafarm': 'Maningas Fish Farm',
           'marine-species-cultivation': 'Labay Fish Farm',
         };
@@ -140,7 +138,6 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           const live = farmsNameByKey[key];
           const legacy = legacyMap[key];
           let name = live || legacy || raw || '';
-          if (String(name).toLowerCase().includes('freshwater finfish')) name = 'Rojo Hatchery';
           return name;
         };
         snap.forEach((doc) => {
@@ -151,6 +148,14 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           }
           const rawFarm = data.farm_name || data.farm || data.input_data?.farm_name || 'Unknown Farm';
           const farm = canonName(rawFarm);
+          
+          // Skip Rojo Hatchery and Freshwater Finfish Farm data
+          if (farm === 'Rojo Hatchery' || 
+              rawFarm === 'Rojo Hatchery' ||
+              farm === 'Freshwater Finfish Farm' ||
+              rawFarm === 'Freshwater Finfish Farm' ||
+              rawFarm?.toLowerCase().includes('freshwater finfish')) return;
+          
           const pond = data.fish_pond || data.input_data?.fish_pond || 'Unknown Pond';
           const ts = data.createdAt || data.timestamp || data.input_data?.timestamp;
           list.push({

@@ -330,7 +330,14 @@ const AccountManagement = () => {
     const loadFarms = async () => {
       try {
         const snap = await getDocs(collection(db, 'farms'));
-        const list = snap.docs.map(d => ({ id: d.id, ...(d.data() || {}) }));
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() || {}) }))
+          .filter(farm => 
+            farm.id !== 'WgS4mBVnPFPMGq7vfSYa' && // Exclude Rojo Hatchery
+            farm.name !== 'Rojo Hatchery' &&
+            farm.name !== 'Freshwater Finfish Farm' &&
+            !farm.name?.toLowerCase().includes('freshwater finfish')
+          );
         const sorted = list.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
         setFarms(sorted);
       } catch (e) {
@@ -341,9 +348,29 @@ const AccountManagement = () => {
     const resolveAssignedFarmName = async () => {
       try {
         if (currentUser?.farm) {
+          // Skip if user is assigned to Rojo Hatchery or Freshwater Finfish Farm
+          if (currentUser.farm === 'WgS4mBVnPFPMGq7vfSYa' ||
+              currentUser.farm === 'Rojo Hatchery' ||
+              currentUser.farm === 'Freshwater Finfish Farm' ||
+              currentUser.farm?.toLowerCase().includes('freshwater finfish')) {
+            setAssignedFarmName('');
+            return;
+          }
+          
           const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
           if (farmDoc.exists()) {
-            setAssignedFarmName(farmDoc.data().name || currentUser.farm);
+            const farmData = farmDoc.data();
+            const farmName = farmData.name || currentUser.farm;
+            
+            // Additional check for farm name
+            if (farmName === 'Rojo Hatchery' ||
+                farmName === 'Freshwater Finfish Farm' ||
+                farmName?.toLowerCase().includes('freshwater finfish')) {
+              setAssignedFarmName('');
+              return;
+            }
+            
+            setAssignedFarmName(farmName);
           } else {
             setAssignedFarmName(currentUser.farm);
           }
@@ -351,7 +378,7 @@ const AccountManagement = () => {
           setAssignedFarmName('');
         }
       } catch (e) {
-        setAssignedFarmName(String(currentUser?.farm || ''));
+        setAssignedFarmName('');
       }
     };
 

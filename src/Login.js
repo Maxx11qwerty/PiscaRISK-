@@ -114,6 +114,11 @@ export default function Login() {
       const contactError = validateContactNumber(formData.emailOrContact);
       if (contactError) {
         setError(contactError);
+        // Clear input fields on validation error
+        setFormData({
+          emailOrContact: "",
+          password: "",
+        });
         return;
       }
     }
@@ -163,6 +168,12 @@ export default function Login() {
           setError(result.message || t('login.invalidCredentials'));
         }
         
+        // Clear input fields on error
+        setFormData({
+          emailOrContact: "",
+          password: "",
+        });
+        
         try {
           await logActivity('login', `Failed login attempt for ${formData.emailOrContact}: ${result.message}`, formData.emailOrContact);
         } catch (logError) {
@@ -172,6 +183,12 @@ export default function Login() {
     } catch (error) {
       devError('Login error:', error);
       setError(t('login.unexpectedError'));
+      
+      // Clear input fields on unexpected error
+      setFormData({
+        emailOrContact: "",
+        password: "",
+      });
       
       try {
         await logActivity('error', `Login system error: ${error.message}`, formData.emailOrContact);

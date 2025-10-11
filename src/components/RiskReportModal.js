@@ -38,7 +38,6 @@ const RiskReportModal = ({ isModal = false }) => {
   const allowedFarmIds = useMemo(() => ([
     'NyhjBvh9N9wfsOJ2qeEa',
     'TP3p0y4iQlo2j0loELQb',
-    'WgS4mBVnPFPMGq7vfSYa',
     'egGEARKL6Qk5jNgrY3Yu',
     's5zKKXTBkF3voYnV8wuh',
   ]), []);
@@ -65,7 +64,6 @@ const RiskReportModal = ({ isModal = false }) => {
     const legacyAliases = {
       'NyhjBvh9N9wfsOJ2qeEa': ['salmon-hatchery-facility'],
       'TP3p0y4iQlo2j0loELQb': ['tilapia-production-center'],
-      'WgS4mBVnPFPMGq7vfSYa': ['freshwater-finfish-farm'],
       'egGEARKL6Qk5jNgrY3Yu': ['blue-ocean-aquafarm'],
       's5zKKXTBkF3voYnV8wuh': ['marine-species-cultivation'],
     };
@@ -198,6 +196,13 @@ const RiskReportModal = ({ isModal = false }) => {
             farmKey = normalizeName(allowedIdToName[explicitId]);
           }
           if (!allowedKeys.has(farmKey)) return; // filter out non-allowed farms (including legacy aliases)
+          // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
+          if (explicitId === 'WgS4mBVnPFPMGq7vfSYa' || 
+              farmKey === 'rojo-hatchery' || 
+              rawName === 'Rojo Hatchery' ||
+              farmKey === 'freshwater-finfish-farm' ||
+              rawName === 'Freshwater Finfish Farm' ||
+              rawName?.toLowerCase().includes('freshwater finfish')) return;
           // Resolve live display name for this key
           if (!keyToDisplayName[farmKey]) {
             const live = Object.values(allowedIdToName).find(n => normalizeName(n) === farmKey);
@@ -246,6 +251,13 @@ const RiskReportModal = ({ isModal = false }) => {
               farmKey = normalizeName(allowedIdToName[explicitId]);
             }
             if (!allowedKeys.has(farmKey)) return;
+            // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
+            if (explicitId === 'WgS4mBVnPFPMGq7vfSYa' || 
+                farmKey === 'rojo-hatchery' || 
+                rawName === 'Rojo Hatchery' ||
+                farmKey === 'freshwater-finfish-farm' ||
+                rawName === 'Freshwater Finfish Farm' ||
+                rawName?.toLowerCase().includes('freshwater finfish')) return;
             if (!keyToDisplayName[farmKey]) {
               const live = Object.values(allowedIdToName).find(n => normalizeName(n) === farmKey);
               if (live) keyToDisplayName[farmKey] = live;
@@ -503,7 +515,6 @@ const RiskReportModal = ({ isModal = false }) => {
         const legacyKeyToNewName = {
           [normalizeName('Salmon Hatchery Facility')]: 'Aquino Fish Farm',
           [normalizeName('Tilapia Production Center')]: "Vergara's Aqua Farm",
-          [normalizeName('Freshwater Finfish Farm')]: 'Rojo Hatchery',
           [normalizeName('Blue Ocean Aquafarm')]: 'Maningas Fish Farm',
           [normalizeName('Marine Species Cultivation')]: 'Labay Fish Farm',
         };
