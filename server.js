@@ -68,7 +68,16 @@ app.use(
           "https://api.openweathermap.org",
           "https://us-central1-piscarisk.cloudfunctions.net",
           "https://www.google-analytics.com",
-          "https://www.google.com"
+          "https://www.google.com",
+          "https://recaptcha.google.com",
+          "https://www.recaptcha.net",
+          "https://apis.google.com",
+          "https://firebase.googleapis.com",
+          "https://*.firestore.googleapis.com",
+          "https://identitytoolkit.googleapis.com",
+          "https://securetoken.googleapis.com",
+          "https://firebaseinstallations.googleapis.com",
+          "https://*.firebaseapp.com"
         ],
         "frame-src": [
           "'self'",
@@ -103,12 +112,10 @@ app.use(
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     permissionsPolicy: {
       accelerometer: [],
-      "ambient-light-sensor": [],
       autoplay: [],
       camera: ["self"],
       "cross-origin-isolated": [],
       "display-capture": [],
-      "document-domain": [],
       "encrypted-media": [],
       fullscreen: ["self"],
       geolocation: [],
@@ -130,7 +137,7 @@ app.use(
 );
 
 // Explicit Permissions-Policy header for platforms that don't emit it via Helmet
-const PERMISSIONS_POLICY_HEADER_VALUE = "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(self), cross-origin-isolated=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=(), interest-cohort=()";
+const PERMISSIONS_POLICY_HEADER_VALUE = "accelerometer=(), autoplay=(), camera=(self), cross-origin-isolated=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=(), interest-cohort=()";
 app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', PERMISSIONS_POLICY_HEADER_VALUE);
   next();
