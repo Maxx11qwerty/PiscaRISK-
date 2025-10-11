@@ -2262,18 +2262,20 @@ const handleActivateFishFarmer = async (user) => {
                         // Farm-assigned Admins: only Fish Farmer
                         <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
                       ) : (
-                        // Super Admins (no farm): Admin, Tech Officer (if not yet created), and Temporary Tech Officer (if no active TTO)
+                        // Super Admins (no farm): Admin, Tech Officer (if not yet created), and Temporary Tech Officer (only if there's a Tech Officer)
                         <>
                           <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
                           {!hasTechOfficer && (
                             <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
                           )}
-                          <option 
-                            value="Temporary Tech Officer" 
-                            disabled={hasActiveTTO}
-                          >
-                            {hasActiveTTO ? t('accountManagement.add_user_form.temp_tech_officer_option_already_active') : t('accountManagement.add_user_form.temp_tech_officer_option')}
-                          </option>
+                          {hasTechOfficer && (
+                            <option 
+                              value="Temporary Tech Officer" 
+                              disabled={hasActiveTTO}
+                            >
+                              {hasActiveTTO ? t('accountManagement.add_user_form.temp_tech_officer_option_already_active') : t('accountManagement.add_user_form.temp_tech_officer_option')}
+                            </option>
+                          )}
                         </>
                       )}
                   </select>
@@ -2557,7 +2559,7 @@ const handleActivateFishFarmer = async (user) => {
                 )}
               </div>
               )}
-              {(newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer') && (
+              {newUser.role === 'Temporary Tech Officer' && (
                 <div className="form-row">
                   <div className="form-group">
                     <label>Effective Period (From)</label>
@@ -2665,7 +2667,9 @@ const handleActivateFishFarmer = async (user) => {
           )}
 
         <div className="user-grid-container">
-            {paginatedUsers.length > 0 ? (
+            {AccountUsers.length === 0 ? (
+              <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'No user accounts found')}</div>
+            ) : paginatedUsers.length > 0 ? (
             <>
                 <div className="user-table" key={`table-${currentPage}-${startIndex}`} onClick={closeAllDropdowns}>
                   {paginatedUsers.slice(0, PAGE_SIZE)
@@ -3058,7 +3062,12 @@ const handleActivateFishFarmer = async (user) => {
               )}
             </>
           ) : (
-              <div className="loading-users-message">{t('accountManagement.user_list.loading_message')}</div>
+              <div className="loading-users-message">
+                {AccountUsers.length > 0 ? 
+                  t('accountManagement.user_list.no_users_match_filter', 'No users match the current filter') : 
+                  t('accountManagement.user_list.loading_message', 'Loading User Accounts...')
+                }
+              </div>
           )}
       </div>
         </div>
