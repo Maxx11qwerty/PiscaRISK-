@@ -1069,10 +1069,12 @@ const AccountManagement = () => {
         farm: farmForNewUser || null,
         temporaryTechOfficer: newUser.role === 'Temporary Tech Officer',
         isTemporary: newUser.role === 'Temporary Tech Officer',
-        effectiveFrom: newUser.effectiveFrom || null,
-        effectiveTo: newUser.effectiveTo || null,
-        tempTOReason: newUser.tempTOReason || null,
-        tempTORemarks: newUser.tempTORemarks || null
+        ...(newUser.role === 'Temporary Tech Officer' && {
+          effectiveFrom: newUser.effectiveFrom || null,
+          effectiveTo: newUser.effectiveTo || null,
+          tempTOReason: newUser.tempTOReason || null,
+          tempTORemarks: newUser.tempTORemarks || null
+        })
       };
 
       // Removed farm-admin pairing persistence for Temporary Tech Officer
