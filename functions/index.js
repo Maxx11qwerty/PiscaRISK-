@@ -1,5 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const { sanitizeObjectStrings, sanitizeInput } = require("./sanitize");
 
 
 if (!admin.apps.length) {
@@ -96,7 +97,7 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
     console.log("Attempting to create Firestore document");
     const collectionName = data.role === 'Fish Farmer' ? 'mobileUsers' : 'users';
     
-    const userData = {
+    const userData = sanitizeObjectStrings({
       email: data.email,
       username: data.username,
       role: data.role || "Staff",
@@ -108,7 +109,7 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
       dateJoined: data.dateJoined || new Date().toISOString().split('T')[0], // Use provided date or fallback to current date
       fullName: data.fullName || "",
       profileImage: data.profileImage || null,
-    };
+    });
     
     // Add mobile user specific fields for Fish Farmers
     if (data.role === 'Fish Farmer') {
@@ -131,6 +132,10 @@ exports.createStaffAccount = functions.https.onCall(async (data, context) => {
       userData.deactivatedBy = null;
       userData.deactivatedAt = null;
       userData.deactivationReason = null;
+      
+      // Sanitize the temporary tech officer text fields
+      userData.tempTOReason = userData.tempTOReason ? sanitizeInput(userData.tempTOReason) : null;
+      userData.tempTORemarks = userData.tempTORemarks ? sanitizeInput(userData.tempTORemarks) : null;
     }
 
     await admin.firestore().collection(collectionName).doc(userRecord.uid).set(userData);
@@ -567,7 +572,7 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
         : `User ${username} submitted a new report for Fish Pond ${pond}`;
 
       // Compose log entry
-      const log = {
+      const log = sanitizeObjectStrings({
         timestamp: ts.toISOString(),
         category: 'report',
         message,
@@ -576,7 +581,7 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
         source: source === 'mobile' ? 'mobile' : 'web',
         reportId: context.params.reportId,
         farm: farm || null,
-      };
+      });
 
         await admin.firestore().collection('systemLogs').add(log);
         return null;

@@ -149,6 +149,55 @@ app.use((req, res, next) => {
   next();
 });
 
+// Firebase Admin verification middleware (protect API routes with ID token)
+let admin = null;
+try {
+  admin = require('firebase-admin');
+  if (!admin.apps.length) {
+    // Initialize using environment (Render) or serviceAccountKey.json for local
+    try {
+      const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (serviceAccountJson) {
+        admin.initializeApp({
+          credential: admin.credential.cert(JSON.parse(serviceAccountJson))
+        });
+      } else {
+        const serviceAccount = require('./serviceAccountKey.json');
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+      }
+    } catch (e) {
+      console.warn('Firebase Admin init fallback:', e?.message || e);
+      admin.initializeApp();
+    }
+  }
+} catch (e) {
+  console.warn('firebase-admin not available:', e?.message || e);
+}
+
+const verifyFirebaseIdToken = async (req, res, next) => {
+  // Only protect /api/secure/* endpoints by default
+  if (!req.path.startsWith('/api/secure/')) return next();
+  if (!admin) return res.status(500).json({ error: 'Auth not configured' });
+
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer (.*)$/i);
+  const idToken = match ? match[1] : null;
+  if (!idToken) {
+    return res.status(401).json({ error: 'Missing Authorization: Bearer <ID_TOKEN>' });
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(idToken, true);
+    req.user = decoded; // attach decoded token to request
+    return next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+app.use(verifyFirebaseIdToken);
+
 // Test route
 app.get('/api/debug', (req, res) => {
   console.log('Debug route called');
@@ -217,4 +266,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Test API: http://localhost:${PORT}/api/test`);
   console.log(`reCAPTCHA API: http://localhost:${PORT}/api/verify-recaptcha`);
   console.log(`Access via: http://127.0.0.1:${PORT}`);
+});
+
+// Example protected route (requires Authorization: Bearer <Firebase ID Token>)
+app.get('/api/secure/me', (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  res.json({ uid: req.user.uid, email: req.user.email, role: req.user.role || null });
 });

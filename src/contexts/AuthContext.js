@@ -15,18 +15,15 @@ import {
   updateProfile,
   updateEmail as updateFirebaseEmail,
   updatePassword as updateFirebasePassword,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   sendPasswordResetEmail,
   sendEmailVerification,
   reauthenticateWithCredential,
   EmailAuthProvider,
   applyActionCode
 } from 'firebase/auth';
+import { setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc, addDoc } from 'firebase/firestore';
+import { sanitizeObjectStrings } from '../utils/sanitize';
 
 export const AuthContext = createContext();
 
@@ -49,6 +46,17 @@ export const AuthProvider = ({ children }) => {
   const isLoggingOutRef = useRef(false);
   const isProcessingLoginRef = useRef(false);
   const resendVerificationCooldownUntilRef = useRef(0);
+  // Ensure auth persistence is set before listeners/sign-in flows
+  useEffect(() => {
+    (async () => {
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch (_) {
+        try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
+      }
+    })();
+  }, []);
+
 
   // Email verification modal state
   const [emailVerificationModal, setEmailVerificationModal] = useState({ 
@@ -290,54 +298,6 @@ export const AuthProvider = ({ children }) => {
     initialize();
   }, []);
 
-  // Handle Google redirect results
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        // Check if we have any OAuth parameters in the URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const hasOAuthParams = urlParams.has('code') || urlParams.has('state') || urlParams.has('error');
-
-        if (hasOAuthParams) {
-
-        }
-        
-        const result = await getRedirectResult(auth);
-        
-        if (result) {
-
-          setIsHandlingRedirect(true);
-          
-          // Process the redirect result
-          const processResult = await processGoogleSignInResult(result);
-
-          
-          // Clear the intent and farm ID
-          localStorage.removeItem('googleSignInIntent');
-          localStorage.removeItem('googleSignUpFarmId');
-          
-          // Redirect handling is complete
-          setIsHandlingRedirect(false);
-          
-          // Navigate to homepage without reload
-          window.history.replaceState(null, '', '/Homepage');
-        } else {
-
-          if (hasOAuthParams) {
-
-          }
-        }
-
-      } catch (error) {
-
-        setIsHandlingRedirect(false);
-      }
-    };
-
-    // Add a small delay to ensure auth is initialized
-    const timer = setTimeout(handleRedirectResult, 100);
-    return () => clearTimeout(timer);
-  }, []);
 
 
   // Function to fetch user data (address, contactNumber, fullName) from main user document
@@ -560,7 +520,7 @@ export const AuthProvider = ({ children }) => {
       const user = userCredential.user;
 
       // Create user document in Firestore with Admin role and Inactive status
-      const userData = {
+      const userData = sanitizeObjectStrings({
         email,
         username,
         contactNumber,
@@ -572,21 +532,27 @@ export const AuthProvider = ({ children }) => {
         emailVerified: false,
         createdBy: 'self',
         createdAt: serverTimestamp()
-      };
+      });
 
-      await setDoc(doc(db, 'users', user.uid), userData);
+      try {
+        await setDoc(doc(db, 'users', user.uid), userData);
+      } catch (e) {
+        // Rollback auth user if Firestore write fails to avoid half-created accounts
+        try { await user.delete(); } catch (_) {}
+        throw e;
+      }
 
       // Update profile with username
       await updateProfile(user, {
         displayName: username
       });
 
-      // Email verification will be requested explicitly from Login (no auto-send here)
+      // Immediately sign out and require admin activation before login
+      try { await signOut(auth); } catch (_) {}
 
       // Log the registration
       logActivity('account', `New Admin registration: ${username}`, username);
-
-      return user;
+      return { success: true, code: 'pending_activation' };
     } catch (error) {
       logActivity('error', logMessages.error.system(`Registration failed: ${error.message}`), username);
       throw error;
@@ -722,6 +688,13 @@ const login = async (emailOrContact, password) => {
       
       // If adminActivated is true, allow the login to proceed to Firebase Auth
       // We'll check email verification after successful Firebase Auth login
+    }
+
+    // Ensure durable persistence for this sign-in
+    try {
+      await setPersistence(auth, indexedDBLocalPersistence);
+    } catch (_) {
+      try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
     }
 
     // Now login with the email
@@ -1527,7 +1500,7 @@ const login = async (emailOrContact, password) => {
         isMobileUser = true;
       }
 
-      await setDoc(doc(db, targetCollection, newUserUid), {
+      await setDoc(doc(db, targetCollection, newUserUid), sanitizeObjectStrings({
         email: userData.email,
         username: userData.username,
         role: canonicalRole,
@@ -1558,7 +1531,7 @@ const login = async (emailOrContact, password) => {
         tempAssignedAdminId: userData.tempAssignedAdminId || null,
         tempAssignedAdminName: userData.tempAssignedAdminName || null,
         tempAssignedAdminEmail: userData.tempAssignedAdminEmail || null
-      });
+      }));
 
       return { success: true };
     } catch (error) {
@@ -1594,12 +1567,12 @@ const login = async (emailOrContact, password) => {
       }
 
       // Update user in Firestore
-      await updateDoc(doc(db, 'users', currentUser.uid), updatedUserData);
+      await updateDoc(doc(db, 'users', currentUser.uid), sanitizeObjectStrings(updatedUserData));
 
       // Update local state
       setCurrentUser(prev => ({
         ...prev,
-        ...updatedUserData
+        ...sanitizeObjectStrings(updatedUserData)
       }));
 
       return true;
@@ -1609,410 +1582,23 @@ const login = async (emailOrContact, password) => {
     }
   };
 
-  // Google Sign In with popup fallback to redirect
+  // Stubs to avoid runtime errors if UI references Google auth helpers
   const signInWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      // Add scopes if needed
-      provider.addScope('profile');
-      provider.addScope('email');
-      
-      // Set custom parameters to avoid popup issues
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-
-      // Try popup first
-      try {
-        const result = await signInWithPopup(auth, provider);
-        return await processGoogleSignInResult(result);
-      } catch (popupError) {
-
-        
-        // If popup fails due to COOP or blocking, use redirect
-        if (popupError.code === 'auth/popup-closed-by-user' || 
-            popupError.code === 'auth/popup-blocked' ||
-            popupError.code === 'auth/cancelled-popup-request' ||
-            popupError.message.includes('Cross-Origin-Opener-Policy') ||
-            popupError.message.includes('COOP')) {
-          
-          // Store the intended action in localStorage
-          localStorage.setItem('googleSignInIntent', 'signin');
-          
-          // Use redirect method
-          await signInWithRedirect(auth, provider);
-          return { 
-            success: true, 
-            message: 'Redirecting to Google sign-in',
-            isRedirect: true 
-          };
-        }
-        
-        // Handle other specific popup errors
-        if (popupError.code === 'auth/network-request-failed') {
-          throw new Error('Network error occurred during Google sign-in. Please check your internet connection and try again.');
-        } else if (popupError.code === 'auth/too-many-requests') {
-          throw new Error('Too many sign-in attempts. Please wait a moment and try again.');
-        } else if (popupError.message.includes('Content Security Policy')) {
-          throw new Error('Security policy is blocking Google sign-in. Please try using a different browser or contact support.');
-        }
-        
-        // Generic error fallback
-        throw new Error(`Google sign-in failed: ${popupError.message || 'Unknown error occurred'}`);
-      }
-    } catch (error) {
-
-      throw error;
-    }
+    return { success: false, message: 'Google sign-in is currently disabled.' };
   };
-
-  // Google Sign Up with redirect
   const signUpWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('profile');
-      provider.addScope('email');
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-
-      // Store the intended action in localStorage
-      localStorage.setItem('googleSignInIntent', 'signup');
-      
-      // Use redirect method for sign up
-      await signInWithRedirect(auth, provider);
-      return { 
-        success: true, 
-        message: 'Redirecting to Google sign-up',
-        isRedirect: true 
-      };
-    } catch (error) {
-      throw error;
-    }
+    return { success: false, message: 'Google sign-up is currently disabled.' };
   };
-
-  // Handle Google redirect result
   const handleGoogleRedirectResult = async () => {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result) {
-        return await processGoogleSignInResult(result);
-      }
-      return null;
-    } catch (error) {
-
-      throw error;
-    }
+    return null;
   };
 
-  // Process Google sign-in result (shared logic for both popup and redirect)
-  const processGoogleSignInResult = async (result) => {
-    try {
-      const user = result.user;
-      
-      // Check the intent - if it's a sign-up intent and email exists, show error
-      const signUpIntent = localStorage.getItem('googleSignInIntent') === 'signup';
-      
-      // First, check if this email already exists in Firestore
-      const usersRef = collection(db, 'users');
-      const emailQuery = query(usersRef, where('email', '==', user.email));
-      const emailSnapshot = await getDocs(emailQuery);
-      
-      let existingUserData = null;
-      let isNewlyAddedAdmin = false;
-      let existingUserDoc = null;
-      let userData = null; // Declare userData at function level
-      
-      if (!emailSnapshot.empty) {
-        // Email exists in Firestore - check if it's a newly added admin
-        existingUserDoc = emailSnapshot.docs[0];
-        existingUserData = existingUserDoc.data();
 
-        
-        if (existingUserData.role === 'admin' && String(existingUserData.status || '').toLowerCase() === 'inactive') {
-          isNewlyAddedAdmin = true;
-        } else {
-          // Email exists in Firestore - check the user's status
-          const userStatus = String(existingUserData.status || '').toLowerCase();
-          
-          if (userStatus === 'inactive') {
-            // User exists but is inactive - needs admin activation
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          } else if (userStatus === 'suspended') {
-            // User is suspended
-            await signOut(auth);
-            throw new Error('Your account has been suspended. Please contact support for assistance.');
-          } else if (userStatus === 'active') {
-            // User exists and is active
-            if (signUpIntent) {
-              // If this is a sign-up attempt, show error
-              await signOut(auth);
-              throw new Error('An account with this email already exists. Please use the login page instead.');
-            } else {
-              // If this is a sign-in attempt, allow them to proceed
-              // We'll handle the login logic below
-            }
-          } else {
-            // Unknown status - default to login message
-            await signOut(auth);
-            throw new Error('An account with this email already exists. Please use the login page instead.');
-          }
-        }
-      }
-      
-      // Check if user exists in Firestore by UID
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
-      let userRole = 'tech_officer'; // Default role for new users
-      
-      // Handle case where email exists but UID doesn't (existing user signing in with Google)
-      if (!userDoc.exists() && !emailSnapshot.empty && !signUpIntent) {
-        // This is an existing user trying to sign in with Google
-        // Link their Google account to the existing Firestore document
-        await updateDoc(doc(db, 'users', existingUserDoc.id), {
-          googleUid: user.uid,
-          profileImage: user.photoURL,
-          lastModified: serverTimestamp()
-        });
-        
-        // Set userData for phone verification check
-        userData = existingUserData;
-        
-        // Set the current user with existing data
-        setCurrentUser({
-          uid: existingUserDoc.id,
-          ...existingUserData,
-          emailVerified: user.emailVerified,
-          farm: existingUserData.farm || null
-        });
-        
-        // Clear the intent
-        localStorage.removeItem('googleSignInIntent');
-        
-        // Login logging handled in Login.js
-        return { success: true, user, username: existingUserData.username };
-      }
-      
-      if (!userDoc.exists()) {
-        // User doesn't exist by UID - this could be a new user or a newly added admin
-        if (emailSnapshot.empty) {
-          // This is a completely new user - create new account
-          // Get farm ID from localStorage (set during Google sign-up)
-          const farmId = localStorage.getItem('googleSignUpFarmId');
-          
-          const userData = {
-            email: user.email,
-            username: user.displayName || user.email.split('@')[0],
-            dateJoined: new Date().toISOString().split('T')[0],
-            profileImage: null,
-            role: 'tech_officer',
-            status: 'inactive',
-            emailVerified: user.emailVerified,
-            farmId: farmId || null, // Include farm ID from Google sign-up
-            createdAt: serverTimestamp()
-          };
-          
-          // Clear the stored farm ID after use
-          if (farmId) {
-            localStorage.removeItem('googleSignUpFarmId');
-          }
 
-          await setDoc(doc(db, 'users', user.uid), userData);
-          userRole = userData.role;
-          // userData is already set above
-          
-          // ALL users must verify email before accessing dashboard
-          if (!user.emailVerified) {
-            await signOut(auth);
-            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-          }
-          
-          // Do NOT auto-activate Tech Officers; require admin activation.
-          // Only admins may be auto-activated on verified email.
-          if (user.emailVerified && String(userData.status || '').toLowerCase() === 'inactive' && userData.role === 'admin') {
-            await updateDoc(doc(db, 'users', user.uid), {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            userData.status = 'Active';
-          } else if (String(userData.status || '').toLowerCase() === 'inactive') {
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          }
-          
-          // Update the current user state
-          setCurrentUser({
-            uid: user.uid,
-            ...userData,
-            farm: userData.farm || null
-          });
-        } else if (isNewlyAddedAdmin) {
-          // This is a newly added admin trying to log in with Google
-          // We need to link their Google account to the existing Firestore document
-          await updateDoc(doc(db, 'users', existingUserDoc.id), {
-            googleUid: user.uid,
-            lastModified: serverTimestamp()
-          });
-          
-          // Update the user document with Google profile info
-          // Do not auto-import Google profile image
-          await updateDoc(doc(db, 'users', existingUserDoc.id), {
-            lastModified: serverTimestamp()
-          });
-          
-          userRole = existingUserData.role;
-          
-          // For newly added admins, they must verify their email before activation
-          if (!user.emailVerified) {
-            await signOut(auth);
-            throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-          }
-          
-          // If email is verified, update status to Active
-          if (user.emailVerified && String(existingUserData.status || '').toLowerCase() === 'inactive') {
-            await updateDoc(doc(db, 'users', existingUserDoc.id), {
-              status: 'Active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-            existingUserData.status = 'Active';
-          }
-          
-          // Set userData for phone verification check
-          userData = existingUserData;
-          
-          setCurrentUser({
-            uid: existingUserDoc.id,
-            ...existingUserData,
-            emailVerified: user.emailVerified,
-            farm: existingUserData.farm || null,
-            profileImage: existingUserData.profileImage || null
-          });
-      } else {
-          // Email exists but user is not a newly added admin
-          // Check the user's status to provide appropriate message
-          const userStatus = String(existingUserData.status || '').toLowerCase();
-          
-          if (userStatus === 'inactive') {
-            // User exists but is inactive - needs admin activation
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          } else if (userStatus === 'suspended') {
-            // User is suspended
-            await signOut(auth);
-            throw new Error('Your account has been suspended. Please contact support for assistance.');
-          } else if (userStatus === 'active') {
-            // User exists and is active - should use login
-            await signOut(auth);
-            throw new Error('An account with this email already exists. Please use the login page instead.');
-          } else {
-            // Unknown status - default to login message
-            await signOut(auth);
-            throw new Error('An account with this email already exists. Please use the login page instead.');
-          }
-        }
-      } else {
-        // User exists by UID - this is an existing user trying to sign in
-        // Update existing user's data
-        userData = userDoc.data();
-        userRole = userData.role || 'tech_officer';
-        
 
-        // Check if account is suspended (always block suspended accounts)
-        if (userData.status === 'suspended') {
-          await signOut(auth);
-          throw new Error('Your account has been suspended. Please contact support for assistance.');
-        }
 
-        // For existing users, check if they need email verification
-        if (!user.emailVerified) {
 
-          await signOut(auth);
-          throw new Error('Please verify your email before logging in. Check your inbox for a verification link.');
-        }
 
-        // Handle status updates for existing users (auto-activate admins only)
-        if (userData.role === 'admin' && userData.status === 'inactive' && user.emailVerified) {
-
-          
-          await updateDoc(doc(db, 'users', user.uid), {
-            status: 'active',
-            emailVerified: true,
-            lastModified: serverTimestamp()
-          });
-          userData.status = 'active';
-        } else if (userData.status === 'active' && user.emailVerified) {
-          // Existing active user with verified email - allow access
-
-        } else if (!userData.status || userData.status === 'pending' || userData.status === 'new') {
-          // Handle legacy users without proper status
-
-          if (userData.role === 'admin' && user.emailVerified) {
-            await updateDoc(doc(db, 'users', user.uid), {
-              status: 'active',
-              emailVerified: true,
-              lastModified: serverTimestamp()
-            });
-
-            userData.status = 'active';
-          } else {
-            await signOut(auth);
-            throw new Error('Your account is pending admin approval. Please wait for activation.');
-          }
-        }
-        
-        setCurrentUser({
-          uid: user.uid,
-          ...userData,
-          farm: userData.farm || null
-        });
-      }
-
-      // Check phone verification status for Google sign-in
-      if (user.emailVerified && userData && !userData.phoneVerified) {
-        // Sign out the user temporarily
-        await signOut(auth);
-        
-        // Return a special code to trigger phone verification
-        // Format phone number properly (remove spaces, ensure +63 prefix)
-        let phoneNumber = null;
-        if (userData.contactNumber) {
-          let cleanNumber = userData.contactNumber.replace(/\s/g, '');
-          
-          // Remove any existing +63 prefix to avoid duplication
-          if (cleanNumber.startsWith('+63')) {
-            cleanNumber = cleanNumber.substring(3);
-          }
-          
-          // Ensure it's 10 digits for Philippine numbers
-          if (cleanNumber.length === 10) {
-            phoneNumber = `+63${cleanNumber}`;
-          } else if (cleanNumber.length === 11 && cleanNumber.startsWith('0')) {
-            // Remove leading 0 if present
-            phoneNumber = `+63${cleanNumber.substring(1)}`;
-          } else {
-            phoneNumber = `+63${cleanNumber}`;
-          }
-        }
-        
-        return {
-          success: false,
-          code: 'show_phone_verification',
-          phoneNumber: phoneNumber,
-          userId: user.uid,
-          userData: userData,
-          message: 'Please verify your phone number to complete login'
-        };
-      }
-
-      // Login logging handled in Login.js
-      return { success: true, user, username: userData.username };
-    } catch (error) {
-      throw error;
-    }
-  };
 
 // Add this to your AuthContext provider functions
 const resetPassword = async (email) => {
@@ -2314,6 +1900,7 @@ const resetPassword = async (email) => {
     signInWithGoogle,
     signUpWithGoogle,
     handleGoogleRedirectResult,
+
     isHandlingRedirect,
     // email verification modal controls
     emailVerificationModal,
@@ -2365,7 +1952,34 @@ const resetPassword = async (email) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          width: '100vw',
+          background: '#0b132b',
+          color: 'white',
+          fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              margin: '0 auto 12px',
+              border: '4px solid rgba(255,255,255,0.25)',
+              borderTopColor: 'white',
+              borderRadius: '50%',
+              animation: 'pisca-spin 0.9s linear infinite'
+            }} />
+            <div>Loading your session…</div>
+            <style>{`@keyframes pisca-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`}</style>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };

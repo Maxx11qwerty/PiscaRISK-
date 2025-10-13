@@ -1,4 +1,5 @@
 import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { sanitizeObjectStrings } from '../utils/sanitize';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
@@ -94,12 +95,12 @@ export const fetchAllUsers = async () => {
 export const addNewUser = async (userData, currentUser) => {
   try {
     const uniqueId = generateUniqueId(userData.role, userData.username);
-    const newUserData = {
+    const newUserData = sanitizeObjectStrings({
       ...userData,
       id: uniqueId,
       dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0], // Use provided date or fallback to current date
       lastModified: new Date().toISOString()
-    };
+    });
 
     if (userData.role === 'Fish Farmer') {
       newUserData.isMobileUser = true;
@@ -185,7 +186,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
         if (statusLower === 'inactive') {
           updateFields.phoneVerified = false;
         }
-        await updateDoc(ref, updateFields);
+        await updateDoc(ref, sanitizeObjectStrings(updateFields));
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
           console.log(`[tryUpdate] Successfully updated ${coll} collection`);
@@ -246,7 +247,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           if (statusLower === 'inactive') {
             updateFields.phoneVerified = false;
           }
-          await updateDoc(ref, updateFields);
+          await updateDoc(ref, sanitizeObjectStrings(updateFields));
         } catch (updateError) {
           if (process.env.NODE_ENV === 'development') {
             // eslint-disable-next-line no-console
@@ -356,12 +357,12 @@ export const directUpdateUserStatus = async (userId, email, username, collection
     const ref = doc(db, targetCollection, targetId);
     
     try {
-      await updateDoc(ref, {
+      await updateDoc(ref, sanitizeObjectStrings({
         status: 'Active',
         adminActivated: true,
         pendingActivation: false,
         lastModified: serverTimestamp()
-      });
+      }));
       
       
       
@@ -489,10 +490,10 @@ export const activateTechOfficer = async (userId) => {
       if (!snap.exists()) throw new Error('User not found in any collection');
       collectionName = 'mobileUsers';
     }
-    await updateDoc(ref, {
+    await updateDoc(ref, sanitizeObjectStrings({
       adminActivated: true,
       lastModified: new Date().toISOString()
-    });
+    }));
     return { success: true, collection: collectionName };
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {

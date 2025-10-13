@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, getDoc, doc, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { sanitizeObjectStrings } from '../utils/sanitize';
 import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
 import { FormControl, InputLabel, Select, MenuItem, OutlinedInput } from '@mui/material';
@@ -736,12 +737,12 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
       // Update main reports collection
       const mainDocRef = doc(db, 'reports', report.id);
-      const updates = [updateDoc(mainDocRef, {
+      const updates = [updateDoc(mainDocRef, sanitizeObjectStrings({
         status: 'Reviewed',
         reviewed_by: reviewerName,
         reviewed_by_role: reviewerRoleLabel,
         reviewed_at: Timestamp.now()
-      })];
+      }))];
 
       // Also attempt to update matching subcollection report under farms/{farmId}/reports
       try {
@@ -781,12 +782,12 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               else if (typeof ts === 'string') ms = Date.parse(ts) || 0;
             } catch (_) { ms = 0; }
             if (pond === targetPond && ms === targetMs) {
-              updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
+              updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), sanitizeObjectStrings({
                 status: 'Reviewed',
                 reviewed_by: reviewerName,
                 reviewed_by_role: reviewerRoleLabel,
                 reviewed_at: Timestamp.now()
-              }));
+              })));
               subUpdated = true;
             }
           });
@@ -800,24 +801,24 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               const r1 = await getDocs(q1);
               if (!r1.empty) {
                 r1.forEach(d => {
-                  updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
+                  updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), sanitizeObjectStrings({
                     status: 'Reviewed',
                     reviewed_by: reviewerName,
                     reviewed_by_role: reviewerRoleLabel,
                     reviewed_at: Timestamp.now()
-                  }));
+                  })));
                 });
               } else {
                 const q2 = query(collRef, where('pond', '==', report.pond || report.fish_pond), where('timestamp', '==', tsForQuery));
                 const r2 = await getDocs(q2);
                 if (!r2.empty) {
                   r2.forEach(d => {
-                    updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), {
+                    updates.push(updateDoc(doc(db, 'farms', farmId, 'reports', d.id), sanitizeObjectStrings({
                       status: 'Reviewed',
                       reviewed_by: reviewerName,
                       reviewed_by_role: reviewerRoleLabel,
                       reviewed_at: Timestamp.now()
-                    }));
+                    })));
                   });
                 }
               }

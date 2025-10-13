@@ -13,6 +13,8 @@ import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
 import * as Auth from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import '../src/utils/sanitize';
+
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -26,7 +28,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AppRoutes = () => {
-  const { isHandlingRedirect } = useContext(Auth.AuthContext);
+  const { isHandlingRedirect, currentUser } = useContext(Auth.AuthContext);
 
   if (isHandlingRedirect) {
     return (
@@ -49,11 +51,11 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Login />} />
+      <Route path="/" element={(currentUser && String(currentUser.status || '').toLowerCase() === 'active') ? <Navigate to="/Homepage" replace /> : <Login />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/ProfileSettings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
-      <Route path="/Homepage" element={<ProtectedRoute><Homepage /></ProtectedRoute>} />
+      <Route path="/Homepage" element={(currentUser && String(currentUser.status || '').toLowerCase() === 'active') ? <Homepage /> : <Navigate to="/" replace />} />
       <Route path="/AccountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
       <Route path="/Feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
       <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />

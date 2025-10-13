@@ -11,6 +11,7 @@ import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
 import Sidebar from './components/Sidebar';
 import { doc, updateDoc,serverTimestamp } from 'firebase/firestore';
+import { sanitizeObjectStrings } from './utils/sanitize';
 import { db } from './firebase';
 import { auth } from './firebase';
 import { sendPasswordResetEmail, updateEmail as fbUpdateEmail, sendEmailVerification as fbSendEmailVerification } from 'firebase/auth';
@@ -173,9 +174,9 @@ const uploadImage = (file) => {
     try {
       // Update in Firestore directly in main user document
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, sanitizeObjectStrings({
         fullName: newFullName
-      });
+      }));
       
       // Update local state
       setNewFullName(newFullName);
@@ -211,9 +212,9 @@ const uploadImage = (file) => {
     try {
       // Update in Firestore directly in main user document
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, sanitizeObjectStrings({
         address: newAddress
-      });
+      }));
       
       // Update local state
       setNewAddress(newAddress);
@@ -249,11 +250,11 @@ const uploadImage = (file) => {
     try {
       // Update in Firestore directly in main user document
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, sanitizeObjectStrings({
         contactNumber: newContact,
         phoneVerified: false,
         lastModified: serverTimestamp()
-      });
+      }));
       
       // Update local state
       setNewContact(newContact);
@@ -292,11 +293,11 @@ const uploadImage = (file) => {
 
       // 2) Update Firestore: set email and mark emailVerified false until verification
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, {
+      await updateDoc(userRef, sanitizeObjectStrings({
         email: newEmail,
         emailVerified: false,
         lastModified: new Date()
-      });
+      }));
 
       // 3) Send verification email to the new address
       await fbSendEmailVerification(auth.currentUser);
@@ -785,7 +786,7 @@ const handleSendVerificationEmail = async () => {
       
       // Update in Firestore
       const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, updates);
+      await updateDoc(userRef, sanitizeObjectStrings(updates));
       
       // Log activities for each change
       if (updates.username) {

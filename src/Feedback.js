@@ -15,6 +15,7 @@ import NotificationBox from './components/NotificationBox';
 import Sidebar from './components/Sidebar';
 import { db } from './firebase';
 import { collection, query, orderBy, getDocs, where, doc, updateDoc, deleteDoc, arrayUnion, getDoc } from 'firebase/firestore';
+import { sanitizeObjectStrings, sanitizeInput } from './utils/sanitize';
 
 const feedbackTypes = [
   { id: 'bug', label: 'Bug', icon: 'FaBug' },
@@ -419,11 +420,11 @@ const Feedback = () => {
     if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer')) {
       try {
         const feedbackRef = doc(db, 'PiscaRisk', feedback.id);
-        await updateDoc(feedbackRef, {
+        await updateDoc(feedbackRef, sanitizeObjectStrings({
           isRead: true,
           readAt: new Date(),
           readBy: currentUser?.username || 'Admin'
-        });
+        }));
 
         // Update local state
         setFeedbacks(prevFeedbacks =>
@@ -475,22 +476,22 @@ const Feedback = () => {
 
       const newReply = {
         id: Date.now(),
-        text: replyText,
+        text: sanitizeInput(replyText),
         date: formattedDate,
         adminName: currentUser?.username || 'Admin',
         isAdmin: true
       };
 
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         replies: arrayUnion(newReply),
         hasResponse: true,
         lastResponseDate: currentDate,
         isRead: true,
         readAt: currentDate,
         readBy: currentUser?.username || 'Admin'
-      });
+      }));
 
-      // Update local state with formatted dates
+      // Update local list state with formatted dates
       setFeedbacks(prevFeedbacks =>
         prevFeedbacks.map(feedback =>
           feedback.id === feedbackId
@@ -506,6 +507,20 @@ const Feedback = () => {
             : feedback
         )
       );
+
+      // Also update the currently opened detail pane immediately
+      setSelectedFeedback(prev => {
+        if (!prev || prev.id !== feedbackId) return prev;
+        return {
+          ...prev,
+          hasResponse: true,
+          lastResponseDate: formattedDate,
+          isRead: true,
+          readAt: formattedDate,
+          readBy: currentUser?.username || 'Admin',
+          replies: [ ...(prev.replies || []), newReply ]
+        };
+      });
 
       setReplyText('');
       logActivity('feedback', `Admin response added to feedback by ${currentUser?.username || 'Admin'}`, currentUser?.username);
@@ -529,11 +544,11 @@ const Feedback = () => {
     try {
       setIsArchiving(true);
       const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         status: 'archived',
         archivedAt: new Date(),
         archivedBy: currentUser?.username || 'Admin'
-      });
+      }));
       
       // Update local state
       setFeedbacks(prevFeedbacks => 
@@ -567,11 +582,11 @@ const Feedback = () => {
     try {
       setIsUnarchiving(true);
       const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         status: 'active',
         archivedAt: null,
         archivedBy: null
-      });
+      }));
 
       // Update local state
       setFeedbacks(prevFeedbacks =>
@@ -601,11 +616,11 @@ const Feedback = () => {
     try {
       setIsMarkingRead(true);
       const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         isRead: true,
         readAt: new Date(),
         readBy: currentUser?.username || 'Admin'
-      });
+      }));
 
       // Update local state
       setFeedbacks(prevFeedbacks =>
@@ -634,11 +649,11 @@ const Feedback = () => {
     try {
       setIsMarkingUnread(true);
       const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         isRead: false,
         readAt: null,
         readBy: null
-      });
+      }));
 
       // Update local state
       setFeedbacks(prevFeedbacks =>
@@ -669,12 +684,12 @@ const Feedback = () => {
   const markNewFeedbackAsUnread = async (feedbackId) => {
     try {
       const feedbackRef = doc(db, 'PiscaRisk', feedbackId);
-      await updateDoc(feedbackRef, {
+      await updateDoc(feedbackRef, sanitizeObjectStrings({
         isRead: false,
         readAt: null,
         readBy: null,
         hasResponse: false
-      });
+      }));
 
       // Update local state if this feedback exists locally
       setFeedbacks(prevFeedbacks =>

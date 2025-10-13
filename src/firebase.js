@@ -1,6 +1,6 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 
 // Web App Firebase Configuration
@@ -17,6 +17,13 @@ const firebaseConfig = {
 // Initialize Firebase with modular API
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+// Ensure durable sessions across refreshes and tabs (within the same browser profile)
+// Prefer IndexedDB (more robust), fallback to localStorage if needed
+try {
+  setPersistence(auth, indexedDBLocalPersistence).catch(() => setPersistence(auth, browserLocalPersistence));
+} catch (_) {
+  // No-op for non-browser environments
+}
 const db = getFirestore(app);
 let analytics = null;
 

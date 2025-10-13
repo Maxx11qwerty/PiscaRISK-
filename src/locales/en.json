@@ -619,7 +619,7 @@
       "unknown_date": "Unknown",
       "delete_button": "Delete",
       "loading_message": "Loading User Accounts...",
-      "no_users_message": "No user accounts found",
+      "no_users_message": "Loading user accounts...",
       "no_users_match_filter": "No users match the current filter"
     },
     "pagination": {

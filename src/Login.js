@@ -73,6 +73,7 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetMessage, setResetMessage] = useState("");
   const [contactError, setContactError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -124,6 +125,7 @@ export default function Login() {
     }
     
     try {
+      setIsSubmitting(true);
       const result = await login(formData.emailOrContact, formData.password);
       
       if (result.success) {
@@ -195,6 +197,9 @@ export default function Login() {
       } catch (logError) {
         devError('Failed to log activity:', logError);
       }
+    }
+    finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -315,8 +320,8 @@ export default function Login() {
               </div>
 
               <div className="login-btn-container">
-                <button type="submit" className="login-btn">
-                  {t('login.login')}
+                <button type="submit" className="login-btn" disabled={isSubmitting}>
+                  {isSubmitting ? 'Logging in…' : t('login.login')}
                 </button>
               </div>
 

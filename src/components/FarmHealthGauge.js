@@ -25,6 +25,7 @@ const FarmHealthGauge = () => {
   const { t } = useTranslation();
   const { farmsNameByKey } = useFarms();
   const [farms, setFarms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
@@ -59,6 +60,7 @@ const FarmHealthGauge = () => {
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const data = await fetchRiskReportData();
         
         // Canonicalize farm display names with live map and legacy aliases
@@ -100,6 +102,9 @@ const FarmHealthGauge = () => {
         setFarms(processedFarms);
       } catch (error) {
         // Silently handle errors
+      }
+      finally {
+        setLoading(false);
       }
     })();
   }, [farmsNameByKey, isAssignedToFarm, currentUser?.farm, assignedFarmKey, selectedFarm]);
@@ -374,12 +379,19 @@ const FarmHealthGauge = () => {
 
   const chartData = useMemo(() => ([{ name: 'health', value: displayPercent, fill: displayColor }]), [displayPercent, displayColor]);
 
+  const assignedFarmDisplayName = isAssignedToFarm 
+    ? (assignedFarmName 
+        || farmsNameByKey[currentUser.farm] 
+        || farmsNameByKey[normalizeFarmName(currentUser.farm)] 
+        || null)
+    : null;
+
   return (
     <div className="health-gauge-container" id="health-gauge-section">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 className="chart-title" style={{ margin: 0 }}>
           {isAssignedToFarm 
-            ? t('farmHealthGauge.titleAssigned', { farm: assignedFarmName || currentUser.farm })
+            ? t('farmHealthGauge.titleAssigned', { farm: assignedFarmDisplayName || t('farmHealthGauge.loading', { defaultValue: 'Loading…' }) })
             : t('farmHealthGauge.title')
           }
         </h3>
@@ -442,41 +454,51 @@ const FarmHealthGauge = () => {
         </div>
       )}
       <div className="gauge-area" id="health-gauge-chart">
-        <ResponsiveContainer width="100%" height="100%">
-          <RadialBarChart
-            key={displayPercent}
-            innerRadius="70%"
-            outerRadius="100%"
-            data={chartData}
-            startAngle={180}
-            endAngle={0}
-          >
-            <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-            <RadialBar
-              minAngle={0}
-              clockWise
-              dataKey="value"
-              cornerRadius={20}
-              background={{ fill: 'rgba(255,255,255,0.15)' }}
-              isAnimationActive
-              animationDuration={900}
-              animationEasing="ease-out"
-            />
-          </RadialBarChart>
-        </ResponsiveContainer>
-        <div className="center-overlay">
-          <div className="gauge-percent">{displayPercent}%</div>
-          <div className="gauge-status" style={{ color: displayColor }}>
-            {t(`farmHealthGauge.status.${String(displayStatus || '').toLowerCase()}`, { defaultValue: displayStatus })}
-          </div>
-          {noteText ? (
-            <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>
-              <span style={{ color: updateColor || 'rgba(255,255,255,0.8)' }}>
-                {noteText}
-              </span>
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', position: 'relative' }}>
+            <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)' }}>
+              {t('farmHealthGauge.loading', { defaultValue: 'Loading farm health…' })}
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadialBarChart
+                key={displayPercent}
+                innerRadius="70%"
+                outerRadius="100%"
+                data={chartData}
+                startAngle={180}
+                endAngle={0}
+              >
+                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                <RadialBar
+                  minAngle={0}
+                  clockWise
+                  dataKey="value"
+                  cornerRadius={20}
+                  background={{ fill: 'rgba(255,255,255,0.15)' }}
+                  isAnimationActive
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                />
+              </RadialBarChart>
+            </ResponsiveContainer>
+            <div className="center-overlay">
+              <div className="gauge-percent">{displayPercent}%</div>
+              <div className="gauge-status" style={{ color: displayColor }}>
+                {t(`farmHealthGauge.status.${String(displayStatus || '').toLowerCase()}`, { defaultValue: displayStatus })}
+              </div>
+              {noteText ? (
+                <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>
+                  <span style={{ color: updateColor || 'rgba(255,255,255,0.8)' }}>
+                    {noteText}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
       </div>
       <div style={{ marginTop: 8, fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)' }}>{infoLabel}</div>
       {/* Old legend  

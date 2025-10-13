@@ -2668,7 +2668,7 @@ const handleActivateFishFarmer = async (user) => {
 
         <div className="user-grid-container">
             {AccountUsers.length === 0 ? (
-              <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'No user accounts found')}</div>
+              <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'Loading user accounts...')}</div>
             ) : paginatedUsers.length > 0 ? (
             <>
                 <div className="user-table" key={`table-${currentPage}-${startIndex}`} onClick={closeAllDropdowns}>

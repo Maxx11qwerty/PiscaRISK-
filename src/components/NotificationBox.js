@@ -4,7 +4,7 @@ import { IoIosNotifications } from "react-icons/io";
 import './NotificationBox.css';
 import { db } from '../firebase';
 import { ensureReportLog, ensureStockFeedLog } from '../utils/logger';
-import { 
+import {
   collection, 
   query, 
   where, 
@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   getDoc
 } from 'firebase/firestore';
+import { sanitizeObjectStrings } from '../utils/sanitize';
 import { getAuth } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -485,10 +486,10 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
       const userNotificationsRef = collection(db, 'users', currentUser.uid, 'notifications');
       const notificationRef = doc(userNotificationsRef, notification.id);
       
-      await setDoc(notificationRef, {
+      await setDoc(notificationRef, sanitizeObjectStrings({
         read: true,
         lastUpdated: serverTimestamp()
-      }, { merge: true });
+      }), { merge: true });
 
       // Update local state
       const updatedNotifications = notifications.map(n => 

@@ -1,5 +1,6 @@
 // Logger utility for system activities
 import { db, getData } from '../firebase';
+import { sanitizeObjectStrings } from './sanitize';
 
 // Helper function to create a readable and unique ID
 const createUniqueId = (category, timestamp) => {
@@ -49,7 +50,7 @@ export const logActivity = async (category, message, username, originalTimestamp
 
   // Create log object with unique ID
   const logsUniqueId = createUniqueId(category, timestamp);
-  const newLog = {
+  const newLog = sanitizeObjectStrings({
     id: logsUniqueId,
     timestamp,
     category,
@@ -57,7 +58,7 @@ export const logActivity = async (category, message, username, originalTimestamp
     username,
     userRole: userRole || 'Unknown',
     isTemporaryTechOfficer: isTemporaryTechOfficer || false
-  };
+  });
 
   // Debug logging for timestamp issues
   if (category === 'export' || category === 'feedback') {
@@ -650,7 +651,7 @@ export const ensureReportLog = async (reportId, reportData) => {
       ? `Mobile user ${username} submitted a new report for Fish Pond ${pond}`
       : `User ${username} submitted a new report for Fish Pond ${pond}`;
 
-    const newLog = {
+    const newLog = sanitizeObjectStrings({
       timestamp: ts.toISOString(),
       category: 'report',
       message,
@@ -660,7 +661,7 @@ export const ensureReportLog = async (reportId, reportData) => {
       reportId: reportId,
       farm: farm || null,
       pond: pond
-    };
+    });
 
     await setDoc(logDocRef, newLog, { merge: false });
   } catch (error) {
@@ -706,7 +707,7 @@ export const ensureStockFeedLog = async (farmerLogId, farmerLogData) => {
     const prefix = source === 'mobile' ? 'Mobile user' : 'User';
     const message = `${prefix} ${username} submitted a stock/feed log for ${pond}`;
 
-    const newLog = {
+    const newLog = sanitizeObjectStrings({
       timestamp: ts.toISOString(),
       category: 'stock',
       message,
@@ -716,7 +717,7 @@ export const ensureStockFeedLog = async (farmerLogId, farmerLogData) => {
       stockLogId: farmerLogId,
       farm: farm || null,
       pond: pond
-    };
+    });
 
     await setDoc(logDocRef, newLog, { merge: false });
   } catch (error) {

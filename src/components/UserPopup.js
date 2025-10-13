@@ -3,6 +3,7 @@ import { FaUserCircle, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logActivity } from '../utils/logger';
+import { sanitizeObjectStrings } from '../utils/sanitize';
 
 const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -47,10 +48,10 @@ const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
 
       const collectionName = user.role === 'Fish Farmer' ? 'mobileUsers' : 'users';
       
-      await updateDoc(doc(db, collectionName, user.id), {
+      await updateDoc(doc(db, collectionName, user.id), sanitizeObjectStrings({
         status: editedUser.status,
         lastModified: new Date().toISOString()
-      });
+      }));
 
       const updatedUser = {
         ...user,
