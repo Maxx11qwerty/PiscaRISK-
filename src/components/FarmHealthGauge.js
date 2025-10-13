@@ -58,53 +58,73 @@ const FarmHealthGauge = () => {
 
   useEffect(() => {
     (async () => {
-      const data = await fetchRiskReportData();
-      // Canonicalize farm display names with live map and legacy aliases
-      const legacyMap = {
-        'salmon-hatchery-facility': 'Aquino Fish Farm',
-        'tilapia-production-center': "Vergara's Aqua Farm",
-        'blue-ocean-aquafarm': 'Maningas Fish Farm',
-        'marine-species-cultivation': 'Labay Fish Farm',
-      };
-      const canon = (Array.isArray(data) ? data : [])
-        .filter(f => 
-          f.farm_key !== 'rojo-hatchery' && 
-          f.name !== 'Rojo Hatchery' &&
-          f.farm_key !== 'freshwater-finfish-farm' &&
-          f.name !== 'Freshwater Finfish Farm' &&
-          !f.name?.toLowerCase().includes('freshwater finfish')
-        ) // Additional filtering
-        .map(f => {
-          const live = farmsNameByKey[f.key];
-          const legacy = legacyMap[f.key];
-          const name = live || legacy || f.name;
-          return { ...f, name, key: normalizeFarmName(name) };
+      try {
+        const data = await fetchRiskReportData();
+        
+        // Canonicalize farm display names with live map and legacy aliases
+        const legacyMap = {
+          'salmon-hatchery-facility': 'Aquino Fish Farm',
+          'tilapia-production-center': "Vergara's Aqua Farm",
+          'blue-ocean-aquafarm': 'Maningas Fish Farm',
+          'marine-species-cultivation': 'Labay Fish Farm',
+        };
+        const canon = (Array.isArray(data) ? data : [])
+          .filter(f => 
+            f.farm_key !== 'rojo-hatchery' && 
+            f.name !== 'Rojo Hatchery' &&
+            f.farm_key !== 'freshwater-finfish-farm' &&
+            f.name !== 'Freshwater Finfish Farm' &&
+            !f.name?.toLowerCase().includes('freshwater finfish')
+          ) // Additional filtering
+          .map(f => {
+            const live = farmsNameByKey[f.key];
+            const legacy = legacyMap[f.key];
+            const name = live || legacy || f.name;
+            return { ...f, name, key: normalizeFarmName(name) };
+          });
+        // Merge duplicates by name
+        const map = new Map();
+        canon.forEach(f => {
+          const name = f.name || 'Unknown Farm';
+          if (!map.has(name)) map.set(name, { ...f });
+          else {
+            const cur = map.get(name);
+            const preds = [
+              ...(Array.isArray(cur.predictions) ? cur.predictions : []),
+              ...(Array.isArray(f.predictions) ? f.predictions : [])
+            ];
+            map.set(name, { ...cur, predictions: preds });
+          }
         });
-      // Merge duplicates by name
-      const map = new Map();
-      canon.forEach(f => {
-        const name = f.name || 'Unknown Farm';
-        if (!map.has(name)) map.set(name, { ...f });
-        else {
-          const cur = map.get(name);
-          const preds = [
-            ...(Array.isArray(cur.predictions) ? cur.predictions : []),
-            ...(Array.isArray(f.predictions) ? f.predictions : [])
-          ];
-          map.set(name, { ...cur, predictions: preds });
-        }
-      });
-      setFarms(Array.from(map.values()));
+        const processedFarms = Array.from(map.values());
+        setFarms(processedFarms);
+      } catch (error) {
+        // Silently handle errors
+      }
     })();
-  }, [farmsNameByKey]);
+  }, [farmsNameByKey, isAssignedToFarm, currentUser?.farm, assignedFarmKey, selectedFarm]);
 
   useEffect(() => {
     if (isAssignedToFarm) {
-      setSelectedFarm(assignedFarmKey);
+      // For farm admins, we need to find the correct farm key from the available farms
+      // instead of using the normalized assignedFarmKey
+      const farmIdToKey = {
+        's5zKKXTBkF3voYnV8wuh': 'labay-fish-farm',
+        'NyhjBvh9N9wfsOJ2qeEa': 'aquino-fish-farm',
+        'TP3p0y4iQlo2j0loELQb': "vergara's-aqua-farm",
+        'egGEARKL6Qk5jNgrY3Yu': 'maningas-fish-farm'
+      };
+      
+      const mappedKey = farmIdToKey[currentUser?.farm];
+      if (mappedKey) {
+        setSelectedFarm(mappedKey);
+      } else {
+        setSelectedFarm(assignedFarmKey);
+      }
     } else {
       setSelectedFarm('all');
     }
-  }, [isAssignedToFarm, assignedFarmKey]);
+  }, [isAssignedToFarm, assignedFarmKey, currentUser?.farm]);
 
   // Helper function to get latest risk per pond (matching RiskReportModal logic)
   const getLatestRiskPerPond = (farm) => {
@@ -143,14 +163,9 @@ const FarmHealthGauge = () => {
       return bMs - aMs; // Latest first
     });
 
-    // Filter out ponds with old reports (only show reports from September 21st, 2025 and later)
-    const cutoffDate = new Date('2025-09-21T00:00:00');
-    const recentPonds = latestPerPond.filter(pred => {
-      const predDate = new Date(getTimestampMs(pred.timestamp));
-      return predDate >= cutoffDate;
-    });
-
-    return recentPonds;
+    // For now, return all recent ponds without date filtering
+    // TODO: Add proper date filtering based on actual data requirements
+    return latestPerPond;
   };
 
   // Helper function to convert timestamp to milliseconds (matching RiskReportModal logic)
@@ -198,20 +213,65 @@ const FarmHealthGauge = () => {
     if (selectedFarm === 'all') {
       farms.forEach(accumulateFromFarm);
     } else {
-      const f = farms.find(x => x.key === selectedFarm);
+      // For farm admins, try multiple matching strategies
+      let f = farms.find(x => x.key === selectedFarm);
+      
+      // If not found by key, try matching by name or farm_key
+      if (!f) {
+        f = farms.find(x => 
+          x.name === selectedFarm || 
+          x.farm_key === selectedFarm ||
+          normalizeFarmName(x.name) === selectedFarm ||
+          normalizeFarmName(x.farm_key) === selectedFarm
+        );
+      }
+      
+      // If still not found and user is assigned to a farm, try matching by user's farm ID
+      if (!f && isAssignedToFarm && currentUser?.farm) {
+        // Direct mapping for known farm IDs
+        const farmIdToKey = {
+          's5zKKXTBkF3voYnV8wuh': 'labay-fish-farm',
+          'NyhjBvh9N9wfsOJ2qeEa': 'aquino-fish-farm',
+          'TP3p0y4iQlo2j0loELQb': "vergara's-aqua-farm",
+          'egGEARKL6Qk5jNgrY3Yu': 'maningas-fish-farm'
+        };
+        
+        const mappedKey = farmIdToKey[currentUser.farm];
+        if (mappedKey) {
+          f = farms.find(x => x.key === mappedKey || x.farm_key === mappedKey);
+        }
+        
+        // If still not found, try multiple matching strategies for the user's farm ID
+        if (!f) {
+          f = farms.find(x => 
+            x.key === currentUser.farm ||
+            x.farm_key === currentUser.farm ||
+            x.name === currentUser.farm ||
+            normalizeFarmName(x.name) === normalizeFarmName(currentUser.farm) ||
+            normalizeFarmName(x.key) === normalizeFarmName(currentUser.farm) ||
+            normalizeFarmName(x.farm_key) === normalizeFarmName(currentUser.farm) ||
+            // Try matching the raw farm ID directly
+            x.key === normalizeFarmName(currentUser.farm) ||
+            x.farm_key === normalizeFarmName(currentUser.farm)
+          );
+        }
+      }
+      
+      
       accumulateFromFarm(f);
     }
 
     const pct = pondCount > 0 ? Math.round(scoreSum / pondCount) : 0;
     const s = getStatus(pct);
     
-    // Use the same range logic as RiskReportModal - show the cutoff date range
-    const cutoffDate = new Date('2025-09-21T00:00:00');
+    // Show data range based on available data
     const now = new Date();
-    const rangeText = `${cutoffDate.toLocaleDateString()} – ${now.toLocaleDateString()}`;
+    const rangeText = latestTimestampMs > 0 
+      ? `${new Date(latestTimestampMs).toLocaleDateString()} – ${now.toLocaleDateString()}`
+      : 'All available data';
     
     return { percent: pct, status: s.label, color: s.color, hasData: pondCount > 0, latestMs: latestTimestampMs, rangeLabel: rangeText };
-  }, [farms, selectedFarm]);
+  }, [farms, selectedFarm, isAssignedToFarm, currentUser?.farm]);
 
   // Cache last known value and use as fallback when no fresh data
   const cacheKey = useMemo(() => `farmHealthGauge:${selectedFarm}`, [selectedFarm]);
@@ -288,6 +348,18 @@ const FarmHealthGauge = () => {
         };
       }
     } catch (_) {}
+    
+    // For farm admins with no data, show a more specific message
+    if (isAssignedToFarm) {
+      return { 
+        displayPercent: 0, 
+        displayStatus: 'NO DATA', 
+        displayColor: '#ef4444', 
+        noteText: t('farmHealthGauge.noDataForAssignedFarm', { farm: assignedFarmName || currentUser?.farm || 'assigned farm' }), 
+        infoLabel: t('farmHealthGauge.noRecentDataFound'),
+        updateColor: '#ef4444' // red for no data
+      };
+    }
     
     const def = getStatus(100);
     return { 

@@ -783,6 +783,7 @@
     "cachedNotLatestUnknown": "Not Latest Data (Cached) • Last updated: unknown",
     "basedOnCachedData": "Based on cached data",
     "noDataAvailable": "No data available",
+    "noDataForAssignedFarm": "No data available for {{farm}}",
     "noRecentDataFound": "No recent data found",
     "exportAriaLabel": "Export",
     "downloadPNG": "Download PNG",

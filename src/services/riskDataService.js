@@ -78,13 +78,21 @@ export const fetchRiskReportData = async () => {
   // Predictions
   let predsSnap = await getDocs(collection(db, 'risk_predictions'));
   if (predsSnap.empty) {
-    try { predsSnap = await getDocs(collection(db, 'predictions')); } catch (_) {}
+    try { 
+      predsSnap = await getDocs(collection(db, 'predictions')); 
+    } catch (e) {
+      // Silently handle errors
+    }
   }
 
   // Feedback (prefer modal_feedback, fallback model_feedback) — to match RiskReportModal
   let feedbackSnap = await getDocs(collection(db, 'modal_feedback'));
   if (feedbackSnap.empty) {
-    try { feedbackSnap = await getDocs(collection(db, 'model_feedback')); } catch (_) {}
+    try { 
+      feedbackSnap = await getDocs(collection(db, 'model_feedback')); 
+    } catch (e) {
+      // Silently handle errors
+    }
   }
 
   const allFarms = new Set();

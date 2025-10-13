@@ -778,6 +778,7 @@
     "cachedNotLatestUnknown": "Hindi Pinakabago (Cache) • Huling na-update: hindi alam",
     "basedOnCachedData": "Batay sa naka-cache na data",
     "noDataAvailable": "Walang available na data",
+    "noDataForAssignedFarm": "Walang available na data para sa {{farm}}",
     "noRecentDataFound": "Walang kamakailang data",
     "exportAriaLabel": "I-export",
     "downloadPNG": "I-download ang PNG",
