@@ -137,20 +137,16 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     } else if (timeFilter === 'week') {
-      // For "this week", we want to include the most recent week with data
-      // Since most data is from Sep 21st, we'll include the week that contains Sep 21st
-      // Sep 21st is a Sunday, so the week is Sep 15-21, 2025
-      start = new Date(2025, 8, 15, 0, 0, 0, 0); // Sep 15, 2025 (Monday)
-      end = new Date(2025, 8, 21, 23, 59, 59, 999); // Sep 21, 2025 (Sunday)
-      
+      // This Week: Monday (00:00) to Sunday (23:59:59.999) of the current week
+      const day = now.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+      const diffToMonday = day === 0 ? -6 : (1 - day); // shift so Monday is start
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday, 0, 0, 0, 0);
+      const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6, 23, 59, 59, 999);
+      start = weekStart;
+      end = weekEnd;
     } else if (timeFilter === 'month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    } else if (timeFilter === 'custom') {
-      const s = customStart ? new Date(customStart) : null;
-      const e = customEnd ? new Date(customEnd) : null;
-      start = s ? new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0) : null;
-      end = e ? new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999) : null;
     }
     return { rangeStart: start, rangeEnd: end };
   }, [timeFilter, customStart, customEnd]);
@@ -178,6 +174,90 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     return level.charAt(0).toUpperCase() + level.slice(1);
   };
 
+  // Helpers mirrored from RiskReportModal for consistency
+  const formatPondName = (pondName) => {
+    const raw = (pondName || '').toString().trim();
+    if (!raw) return 'Fish Pond';
+    const lower = raw.toLowerCase();
+    if (lower.includes('unknown')) return 'Unknown Pond';
+    const num = raw.match(/\d+/);
+    if (num) return `Fish Pond ${num[0]}`;
+    if (/(fish)\s*(pond)/i.test(raw)) {
+      return raw.replace(/fish/ig, 'Fish').replace(/pond/ig, 'Pond');
+    }
+    return `Fish Pond ${raw}`;
+  };
+
+  const cleanReasonText = (reasonText) => {
+    if (!reasonText || typeof reasonText !== 'string') return reasonText;
+    let cleaned = reasonText.replace(/\s*Recommended actions:.*$/i, '').trim();
+    cleaned = cleaned.replace(/\s*Recommended:.*$/i, '').trim();
+    cleaned = cleaned.replace(/\s*Caution:.*$/i, '').trim();
+    cleaned = cleaned.replace(/\s*Regular monitoring advised.*$/i, '').trim();
+    cleaned = cleaned.replace(/\s*[^.]*monitoring[^.]*recommended[^.]*\./i, '').trim();
+    cleaned = cleaned.replace(/\s*[^.]*recommended[^.]*\./i, '').trim();
+    return cleaned;
+  };
+
+  const buildPondReason = (p) => {
+    if (!p) return '';
+    // Prefer structured fields to build a concise phrase
+    const toTitle = (s) => {
+      if (!s) return '';
+      return String(s)
+        .toLowerCase()
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    };
+
+    const fish = p.fish_condition ? `${toTitle(p.fish_condition)} fish` : '';
+    const water = p.water_condition ? `${toTitle(p.water_condition)} water` : '';
+    const parts = [];
+    if (fish) parts.push(fish);
+    if (water) parts.push(water);
+    if (parts.length) return parts.join(', ');
+
+    // Fallback: derive from summary by stripping alert prefixes and extra sentences
+    if (typeof p.conditions_summary === 'string' && p.conditions_summary.trim().length > 0) {
+      let text = p.conditions_summary.trim();
+      // Remove common alert prefixes
+      text = text.replace(/^\s*(CRITICAL ALERT:|ALERT:|WARNING:|NOTICE:)\s*/i, '');
+      // Try to extract "<X> fish condition" and "<Y> water" phrases
+      const fishMatch = text.match(/([A-Za-z][A-Za-z\s]+)\s+fish\s+condition/i);
+      const waterMatch = text.match(/([A-Za-z][A-Za-z\s]+)\s+water/i);
+      const extracted = [];
+      if (fishMatch && fishMatch[1]) extracted.push(`${toTitle(fishMatch[1].trim())} fish`);
+      if (waterMatch && waterMatch[1]) extracted.push(`${toTitle(waterMatch[1].trim())} water`);
+      if (extracted.length) return extracted.join(', ');
+      // As last resort, keep only the clause after "shows" up to first period and clean
+      const showsIdx = text.toLowerCase().indexOf('shows ');
+      if (showsIdx >= 0) {
+        let clause = text.slice(showsIdx + 'shows '.length);
+        const firstDot = clause.indexOf('.');
+        if (firstDot > 0) clause = clause.slice(0, firstDot);
+        clause = cleanReasonText(clause).trim();
+        return clause;
+      }
+      return 'No additional details available';
+    }
+
+    return 'No additional details available';
+  };
+
+  const getConfidenceInterpretation = (confidence, riskLevel) => {
+    const c = typeof confidence === 'number' ? confidence : NaN;
+    if (!isFinite(c)) return null;
+    const normalized = normalizeRisk(riskLevel);
+    if (c >= 90) {
+      return { emoji: '✅', label: 'Very Sure', color: '#16a34a', title: `The system is very sure that the risk is ${normalized} Risk.` };
+    }
+    if (c >= 70) {
+      return { emoji: '🟡', label: 'Likely Accurate', color: '#f59e0b', title: `The system is fairly sure that the risk is ${normalized} Risk.` };
+    }
+    return { emoji: '⚠️', label: 'Uncertain', color: '#dc2626', title: `The system is uncertain — please recheck the pond’s actual condition.` };
+  };
+
   // Helper function to convert timestamp to milliseconds (consistent with other components)
   const getTimestampMs = (ts) => {
     if (!ts) return 0;
@@ -197,29 +277,109 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     return d >= rangeStart && d <= rangeEnd;
   };
 
+  const getLatestDateMsForFarm = (predictions) => {
+    if (!Array.isArray(predictions) || predictions.length === 0) return null;
+    const inRange = predictions
+      .map(p => getTimestampMs(p.timestamp))
+      .filter(ms => ms > 0)
+      .filter(ms => {
+        if (!rangeStart || !rangeEnd) return true;
+        const d = new Date(ms);
+        return d >= rangeStart && d <= rangeEnd;
+      });
+    if (inRange.length === 0) return null;
+    const latestMs = Math.max(...inRange);
+    return latestMs;
+  };
+
+  // Open Risk Reports modal focused to a specific farm using current range date
+  const openFarmReports = (farmName) => {
+    if (!onDrilldown) return;
+    const farm = mergedFarms.find(f => f.name === farmName);
+    if (!farm) return;
+    const clickDateMs = getLatestDateMsForFarm(farm.predictions);
+    onDrilldown({
+      type: 'farm',
+      farmKey: farm.key,
+      clickDateMs,
+      timeFilter: timeFilter,
+      customStart: customStart,
+      customEnd: customEnd,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd
+    });
+  };
+
   const byFarmData = useMemo(() => {
-    
+    // Match RiskReportModal daily logic: pick the latest generated date within the selected range, then dedupe latest per pond on that date
     const farmsSorted = [...mergedFarms]
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const getLatestBatchPerPondForRange = (predictions) => {
+      if (!Array.isArray(predictions) || predictions.length === 0) return [];
+      // Keep only predictions within the selected range using the same field as the modal (timestamp)
+      const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
+      if (inRange.length === 0) return [];
+      // Find the latest timestamp in range and take that DATE
+      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
+      const latestDateKey = new Date(latestMs).toDateString();
+      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+      // From that day, keep the latest per pond; first-encountered after sort wins (modal behavior)
+      const pondMap = new Map();
+      const sev = (lvl) => {
+        const s = (lvl || '').toString().toLowerCase();
+        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
+      };
+      sameDay
+        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+        .forEach(pred => {
+          const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+          const existing = pondMap.get(pond);
+          if (!existing) { pondMap.set(pond, pred); return; }
+          const a = getTimestampMs(existing.timestamp);
+          const b = getTimestampMs(pred.timestamp);
+          const delta = Math.abs(b - a);
+          // If exact tie, or within 60s tolerance, prefer lower severity
+          if ((b === a || delta <= 60000) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
+          }
+        });
+      return Array.from(pondMap.values());
+    };
+
     const result = farmsSorted.map(f => {
       let high = 0, medium = 0, low = 0;
-      let totalPredictions = 0;
-      let inRangePredictions = 0;
-      
-      if (Array.isArray(f.predictions)) {
-        totalPredictions = f.predictions.length;
-        f.predictions.forEach((p) => {
-          const isInRange = withinRange(p.timestamp);
-          if (isInRange) inRangePredictions++;
-          
-          if (!isInRange) return;
-          const lvl = normalizeRisk(p.risk_level);
-          if (lvl === 'High') high += 1;
-          else if (lvl === 'Medium') medium += 1;
-          else if (lvl === 'Low') low += 1;
-        });
-      }
-      
+      const preds = Array.isArray(f.predictions) ? f.predictions : [];
+      const latestPerPond = getLatestBatchPerPondForRange(preds);
+      // Force a stability tie-break identical to modal: if multiple entries share
+      // the exact same timestamp for a pond, prefer the lower severity.
+      const normalize = (lvl) => {
+        if (!lvl || typeof lvl !== 'string') return 'Normal';
+        const s = lvl.toLowerCase();
+        if (s.includes('high') || s.includes('critical')) return 'High';
+        if (s.includes('medium')) return 'Medium';
+        if (s.includes('low')) return 'Low';
+        if (s.includes('normal')) return 'Normal';
+        return lvl.charAt(0).toUpperCase() + lvl.slice(1);
+      };
+      const sev = (lvl) => ({ Normal:0, Low:1, Medium:2, High:3 })[normalize(lvl)] ?? 0;
+      const ts = (p) => getTimestampMs(p.timestamp);
+      const stableMap = new Map();
+      latestPerPond.sort((a,b) => ts(b) - ts(a)).forEach(p => {
+        const pond = (p.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+        const cur = stableMap.get(pond);
+        if (!cur) { stableMap.set(pond, p); return; }
+        if (ts(p) === ts(cur) && sev(p.risk_level) < sev(cur.risk_level)) {
+          stableMap.set(pond, p);
+        }
+      });
+      const perPond = Array.from(stableMap.values());
+      perPond.forEach(p => {
+        const lvl = normalizeRisk(p.risk_level);
+        if (lvl === 'High') high += 1;
+        else if (lvl === 'Medium') medium += 1;
+        else if (lvl === 'Low') low += 1;
+      });
       return {
         name: f.name,
         High: high,
@@ -229,35 +389,130 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
         __total: high + medium + low,
       };
     });
-    
+
     return result;
-  }, [filteredFarms, rangeStart, rangeEnd, timeFilter]);
+  }, [filteredFarms, rangeStart, rangeEnd]);
 
   const byRiskData = useMemo(() => {
     // X-axis = High/Medium/Low, stacked by farm
     const farmsSorted = [...mergedFarms]
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    const getLatestBatchPerPondForRange = (predictions) => {
+      if (!Array.isArray(predictions) || predictions.length === 0) return [];
+      const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
+      if (inRange.length === 0) return [];
+      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
+      const latestDateKey = new Date(latestMs).toDateString();
+      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+      const pondMap = new Map();
+      sameDay
+        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+        .forEach(pred => {
+          const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+          if (!pondMap.has(pond)) pondMap.set(pond, pred);
+        });
+      return Array.from(pondMap.values());
+    };
+
     const riskBuckets = { High: {}, Medium: {}, Low: {} };
     farmsSorted.forEach(f => {
       let high = 0, medium = 0, low = 0;
-      if (Array.isArray(f.predictions)) {
-        f.predictions.forEach(p => {
-          if (!withinRange(p.timestamp)) return;
-          const lvl = normalizeRisk(p.risk_level);
-          if (lvl === 'High') high += 1;
-          else if (lvl === 'Medium') medium += 1;
-          else if (lvl === 'Low') low += 1;
-        });
-      }
+      const preds = Array.isArray(f.predictions) ? f.predictions : [];
+      const latestPerPond = getLatestBatchPerPondForRange(preds);
+      const normalize = (lvl) => {
+        if (!lvl || typeof lvl !== 'string') return 'Normal';
+        const s = lvl.toLowerCase();
+        if (s.includes('high') || s.includes('critical')) return 'High';
+        if (s.includes('medium')) return 'Medium';
+        if (s.includes('low')) return 'Low';
+        if (s.includes('normal')) return 'Normal';
+        return lvl.charAt(0).toUpperCase() + lvl.slice(1);
+      };
+      const sev = (lvl) => ({ Normal:0, Low:1, Medium:2, High:3 })[normalize(lvl)] ?? 0;
+      const ts = (p) => getTimestampMs(p.timestamp);
+      const stableMap = new Map();
+      latestPerPond.sort((a,b) => ts(b) - ts(a)).forEach(p => {
+        const pond = (p.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+        const cur = stableMap.get(pond);
+        if (!cur) { stableMap.set(pond, p); return; }
+        if (ts(p) === ts(cur) && sev(p.risk_level) < sev(cur.risk_level)) {
+          stableMap.set(pond, p);
+        }
+      });
+      const perPond = Array.from(stableMap.values());
+      perPond.forEach(p => {
+        const lvl = normalizeRisk(p.risk_level);
+        if (lvl === 'High') high += 1;
+        else if (lvl === 'Medium') medium += 1;
+        else if (lvl === 'Low') low += 1;
+      });
       riskBuckets.High[f.name] = high;
       riskBuckets.Medium[f.name] = medium;
       riskBuckets.Low[f.name] = low;
     });
+
     return Object.keys(riskBuckets).map(level => ({
       risk: level,
       ...riskBuckets[level]
     }));
   }, [filteredFarms, rangeStart, rangeEnd]);
+
+  // Build pond-level details per farm and risk level for rich tooltips
+  const pondDetailsByFarm = useMemo(() => {
+    const details = new Map(); // farmName -> { High:[], Medium:[], Low:[] }
+
+    const getLatestBatchPerPondForRange = (predictions) => {
+      if (!Array.isArray(predictions) || predictions.length === 0) return [];
+      const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
+      if (inRange.length === 0) return [];
+      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
+      const latestDateKey = new Date(latestMs).toDateString();
+      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+      const pondMap = new Map();
+      const sev = (lvl) => {
+        const s = (lvl || '').toString().toLowerCase();
+        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
+      };
+      sameDay
+        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+        .forEach(pred => {
+          const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+          const existing = pondMap.get(pond);
+          if (!existing) { pondMap.set(pond, pred); return; }
+          const a = getTimestampMs(existing.timestamp);
+          const b = getTimestampMs(pred.timestamp);
+          const delta = Math.abs(b - a);
+          if ((b === a || delta <= 60000) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
+          }
+        });
+      return Array.from(pondMap.values());
+    };
+
+    mergedFarms.forEach(f => {
+      const latestPerPond = getLatestBatchPerPondForRange(Array.isArray(f.predictions) ? f.predictions : []);
+      const bucket = { High: [], Medium: [], Low: [] };
+      latestPerPond.forEach(p => {
+        const level = normalizeRisk(p.risk_level);
+        if (!['High','Medium','Low'].includes(level)) return;
+        const pondName = formatPondName(p.fish_pond);
+        const reason = buildPondReason(p);
+        const confidencePct = typeof p.confidence === 'number' && !Number.isNaN(p.confidence)
+          ? Math.round(p.confidence * 10) / 10
+          : null;
+        bucket[level].push({
+          pond: pondName,
+          reason,
+          confidence: confidencePct,
+          riskLevel: level,
+        });
+      });
+      details.set(f.name, bucket);
+    });
+
+    return details; // Map for O(1) lookup
+  }, [mergedFarms, rangeStart, rangeEnd]);
 
   // Compute max stacked totals to size the X-axis domain to avoid clipping
   const maxFarmStackTotal = useMemo(() => {
@@ -272,6 +527,54 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       return Math.max(maxSoFar, rowTotal);
     }, 0);
   }, [byRiskData, filteredFarms]);
+
+  // Human label for selected period
+  const periodLabel = useMemo(() => {
+    if (timeFilter === 'today') return 'today';
+    if (timeFilter === 'week') return 'this week';
+    if (timeFilter === 'month') return 'this month';
+    if (timeFilter === 'custom') return 'in the selected period';
+    return 'recently';
+  }, [timeFilter]);
+
+  // Insight summary based on currently displayed aggregation (byFarmData reflects the latest date within range)
+  const insightSummary = useMemo(() => {
+    if (!Array.isArray(byFarmData) || byFarmData.length === 0) return '';
+    const totals = byFarmData.reduce((acc, f) => {
+      acc.High += Number(f.High || 0);
+      acc.Medium += Number(f.Medium || 0);
+      acc.Low += Number(f.Low || 0);
+      return acc;
+    }, { High: 0, Medium: 0, Low: 0 });
+
+    const maxVal = Math.max(totals.High, totals.Medium, totals.Low);
+    let dominant = 'low';
+    if (maxVal === totals.High) dominant = 'high';
+    else if (maxVal === totals.Medium) dominant = 'medium';
+    else dominant = 'low';
+
+    const farmsWithHigh = byFarmData.filter(f => Number(f.High || 0) > 0).map(f => f.name);
+    let highPart = '';
+    if (farmsWithHigh.length === 1) highPart = `${farmsWithHigh[0]} still has high-risk ponds that need monitoring.`;
+    else if (farmsWithHigh.length === 2) highPart = `${farmsWithHigh[0]} and ${farmsWithHigh[1]} still have high-risk ponds that need monitoring.`;
+    else if (farmsWithHigh.length > 2) {
+      const others = farmsWithHigh.length - 2;
+      const othersText = others > 0 ? `, and ${others} other${others > 1 ? 's' : ''}` : '';
+      highPart = `${farmsWithHigh[0]}, ${farmsWithHigh[1]}${othersText} still have high-risk ponds that need monitoring.`;
+    }
+
+    let base = '';
+    if (totals.High + totals.Medium + totals.Low === 0) {
+      base = `No ponds ${periodLabel}.`;
+    } else {
+      if (dominant === 'low') base = `Most ponds ${periodLabel} are in low risk`;
+      else if (dominant === 'medium') base = `Most ponds ${periodLabel} are in medium risk`;
+      else base = `Most ponds ${periodLabel} are in high risk`;
+    }
+
+    if (highPart) return `${base}, but ${highPart}`;
+    return `${base}.`;
+  }, [byFarmData, periodLabel]);
 
   // Assign distinct colors to farms for risk view
   const farmColorMap = useMemo(() => {
@@ -315,22 +618,107 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       return item.color || farmColorMap.get(item.name) || '#7ffcff';
     };
     
+    // Resolve pond-level details based on grouping
+    let detailHeading = null;
+    let pondEntries = [];
+    if (groupMode === 'farm') {
+      // label is farm name; series item name is the risk level
+      const seriesKey = (filtered[0] && filtered[0].name) || null; // High/Medium/Low
+      const farmName = label;
+      const bucket = pondDetailsByFarm.get(farmName);
+      if (bucket && seriesKey && bucket[seriesKey]) {
+        pondEntries = bucket[seriesKey];
+        detailHeading = `${farmName} - ${seriesKey} Risk`;
+      }
+    } else {
+      // label is risk level; series item name is farm name
+      const farmName = (filtered[0] && filtered[0].name) || null;
+      const riskLevel = label;
+      const bucket = pondDetailsByFarm.get(farmName);
+      if (bucket && riskLevel && bucket[riskLevel]) {
+        pondEntries = bucket[riskLevel];
+        detailHeading = `${farmName} - ${riskLevel} Risk`;
+      }
+    }
+
+    // Confidence descriptor text consistent with modal
+    const confidenceText = (pct, lvl) => {
+      if (typeof pct !== 'number' || Number.isNaN(pct)) return null;
+      const interp = getConfidenceInterpretation(pct, lvl);
+      if (!interp) return `${pct.toFixed(1)}%`;
+      return `${pct.toFixed(1)}% ${interp.label} about ${lvl} Risk`;
+    };
+
+    if (total === 0) {
+      return (
+        <div className="custom-tooltip">
+          <div>No risk reported</div>
+        </div>
+      );
+    }
+
     return (
       <div className="custom-tooltip">
-        <div className="tooltip-label" style={{ marginBottom: 6 }}>{label}</div>
-        {total === 0 ? (
-          <div>No risk reported</div>
-        ) : (
-          filtered.map((item, idx) => {
-            const tooltipColor = getTooltipColor(item);
-            return (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 10, height: 10, background: tooltipColor, display: 'inline-block', borderRadius: 2 }} />
-                <span>{item.name}: {item.value}</span>
+        <div className="tooltip-label" style={{ marginBottom: 6 }}>{detailHeading || label}</div>
+        {
+          <>
+            {filtered.map((item, idx) => {
+              const tooltipColor = getTooltipColor(item);
+              return (
+                <div key={`sum-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, background: tooltipColor, display: 'inline-block', borderRadius: 2 }} />
+                  <span>{item.name}: {item.value}</span>
+                </div>
+              );
+            })}
+            {pondEntries.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                {(() => {
+                  const maxShow = 3;
+                  const shown = pondEntries.slice(0, maxShow);
+                  const remaining = Math.max(0, pondEntries.length - shown.length);
+                  return (
+                    <>
+                      {shown.map((p, i) => (
+                        <div key={`pond-${i}`} style={{ marginTop: 4 }}>
+                          <div style={{ fontWeight: 600 }}>{p.pond} - {p.riskLevel} Risk</div>
+                          {p.reason && (
+                            <div>Reason: {p.reason}</div>
+                          )}
+                          {typeof p.confidence === 'number' && (
+                            <div>Confidence: {confidenceText(p.confidence, p.riskLevel)}</div>
+                          )}
+                        </div>
+                      ))}
+                      {remaining > 0 && (
+                        <div style={{ marginTop: 6 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const farmName = groupMode === 'farm' ? label : (filtered[0]?.name || null);
+                              if (farmName) openFarmReports(farmName);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#60a5fa',
+                              textDecoration: 'underline',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            View all in Risk Reports ({remaining} more)
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
-            );
-          })
-        )}
+            )}
+          </>
+        }
       </div>
     );
   };
@@ -385,9 +773,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     if (!onDrilldown) return;
     if (groupMode === 'farm') {
       const item = byFarmData[index];
+      const farm = mergedFarms.find(f => f.key === item.farmKey || f.name === item.name);
+      const clickDateMs = farm ? getLatestDateMsForFarm(farm.predictions) : null;
       onDrilldown({ 
         type: 'farm', 
         farmKey: item.farmKey,
+        clickDateMs,
         timeFilter: timeFilter,
         customStart: customStart,
         customEnd: customEnd,
@@ -396,10 +787,18 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       });
     } else {
       const item = byRiskData[index];
+      let clickDateMs = null;
+      if (data && data.clickedFarmName) {
+        const farm = mergedFarms.find(f => f.name === data.clickedFarmName);
+        if (farm) clickDateMs = getLatestDateMsForFarm(farm.predictions);
+      }
       onDrilldown({ 
         type: 'risk', 
         risk: item.risk, 
         farms: filteredFarms.map(f => f.key),
+        // Prefer explicit clicked farm name if provided by segment click; fallback to hovered key
+        clickedFarmName: (data && data.clickedFarmName) || hoverSeriesKey || null,
+        clickDateMs,
         timeFilter: timeFilter,
         customStart: customStart,
         customEnd: customEnd,
@@ -423,6 +822,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
           : t('pondsAtRiskChart.title')
         }
       </h3>
+      <div style={{ marginTop: -6, marginBottom: 8, fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
+        Shows the distribution of pond risk levels per farm based on recent monitoring reports.
+      </div>
       <div className="chart-controls">
         {!isAssignedToFarm && (
           <>
@@ -430,6 +832,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
               value={selectedFarm}
               onChange={(e) => setSelectedFarm(e.target.value)}
               className="time-filter"
+              style={{ fontSize: '12px', padding: '4px 8px', height: '28px' }}
             >
               {farmOptions.map((opt, idx) => (
                 <option key={`${opt.key}-${idx}`} value={opt.key}>{opt.name}</option>
@@ -439,25 +842,19 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
               value={timeFilter}
               onChange={(e) => setTimeFilter(e.target.value)}
               className="time-filter"
-              style={{ marginLeft: 8 }}
+              style={{ marginLeft: 8, fontSize: '12px', padding: '4px 8px', height: '28px' }}
             >
               <option value="today">Today</option>
               <option value="week">This Week</option>
               <option value="month">This Month</option>
-              <option value="custom">Custom Range</option>
             </select>
-            {timeFilter === 'custom' && (
-              <>
-                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="time-filter" style={{ marginLeft: 8 }} />
-                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="time-filter" style={{ marginLeft: 8 }} />
-              </>
-            )}
             <div className="toggle-group" role="tablist" aria-label="Group by">
               <button
                 type="button"
                 role="tab"
                 aria-selected={groupMode === 'farm'}
                 className={`toggle-segment ${groupMode === 'farm' ? 'active' : ''}`}
+                style={{ fontSize: '12px', padding: '4px 8px' }}
                 onClick={() => setGroupMode('farm')}
               >
                 {t('pondsAtRiskChart.viewByFarm')}
@@ -467,6 +864,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                 role="tab"
                 aria-selected={groupMode === 'risk'}
                 className={`toggle-segment ${groupMode === 'risk' ? 'active' : ''}`}
+                style={{ fontSize: '12px', padding: '4px 8px' }}
                 onClick={() => setGroupMode('risk')}
               >
                 {t('pondsAtRiskChart.viewByRisk')}
@@ -481,18 +879,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
               value={timeFilter}
               onChange={(e) => setTimeFilter(e.target.value)}
               className="time-filter"
+              style={{ fontSize: '12px', padding: '4px 8px', height: '28px' }}
             >
               <option value="today">Today</option>
               <option value="week">This Week</option>
               <option value="month">This Month</option>
-              <option value="custom">Custom Range</option>
             </select>
-            {timeFilter === 'custom' && (
-              <>
-                <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="time-filter" style={{ marginLeft: 8 }} />
-                <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="time-filter" style={{ marginLeft: 8 }} />
-              </>
-            )}
           </>
         )}
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
@@ -537,51 +929,85 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
         <div style={{ textAlign: 'center', color: '#cbd5e1', padding: '8px 0' }}>No risks reported for this period</div>
       )}
 
+      {!noDataInRange && insightSummary && (
+        <div style={{ marginTop: 6, marginBottom: 6, fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)' }}>
+          {insightSummary}
+        </div>
+      )}
+
+      {/* Insight line moved to below the chart as requested */}
+
       {groupMode === 'farm' ? (
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart layout="vertical" data={byFarmData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }} margin={{ top: 12, right: 24, left: 12, bottom: 12 }}>
+          <BarChart
+            layout="vertical"
+            data={byFarmData}
+            barCategoryGap="10%"
+            barSize={18}
+            onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+            onMouseLeave={() => setHoverSeriesKey(null)}
+            margin={{ top: 12, right: 24, left: 12, bottom: 32 }}
+          >
             <CartesianGrid horizontal={false} />
-            <XAxis type="number" allowDecimals={false} domain={[0, Math.max(1, Math.ceil((maxFarmStackTotal || 0) * 1.1))]} />
+            <XAxis
+              type="number"
+              allowDecimals={false}
+              domain={[0, Math.max(1, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
+              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: { fill: '#FFFFFF', fontSize: 13, fontWeight: 500 } }}
+            />
             <YAxis type="category" dataKey="name" width={100} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend content={renderLegend} />
+            <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
+            <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: 30 }} />
             <Bar
               dataKey="High"
               name={t('pondsAtRiskChart.high')}
               stackId="a"
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
-              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.15) : 1}
+              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('High')}
-              onMouseLeave={() => setHoverSeriesKey(null)}
+              isAnimationActive={false}
             />
             <Bar
               dataKey="Medium"
               name={t('pondsAtRiskChart.medium')}
               stackId="a"
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
-              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.15) : 1}
+              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Medium')}
-              onMouseLeave={() => setHoverSeriesKey(null)}
+              isAnimationActive={false}
             />
             <Bar
               dataKey="Low"
               name={t('pondsAtRiskChart.low')}
               stackId="a"
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
-              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.15) : 1}
+              fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Low')}
-              onMouseLeave={() => setHoverSeriesKey(null)}
+              isAnimationActive={false}
             />
           </BarChart>
         </ResponsiveContainer>
       ) : (
         <ResponsiveContainer width="100%" height={340}>
-          <BarChart layout="vertical" data={byRiskData} onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }} margin={{ top: 12, right: 24, left: 12, bottom: 12 }}>
+          <BarChart
+            layout="vertical"
+            data={byRiskData}
+            barCategoryGap="10%"
+            barSize={18}
+            onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+            onMouseLeave={() => setHoverSeriesKey(null)}
+            margin={{ top: 12, right: 24, left: 12, bottom: 32 }}
+          >
             <CartesianGrid horizontal={false} />
-            <XAxis type="number" allowDecimals={false} domain={[0, Math.max(1, Math.ceil((maxRiskStackTotal || 0) * 1.1))]} />
+            <XAxis
+              type="number"
+              allowDecimals={false}
+              domain={[0, Math.max(1, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
+              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: { fill: '#FFFFFF', fontSize: 13, fontWeight: 500 } }}
+            />
             <YAxis type="category" dataKey="risk" width={110} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend content={renderLegend} />
+            <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
+            <Legend content={renderLegend} verticalAlign="top" align="center" wrapperStyle={{ paddingTop: 4 }} />
             {mergedFarms.map((f, idx) => {
               return (
               <Bar
@@ -593,6 +1019,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                 fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === f.name ? 1 : 0.15) : 1}
                 onMouseEnter={() => setHoverSeriesKey(f.name)}
                 onMouseLeave={() => setHoverSeriesKey(null)}
+                isAnimationActive={false}
+                onClick={(_, dataIndex) => handleBarClick({ clickedFarmName: f.name }, dataIndex)}
               />
             ); })}
           </BarChart>

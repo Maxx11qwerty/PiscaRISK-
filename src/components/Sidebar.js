@@ -51,6 +51,11 @@ const Sidebar = ({
 
   // Check if current user is Super Admin (role Admin and no farm assigned)
   const isSuperAdmin = (!currentUser?.farm) && (String(currentUser?.role || '').toLowerCase() === 'admin');
+  
+  // Check if current user is Tech Officer or Temporary Tech Officer
+  const isTechOfficer = String(currentUser?.role || '').toLowerCase() === 'tech_officer' || String(currentUser?.role || '').toLowerCase() === 'tech officer';
+  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+  const canAccessFeedback = isSuperAdmin || isTechOfficer || isTemporaryTechOfficer;
 
   // Update language when it changes
   useEffect(() => {
@@ -123,8 +128,8 @@ const Sidebar = ({
               <FaClipboardList className="sidebar-nav-icon" />
               <span>{t('sidebar.logs')}</span>
             </div>
-            {/* Feedback button - only visible to Super Admin */}
-            {isSuperAdmin && (
+            {/* Feedback button - visible to Super Admin, Tech Officer, and Temporary Tech Officer */}
+            {canAccessFeedback && (
               <div className="sidebar-nav-item" onClick={onFeedbackClick}>
                 <FaComment className="sidebar-nav-icon" />
                 <span>{t('sidebar.feedback')}</span>

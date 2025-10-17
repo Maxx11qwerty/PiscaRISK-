@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next'; // Add this import
 import './AccountManagement.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
-import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck } from 'react-icons/fa';
+import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck, FaCheckCircle } from 'react-icons/fa';
 import { IoMdArrowDropdown } from "react-icons/io";
 import { MdOutlineLockReset } from "react-icons/md";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -17,6 +17,7 @@ import Sidebar from './components/Sidebar';
 import { collection, getDocs, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from './firebase';
 import { logActivity, logMessages } from './utils/logger';
+import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeToE164PH } from './utils/phonePh';
 
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
@@ -422,7 +423,9 @@ const AccountManagement = () => {
   // Permissions
   const roleNormalized = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
   const isAdminUser = roleNormalized === 'admin';
-  const isTechOfficerUser = roleNormalized === 'tech_officer';
+  const isTechOfficerRole = roleNormalized === 'tech_officer' || String(currentUser?.role || '').toLowerCase() === 'tech officer';
+  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || roleNormalized === 'temp_tech_officer';
+  const canManageUsers = isAdminUser || isTechOfficerRole || isTemporaryTechOfficer;
   const isSuperAdminUser = !currentUser?.farm; // Super Admin: no farm assigned
 
   useEffect(() => {
@@ -645,8 +648,8 @@ const AccountManagement = () => {
 
   // Manual deactivate function for Temporary Tech Officers
   const handleManualDeactivateTTO = async (user) => {
-    if (!isSuperAdminUser) {
-      setMessage({ text: 'Only Super Admin can manually deactivate Temporary Tech Officers', type: 'error' });
+    if (!canManageUsers) {
+      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can manually deactivate Temporary Tech Officers', type: 'error' });
       return;
     }
 
@@ -663,7 +666,7 @@ const AccountManagement = () => {
         lastModified: now.toISOString(),
         deactivatedBy: adminUser,
         deactivatedAt: now.toISOString(),
-        deactivationReason: 'Manually deactivated by Super Admin',
+        deactivationReason: 'Manually deactivated by Admin/Tech Officer',
         tempTORemarks: user.tempTORemarks || null,
         temporaryTechOfficer: false,
         adminActivated: false,
@@ -672,7 +675,7 @@ const AccountManagement = () => {
       
       // Log the manual deactivation
       try {
-        logActivity('account', `Temporary Tech Officer ${user.username} manually deactivated by Super Admin`, adminUser);
+        logActivity('account', `Temporary Tech Officer ${user.username} manually deactivated by Admin/Tech Officer`, adminUser);
       } catch (_) {}
       
       // Update local state
@@ -682,7 +685,7 @@ const AccountManagement = () => {
           status: 'inactive',
           deactivatedBy: adminUser,
           deactivatedAt: now.toISOString(),
-          deactivationReason: 'Manually deactivated by Super Admin',
+          deactivationReason: 'Manually deactivated by Admin/Tech Officer',
           tempTORemarks: user.tempTORemarks || null,
           temporaryTechOfficer: false,
           adminActivated: false,
@@ -862,6 +865,36 @@ const AccountManagement = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
+    // Enforce PH mobile 09 prefix for add user form
+    if (name === 'contactNumber') {
+      const prevValue = newUser.contactNumber || '';
+      const prevDigits = stripToDigits(prevValue);
+      const nextFormatted = formatUserInputPH(value).value;
+      const nextDigits = stripToDigits(nextFormatted);
+
+      // Compute local-style digits for enforcement
+      let localDigits = nextDigits;
+      if (nextFormatted.startsWith('+63')) {
+        const after = stripToDigits(nextFormatted.slice(3));
+        localDigits = after ? `0${after}` : '';
+      } else if (nextDigits.startsWith('63')) {
+        const after = nextDigits.slice(2);
+        localDigits = after ? `0${after}` : '';
+      }
+
+      // Allow deletions; block insertions that violate 09 prefix
+      const isDeletion = nextDigits.length < prevDigits.length;
+      if (!isDeletion) {
+        if ((localDigits.length === 1 && localDigits[0] !== '0') ||
+            (localDigits.length >= 2 && !localDigits.startsWith('09'))) {
+          return; // reject change
+        }
+      }
+
+      setNewUser(prev => ({ ...prev, contactNumber: nextFormatted }));
+      return;
+    }
+
     // Special handling for role changes
     if (name === 'role') {
       const newStatus = (value === 'Tech Officer' || value === 'Temporary Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
@@ -935,8 +968,8 @@ const AccountManagement = () => {
 
   const handleAddUser = async () => {
     try {
-      if (!isAdminUser) {
-        setMessage({ text: 'Only Admins can add new users', type: 'error' });
+      if (!canManageUsers) {
+        setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can add new users', type: 'error' });
         return;
       }
       
@@ -1082,12 +1115,30 @@ const AccountManagement = () => {
         ? 'Inactive'
         : newUser.status;
 
+      // Validate email format
+      const emailPattern = /^\S+@\S+\.[\S]+$/;
+      if (!emailPattern.test(String(newUser.email || '').trim())) {
+        setMessage({ text: 'Please enter a valid email address', type: 'error' });
+        return;
+      }
+
+      // Validate and normalize contact number if provided
+      let normalizedContact = newUser.contactNumber;
+      if (newUser.contactNumber) {
+        const phoneValidation = validatePhilippineMobile(newUser.contactNumber);
+        if (!phoneValidation.valid) {
+          setMessage({ text: phoneValidation.message || 'Enter a valid PH mobile number.', type: 'error' });
+          return;
+        }
+        normalizedContact = normalizeToE164PH(newUser.contactNumber) || newUser.contactNumber;
+      }
+
       const userData = {
         email: newUser.email,
         username: newUser.username,
         fullName: newUser.fullName,
         address: newUser.address,
-        contactNumber: newUser.contactNumber,
+        contactNumber: normalizedContact,
         // Map Temporary Tech Officer to temp_tech_officer role, with a flag
         role: (newUser.role === 'Temporary Tech Officer') ? 'temp_tech_officer' : newUser.role,
         password: newUser.password,
@@ -1161,8 +1212,8 @@ const AccountManagement = () => {
 
   // Function to open Add New User form with current date
   const handleOpenAddUserForm = () => {
-    if (!isAdminUser) {
-      setMessage({ text: 'Only Admins can add new users', type: 'error' });
+    if (!canManageUsers) {
+      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can add new users', type: 'error' });
       return;
     }
     const todayDate = getTodayDate();
@@ -1418,10 +1469,10 @@ const handleActivateFishFarmer = async (user) => {
       return;
     }
 
-    // Only Super Admin (no farm) may activate self-registered Admins
+    // Tech Officers and Temporary Tech Officers can also activate self-registered Admins
     const isSelfRegistered = String(user.createdBy || '').toLowerCase() === 'self';
-    if (isSelfRegistered && !isSuperAdminUser) {
-      setMessage({ text: 'Only Super Admin can activate Admins registered via signup', type: 'error' });
+    if (isSelfRegistered && !canManageUsers) {
+      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can activate Admins registered via signup', type: 'error' });
       return;
     }
 
@@ -1471,8 +1522,8 @@ const handleActivateFishFarmer = async (user) => {
 
 
   const handleDeleteUser = async (user) => {
-    if (!isAdminUser) {
-      setMessage({ text: 'Only Admins can delete users', type: 'error' });
+    if (!canManageUsers) {
+      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can delete users', type: 'error' });
       return;
     }
     // Show custom confirmation modal
@@ -1547,8 +1598,8 @@ const handleActivateFishFarmer = async (user) => {
 
   // Bulk delete selected users
   const handleBulkDelete = async () => {
-    if (!isAdminUser) {
-      setMessage({ text: 'Only Admins can bulk delete users', type: 'error' });
+    if (!canManageUsers) {
+      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can bulk delete users', type: 'error' });
       return;
     }
     if (selectedUsers.size === 0) {
@@ -1567,6 +1618,46 @@ const handleActivateFishFarmer = async (user) => {
       message: `Are you sure you want to delete ${selectedUsers.size} user(s): ${userNames}? This action cannot be undone.`
     });
     setShowDeleteConfirmModal(true);
+  };
+
+  // Bulk activate selected users (for users currently inactive)
+  const handleBulkActivate = async () => {
+    try {
+      if (!canManageUsers) {
+        setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can bulk activate users', type: 'error' });
+        return;
+      }
+      if (selectedUsers.size === 0) {
+        setMessage({ text: 'No users selected for activation', type: 'warning' });
+        return;
+      }
+
+      const selectedUserList = filteredUsers.filter(user => selectedUsers.has(user.id));
+      const inactiveUsers = selectedUserList.filter(u => String(u.status || '').toLowerCase() === 'inactive');
+      if (inactiveUsers.length === 0) {
+        setMessage({ text: 'No inactive users selected to activate', type: 'info' });
+        return;
+      }
+
+      setMessage({ text: `Activating ${inactiveUsers.length} user(s)...`, type: 'info' });
+
+      // Activate users per their role
+      for (const user of inactiveUsers) {
+        const roleDisplay = formatRoleForDisplay(user.role);
+        if (roleDisplay === 'Tech Officer' || roleDisplay === 'Temporary Tech Officer') {
+          await handleActivateTechOfficer(user);
+        } else if (roleDisplay === 'Fish Farmer') {
+          await handleActivateFishFarmer(user);
+        } else if (roleDisplay === 'Admin') {
+          await handleActivateAdmin(user);
+        }
+      }
+
+      setMessage({ text: `Activated ${inactiveUsers.length} user(s) successfully`, type: 'success' });
+
+    } catch (error) {
+      setMessage({ text: `Error during bulk activate: ${error.message}`, type: 'error' });
+    }
   };
 
   const confirmBulkDelete = async () => {
@@ -1671,6 +1762,7 @@ const handleActivateFishFarmer = async (user) => {
   // Check if all users across all pages are selected
   const isAllSelectedAcrossAllPages = filteredUsers.length > 0 && filteredUsers.every(user => selectedUsers.has(user.id));
   const isIndeterminateAcrossAllPages = selectedUsers.size > 0 && selectedUsers.size < filteredUsers.length;
+  const selectedInactiveCount = filteredUsers.filter(u => selectedUsers.has(u.id) && String(u.status || '').toLowerCase() === 'inactive').length;
 
   const accountCSVData = prepareAccountCSVData(AccountUsers);
   // Lightweight wrapper to support tooltips around disabled buttons (no external deps)
@@ -1777,7 +1869,7 @@ const handleActivateFishFarmer = async (user) => {
           {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
         </div>
       )}
-      <header className="account-header-bar">
+      <header className={`account-header-bar ${sidebarOpen && window.innerWidth <= 1023 ? 'blurred' : ''}`}>
         <div className="header-logo-container">
         <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
@@ -1841,6 +1933,14 @@ const handleActivateFishFarmer = async (user) => {
           </div>
         </div>
       </header>
+
+      {/* Mobile Sidebar Backdrop */}
+      {sidebarOpen && window.innerWidth <= 1023 && (
+        <div 
+          className={`sidebar-backdrop ${sidebarOpen ? 'active' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       <Sidebar
         sidebarOpen={sidebarOpen}
@@ -1933,7 +2033,7 @@ const handleActivateFishFarmer = async (user) => {
               </div>
             )}
             
-            {isAdminUser ? (
+            {canManageUsers ? (
               <button className="add-user-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
                 closeAllDropdowns(); // Close all other dropdowns first
@@ -1949,7 +2049,22 @@ const handleActivateFishFarmer = async (user) => {
               </button>
             )}
             
-            {isAdminUser && selectedUsers.size > 0 && (
+            {canManageUsers && selectedInactiveCount > 1 && (
+              <button className="bulk-activate-button" onClick={(e) => {
+                e.stopPropagation();
+                closeAllDropdowns();
+                try {
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('account', `Bulk activate initiated for ${selectedUsers.size} users in Account Management`, u);
+                } catch (_) {}
+                handleBulkActivate();
+              }}>
+                <FaCheckCircle className="button-icon" />
+                Activate Selected ({selectedInactiveCount})
+              </button>
+            )}
+
+            {canManageUsers && selectedUsers.size > 1 && (
               <button className="bulk-delete-button" onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking bulk delete button
                 closeAllDropdowns(); // Close all other dropdowns first
@@ -2167,7 +2282,7 @@ const handleActivateFishFarmer = async (user) => {
       <div className={`account-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         {/* Global toast removed per request */}
         <div className="account-container">
-        {isAdminUser && showAddUserForm && (
+        {canManageUsers && showAddUserForm && (
             <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
               <div className="add-user-form" onClick={(e) => e.stopPropagation()}>
               <div className="form-header">
@@ -2179,11 +2294,15 @@ const handleActivateFishFarmer = async (user) => {
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
                     <div className="role-notice-content">
-                      <strong>{newUser.role === 'Tech Officer' ? t('accountManagement.add_user_form.tech_officer_notice_title') : t('accountManagement.add_user_form.admin_notice_title')}</strong>
+                      <strong>{newUser.role === 'Tech Officer' ? t('accountManagement.add_user_form.tech_officer_notice_title') : 'Adding a New Admin Account Notice:'}</strong>
                       {newUser.role === 'Tech Officer' ? (
                         <p>{t('accountManagement.add_user_form.tech_officer_notice')}</p>
                       ) : (
-                        <p>{t('accountManagement.add_user_form.admin_notice')}</p>
+                        <p>{
+                          isAdminUser 
+                            ? 'New Admin accounts are set to Inactive. The Admin must verify their email upon first login to activate the account. Until then, the status will remain Inactive.'
+                            : 'New Admin accounts are set to Inactive. The new Admin must verify their email upon first login to activate the account. Until then, the status will remain Inactive.'
+                        }</p>
                       )}
                     </div>
                   </div>
@@ -2764,29 +2883,29 @@ const handleActivateFishFarmer = async (user) => {
                               title={
                                 (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                   ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
-                                  : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
+                                  : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
                                     ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
-                                    : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') 
+                                    : (canManageUsers && String(user.status || '').toLowerCase() === 'inactive') 
                                       ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
                                       : undefined
                               }
                               aria-label={
                                 (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                   ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
-                                  : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active') 
+                                  : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
                                     ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
-                                    : (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'inactive') 
+                                    : (canManageUsers && String(user.status || '').toLowerCase() === 'inactive') 
                                       ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
                                       : undefined
                               }
                               style={{ 
-                                cursor: (currentUser?.role === 'Admin' && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
+                                cursor: (canManageUsers && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
                                   ? 'pointer' 
                                   : 'default' 
                               }}
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (currentUser?.role !== 'Admin') return;
+                              if (!canManageUsers) return;
                               // Disable deactivation for Temporary Tech Officer users
                               if (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer') return;
                               const current = String(user.status || '').toLowerCase();
@@ -2858,7 +2977,7 @@ const handleActivateFishFarmer = async (user) => {
                               return (
                                 <TooltipWrapper
                                   showTooltip={!canActivate}
-                                  tooltipText={isSelfRegistered ? 'Only Super Admin can activate this account' : 'User must login first to auto-activate'}
+                                  tooltipText={isSelfRegistered ? 'Only Admins, Tech Officers, and Temporary Tech Officers can activate this account' : 'User must login first to auto-activate'}
                                 >
                                   {canActivate ? (
                                     <button className="activate-tech-officer-btn" onClick={(e) => {
@@ -2906,7 +3025,7 @@ const handleActivateFishFarmer = async (user) => {
                           )}
                           {String(user.status || '').toLowerCase() === 'active' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && !(currentUser && (currentUser.temporaryTechOfficer || String(currentUser.role || '').toLowerCase() === 'temp_tech_officer')) && (
                             <TooltipWrapper
-                              showTooltip={isTechOfficerUser}
+                              showTooltip={!canManageUsers}
                               tooltipText="You don't have permission to do this"
                               onBlockedClick={() => setMessage({ text: "You don't have permission to reset passwords", type: 'error' })}
                             >
@@ -2914,11 +3033,11 @@ const handleActivateFishFarmer = async (user) => {
                                 className="reset-password-btn" 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (isTechOfficerUser) return; // Block action for tech officers
+                                  if (!canManageUsers) return; // Block action for non-managers
                                   closeAllDropdowns();
                                   handleResetPassword(user);
                                 }}
-                                disabled={isTechOfficerUser || resettingPasswordUserId === user.id}
+                                disabled={!canManageUsers || resettingPasswordUserId === user.id}
                               >
                                 <MdOutlineLockReset className="action-icon" />
                                 {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
@@ -3004,7 +3123,7 @@ const handleActivateFishFarmer = async (user) => {
                             year: 'numeric'
                           }) : t('accountManagement.user_list.unknown_date')}
                         </div>
-                        {isAdminUser && (
+                        {canManageUsers && (
                           <div className="user-cell delete-cell" data-label="Delete">
                             <button className="delete-user-btn" onClick={(e) => {
                               e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
@@ -3012,7 +3131,7 @@ const handleActivateFishFarmer = async (user) => {
                               handleDeleteUser(user);
                             }}>
                               <RiDeleteBin6Line className="action-icon" />
-                              {t('accountManagement.user_list.delete_button')}
+                              {t('accountManagement.user_list.delete_button') || 'Delete'}
                             </button>
                           </div>
                         )}

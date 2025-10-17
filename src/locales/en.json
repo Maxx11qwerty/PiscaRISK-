@@ -380,7 +380,7 @@
     "loadingFarmRiskData": "Loading farm risk data...",
     "fetchingLatestFarmSummaries": "Fetching latest farm-level summaries",
     "farmRiskOverview": "Farm Risk Overview",
-    "aggregatedRiskByFarm": "Aggregated risk by farm with confidence and pond counts",
+    "aggregatedRiskByFarm": "Aggregated daily risk per farm with confidence scores and pond counts",
     "noRiskReportsAvailable": "No risk reports available",
     "ponds": "Ponds",
     "lastUpdate": "Last Update",

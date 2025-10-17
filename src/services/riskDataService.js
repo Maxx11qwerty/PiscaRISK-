@@ -55,21 +55,55 @@ const getTimestampMs = (ts) => {
 };
 
 const deduplicatePredictions = (predictions) => {
-  // Keep only the newest record per farm_key + fish_pond
+  // Keep only one record per farm_key + fish_pond
+  // Preference order:
+  // 1) Newer timestamp wins
+  // 2) If timestamps tie, prefer lower severity (Normal < Low < Medium < High)
+  // 3) If still tied, prefer risk_predictions source
   const bestByPond = new Map();
+  const sevScore = (lvl) => {
+    const x = (lvl || '').toString().toLowerCase();
+    if (x.includes('high')) return 3;
+    if (x.includes('medium')) return 2;
+    if (x.includes('low')) return 1;
+    return 0; // normal or unknown
+  };
   predictions.forEach((p) => {
-    const pond = p.fish_pond || '';
-    const key = `${p.farm_key}::${pond}`;
-    const currentBest = bestByPond.get(key);
-    if (!currentBest) {
+    const pondRaw = (p.fish_pond || '').toString();
+    const pondKey = pondRaw.trim().toLowerCase();
+    const key = `${p.farm_key}::${pondKey}`;
+    const cur = bestByPond.get(key);
+    if (!cur) {
       bestByPond.set(key, p);
-    } else {
-      const curMs = getTimestampMs(currentBest.timestamp);
-      const newMs = getTimestampMs(p.timestamp);
-      if (newMs >= curMs) {
-        bestByPond.set(key, p);
-      }
+      return;
     }
+    const curMs = getTimestampMs(cur.timestamp);
+    const newMs = getTimestampMs(p.timestamp);
+    // Prefer risk_predictions source regardless of minor timestamp differences to mirror modal focus
+    const pSrc = p.source || '';
+    const cSrc = cur.source || '';
+    if (pSrc === 'risk_predictions' && cSrc !== 'risk_predictions') {
+      bestByPond.set(key, p);
+      return;
+    }
+    if (cSrc === 'risk_predictions' && pSrc !== 'risk_predictions') {
+      return;
+    }
+    // Otherwise, newer timestamp wins
+    if (newMs > curMs) {
+      bestByPond.set(key, p);
+      return;
+    }
+    if (newMs < curMs) return;
+    // Tie on timestamp -> pick lower severity
+    const pSev = sevScore(p.risk_level);
+    const cSev = sevScore(cur.risk_level);
+    if (pSev < cSev) {
+      bestByPond.set(key, p);
+      return;
+    }
+    if (pSev > cSev) return;
+    // Final tie: keep current
   });
   return Array.from(bestByPond.values());
 };
@@ -146,10 +180,21 @@ export const fetchRiskReportData = async () => {
       farm_key: farmKey,
       fish_pond: data.fish_pond || data.input_data?.fish_pond,
       risk_level: normalizeRisk(data.risk_level),
-      confidence: typeof data.confidence === 'number' ? data.confidence : (typeof data.input_data?.confidence === 'number' ? data.input_data.confidence : undefined),
+      confidence: (function(){
+        const c = data.confidence ?? data.input_data?.confidence;
+        const n = Number(c);
+        return Number.isFinite(n) ? n : undefined;
+      })(),
+      // Optional fields used by tooltips/details
+      fish_condition: data.fish_condition || data.input_data?.fish_condition,
+      water_condition: data.water_condition || data.input_data?.water_condition,
+      weather: data.weather || data.input_data?.weather,
+      ready_for_harvest: typeof data.ready_for_harvest === 'boolean' ? data.ready_for_harvest : (typeof data.input_data?.ready_for_harvest === 'boolean' ? data.input_data.ready_for_harvest : undefined),
+      conditions_summary: data.conditions_summary || data.input_data?.conditions_summary,
       timestamp: generatedTs || submittedTs,
       submitted_timestamp: submittedTs,
       generated_timestamp: generatedTs,
+      source: 'risk_predictions',
     });
   });
 
@@ -184,6 +229,42 @@ export const fetchRiskReportData = async () => {
       diagnostics: data.prediction?.diagnostics || data.diagnostics || undefined,
       is_aggregate: !!data.is_aggregate,
     });
+
+    // Also include individual predictions inside modal_feedback if present (to match RiskReportModal)
+    if (Array.isArray(data.predictions)) {
+      data.predictions.forEach(pred => {
+        const pFarmName = pred.farm_name || pred.farm || pred.input_data?.farm_name || pred.input_data?.farm || farmName;
+        const pFarmKey = normalizeFarmName(pFarmName);
+        // Skip excluded farms by name
+        if (
+          pFarmKey === 'rojo-hatchery' || pFarmName === 'Rojo Hatchery' ||
+          pFarmKey === 'freshwater-finfish-farm' || pFarmName === 'Freshwater Finfish Farm' ||
+          String(pFarmName || '').toLowerCase().includes('freshwater finfish')
+        ) return;
+        predictions.push({
+          id: pred.id || doc.id,
+          farm: pFarmName,
+          farm_key: pFarmKey,
+          fish_pond: pred.input_data?.fish_pond || pred.fish_pond,
+          risk_level: normalizeRisk(pred.risk_level),
+          confidence: (function(){
+            const c = pred.confidence ?? pred.input_data?.confidence;
+            const n = Number(c);
+            return Number.isFinite(n) ? n : undefined;
+          })(),
+          // Optional fields used by tooltips/details
+          fish_condition: pred.input_data?.fish_condition || pred.fish_condition,
+          water_condition: pred.input_data?.water_condition || pred.water_condition,
+          weather: pred.input_data?.weather || pred.weather,
+          ready_for_harvest: typeof pred.ready_for_harvest === 'boolean' ? pred.ready_for_harvest : (typeof pred.input_data?.ready_for_harvest === 'boolean' ? pred.input_data.ready_for_harvest : undefined),
+          conditions_summary: pred.conditions_summary || pred.input_data?.conditions_summary,
+          timestamp: pred.timestamp || pred.input_data?.timestamp,
+          submitted_timestamp: pred.input_data?.timestamp,
+          generated_timestamp: pred.timestamp,
+          source: 'modal_feedback_prediction',
+        });
+      });
+    }
   });
 
   // Ensure transparency by including certain farms even if no reports exist
@@ -252,7 +333,8 @@ export const fetchRiskReportData = async () => {
 
   Object.values(byFarm).forEach(farm => {
     if (farm.predictions.length > 0) {
-      farm.predictions = deduplicatePredictions(farm.predictions);
+      // Do not pre-deduplicate here; let UI components (modal/chart) perform
+      // per-day, per-pond selection consistently to avoid mismatches.
       farm.predictions.forEach(p => { farm.counts[levelKey(p.risk_level)] += 1; });
       farm.overall_risk = majorityFromCounts(farm.counts);
     }
@@ -282,6 +364,14 @@ export const fetchRiskReportData = async () => {
       id: p.id,
       fish_pond: p.fish_pond,
       risk_level: p.risk_level,
+      confidence: p.confidence,
+      fish_condition: p.fish_condition,
+      water_condition: p.water_condition,
+      weather: p.weather,
+      ready_for_harvest: p.ready_for_harvest,
+      conditions_summary: p.conditions_summary,
+      risk_momentum: p.risk_momentum,
+      enhanced_analytics: p.enhanced_analytics,
       timestamp: p.timestamp,
       submitted_timestamp: p.submitted_timestamp,
       generated_timestamp: p.generated_timestamp,

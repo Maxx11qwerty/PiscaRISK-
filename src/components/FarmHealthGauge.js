@@ -14,6 +14,15 @@ const normalizeFarmName = (name) => {
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 };
 
+// Looser normalizer to handle punctuation differences like apostrophes
+const normalizeLoose = (name) => {
+  if (!name || typeof name !== 'string') return 'unknownfarm';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
 const getStatus = (pct) => {
   if (pct >= 70) return { label: 'GOOD', color: '#2ecc71' };
   if (pct >= 40) return { label: 'CAUTION', color: '#f1c40f' };
@@ -131,46 +140,22 @@ const FarmHealthGauge = () => {
     }
   }, [isAssignedToFarm, assignedFarmKey, currentUser?.farm]);
 
-  // Helper function to get latest risk per pond (matching RiskReportModal logic)
-  const getLatestRiskPerPond = (farm) => {
-    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
-    
-    // Filter out predictions with invalid timestamps first
-    const validPredictions = farm.predictions.filter(pred => {
-      const ms = getTimestampMs(pred.timestamp);
-      return ms > 0; // Only include predictions with valid timestamps
-    });
-    
-    if (validPredictions.length === 0) {
-      return [];
-    }
-    
-    // First, sort all predictions by timestamp (latest first) to ensure we get the most recent data
-    const sortedPredictions = [...validPredictions].sort((a, b) => {
-      const aMs = getTimestampMs(a.timestamp);
-      const bMs = getTimestampMs(b.timestamp);
-      return bMs - aMs; // Latest first
-    });
-    
-    // Group predictions by pond, but only keep the first (latest) occurrence of each pond
+  // Helper: get latest batch (same generated date) and dedupe per pond (match RiskReportModal)
+  const getLatestBatchPerPond = (farm) => {
+    if (!farm?.predictions || !Array.isArray(farm.predictions)) return [];
+    const withTs = farm.predictions.filter(p => getTimestampMs(p.timestamp) > 0);
+    if (withTs.length === 0) return [];
+    const latestMs = Math.max(...withTs.map(p => getTimestampMs(p.timestamp)));
+    const latestDateKey = new Date(latestMs).toDateString();
+    const sameDay = withTs.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
     const pondMap = new Map();
-    sortedPredictions.forEach(pred => {
-      const pond = pred.fish_pond || 'Unknown Pond';
-      if (!pondMap.has(pond)) {
-        pondMap.set(pond, pred);
-      }
-    });
-
-    // Convert map values to array and sort by timestamp again
-    const latestPerPond = Array.from(pondMap.values()).sort((a, b) => {
-      const aMs = getTimestampMs(a.timestamp);
-      const bMs = getTimestampMs(b.timestamp);
-      return bMs - aMs; // Latest first
-    });
-
-    // For now, return all recent ponds without date filtering
-    // TODO: Add proper date filtering based on actual data requirements
-    return latestPerPond;
+    sameDay
+      .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+      .forEach(pred => {
+        const pond = pred.fish_pond || 'Unknown Pond';
+        if (!pondMap.has(pond)) pondMap.set(pond, pred);
+      });
+    return Array.from(pondMap.values());
   };
 
   // Helper function to convert timestamp to milliseconds (matching RiskReportModal logic)
@@ -193,19 +178,19 @@ const FarmHealthGauge = () => {
 
     const accumulateFromFarm = (f) => {
       if (!f) return;
-      
-      // Use the same logic as RiskReportModal - get latest per pond with cutoff date
-      const latestPonds = getLatestRiskPerPond(f);
+      // Use the same logic as RiskReportModal: latest generated DATE, then latest per pond within that day
+      const latestPonds = getLatestBatchPerPond(f);
       
       latestPonds.forEach(p => {
         const ts = p.timestamp;
         const ms = getTimestampMs(ts);
         if (ms > latestTimestampMs) latestTimestampMs = ms;
         
-        // Prefer explicit prediction confidence when available to align with Risk Report Modal
-        const conf = typeof p.confidence === 'number' ? p.confidence : undefined;
-        if (typeof conf === 'number') {
-          scoreSum += conf; // already 0-100 range expected
+        // Prefer explicit prediction confidence (accept number-like strings)
+        const numConf = (p.confidence != null && !Number.isNaN(Number(p.confidence))) ? Number(p.confidence) : null;
+        if (typeof numConf === 'number' && Number.isFinite(numConf)) {
+          const bounded = Math.max(0, Math.min(100, numConf));
+          scoreSum += bounded; // 0–100
         } else {
           const level = (p.risk_level || 'Normal');
           const score = riskScoreMap[level] ?? 0;
@@ -218,51 +203,25 @@ const FarmHealthGauge = () => {
     if (selectedFarm === 'all') {
       farms.forEach(accumulateFromFarm);
     } else {
-      // For farm admins, try multiple matching strategies
+      // Robust matching of selected farm to data
       let f = farms.find(x => x.key === selectedFarm);
-      
-      // If not found by key, try matching by name or farm_key
-      if (!f) {
+      if (!f) f = farms.find(x => normalizeFarmName(x.name) === normalizeFarmName(selectedFarm));
+      if (!f) f = farms.find(x => normalizeFarmName(x.farm_key) === normalizeFarmName(selectedFarm));
+      if (!f) f = farms.find(x => normalizeLoose(x.name) === normalizeLoose(selectedFarm));
+      if (!f) f = farms.find(x => normalizeLoose(x.farm_key) === normalizeLoose(selectedFarm));
+      if (!f) f = farms.find(x => x.name === selectedFarm);
+      if (!f) f = farms.find(x => x.farm_key === selectedFarm);
+      if (!f && isAssignedToFarm && currentUser?.farm) {
+        const selectedNorm = normalizeFarmName(selectedFarm);
         f = farms.find(x => 
-          x.name === selectedFarm || 
-          x.farm_key === selectedFarm ||
-          normalizeFarmName(x.name) === selectedFarm ||
-          normalizeFarmName(x.farm_key) === selectedFarm
+          normalizeFarmName(x.key) === selectedNorm || 
+          normalizeFarmName(x.name) === selectedNorm || 
+          normalizeFarmName(x.farm_key) === selectedNorm ||
+          normalizeLoose(x.key) === normalizeLoose(selectedFarm) ||
+          normalizeLoose(x.name) === normalizeLoose(selectedFarm) ||
+          normalizeLoose(x.farm_key) === normalizeLoose(selectedFarm)
         );
       }
-      
-      // If still not found and user is assigned to a farm, try matching by user's farm ID
-      if (!f && isAssignedToFarm && currentUser?.farm) {
-        // Direct mapping for known farm IDs
-        const farmIdToKey = {
-          's5zKKXTBkF3voYnV8wuh': 'labay-fish-farm',
-          'NyhjBvh9N9wfsOJ2qeEa': 'aquino-fish-farm',
-          'TP3p0y4iQlo2j0loELQb': "vergara's-aqua-farm",
-          'egGEARKL6Qk5jNgrY3Yu': 'maningas-fish-farm'
-        };
-        
-        const mappedKey = farmIdToKey[currentUser.farm];
-        if (mappedKey) {
-          f = farms.find(x => x.key === mappedKey || x.farm_key === mappedKey);
-        }
-        
-        // If still not found, try multiple matching strategies for the user's farm ID
-        if (!f) {
-          f = farms.find(x => 
-            x.key === currentUser.farm ||
-            x.farm_key === currentUser.farm ||
-            x.name === currentUser.farm ||
-            normalizeFarmName(x.name) === normalizeFarmName(currentUser.farm) ||
-            normalizeFarmName(x.key) === normalizeFarmName(currentUser.farm) ||
-            normalizeFarmName(x.farm_key) === normalizeFarmName(currentUser.farm) ||
-            // Try matching the raw farm ID directly
-            x.key === normalizeFarmName(currentUser.farm) ||
-            x.farm_key === normalizeFarmName(currentUser.farm)
-          );
-        }
-      }
-      
-      
       accumulateFromFarm(f);
     }
 
@@ -470,6 +429,8 @@ const FarmHealthGauge = () => {
                 data={chartData}
                 startAngle={180}
                 endAngle={0}
+                cx="50%"
+                cy="40%"
               >
                 <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
                 <RadialBar
@@ -486,9 +447,35 @@ const FarmHealthGauge = () => {
             </ResponsiveContainer>
             <div className="center-overlay">
               <div className="gauge-percent">{displayPercent}%</div>
-              <div className="gauge-status" style={{ color: displayColor }}>
+              <div className="gauge-status" style={{ color: displayColor, fontSize: '1.35rem' }}>
                 {t(`farmHealthGauge.status.${String(displayStatus || '').toLowerCase()}`, { defaultValue: displayStatus })}
               </div>
+              {(() => {
+                const s = String(displayStatus || '').toUpperCase();
+                let text = '';
+                if (selectedFarm === 'all') {
+                  text = s === 'GOOD'
+                    ? 'Stable conditions across all farms.'
+                    : s === 'CAUTION'
+                    ? 'Some farms show early signs of risk.'
+                    : s === 'CRITICAL'
+                    ? 'Multiple farms require urgent attention.'
+                    : '';
+                } else {
+                  text = s === 'GOOD'
+                    ? 'Stable farm conditions based on recent monitoring data.'
+                    : s === 'CAUTION'
+                    ? 'Moderate conditions, potential risks emerging.'
+                    : s === 'CRITICAL'
+                    ? 'Unstable conditions; immediate attention required.'
+                    : '';
+                }
+                return text ? (
+                  <div style={{ marginTop: 22, fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', textAlign: 'center', padding: '0 8px' }}>
+                    {text}
+                  </div>
+                ) : null;
+              })()}
               {noteText ? (
                 <div className="gauge-note" style={{ marginTop: 6, fontSize: '0.75rem', color: 'rgba(255,255,255,0.8)' }}>
                   <span style={{ color: updateColor || 'rgba(255,255,255,0.8)' }}>
@@ -500,23 +487,10 @@ const FarmHealthGauge = () => {
           </>
         )}
       </div>
-      <div style={{ marginTop: 8, fontSize: '0.8rem', color: 'rgba(255,255,255,0.85)' }}>{infoLabel}</div>
-      {/* Old legend  
-      <div className="health-legend">
-        <div className="health-legend-item legend-good">
-          <span className="health-legend-dot" />
-          <span className="health-legend-text">Good (≥ 70%)</span>
-        </div>
-        <div className="health-legend-item legend-caution">
-          <span className="health-legend-dot" />
-          <span className="health-legend-text">Caution (40–69%)</span>
-        </div>
-        <div className="health-legend-item legend-critical">
-          <span className="health-legend-dot" />
-          <span className="health-legend-text">Critical ({'<'} 40%)</span>
-        </div>
+      <div style={{ marginTop: 8, fontSize: '0.9rem', color: '#bfc8d4' }}>
+        Overall farm health score based on recent pond risk predictions.
       </div>
-      */}
+      <div style={{ marginTop: 4, fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>{infoLabel}</div>
     </div>
   );
 };

@@ -40,9 +40,24 @@ const Logs = () => {
   const [rowActionsOpenId, setRowActionsOpenId] = useState(null);
   const [deletingLogId, setDeletingLogId] = useState(null);
   
+  // Notification close signal
+  const [notificationCloseSignal, setNotificationCloseSignal] = useState(0);
+  
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [logsPerPage, setLogsPerPage] = useState(25); // Default to 25 logs per page
+  
+  // Decode common HTML entities for display-only rendering of sanitized log messages
+  const decodeHtml = (str = '') => {
+    const map = {
+      '&amp;': '&',
+      '&lt;': '<',
+      '&gt;': '>',
+      '&quot;': '"',
+      '&#39;': "'",
+    };
+    return String(str).replace(/(&amp;|&lt;|&gt;|&quot;|&#39;)/g, (m) => map[m] || m);
+  };
   
   // Close dropdowns helper to match AccountManagement header behavior
   const closeAllDropdowns = () => {
@@ -320,16 +335,15 @@ const Logs = () => {
   // Role-based access for row actions
   const roleLower = String(currentUser?.role || '').toLowerCase();
   const isTemporaryTechOfficer = !!(currentUser?.temporaryTechOfficer || roleLower === 'temp_tech_officer');
-  const isTechOfficer = roleLower === 'tech_officer' || roleLower === 'tech officer';
   const isAdmin = roleLower === 'admin';
   const isSuperAdmin = roleLower === 'super_admin' || (isAdmin && !currentUser?.farm);
   const isFarmAdmin = isAdmin && !!currentUser?.farm;
   // Visible for super admin (enabled), and visible but disabled for farm admin / tech officer / temp tech officer
-  const shouldShowRowActions = isSuperAdmin || isFarmAdmin || isTechOfficer || isTemporaryTechOfficer;
+  const shouldShowRowActions = isSuperAdmin || isFarmAdmin || isTemporaryTechOfficer;
 
   return (
     <div className="logs">
-      <header className="logs-header-bar">
+      <header className={`logs-header-bar ${sidebarOpen && window.innerWidth <= 1023 ? 'blurred' : ''}`}>
         <div className="header-logo-container">
         <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
           <img src={logo} alt="PiscaRisk Logo" className="header-logo" />
@@ -353,11 +367,12 @@ const Logs = () => {
           </div>
             </div>
           
-          <NotificationBox />
+          <NotificationBox externalCloseSignal={notificationCloseSignal} />
           <div className="user-menu">
               <button onClick={(e) => {
                 e.stopPropagation(); // Prevent closing dropdowns when clicking user menu
                 closeAllDropdowns(); // Close all other dropdowns first
+                setNotificationCloseSignal(prev => prev + 1); // Close notification when user menu opens
                 setShowMenu(!showMenu);
               }}>
                 {currentUser?.profileImage ? (
@@ -659,7 +674,7 @@ const Logs = () => {
                     <span className={`log-type ${log.category}`}>{log.category}</span>
                   </div>
                   <div className="log-cell action-target-cell">
-                    <div className="log-message">{log.message}</div>
+                    <div className="log-message">{decodeHtml(log.message)}</div>
                   </div>
                   <div className="log-cell source-cell" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <span className={`source-badge ${getSourceType(log)}`}>

@@ -573,10 +573,25 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
       });
 
       // Merge notifications with read status
-      const merged = freshNotifications.map(fresh => ({
+      let merged = freshNotifications.map(fresh => ({
         ...fresh,
         read: readStatusMap.get(fresh.id) || false
       }));
+
+      // Apply server-side suppression: ignore notifications older than user's last cleared time
+      try {
+        if (currentUser?.uid) {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          const clearedAtServer = userDoc.exists() ? userDoc.data()?.notificationsClearedAt : null;
+          if (clearedAtServer && clearedAtServer.toDate) {
+            const clearedMs = clearedAtServer.toDate().getTime();
+            merged = merged.filter(n => {
+              const nMs = new Date(n.timestamp).getTime();
+              return Number.isNaN(nMs) ? false : nMs > clearedMs;
+            });
+          }
+        }
+      } catch (_) {}
 
       // Apply farm filtering based on the current user's farm (ID or name)
       let filtered = merged;
@@ -619,9 +634,24 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
         }
       }
 
+      // Apply suppression: if user cleared, ignore items older than clearedAt until new ones arrive
+      let suppressed = filtered;
+      try {
+        const clearedAt = localStorage.getItem('notificationsClearedAt');
+        if (clearedAt) {
+          const clearedMs = new Date(clearedAt).getTime();
+          if (!Number.isNaN(clearedMs)) {
+            suppressed = filtered.filter(n => {
+              const nMs = new Date(n.timestamp).getTime();
+              return Number.isNaN(nMs) ? false : nMs > clearedMs;
+            });
+          }
+        }
+      } catch (_) {}
+
       // Sort and clean
       const cleaned = removeOldNotifications(
-        filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        suppressed.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       );
 
       // Update state
@@ -673,6 +703,13 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
     setIsOpen(next);
     try {
       if (next) { onOpen && onOpen(); } else { onClose && onClose(); }
+      // If opening list after a clear, drop suppression so new items can show going forward
+      if (next) {
+        const clearedAt = localStorage.getItem('notificationsClearedAt');
+        if (clearedAt) {
+          localStorage.removeItem('notificationsClearedAt');
+        }
+      }
     } catch (_) {}
   };
 
@@ -714,10 +751,23 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
     }
   };
 
-  const clearNotifications = () => {
+  const clearNotifications = async () => {
     setNotifications([]);
     setUnreadCount(0);
     localStorage.removeItem('notifications');
+    const nowIso = new Date().toISOString();
+    try {
+      // Remember the time we cleared locally to prevent immediate repopulation
+      localStorage.setItem('notificationsClearedAt', nowIso);
+    } catch (_) {}
+    try {
+      // Persist suppression to Firestore so it survives logout/login and across devices
+      if (currentUser?.uid) {
+        await setDoc(doc(db, 'users', currentUser.uid), { notificationsClearedAt: serverTimestamp() }, { merge: true });
+      }
+    } catch (e) {
+      // ignore server errors; local suppression still applies
+    }
   };
 
   const getNotificationIcon = (notification) => {

@@ -484,7 +484,7 @@
     "loadingFarmRiskData": "Naglo-load ng farm risk data...",
     "fetchingLatestFarmSummaries": "Kinukuha ang pinakabagong farm-level summaries",
     "farmRiskOverview": "Pangkalahatang Tanawin ng Panganib sa Sakahan",
-    "aggregatedRiskByFarm": "Pinagsama-samang panganib bawat sakahan na may kumpiyansa at bilang ng palaisdaan",
+    "aggregatedRiskByFarm": "Pinagsama-samang pang-araw-araw na panganib bawat sakahan na may confidence scores at bilang ng palaisdaan",
     "noRiskReportsAvailable": "Walang available na risk reports",
     "ponds": "Mga Palaisdaan",
     "lastUpdate": "Huling Update",

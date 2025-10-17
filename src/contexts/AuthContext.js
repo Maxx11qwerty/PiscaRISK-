@@ -496,6 +496,9 @@ export const AuthProvider = ({ children }) => {
           setCurrentUser(newCurrentUser);
           currentUserRef.current = newCurrentUser;
           
+          // Clear the processing flag after setting user data
+          isProcessingLoginRef.current = false;
+          
           // Login logging is now handled in Login.js to ensure proper username display
         }
       }
@@ -909,9 +912,48 @@ const login = async (emailOrContact, password) => {
     // Set flag to prevent auth state change handler from running
     isProcessingLoginRef.current = true;
     
-    // Set the current user immediately to prevent auth state change handler from running
-    setCurrentUser(userCredential.user);
-    currentUserRef.current = userCredential.user;
+    // Build the complete user object with all data
+    const completeUserData = {
+      uid: userCredential.user.uid,
+      email: userData.email || userCredential.user.email,
+      username: userData.username || userCredential.user.displayName || (userCredential.user.email ? userCredential.user.email.split('@')[0] : 'User'),
+      role: userData.role,
+      profileImage: userData.profileImage || null,
+      dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+      emailVerified: userCredential.user.emailVerified,
+      status: userData.status,
+      address: userData.address || '',
+      fullName: userData.fullName || userCredential.user.displayName || '',
+      contact: userData.contactNumber || userData.contact || '',
+      farm: userData.farm || userData.farmId || null,
+      // TTO-specific fields
+      temporaryTechOfficer: userData.temporaryTechOfficer || false,
+      isTemporary: userData.isTemporary || false,
+      effectiveFrom: userData.effectiveFrom || null,
+      effectiveTo: userData.effectiveTo || null,
+      tempTOReason: userData.tempTOReason || null,
+      tempTORemarks: userData.tempTORemarks || null,
+      // Additional fields that might be present
+      adminActivated: userData.adminActivated || false,
+      phoneVerified: userData.phoneVerified || false,
+      pendingActivation: userData.pendingActivation || false,
+      isMobileUser: userData.isMobileUser || false,
+      createdAt: userData.createdAt || null,
+      createdBy: userData.createdBy || null,
+      lastModified: userData.lastModified || null,
+      deactivatedBy: userData.deactivatedBy || null,
+      deactivatedAt: userData.deactivatedAt || null,
+      deactivationReason: userData.deactivationReason || null
+    };
+    
+    // Set the current user with complete data
+    setCurrentUser(completeUserData);
+    currentUserRef.current = completeUserData;
+    
+    
+    // Clear the processing flag immediately since we've set the user data
+    isProcessingLoginRef.current = false;
+    
     
     // Log login success with proper role identification
     if (isTemporaryTechOfficer(userData)) {
@@ -986,6 +1028,7 @@ const login = async (emailOrContact, password) => {
       // 1. Suppress auth state changes during logout
       suppressAuthUpdatesRef.current = true;
       isLoggingOutRef.current = true;
+      isProcessingLoginRef.current = false; // Reset login processing flag
       
       // 2. Clear state first to prevent redirects
       setCurrentUser(null);

@@ -1,8 +1,53 @@
+.bulk-activate-button {
+  background: #10b981; /* emerald */
+  font-family: 'ReadexPro-Regular';
+  font-size: 14px;
+  color: white;
+  border-radius: 15px;
+  cursor: pointer; 
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 10px 16px;
+  border: none;
+  margin: 0 1rem 0 0;
+}
+
+.bulk-activate-button:hover {
+  background: #0ea373;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bulk-activate-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+}
 @font-face {
   font-family: 'customfont1';
   src: url('assets/fonts/ReadexPro-bold.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
+}
+
+/* Override: On 360–480px, anchor filter dropdown under the Filter button */
+@media (min-width: 360px) and (max-width: 480px) {
+  .manage-wrapper .add-user-button-container { position: relative !important; }
+  .manage-wrapper .add-user-button-container .filter-dropdown {
+    position: absolute !important;
+    top: calc(100% - 8px) !important; /* move higher (closer to button) */
+    right: 0 !important;              /* hug the Filter button edge */
+    left: auto !important;
+    transform: none !important;
+    min-width: 260px !important;
+    max-width: 90vw !important;
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+    transition: none !important;
+    z-index: 10002 !important;
+    margin: 0 !important;
+  }
 }
 
 @font-face {
@@ -37,6 +82,31 @@ body {
   margin-bottom: 2rem;
   height: 50%;
   box-sizing: border-box;
+}
+
+/* Mobile header blur + backdrop activation to mirror Feedback (360px–480px) */
+@media (min-width: 360px) and (max-width: 480px) {
+.account-header-bar.blurred {
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+}
+
+
+.sidebar-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1099;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 }
 
 /* Filter Button Styles */
@@ -272,7 +342,7 @@ box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
 .bulk-delete-button {
 background: #dc3545;
 font-family: 'ReadexPro-Regular';
-font-size: 15px;
+  font-size: 14px;
 color: white;
 border-radius: 15px;
 cursor: pointer; 
@@ -280,7 +350,7 @@ transition: all 0.3s ease;
 display: flex;
 align-items: center;
 gap: 0.5rem;
-padding: 15px 20px;
+  padding: 10px 16px;
 border: none;
 margin: 0 4rem 0 0;
 }
@@ -841,7 +911,7 @@ background-color: rgba(0, 0, 0, 0.5);
 display: flex;
 justify-content: center;
 align-items: center;
-z-index: 10000;
+z-index: 20000; /* above pagination and header */
 backdrop-filter: blur(2px);
 isolation: isolate;
 }
@@ -856,7 +926,7 @@ max-width: 650px;
 margin: 0 auto;
 font-family: 'customfont1';
 position: relative;
-z-index: 10001;
+z-index: 20001; /* above overlay */
 }
 
 /* Form polish without changing container size */
@@ -1363,6 +1433,7 @@ border: 1px solid #ef9a9a;
     font-size: 0.9rem;
     min-height: 44px;
   }
+
 }
 
 @media (max-width: 360px) {
@@ -3079,7 +3150,7 @@ z-index: 1000;
 @media (min-width: 1920px) {
   .account-header-bar {
     padding: 1rem 4rem;
-    height: 80px;
+    height: 81px;
   }
   
   .header-logo {
@@ -3582,35 +3653,254 @@ z-index: 1000;
     padding: 1rem 2rem;
     height: 60px;
   }
-  
-  .manage-wrapper {
-    max-width: 75.6%;
-    margin: 9rem 0 0 18%;
-    margin-bottom: -5rem;
-    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+
+  .add-user-form-container {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+  .add-user-form {
+    max-width: 720px;
+    max-height: 80vh;
+    overflow-y: auto;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .user-row {
+    border-bottom: 1px solid #e2e8f0 !important;
+    width: 115% !important;
+    transition: all 0.3s ease !important;
+    padding: 1rem !important;
+    margin-top: -1rem !important;
   }
   
-  .manage-wrapper.sidebar-collapsed {
-    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+  .user-row:hover {
+    background-color: #f8fafc !important; /* Light blue-gray hover */
+    border-bottom: 1px solid #cbd5e1 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    transform: translateY(-1px) !important;
+  }
+  
+  /* When sidebar is collapsed, user rows should be 100% width */
+  .manage-wrapper.sidebar-collapsed .user-row {
+    border-bottom: 1px solid #e2e8f0 !important;
+    width: 100% !important;
+    transition: all 0.3s ease !important;
+    padding: 1rem !important;
+    margin-top: -1rem !important;
+  }
+  
+  .manage-wrapper {
+    max-width: 77% !important; /* COMMENT: Full width available - ADJUST THIS VALUE */
+    margin: 9rem 0 0 17%;
+    margin-bottom: -5rem;
+    margin-left: 18rem !important; 
+    transition: all 0.3s ease !important;
   }
   
   .account-main-content {
-    margin-left: 18rem; /* COMMENT: Increased margin-left when sidebar is open */
+    margin-left: 17rem !important; 
+    max-width: 80.5% !important;
+    transition: all 0.3s ease !important;
+    
+  }
+
+  .manage-wrapper.sidebar-collapsed {
+    margin-left: 8rem !important;
+    max-width: 88% !important;
+    transition: all 0.3s ease !important;
   }
   
   .account-main-content.sidebar-collapsed {
-    margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
-  }
-  
-  /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
-  .manage-wrapper.sidebar-collapsed,
-  .account-main-content.sidebar-collapsed {
-    margin-left: 6rem; /* COMMENT: Small margin-left when sidebar is closed - ADJUST THIS VALUE */
+    margin-left: 7rem !important;
+    max-width: 94% !important;
+    transition: all 0.3s ease !important;
   }
   
   .account-container {
-    height: 35rem;
+    height: 21.6rem !important;
     padding: 2rem;
+    padding-bottom: 5rem !important; /* Space for pagination */
+    overflow: auto !important;
+    position: relative !important;
+  }
+  
+  /* Force pagination to bottom */
+  .pagination-bar {
+    position: absolute !important;
+    bottom: -13rem !important;
+    left: 2rem !important; /* Account for container padding */
+    right: 2rem !important;
+    padding: 1rem 0 !important;
+    margin: 0 !important;
+    gap: 1rem !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 100 !important; /* High z-index to stay on top */
+  }
+
+  .pagination-btn {
+    padding: 0.5rem .5rem !important;
+    font-size: 13px !important;
+    font-family: 'customfont1' !important;
+    border-radius: 8px !important;
+    min-width: 50px !important;
+    transition: all 0.3s ease !important;
+  }
+
+  .filter-dropdown {
+    min-width: 200px !important;
+    padding: 20px !important;
+    top: 100% !important;
+    left: 70% !important;
+    border-radius: 10px !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+  }
+
+  .filter-section select,
+.filter-section input {
+  padding: 10px 2px !important;
+  font-size: 14px !important;
+  border-radius: 6px !important;
+  border: 1px solid #d1d5db !important;
+  transition: all 0.2s ease !important;
+}
+  
+  .sidebar-wrapper {
+    top: 60px !important; 
+    transition: all 0.3s ease !important;
+  }
+  
+  /* Font scaling for 1536px laptops */
+  .header-title {
+    font-size: 1.5rem;
+  }
+  
+  .add-user-button,
+  .bulk-delete-button,
+  .filter-button {
+    font-size: 13px;
+  }
+  /* Header Cell Adjustments for 1536px */
+  .header-cell.checkbox-cell {
+    width: 50px !important;
+    padding: 0.5rem !important;
+    margin-left: -1.5rem !important;
+  }
+  
+  .user-cell.checkbox-cell {
+    width: 50px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -1.5rem !important; /* ADJUST THIS VALUE */
+  }
+
+  .header-cell.name-cell {
+    width: 200px !important;
+    padding: 0.5rem !important;
+    margin-left: -.5rem !important;
+  }
+
+  .user-cell.name-cell {
+    width: 200px !important;
+    padding: 1rem !important;
+    margin-left: -3rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.role-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: 2rem !important;
+  }
+
+  .user-cell.role-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: 1rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.status-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+  }
+  
+  .header-cell.farm-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -1rem !important;
+  }
+  
+  .user-cell.status-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -1rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .user-cell.farm-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: 2rem !important;
+    font-size: 14px !important;
+    color: #495057 !important;
+    font-family: 'ReadexPro-Regular' !important;
+  }
+
+  .header-cell.contact-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: -1.5rem !important;
+  }
+
+  .user-cell.contact-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.actions-cell {
+    width: 150px !important;
+    padding: 0.5rem !important;
+    margin-left: -2.5rem !important;
+  }
+    
+  .user-cell.actions-cell {
+    width: 150px !important;
+    padding: 0.5rem !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.joined-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    margin-left: -2.5rem !important;
+  }
+    
+  .user-cell.joined-cell {
+    width: 120px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-left: -0.5rem !important; /* ADJUST THIS VALUE */
+  }
+  
+  .header-cell.delete-cell {
+    width: 80px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+  }
+    
+  .user-cell.delete-cell {
+    width: 80px !important;
+    padding: 0.5rem !important;
+    justify-content: center !important;
+    margin-right: 2rem !important; /* ADJUST THIS VALUE */
   }
 }
 
@@ -3823,7 +4113,7 @@ z-index: 1000;
 /* ======================================== */
 @media (min-width: 480px) and (max-width: 767px) {
   .account-header-bar {
-    padding: 0.6rem 0.8rem;
+    padding: 0.5rem 1rem;
     height: 55px;
     margin-bottom: 1rem;
   }
@@ -3926,7 +4216,7 @@ z-index: 1000;
 /* ======================================== */
 @media (max-width: 479px) {
   .account-header-bar {
-    padding: 0.5rem;
+    padding: 0.5rem 1rem;
     height: 50px;
     margin-bottom: 0.8rem;
   }
@@ -4214,10 +4504,9 @@ Mobile Responsiveness
   }
 
   /* Header */
-  .account-header-bar { 
-    padding: 0.4rem; 
-    height: 45px; 
-    margin-bottom: 1rem; 
+  .account-header-bar {
+    padding: 0.5rem 1rem;
+    height: 57.59px;
   }
 
   /* Sidebar (slide over content, no gap below header) */
@@ -4307,7 +4596,8 @@ Mobile Responsiveness
 
   .user-cell::before {
     content: attr(data-label) ": ";
-    font-weight: 600;
+    
+    font-weight: 700; /* bold labels on mobile */
     color: #495057;
     display: block;
     width: 90px;
@@ -4317,6 +4607,23 @@ Mobile Responsiveness
   }
 
   .user-cell > * { grid-column: 2; }
+
+  /* Align farm, contact, actions, and joined cells to the left on small phones */
+  .user-cell.farm-cell,
+  .user-cell.contact-cell,
+  .user-cell.actions-cell,
+  .user-cell.joined-cell {
+    text-align: left !important;
+  }
+
+  /* Nudge these cells a bit further left by narrowing the label column */
+  .user-cell.farm-cell,
+  .user-cell.contact-cell,
+  .user-cell.actions-cell,
+  .user-cell.joined-cell {
+    grid-template-columns: 75px 1fr; /* was 110px via --mobile-label-width */
+    column-gap: 0.25rem;
+  }
 
   /* Hide the first cell (checkbox) on mobile */
   .user-cell:first-child {
@@ -4369,6 +4676,14 @@ Mobile Responsiveness
     line-height: 1;
   }
 
+  /* Add User form: nudge the X close button a bit to the left on small phones */
+  .close-form-button,
+  .close-modal-btn {
+    right: 14px !important; /* was 8px; nudge further left */
+    top: 8px !important;
+    position: absolute;
+  }
+
   /* Buttons container */
   .add-user-button-container {
     flex-direction: column;
@@ -4402,6 +4717,7 @@ Mobile Responsiveness
     transform: translateX(-50%);
     right: auto !important;
   }
+  
 }
 
   /* 361px to 480px (Standard phones) - Mobile-first responsive design */
@@ -4415,20 +4731,28 @@ Mobile Responsiveness
 
   /* Header */
   .account-header-bar { 
-    padding: 0.6rem 0.8rem; 
-    height: 55px; 
-    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
+    height: 57.59px; 
+    margin-bottom: 0;
     width: 100%;
     box-sizing: border-box;
   }
+
+  /* Hide header search on small phones */
+  .header-right .header-search-container { display: none !important; }
+
+  /* While Add User form is open, disable pointer events on header right area */
+  body:has(.add-user-form-container) .header-right { pointer-events: none; }
+  body:has(.add-user-form-container) .header-right .user-menu { pointer-events: none; }
+  body:has(.add-user-form-container) .header-right .header-dropdown-menu { pointer-events: none; }
 
   /* Sidebar (slide over content, aligned under header) */
   .sidebar-wrapper { 
     position: fixed; 
     left: -100%; 
-    top: 55px; 
+    top: 51px !important; 
     width: 100vw; 
-    height: calc(100vh - 55px); 
+    height: calc(100vh - 51px) !important; 
     z-index: 1100; 
     transition: left 0.3s ease; 
     box-sizing: border-box; 
@@ -4458,28 +4782,25 @@ Mobile Responsiveness
   
   .manage-wrapper { 
     max-width: 100%; 
-    margin: 7rem 0 1rem 0; 
+    margin: 3.25rem 0 1rem 0; 
     padding: 0 0.5rem;
     box-sizing: border-box; 
   }
   
   .account-container { 
     width: 100%; 
-    margin: 1rem 0; 
-    padding: 0.5rem; 
+    margin: 0; 
+    padding: 0.4rem 0.5rem 0.5rem 0.5rem; 
     height: auto; 
     box-sizing: border-box;
   }
 
   /* Mobile table - Stack layout instead of grid */
   .table-header {
-    background: #f8f9fa;
-    border-radius: 8px 8px 0 0;
-    padding: 0.5rem;
-    border-bottom: 2px solid #e9ecef;
-    margin-top: 2rem;
-    width: 100%;
-    box-sizing: border-box;
+    display: none !important; /* Hide header container on small phones to avoid gaps */
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
   }
 
   .header-row { 
@@ -4504,6 +4825,12 @@ Mobile Responsiveness
     box-sizing: border-box;
   }
 
+  /* Give a bit more breathing room at the top to avoid clipping */
+  .user-row { 
+    padding-top: 4rem; 
+    padding-bottom: 2.5rem;
+  }
+
   .user-cell {
     display: block;
     padding: 0.25rem 0;
@@ -4511,6 +4838,7 @@ Mobile Responsiveness
     border-bottom: 1px solid #f0f0f0;
     margin-bottom: 0.5rem;
     overflow: hidden; /* prevent content from overflowing */
+    
   }
 
   .user-cell:last-child {
@@ -4532,13 +4860,39 @@ Mobile Responsiveness
 
   .user-cell::before {
     content: attr(data-label) ": ";
-    font-weight: 600;
+    font-weight: 700; /* bold labels on mobile */
     color: #495057;
     display: block;
     width: var(--mobile-label-width);
     margin: 0;
     grid-column: 1;
   }
+
+  
+
+    /* Move Farm row further left on 360–480px by tightening its label width */
+    .user-cell.farm-cell, .user-cell.contact-cell, .user-cell.joined-cell { 
+      grid-template-columns: 50px 1fr !important; 
+      margin-left: -1rem !important; 
+    }
+
+    /* Ensure mobile labels for Farm/Contact/Joined are visible and bold */
+    .user-cell.farm-cell::before,
+    .user-cell.contact-cell::before,
+    .user-cell.joined-cell::before { 
+      width: 0px !important;
+      font-weight: 800 !important;
+      display: block !important;
+    }
+
+     .user-cell.actions-cell{
+      grid-template-columns: 110px 1fr !important; 
+      margin-left: -1.3rem !important; 
+     }
+
+     .user-cell.actions-cell::before {
+      width: 0px !important;
+     }
 
   .user-cell > * { grid-column: 2; }
 
@@ -4556,6 +4910,29 @@ Mobile Responsiveness
     flex: 1;
     min-width: 0; /* allow text to shrink */
   }
+
+  /* Ensure Delete button text is visible on 360–480px */
+  .user-cell.delete-cell {
+    display: grid;
+    grid-template-columns: var(--mobile-label-width) 1fr;
+    column-gap: 0.5rem;
+    align-items: center;
+    overflow: visible !important;
+  }
+  .user-cell.delete-cell { justify-items: start; }
+  .user-cell.delete-cell > * { grid-column: 2; justify-self: start !important; }
+  .user-cell.delete-cell .delete-user-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    width: auto !important;
+    max-width: none !important;
+    font-size: 0.9rem;
+    margin-left: 11.35rem !important; /* nudge a bit further left on mobile */
+  }
+  .user-cell.delete-cell .delete-user-btn .action-icon { margin-right: 0.35rem; display: inline-block; }
 
   .account-management-username,
   .account-management-user-email {
@@ -4655,17 +5032,19 @@ Mobile Responsiveness
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   }
 
-  /* Filter dropdown - Mobile positioning */
+  /* Filter dropdown - neutralize centering here to let final override control */
   .filter-dropdown {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
     min-width: 90vw;
     max-width: 400px;
     z-index: 10002;
     max-height: 80vh;
     overflow-y: auto;
+    transition: none;
   }
 
   /* Pagination - Mobile responsive */
@@ -4704,10 +5083,13 @@ Mobile Responsiveness
 /* 481px to 575px (Large phones / small phablets) */
 @media (min-width: 481px) and (max-width: 575px) {
   /* Header */
-  .account-header-bar { padding: 0.6rem 0.8rem; height: 55px; margin-bottom: 1rem; }
+  .account-header-bar {        
+    padding: 0.5rem 1rem;
+    height: 57.59px; 
+    margin-bottom: 1rem; }
 
   /* Sidebar */
-  .sidebar-wrapper { position: fixed; left: -100%; top: 55px; width: 100vw; height: calc(100vh - 55px); z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
+  .sidebar-wrapper { position: fixed; left: -100%; top: 53px !important; width: 100vw; height: calc(100vh - 53px) !important; z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
   .sidebar-wrapper.sidebarOpen { left: 0 !important; }
   .sidebar { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .sidebar-backdrop { display: block; }
@@ -4730,7 +5112,7 @@ Mobile Responsiveness
   .account-header-bar { padding: 0.6rem 0.8rem; height: 55px; margin-bottom: 1rem; }
 
   /* Sidebar */
-  .sidebar-wrapper { position: fixed; left: -100%; top: 55px; width: 100vw; height: calc(100vh - 55px); z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
+  .sidebar-wrapper { position: fixed; left: -100%; top: 53px !important; width: 100vw; height: calc(100vh - 53px) !important; z-index: 1100; transition: left 0.3s ease; box-sizing: border-box; }
   .sidebar-wrapper.sidebarOpen { left: 0 !important; }
   .sidebar { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .sidebar-backdrop { display: block; }
@@ -4751,6 +5133,9 @@ Mobile Responsiveness
 @media (min-width: 700px) and (max-width: 899px) {
   /* Header */
   .account-header-bar { padding: 0.8rem 1rem; height: 60px; margin-bottom: 0.5rem; box-sizing: border-box; }
+  /* Ensure table header is visible on tablets (overrides smaller breakpoints) */
+  .table-header { display: block !important; }
+  .header-row { display: grid !important; }
 
   /* Sidebar behaves as slide-over at this size; keep content full width */
   .account-main-content { margin-left: 0 !important; width: 100%; overflow-x: auto !important; }
@@ -4762,40 +5147,57 @@ Mobile Responsiveness
     justify-content: center;
     align-items: center;
     gap: 0.8rem;
-    margin: 1rem auto;
+    margin: 0.25rem auto 0.8rem auto; /* nudge buttons closer to the top */
     padding: 0 1rem;
   }
+
+  /* Move only the Add New User button up without affecting Filter */
+  .add-user-button-container .add-user-button { margin-top: -7.4rem !important; }
 
   /* Table wrapper and content: use horizontal scroll with stable layout width */
   html, body { overflow-x: auto; }
   .manage-wrapper { max-width: 92%; margin: 9.5rem auto 1.5rem auto; }
-  .account-container { width: 92%; margin: 1rem auto; padding: 1.5rem; height: auto; min-height: 82vh; }
+  .account-container { width: 92%; height: auto; min-height: 82vh; }
 
   /* Keep header and rows aligned via a consistent minimum width */
   .manage-wrapper, .header-row, .user-row { min-width: 1200px !important; }
   /* Make the overall container narrower, centered, and positioned lower on tablet */
-  .account-container { width: 88% !important; max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: 5rem; min-height: 50vh; }
+  .account-container { width: 88% !important; max-width: 1100px; margin-left: auto; margin-right: auto; margin-top: -1rem; min-height: 50vh; }
 
   /* Align table header horizontally with the account container */
   .table-header {
-    width: 85% !important; /* widen on tablets for better alignment */
-    max-width: 810px;
-    margin-left: auto;
-    margin-right: auto;
+    /* Match account-container width on tablets */
+    width: 88% !important;
+    max-width: 1100px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
     position: relative;
-    left: .2rem; /* nudge header slightly to the left on tablets */
+    right: 3%!important; /* keep aligned */
     overflow-x: auto; /* allow header grid to scroll like the rows */
-    margin-top: 0; /* keep header directly under filter buttons */
+    overflow-y: hidden; /* prevent vertical track space that can clip end columns */
+    -webkit-overflow-scrolling: touch; /* smooth horizontal scrolling */
+    touch-action: pan-x; /* make horizontal drag easier */
+    padding-right: 12% !important; /* extra space so Actions/Joined are not clipped */
+    scrollbar-gutter: stable both-edges; /* avoid layout shift when scrolling */
+    margin-top: -8.5rem !important; /* nudge header closer to the top */
+    margin-bottom: 0 !important;
   }
 
+  /* Ensure the inner grid can extend and be fully scrollable */
+  .table-header .header-row { width: max-content; min-width: 1500px !important; }
+
+  /* Show scrollbar (user requested visible track on tablets) */
+  .table-header { -ms-overflow-style: auto; scrollbar-width: auto; }
+  /* keep WebKit scrollbar visible by not overriding */
+
   /* Push only the user grid lower; keep table header position */
-  .user-grid-container { margin-top: .5rem; padding-top: 1.9rem; }
+  .user-grid-container { margin-top: 0rem !important; padding-top: 2.4rem !important; }
 
   /* Ensure the header grid matches the row grid to avoid misalignment */
   .header-row { 
     display: grid; 
     /* Match DOM order: [checkbox, name, role, farm, status, contact, actions, joined, delete] */
-    grid-template-columns: 50px 1.3fr 0.9fr 0.9fr 1.4fr 0.8fr 2.0fr 1.1fr 40px; 
+    grid-template-columns: 70px 1.3fr 0.9fr 0.9fr 1.4fr 0.8fr 0.5fr 2.0fr 100px; 
     gap: 0.6rem;
   }
 
@@ -4832,8 +5234,12 @@ Mobile Responsiveness
     margin-top: 0;
     background: #ffffff;
     border-top: 1px solid #e5e7eb;
-    z-index: 2;
+    z-index: 100; /* keep below modal overlay */
   }
+
+  /* Ensure Add User form overlays pagination on tablets */
+  .add-user-form-container { position: fixed !important; z-index: 20000 !important; }
+  .add-user-form { position: relative; z-index: 20001 !important; }
 
 
   /* Reset negative margins that can cause overlap on tablets */
@@ -4864,6 +5270,36 @@ Mobile Responsiveness
     justify-content: flex-end; /* push action buttons to the right */
   }
 
+  /* Nudge delete cell/button to the right on small phones */
+  .user-cell.delete-cell {
+    display: grid;
+    grid-template-columns: var(--mobile-label-width) 1fr;
+    column-gap: 0.5rem;
+    align-items: center;
+    width: 100% !important; /* override fixed widths from larger breakpoints */
+    min-width: 0 !important;
+    padding-right: 0.25rem;
+  }
+  .user-cell.delete-cell > * { grid-column: 2; justify-self: end !important; }
+  /* Force icon and text to stay visible on mobile */
+  .user-cell.delete-cell .delete-user-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    width: auto !important;
+    max-width: none !important;
+    text-indent: 0 !important;
+    color: inherit !important;
+  }
+  .user-cell.delete-cell .delete-user-btn {
+    justify-self: end !important;
+    margin-left: auto !important; /* ensure it pushes to the right */
+    margin-right: 0 !important;
+    width: auto !important;
+  }
+
   .user-cell.actions-cell .activate-tech-officer-btn,
   .user-cell.actions-cell .reset-password-btn,
   .user-cell.actions-cell .delete-user-btn {
@@ -4888,6 +5324,43 @@ Mobile Responsiveness
     background: transparent !important;
     box-shadow: none !important;
   }
+
+  /* Make Add User form scrollable and not full-screen on tablets */
+  .add-user-form-container {
+    align-items: flex-start !important;
+    padding: 1rem !important;
+    /* Overlay must cover the whole viewport to block pagination */
+    top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: 100% !important; height: 100% !important;
+    max-height: none !important;
+    overflow: hidden !important; /* scrolling happens inside the form */
+  }
+
+  .add-user-form {
+    width: 85% !important;
+    max-width: 600px !important;
+    height: auto !important;
+    max-height: 85vh !important; /* scroll just the form content */
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Narrow Add/Cancel buttons in the Add User form for tablets */
+  .add-user-form .add-button,
+  .add-user-form .cancel-button {
+    display: inline-flex !important;
+    flex: 0 0 auto !important; /* prevent flex grow/stretched widths */
+    width: auto !important;
+    min-width: 100px !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    align-self: flex-start !important; /* avoid container alignment stretching */
+  }
+
+  /* Place Add and Cancel side by side */
+  .add-user-form .form-buttons { flex-direction: row !important; justify-content: center !important; gap: 10px !important; }
+  .add-user-form .add-button,
+  .add-user-form .cancel-button { display: inline-flex !important; flex: 0 0 auto !important; }
 }
 
 

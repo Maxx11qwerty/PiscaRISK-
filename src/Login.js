@@ -9,6 +9,7 @@ import OTPVerification from './components/OtpVerification';
 import "./Login.css";
 import "./Login.responsive.css";
 import { logActivity } from './utils/logger';
+import { formatUserInputPH, validatePhilippineMobile, normalizeToE164PH, stripToDigits } from './utils/phonePh';
 
 export default function Login() {
   const { t } = useTranslation(); // Add this hook
@@ -92,36 +93,65 @@ export default function Login() {
     return "";
   };
 
-  // (removed unused validatePhoneNumber)
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
     if (name === 'emailOrContact') {
+      // If the user is typing a number (not email), live format and enforce 09 prefix
+      const looksNumeric = /^\+?[\d\s()-]*$/.test(value) && !value.includes('@');
+      if (looksNumeric) {
+        const prevValue = formData.emailOrContact || '';
+        const prevDigits = stripToDigits(prevValue);
+        const nextFormatted = formatUserInputPH(value).value;
+        const nextDigits = stripToDigits(nextFormatted);
+
+        // Compute local-style digits to enforce 09 prefix
+        let localDigits = nextDigits;
+        if (nextFormatted.startsWith('+63')) {
+          const after = stripToDigits(nextFormatted.slice(3));
+          localDigits = after ? `0${after}` : '';
+        } else if (nextDigits.startsWith('63')) {
+          const after = nextDigits.slice(2);
+          localDigits = after ? `0${after}` : '';
+        }
+
+        // Allow deletions; enforce prefix on insertions/expansions only
+        const isDeletion = nextDigits.length < prevDigits.length;
+        if (!isDeletion) {
+          if ((localDigits.length === 1 && localDigits[0] !== '0') ||
+              (localDigits.length >= 2 && !localDigits.startsWith('09'))) {
+            // Reject this change
+            setContactError("");
+            return;
+          }
+        }
+
+        setFormData({ ...formData, [name]: nextFormatted });
+        setContactError("");
+        return;
+      }
       setFormData({ ...formData, [name]: value });
-      // Clear any previous contact error when user types
       setContactError("");
-    } else {
-      setFormData({ ...formData, [name]: value });
+      return;
     }
+    setFormData({ ...formData, [name]: value });
   };
   
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     
-    // Validate contact number if it's all digits
-    if (/^\d+$/.test(formData.emailOrContact)) {
-      const contactError = validateContactNumber(formData.emailOrContact);
-      if (contactError) {
-        setError(contactError);
-        // Clear input fields on validation error
-        setFormData({
-          emailOrContact: "",
-          password: "",
-        });
+    // If input is a phone (no @), validate and normalize to +63
+    if (!formData.emailOrContact.includes('@')) {
+      const phoneValidation = validatePhilippineMobile(formData.emailOrContact);
+      if (!phoneValidation.valid) {
+        setError(phoneValidation.message || 'Enter a valid PH mobile number.');
+        setFormData({ emailOrContact: '', password: '' });
         return;
       }
+      const normalized = normalizeToE164PH(formData.emailOrContact) || formData.emailOrContact;
+      // Replace input with normalized phone for backend query consistency
+      formData.emailOrContact = normalized;
     }
     
     try {
@@ -138,14 +168,7 @@ export default function Login() {
           devError('Failed to log login activity:', logError);
         }
         
-        // Clear the login processing flag immediately
-        if (isProcessingLoginRef) {
-          isProcessingLoginRef.current = false;
-          // Cleared login processing flag
-        }
-        
-        // Navigate immediately without delay
-        // Navigating to Homepage
+        // Navigate immediately - processing flag is cleared in AuthContext
         navigate('/Homepage', { replace: true });
       } else {
         if (result.code === 'show_verification_modal') {
@@ -285,6 +308,7 @@ export default function Login() {
                   value={formData.emailOrContact}
                   onChange={handleInputChange}
                   className="input-field"
+                  disabled={isSubmitting}
                   required
                 />
               </div>
@@ -296,13 +320,14 @@ export default function Login() {
 
               <div className="login-password-wrapper">
                 <FaLock className="login-lock-icon" />
-                                    <input
+                  <input
                     type={showPassword ? "text" : "password"}
                     name="password"
                     placeholder={t('login.passwordPlaceholder')}
                     value={formData.password}
                     onChange={handleInputChange}
                     className="login-password-input"
+                    disabled={isSubmitting}
                     required
                   />
                 <button 
@@ -405,6 +430,14 @@ export default function Login() {
             setError('');
           }}
         />
+      )}
+      {isSubmitting && (
+        <div className="login-loading-overlay" role="status" aria-live="polite" aria-label="Logging in">
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'8px'}}>
+            <div className="login-spinner" />
+            <div className="login-loading-text">{t('login.loggingIn', 'Logging in…')}</div>
+          </div>
+        </div>
       )}
     </div>
   );

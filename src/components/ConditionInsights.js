@@ -216,7 +216,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
             return farmMatch && isRisk;
           });
         } else {
-          // Show all farms for super admin
+          // Show all farms for tech officer
           finalItems = deduped.filter(item => {
             const isRisk = item.summary?.toLowerCase().includes('risk') || 
                           item.summary?.toLowerCase().includes('alert') ||
@@ -281,13 +281,7 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     return () => clearInterval(timerRef.current);
   }, [displayItems.length, autoRotateMs, enableRotate]);
 
-  const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
-  const farmOptions = useMemo(() => {
-    if (!isSuperAdmin) return [];
-    const setFarms = new Set(items.map(it => it.farm).filter(Boolean));
-    return ['all', ...Array.from(setFarms)];
-  }, [items, isSuperAdmin]);
 
   // Get available farms for history filter (for all users)
   const historyFarmOptions = useMemo(() => {
@@ -315,22 +309,9 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
     if (typeof onCountChange === 'function') onCountChange(activeItems.length);
   }, [activeItems.length, onCountChange]);
 
-  // Apply farm filter on active list for display
-  const filtered = useMemo(() => {
-    const base = activeItems;
-    if (!isSuperAdmin || selectedFarm === 'all') {
+  // Use activeItems directly without farm filtering
+  const filtered = activeItems;
 
-      return base;
-    }
-    const farmFiltered = base.filter(it => it.farm === selectedFarm);
-
-    return farmFiltered;
-  }, [activeItems, isSuperAdmin, selectedFarm]);
-
-  useEffect(() => {
-    // Reset index when filter changes
-    setIndex(0);
-  }, [selectedFarm]);
 
   // If no active items found, show resolved items (older than 24h)
   const resolvedItems = useMemo(() => {
@@ -390,13 +371,6 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
           </span>
         </div>
         <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {isSuperAdmin && farmOptions.length > 1 && (
-            <select className="ci-farm-filter" value={selectedFarm} onChange={(e) => setSelectedFarm(e.target.value)}>
-              {farmOptions.map((op) => (
-                <option key={op} value={op}>{op === 'all' ? t('conditionInsights.allFarms') : op}</option>
-              ))}
-            </select>
-          )}
           <button
             onClick={() => {
               const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
@@ -639,8 +613,8 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
                                     item.farm?.toLowerCase() === currentUser.farm?.toLowerCase();
                     return farmMatch;
                   });
-                } else if (isSuperAdmin && selectedFarm !== 'all') {
-                  historyItems = items.filter(it => it.farm === selectedFarm);
+                } else {
+                  historyItems = items;
                 }
                 
                 // Apply filters

@@ -47,6 +47,29 @@ body {
   box-sizing: border-box;
 }
 
+/* Mobile header blur and backdrop behavior (360px–480px) to match Feedback */
+@media (min-width: 360px) and (max-width: 480px) {
+.logs-header-bar.blurred {
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+}
+
 .header-logo-container {
   display: flex;
   align-items: center;
@@ -1313,8 +1336,8 @@ body {
 /* 480px - 767px MOBILE */
 @media (min-width: 480px) and (max-width: 767px) {
   .logs-header-bar {
-    padding: 0.6rem 0.8rem;
-    height: 55px;
+    padding: 0.5rem 1rem;
+    height: 57.59px;
     margin-bottom: 1rem;
   }
   
@@ -1420,8 +1443,8 @@ body {
 /* Small Mobile Screens (below 480px) */
 @media (max-width: 479px) {
   .logs-header-bar {
-    padding: 0.5rem;
-    height: 50px;
+    padding: 0.5rem 1rem;
+    height: 57.59px;
     margin-bottom: 0.8rem;
   }
   
@@ -1622,8 +1645,8 @@ body {
 /* Fix for very small screens */
 @media (max-width: 360px) {
   .logs-header-bar {
-    padding: 0.4rem;
-    height: 45px;
+    padding: 0.5rem 1rem;
+    height: 57.59px;
   }
   
   .header-logo {
@@ -1837,8 +1860,8 @@ body {
   }
   
   .logs-header-bar {
-    padding: 0.4rem 0.75rem;
-    height: 55px;
+    padding: 0.5rem 1rem;
+    height: 57.59px;
     margin-bottom: 0;
     position: fixed;
     top: 0;
@@ -1944,8 +1967,8 @@ body {
   }
   
   .logs-header-bar {
-    padding: 0.3rem 0.5rem;
-    height: 50px;
+    padding: 0.5rem 1rem;
+    height: 57.59px;
     margin-bottom: 0;
     position: fixed;
     top: 0;
@@ -2090,6 +2113,53 @@ body {
   .logs-list {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+  }
+}
+
+/* Fine-tune filter button position for 360px–480px width */
+@media (min-width: 360px) and (max-width: 480px) {
+  .logs-filter-button {
+    margin-top: 2rem; /* move filter button slightly further down */
+  }
+  .logs-manage-wrapper {
+    margin-top: 2.5rem; /* bring container closer to header */
+  }
+  .logs-container {
+    margin-top: 0; /* remove extra top margin inside container */
+  }
+  /* Left-align logs header cells and reset offsets on small mobile */
+  .logs-header-row {
+    justify-items: start;
+  }
+  .header-cell {
+    display: grid;
+    grid-template-columns: var(--mobile-label-width) 1fr;
+    column-gap: 0.5rem;
+    align-items: start;
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .header-cell::before {
+    content: attr(data-label) ": ";
+    font-weight: 700; /* bold labels on mobile */
+    color: #495057;
+    display: block;
+    width: var(--mobile-label-width);
+    margin: 0;
+    grid-column: 1;
+  }
+  .header-cell.time-cell::before,
+  .header-cell.actions-cell::before,
+  .header-cell.action-target-cell::before,
+  .header-cell.source-cell::before {
+    width: 0px !important;
+    font-weight: 800 !important;
+    display: block !important;
+  }
+  .header-cell.time-cell,
+  .header-cell.actions-cell {
+    margin-left: 0;
+    justify-content: flex-start;
   }
 }
 

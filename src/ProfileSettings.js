@@ -21,10 +21,8 @@ export default function AccountSettings() {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { t } = useTranslation();
-  const [newPassword, setNewPassword] = useState("");
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
   const [showMenu, setShowMenu] = useState(false);
+  const [notificationCloseSignal, setNotificationCloseSignal] = useState(0);
   const [tempProfileImage, setTempProfileImage] = useState(null); // For preview before confirmation
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
@@ -39,7 +37,6 @@ export default function AccountSettings() {
   const [showUsernameChangeForm, setShowUsernameChangeForm] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [usernameError, setUsernameError] = useState('');
-  const [showUsernameOptions, setShowUsernameOptions] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSendingVerification, setIsSendingVerification] = useState(false);
@@ -845,9 +842,12 @@ const handleSendVerificationEmail = async () => {
             <div className="header-title">PiscaRISK</div>
           </div>
           <div className="header-right">
-            <NotificationBox />
+            <NotificationBox externalCloseSignal={notificationCloseSignal} />
             <div className="user-menu">
-              <button onClick={() => setShowMenu(!showMenu)}>
+              <button onClick={() => {
+                setNotificationCloseSignal(prev => prev + 1); // Close notification when user menu opens
+                setShowMenu(!showMenu);
+              }}>
                 {currentUser?.profileImage ? (
                   <img 
                     src={currentUser.profileImage} 

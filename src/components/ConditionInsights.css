@@ -489,6 +489,36 @@
       .ci-card.ci-compact::after { bottom: 0; right: 8px; font-size: 9px; }
     }
 
+  /* Mobile readability and anti-overlap rules for 360–480px */
+  @media screen and (min-width: 360px) and (max-width: 480px) {
+    /* Reduce padding and allow text to wrap safely */
+    .ci-card { padding: 12px 12px; }
+    .ci-severity { flex-wrap: wrap; gap: 6px; }
+    .ci-sev-chip { white-space: normal; line-height: 1.2; }
+    .ci-meta { font-size: 11px; white-space: normal; word-break: break-word; }
+    .ci-message { font-size: 12px; -webkit-line-clamp: 4; line-clamp: 4; }
+    
+    /* Pagination should not overlap; allow wrapping */
+    .ci-pagination { flex-wrap: wrap; gap: 8px; }
+    .ci-nav { padding: 5px 10px; font-size: 11px; }
+    .ci-index { font-size: 11px; }
+
+    /* Modal header/title wrapping and tighter paddings */
+    .ci-modal-header { padding: 12px 14px; }
+    .ci-modal-header h3 { font-size: 16px; line-height: 1.25; white-space: normal; }
+    .ci-modal-content { padding: 14px; }
+    .ci-modal-chip { font-size: 12px; padding: 3px 10px; }
+    .ci-modal-meta div, .ci-modal-summary { font-size: 13px; }
+
+    /* History filter rows: wrap to new lines to avoid overflow */
+    .ci-history-filters { padding: 12px 14px; }
+    .ci-filter-row { flex-wrap: wrap; gap: 10px; }
+    .ci-filter-group { min-width: 140px; }
+    .ci-search-group { min-width: 140px; flex: 1; }
+    .ci-filter-select, .ci-filter-search { font-size: 12px; }
+    .ci-clear-filters { font-size: 11px; padding: 6px 10px; }
+  }
+
     /* Responsive Styles for Laptop Screens */
     @media screen and (min-width: 1024px) and (max-width: 1366px) {
       .condition-insights {

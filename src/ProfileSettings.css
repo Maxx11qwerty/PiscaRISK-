@@ -348,6 +348,37 @@
   .email-password-row .verification-notice { max-width: none; margin-top: 8px; }
 }
 
+/* 1366px to 1535px (Standard laptops) – mirror 1536px styles */
+@media (min-width: 1366px) and (max-width: 1535px) {
+/* Override order conflicts: ensure 1366–1535px width applies last */
+
+  .account-wrapper { max-width: 72% !important; }
+  .sidebar-wrapper.collapsed ~ .account-wrapper { max-width: 85% !important; }
+
+  .profile-settings-box {
+    max-width: 70%;
+    margin-left: 10rem;
+    min-height: 27rem;
+    padding-bottom: 1rem;
+  }
+  .profile-layout { height: auto; }
+  .profile-fields-section { gap: 0.75rem; }
+  .fields-row { flex-wrap: wrap; gap: 1rem; }
+  .field-input { margin-bottom: 0.5rem; }
+  .change-password-btn { width: 260px; min-width: 220px; }
+  .save-changes-row { margin-top: 0.5rem; margin-left: 0; display: flex; justify-content: center; }
+  .save-changes-row .profile-field { flex: 0 0 100%; max-width: 40%; }
+  .email-password-row { display: grid; grid-template-columns: 310px 310px; column-gap: 1.25rem; align-items: flex-start; justify-content: start; }
+  .email-password-row .email-field,
+  .email-password-row .password-field { width: 100%; }
+  .email-password-row .field-input-container { width: 100%; }
+  /* When sidebar is collapsed (closed), nudge content slightly right */
+  .sidebar-wrapper.collapsed ~ .account-wrapper { margin-top: 2rem; margin-left: 9rem !important; }
+  .sidebar-wrapper.collapsed ~ .profile-settings-box { margin-left: 9rem !important; max-width: 78%; min-height: 27rem; padding-bottom: 1rem; }
+  .sidebar-wrapper:not(.collapsed) ~ .account-wrapper { margin-top: 2rem; margin-left: 20rem; }
+  .sidebar-wrapper:not(.collapsed) ~ .profile-settings-box { max-width: 68.8%; margin-left: 20rem; }
+}
+
 /* Style the verification notice to fit inline next to input */
 .verification-notice {
   flex: 1 1 auto;

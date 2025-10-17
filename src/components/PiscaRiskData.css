@@ -371,3 +371,33 @@
 }
 
 
+/* Enable horizontal scroll for mobile 360px–480px widths */
+@media (min-width: 360px) and (max-width: 480px) {
+  /* Allow horizontal scrolling for the predictions table */
+  .prd-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure the table grid has a readable minimum width so it can scroll */
+  .prd-thead,
+  .prd-tbody,
+  .prd-pagination {
+    min-width: 560px; /* forces horizontal scroll between 360–480px */
+  }
+
+  /* Farms Overview: enable horizontal scroll when content exceeds width */
+  .farms-overview-list {
+    display: flex !important; /* override grid for narrow screens */
+    gap: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px; /* space for scrollbar */
+  }
+
+  /* Cards should not shrink; allow side-by-side scrolling */
+  .farms-overview-list .prd-card {
+    flex: 0 0 280px; /* min visual width per card for readability */
+  }
+}
+

@@ -1439,6 +1439,8 @@ margin-left: 2rem; /* 2rem gap from left edge */
 }
 }
 
+
+
 /* Laptop and Medium Desktop Screens (1536px to 1919px) */
 @media (min-width: 1536px) and (max-width: 1919px) {
 /* Optimized for laptop screens, medium desktops, and high-resolution displays */
@@ -1575,13 +1577,147 @@ margin-left: 2rem; /* 2rem gap from left edge */
 }
 }
 
-/* Small Monitor and Standard Desktop Screens (1280px to 1535px) */
-@media (min-width: 1280px) and (max-width: 1535px) {
+/* Standard Laptop Screens (1366px to 1535px) - mirror 1536px styles */
+@media (min-width: 1366px) and (max-width: 1535px) {
+  /* Mirroring laptop/medium desktop styles for 1366–1535 */
+  .feedback-wrapper {
+    width: 75%;
+    margin: 0 auto;
+  }
+  
+  .feedback-container {
+    width: 75%;
+    margin: 0 auto;
+  }
+  
+  .feedback-tabs {
+    width: 50%;
+    margin: 0 auto;
+  }
+  
+  .feedback-filter-container {
+    left: 75rem;
+    bottom: 1.6rem;
+  }
+  
+  .feedback-title {
+    font-size: 1.8rem;
+  }
+  
+  .feedback-card {
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  
+  .feedback-message {
+    font-size: 1rem;
+  }
+  
+  .user-name {
+    font-size: 1rem;
+  }
+  
+  .feedback-type {
+    font-size: 0.9rem;
+    padding: 5px 10px;
+  }
+  
+  .content-area {
+    margin-bottom: 10rem;
+  }
+  
+  /* Sidebar closed state adjustments */
+  .feedback:not(.sidebar-open) .feedback-wrapper {
+    width: 90%;
+    margin-left: 2.5rem;
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-container {
+    width: 80%;
+    margin-left: 2.5rem;
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-tabs {
+    width: 90%;
+    margin-left: 2.5rem;
+  }
+  
+  .feedback:not(.sidebar-open) .feedback-filter-container {
+    left: 100rem;
+    top: .5rem;
+  }
+  
+  /* Sidebar open state adjustments */
+  .feedback.sidebar-open .feedback-wrapper {
+    margin-left: 15rem;
+  }
+  
+  .feedback.sidebar-open .feedback-container {
+    margin-left: 18rem;
+  }
+  
+  .feedback.sidebar-open .feedback-tabs {
+    margin-left: 8rem;
+  }
+  
+  /* Sidebar collapsed state adjustments */
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-wrapper {
+    margin-left: 8rem;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-container {
+    margin-left: 10rem;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs {
+    margin-left: -19rem;
+  }
+  
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-filter-container {
+    left: 90rem;
+  }
+  
+  /* Filter dropdown horizontal offset controls */
+  .feedback.sidebar-open .feedback-filter-dropdown {
+    right: 1rem;
+    top: 2.5rem;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown {
+    right: 1rem;
+    top: 2.5rem;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown {
+    right: 1rem;
+    top: 2rem;
+  }
+  
+  /* Filter value widths */
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-input,
+  .feedback.sidebar-open .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+  }
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-input,
+  .feedback:not(.sidebar-open) .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+  }
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-input,
+  .feedback .sidebar-wrapper.collapsed ~ .feedback-tabs .feedback-filter-dropdown .feedback-filter-select {
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+  }
+  }
+
+/* Small Monitor and Standard Desktop Screens (1280px to 1365px) */
+@media (min-width: 1280px) and (max-width: 1365px) {
 /* Optimized for standard desktop monitors, small monitors, and compact displays */
 .feedback-wrapper {
   width: 80%; /* Wider than default for small monitors */
   margin: 0 auto;
 }
+
 
 .feedback-container {
   width: 80%;
@@ -2029,4 +2165,3 @@ margin-left: 2rem; /* 2rem gap from left edge */
   margin-left: 1rem; /* Minimal gap for small mobile when sidebar is collapsed */
 }
 }
-

@@ -40,11 +40,14 @@
 
 .gauge-controls .time-filter {
   margin: 0 auto;
+  font-size: 12px;
+  padding: 4px 8px;
+  height: 28px;
 }
 
 .gauge-area {
   width: 100%;
-  height: clamp(110px, 16vw, 180px);
+  height: clamp(140px, 18vw, 240px);
   position: relative;
   margin-top: .5rem;
 }
@@ -84,7 +87,7 @@
 
 .gauge-status {
   font-family: 'customfont1';
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -98,7 +101,7 @@
     max-width: 560px;
   }
   .gauge-area {
-    height: 220px;
+    height: 260px;
   }
   .health-gauge-container .chart-title {
     font-size: 1.35rem;
@@ -110,7 +113,7 @@
     max-width: 520px;
   }
   .gauge-area {
-    height: 210px;
+    height: 240px;
   }
 }
 
@@ -120,7 +123,7 @@
     padding: 16px;
   }
   .gauge-area {
-    height: 200px;
+    height: 220px;
   }
   .health-gauge-container .chart-title {
     font-size: 1rem;
@@ -129,7 +132,7 @@
     font-size: 1.6rem;
   }
   .gauge-status {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
 }
 
@@ -138,7 +141,7 @@
     max-width: 100%;
   }
   .gauge-area {
-    height: 180px;
+    height: 200px;
   }
 }
 
@@ -147,7 +150,7 @@
     max-width: 100%;
   }
   .gauge-area {
-    height: 170px;
+    height: 190px;
   }
 }
 
@@ -156,7 +159,7 @@
     max-width: 100%;
   }
   .gauge-area {
-    height: 160px;
+    height: 180px;
   }
 }
 
@@ -201,6 +204,7 @@
   .health-gauge-container .chart-title { font-size: 1.2rem; margin-top: 0; }
   .gauge-controls { margin: 0 0 .4rem 0; }
   .health-gauge-container .gauge-area { height: clamp(110px, 16vw, 180px); margin-top: .5rem; }
+  .health-gauge-container .gauge-area { height: clamp(140px, 18vw, 240px); }
   .gauge-percent {
     font-size: 1.5rem;
   }
@@ -218,6 +222,7 @@
   .health-gauge-container .chart-title { font-size: 1.25rem; margin-top: 0; }
   .gauge-controls { margin: 0 0 .4rem 0; }
   .health-gauge-container .gauge-area { height: clamp(120px, 14vw, 200px); }
+  .health-gauge-container .gauge-area { height: clamp(150px, 16vw, 260px); }
   .gauge-percent {
     font-size: 1.6rem;
   }
@@ -236,6 +241,7 @@
   .health-gauge-container .chart-title { font-size: 1.15rem; margin-top: 0; }
   .gauge-controls { margin: 0 0 .4rem 0; }
   .health-gauge-container .gauge-area { height: clamp(110px, 16vw, 180px); }
+  .health-gauge-container .gauge-area { height: clamp(140px, 18vw, 240px); }
   .gauge-percent {
     font-size: 1.4rem;
   }
@@ -263,6 +269,7 @@
   .gauge-controls { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); margin: 0; }
   .gauge-controls .time-filter { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 16px; max-width: 75%; }
   .health-gauge-container .gauge-area { height: 190px; }
+  .health-gauge-container .gauge-area { height: 210px; }
   .gauge-area .recharts-wrapper { transform: translateX(-10%); }
   .center-overlay { transform: translateX(-10%); }
   .gauge-percent {
@@ -282,6 +289,7 @@
   .gauge-controls { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); margin: 0; }
   .gauge-controls .time-filter { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 16px; max-width: 75%; }
   .health-gauge-container .gauge-area { height: 210px; }
+  .health-gauge-container .gauge-area { height: 230px; }
   .gauge-area .recharts-wrapper { transform: translateX(-10%); }
   .center-overlay { transform: translateX(-10%); }
   .gauge-percent {
@@ -299,6 +307,7 @@
   .health-gauge-container .chart-title { font-size: 1.1rem; margin-top: 0; }
   .gauge-controls { margin: 0 0 .4rem 0; }
   .health-gauge-container .gauge-area { height: 160px; }
+  .health-gauge-container .gauge-area { height: 180px; }
   .gauge-percent {
     font-size: 1.35rem;
   }

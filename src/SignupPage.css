@@ -634,3 +634,32 @@ Mobile Responsiveness (Signup)
 
 /* Tablet Devices */
 /* Responsive moved to SignupPage.responsive.css */
+
+/* Inline validation states */
+.sign-input-field.invalid {
+  border-color: #e63946;
+  color: #e63946;
+}
+
+.sign-error-inline {
+  color: #e63946;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Align icon and input consistently within the wrapper */
+.input-with-icon {
+position: relative;
+width: 100%;
+margin-bottom: 15px;
+}
+
+.input-with-icon .input-icon {
+position: absolute;
+left: 12px;
+top: 50%;
+transform: translateY(-50%);
+color: #777;
+font-size: 16px;
+pointer-events: none;
+}

@@ -80,6 +80,10 @@ const Feedback = () => {
   const [isMarkingRead, setIsMarkingRead] = useState(false);
   const [isMarkingUnread, setIsMarkingUnread] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Notification close signal
+  const [notificationCloseSignal, setNotificationCloseSignal] = useState(0);
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [nightMode, setNightMode] = useState(false);
@@ -169,9 +173,10 @@ const Feedback = () => {
             date: formatFirestoreTimestamp(reply.date) || reply.date
           })) || [];
 
-          // Fetch user farm information
+          // Fetch user farm information and role
           let userFarm = null;
           let assignedFarmName = null;
+          let senderRoleRaw = null;
           const senderId = data.uid || data.userId;
           if (senderId) {
             try {
@@ -180,6 +185,7 @@ const Feedback = () => {
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 userFarm = userData.farm;
+                senderRoleRaw = userData.role || senderRoleRaw || 'Fish Farmer';
                 if (userFarm) {
                   // Get farm name
                   const farmDoc = await getDoc(doc(db, 'farms', userFarm));
@@ -195,6 +201,7 @@ const Feedback = () => {
                 if (userDoc2.exists()) {
                   const userData = userDoc2.data();
                   userFarm = userData.farm;
+                  senderRoleRaw = userData.role || senderRoleRaw || null;
                   if (userFarm) {
                     // Get farm name
                     const farmDoc = await getDoc(doc(db, 'farms', userFarm));
@@ -215,6 +222,7 @@ const Feedback = () => {
                   if (!muSnap.empty) {
                     const muData = muSnap.docs[0].data();
                     userFarm = muData.farm;
+                    senderRoleRaw = muData.role || senderRoleRaw || 'Fish Farmer';
                     if (userFarm) {
                       const farmDoc = await getDoc(doc(db, 'farms', userFarm));
                       assignedFarmName = farmDoc.exists() ? (farmDoc.data().name || userFarm) : userFarm;
@@ -241,6 +249,7 @@ const Feedback = () => {
             timestamp: data.timestamp,
             source: data.source || 'web',
             userName: data.userName || 'Anonymous',
+            userRole: senderRoleRaw,
             hasResponse: data.hasResponse || false,
             lastResponseDate: formatFirestoreTimestamp(data.lastResponseDate),
             replies: processedReplies,
@@ -474,12 +483,28 @@ const Feedback = () => {
         timeZone: 'Asia/Manila'
       });
 
+      const adminRole = String(currentUser?.role || '').toLowerCase();
+      const adminRoleDisplay = adminRole === 'temp_tech_officer' || currentUser?.temporaryTechOfficer ? 'Temporary Tech Officer'
+        : adminRole === 'tech_officer' || adminRole === 'tech officer' ? 'Tech Officer'
+        : adminRole === 'admin' ? 'Admin'
+        : (adminRole || 'Admin');
+
+      const submitterRoleRaw = selectedFeedback?.userRole || selectedFeedback?.role || selectedFeedback?.user_role || '';
+      const submitterRoleNorm = String(submitterRoleRaw || '').toLowerCase();
+      const submitterRoleDisplay = submitterRoleNorm === 'temp_tech_officer' || selectedFeedback?.temporaryTechOfficer ? 'Temporary Tech Officer'
+        : submitterRoleNorm === 'tech_officer' || submitterRoleNorm === 'tech officer' ? 'Tech Officer'
+        : submitterRoleNorm === 'admin' ? 'Admin'
+        : submitterRoleNorm === 'fish_farmer' || submitterRoleNorm === 'fish farmer' ? 'Fish Farmer'
+        : (submitterRoleRaw || 'Unknown');
+
       const newReply = {
         id: Date.now(),
         text: sanitizeInput(replyText),
         date: formattedDate,
         adminName: currentUser?.username || 'Admin',
-        isAdmin: true
+        isAdmin: true,
+        adminRole: adminRoleDisplay,
+        submitterRole: submitterRoleDisplay
       };
 
       await updateDoc(feedbackRef, sanitizeObjectStrings({
@@ -671,7 +696,6 @@ const Feedback = () => {
 
       logActivity('feedback', `Feedback marked as unread by ${currentUser?.username || 'Admin'}`, currentUser?.username);
     } catch (error) {
-      console.error('Error marking feedback as unread:', error);
       logActivity('error', `Failed to mark feedback as unread: ${error.message}`, currentUser?.username);
     } finally {
       setIsMarkingUnread(false);
@@ -702,7 +726,6 @@ const Feedback = () => {
 
       logActivity('feedback', `New feedback marked as unread: ${feedbackId}`, 'System');
     } catch (error) {
-      console.error('Error marking new feedback as unread:', error);
       logActivity('error', `Failed to mark new feedback as unread: ${error.message}`, 'System');
     }
   };
@@ -737,7 +760,6 @@ const Feedback = () => {
         }
       }
     } catch (error) {
-      console.error('Error ensuring feedback read status:', error);
       logActivity('error', `Failed to ensure feedback read status: ${error.message}`, 'System');
     }
   };
@@ -867,7 +889,7 @@ const Feedback = () => {
   }, [sidebarOpen]);
 
   return (
-    <div className={`feedback ${ (sidebarOpen || !sidebarCollapsed) ? 'sidebar-open' : '' }`}>
+    <div className={`feedback ${ (sidebarOpen || !sidebarCollapsed) ? 'sidebar-open' : '' } ${inboxOpen ? 'inbox-open' : ''}`}>
       <header className="feedback-header-bar">
         <div className="header-logo-container">
         <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
@@ -895,9 +917,12 @@ const Feedback = () => {
             </div>
           </div>
           
-          <NotificationBox />
+          <NotificationBox externalCloseSignal={notificationCloseSignal} />
           <div className="user-menu">
-            <button onClick={() => setShowMenu(!showMenu)}>
+            <button onClick={() => {
+              setNotificationCloseSignal(prev => prev + 1); // Close notification when user menu opens
+              setShowMenu(!showMenu);
+            }}>
               {currentUser?.profileImage ? (
                 <img 
                   src={currentUser.profileImage} 
@@ -1374,7 +1399,7 @@ const Feedback = () => {
             <div className="inbox-backdrop" onClick={() => setInboxOpen(false)} />
           )}
                       {selectedFeedback ? (
-              <div className="feedback-detail">
+              <div className={`feedback-detail ${isNarrow ? 'mobile-open' : ''}`}>
                 <div className="detail-header-top">
                   <span className="feedback-date">{selectedFeedback.date}</span>
                   <button className="close-detail" onClick={closeDetailView}>
@@ -1407,10 +1432,15 @@ const Feedback = () => {
                     <div key={reply.id} className="reply-message admin-reply">
                       <div className="reply-header">
                         <FaUserCircle className="admin-avatar" />
-                        <span>{reply.adminName}</span>
+                        <span>{reply.adminName}{reply.adminRole ? ` — ${reply.adminRole}` : ''}</span>
                         <span className="reply-date">{reply.date}</span>
                       </div>
                       <p>{reply.text}</p>
+                      {reply.submitterRole && (
+                        <div className="reply-meta" style={{ fontSize: '0.85rem', color: '#4b5563', marginTop: 4 }}>
+                          Submitter Role: {reply.submitterRole}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (

@@ -409,6 +409,11 @@ const PiscaRiskHome = () => {
 
   const handleBoxClick = (boxId) => {
     const selectedBox = boxData.find(box => box.id === boxId);
+    if (boxId === 4) {
+      // Opening Risk Reports from the box -> show overview (no preselected farm)
+      setModalFarmName('');
+      try { sessionStorage.removeItem('riskModal.initialDateMs'); } catch (_) {}
+    }
     setModalContent({
       id: boxId, // Store the box ID for stable content rendering
       title: selectedBox.title,
@@ -424,6 +429,8 @@ const PiscaRiskHome = () => {
     setShowModal(false);
     // Reset selected pond to default when closing modal
     setSelectedPond(1);
+    // Reset any targeted farm for Risk Reports so next open shows overview
+    setModalFarmName('');
     // Clear navigation state to ensure fresh start
     navigate('/Homepage', { replace: true, state: {} });
     // Increment modal key to force component remount on next open
@@ -438,6 +445,7 @@ const PiscaRiskHome = () => {
   const [showDrilldown, setShowDrilldown] = useState(false);
   const [drilldownTitle, setDrilldownTitle] = useState('');
   const [drilldownItems, setDrilldownItems] = useState([]);
+  const [modalFarmName, setModalFarmName] = useState('');
   const [allFarmsRiskData, setAllFarmsRiskData] = useState([]);
 
   useEffect(() => {
@@ -450,114 +458,159 @@ const PiscaRiskHome = () => {
     })();
   }, [currentUser]);
 
-  const openDrilldown = ({ type, farmKey, risk, farms, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
+  const openDrilldown = ({ type, farmKey, risk, farms, clickedFarmName, clickDateMs, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];
-    
-    // Helper function to check if timestamp is within the selected time range
+
+    // Helper: within selected time range
     const withinTimeRange = (timestamp) => {
-      if (!rangeStart || !rangeEnd) return true; // If no range specified, show all
-      
+      if (!rangeStart || !rangeEnd) return true;
       let ms = 0;
       if (typeof timestamp === 'number') ms = timestamp;
-      else if (typeof timestamp === 'string') { 
-        const m = Date.parse(timestamp); 
-        ms = Number.isNaN(m) ? 0 : m; 
-      }
-      else if (timestamp && typeof timestamp.toDate === 'function') { 
-        try { ms = timestamp.toDate().getTime(); } catch (_) {} 
-      }
-      else if (timestamp && typeof timestamp.seconds === 'number') { 
-        ms = timestamp.seconds * 1000; 
-      }
-      
+      else if (typeof timestamp === 'string') { const m = Date.parse(timestamp); ms = Number.isNaN(m) ? 0 : m; }
+      else if (timestamp && typeof timestamp.toDate === 'function') { try { ms = timestamp.toDate().getTime(); } catch (_) {} }
+      else if (timestamp && typeof timestamp.seconds === 'number') { ms = timestamp.seconds * 1000; }
       if (ms === 0) return false;
       const date = new Date(ms);
       return date >= rangeStart && date <= rangeEnd;
     };
-    
+
+    // Helper: normalize risk like components
+    const normalizeRisk = (level) => {
+      if (!level || typeof level !== 'string') return 'Normal';
+      const s = level.toLowerCase();
+      if (s.includes('high') || s.includes('critical')) return 'High';
+      if (s.includes('medium')) return 'Medium';
+      if (s.includes('low')) return 'Low';
+      if (s.includes('normal')) return 'Normal';
+      return level.charAt(0).toUpperCase() + level.slice(1);
+    };
+
+    // Helper: pick the latest generated date within range and dedupe to latest per pond on that date
+    const latestBatchPerPondForRange = (preds) => {
+      // Modal uses p.timestamp consistently; mirror that here
+      const inRange = preds.filter(p => withinTimeRange(p.timestamp) && p.timestamp);
+      if (inRange.length === 0) return [];
+      const getMs = (ts) => {
+        if (!ts) return 0;
+        if (typeof ts === 'number') return ts;
+        if (typeof ts === 'string') { const m = Date.parse(ts); return Number.isNaN(m) ? 0 : m; }
+        if (ts && typeof ts.toDate === 'function') { try { return ts.toDate().getTime(); } catch (_) { return 0; } }
+        if (ts && typeof ts.seconds === 'number') return ts.seconds * 1000;
+        return 0;
+      };
+      const latestMs = Math.max(...inRange.map(p => getMs(p.timestamp)));
+      const latestDateKey = new Date(latestMs).toDateString();
+      const sameDay = inRange.filter(p => new Date(getMs(p.timestamp)).toDateString() === latestDateKey);
+      const pondMap = new Map();
+      const sev = (lvl) => {
+        const s = (lvl || '').toString().toLowerCase();
+        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
+      };
+      sameDay
+        .sort((a, b) => getMs(b.timestamp) - getMs(a.timestamp))
+        .forEach(pred => {
+          const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+          const existing = pondMap.get(pond);
+          if (!existing) { pondMap.set(pond, pred); return; }
+          const a = getMs(existing.timestamp);
+          const b = getMs(pred.timestamp);
+          const delta = Math.abs(b - a);
+          // If exact tie, or within 60s tolerance, prefer lower severity
+          if ((b === a || delta <= 60000) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
+          }
+        });
+      return Array.from(pondMap.values());
+    };
+
+    // Helper: format timestamps
+    const fmtTs = (ts) => {
+      if (!ts) return 'Unknown time';
+      let ms = 0;
+      if (typeof ts === 'number') ms = ts;
+      else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
+      else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
+      else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
+      if (ms === 0) return 'Unknown time';
+      return new Date(ms).toLocaleString();
+    };
+
     if (type === 'farm' && farmKey) {
       const farm = allFarmsRiskData.find(f => f.key === farmKey);
       if (farm) {
+        // Open RiskReportModal focused to this farm (details view)
+        setModalFarmName(farm.name);
+        setModalContent({ id: 4, title: t('dashboard.riskReports'), content: null, icon: <FaExclamationTriangle className="box-icon" /> });
+        setShowModal(true);
+        // Persist the clicked date for RiskReportModal via sessionStorage for simplicity
+        try {
+          if (clickDateMs) sessionStorage.setItem('riskModal.initialDateMs', String(clickDateMs));
+          // Pass preloaded farm data to speed up initial render
+          sessionStorage.setItem('riskModal.initialFarmData', JSON.stringify(farm));
+        } catch (_) {}
+        return;
         const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
-        items = preds
-          .filter(p => withinTimeRange(p.timestamp)) // Filter by time range
-          .map(p => {
-          // Convert timestamp to readable date and time
-          const getTimestamp = (ts) => {
-            if (!ts) return 'Unknown time';
-            let ms = 0;
-            if (typeof ts === 'number') ms = ts;
-            else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
-            else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
-            else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
-            if (ms === 0) return 'Unknown time';
-            return new Date(ms).toLocaleString();
-          };
-
-          return {
-            pond: p.fish_pond || 'Unknown Pond',
-            risk: p.risk_level || 'Normal',
-            farm: farm.name,
-            timestamp: getTimestamp(p.generated_timestamp || p.timestamp),
-            date: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
-            time: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
-            submitted: getTimestamp(p.submitted_timestamp),
-            submittedDate: getTimestamp(p.submitted_timestamp).split(',')[0],
-            generated: getTimestamp(p.generated_timestamp || p.timestamp),
-            generatedDate: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
-          };
-        });
+        const latestPerPond = latestBatchPerPondForRange(preds);
+        items = latestPerPond.map(p => ({
+          pond: p.fish_pond || 'Unknown Pond',
+          risk: normalizeRisk(p.risk_level || 'Normal'),
+          farm: farm.name,
+          timestamp: fmtTs(p.generated_timestamp || p.timestamp),
+          date: fmtTs(p.generated_timestamp || p.timestamp).split(',')[0],
+          time: fmtTs(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
+          submitted: fmtTs(p.submitted_timestamp),
+          submittedDate: fmtTs(p.submitted_timestamp).split(',')[0],
+          generated: fmtTs(p.generated_timestamp || p.timestamp),
+          generatedDate: fmtTs(p.generated_timestamp || p.timestamp).split(',')[0],
+        }));
         setDrilldownTitle(`Ponds at Risk — ${farm.name}`);
       }
     } else if (type === 'risk' && risk) {
+      // If a specific farm segment was clicked in risk view, open modal focused on that farm
+      if (clickedFarmName) {
+        setModalFarmName(clickedFarmName);
+        setModalContent({ id: 4, title: t('dashboard.riskReports'), content: null, icon: <FaExclamationTriangle className="box-icon" /> });
+        setShowModal(true);
+        try {
+          if (clickDateMs) sessionStorage.setItem('riskModal.initialDateMs', String(clickDateMs));
+        } catch (_) {}
+        return;
+      }
       const farmKeys = Array.isArray(farms) && farms.length ? new Set(farms) : null;
       const relevantFarms = farmKeys ? allFarmsRiskData.filter(f => farmKeys.has(f.key)) : allFarmsRiskData;
       relevantFarms.forEach(f => {
         const preds = Array.isArray(f.predictions) ? f.predictions : [];
-        preds
-          .filter(p => withinTimeRange(p.timestamp)) // Filter by time range
-          .forEach(p => {
-          const lvl = (p.risk_level || 'Normal');
+        const latestPerPond = latestBatchPerPondForRange(preds);
+        latestPerPond.forEach(p => {
+          const lvl = normalizeRisk(p.risk_level || 'Normal');
           if (lvl === risk) {
-            // Convert timestamp to readable date and time
-            const getTimestamp = (ts) => {
-              if (!ts) return 'Unknown time';
-              let ms = 0;
-              if (typeof ts === 'number') ms = ts;
-              else if (typeof ts === 'string') { const m = Date.parse(ts); ms = Number.isNaN(m) ? 0 : m; }
-              else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
-              else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
-              if (ms === 0) return 'Unknown time';
-              return new Date(ms).toLocaleString();
-            };
-
-            items.push({ 
-              pond: p.fish_pond || 'Unknown Pond', 
-              risk: lvl, 
+            items.push({
+              pond: p.fish_pond || 'Unknown Pond',
+              risk: lvl,
               farm: f.name,
-              timestamp: getTimestamp(p.generated_timestamp || p.timestamp),
-              date: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
-              time: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
-              submitted: getTimestamp(p.submitted_timestamp),
-              submittedDate: getTimestamp(p.submitted_timestamp).split(',')[0],
-              generated: getTimestamp(p.generated_timestamp || p.timestamp),
-              generatedDate: getTimestamp(p.generated_timestamp || p.timestamp).split(',')[0],
+              timestamp: fmtTs(p.generated_timestamp || p.timestamp),
+              date: fmtTs(p.generated_timestamp || p.timestamp).split(',')[0],
+              time: fmtTs(p.generated_timestamp || p.timestamp).split(',')[1]?.trim() || 'Unknown time',
+              submitted: fmtTs(p.submitted_timestamp),
+              submittedDate: fmtTs(p.submitted_timestamp).split(',')[0],
+              generated: fmtTs(p.generated_timestamp || p.timestamp),
+              generatedDate: fmtTs(p.generated_timestamp || p.timestamp).split(',')[0],
             });
           }
         });
       });
       setDrilldownTitle(`Ponds at ${risk} Risk`);
     }
-    
+
     // Sort items by timestamp (latest first)
     items.sort((a, b) => {
       const getTimestamp = (item) => {
         if (!item.timestamp || item.timestamp === 'Unknown time') return 0;
         return new Date(item.timestamp).getTime();
       };
-      return getTimestamp(b) - getTimestamp(a); // Descending order (latest first)
+      return getTimestamp(b) - getTimestamp(a);
     });
-    
+
     setDrilldownItems(items);
     setShowDrilldown(true);
   };
@@ -596,14 +649,14 @@ const PiscaRiskHome = () => {
         case 4: // Risk Reports
           return (
             <div className="risk-modal-content">
-              <RiskReportModal isModal={true} />
+              <RiskReportModal isModal={true} initialFarmName={modalFarmName} initialTimestampMs={(function(){ try { const raw = sessionStorage.getItem('riskModal.initialDateMs'); return raw ? parseInt(raw, 10) : null; } catch(_) { return null; } })()} />
             </div>
           );
         default:
           return null;
       }
     };
-  }, [selectedPond, t, location.state, modalKey]);
+  }, [selectedPond, t, location.state, modalKey, modalFarmName]);
 
   return (
     <div className="homepage-container">
@@ -654,7 +707,7 @@ const PiscaRiskHome = () => {
         {/* Mobile sidebar backdrop */}
         {sidebarOpen && window.innerWidth <= 1023 && (
           <div 
-            className="sidebar-backdrop"
+            className={`sidebar-backdrop ${sidebarOpen ? 'active' : ''}`}
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -774,13 +827,14 @@ const PiscaRiskHome = () => {
                 <div className="pie-chart-box">
                 <FarmHealthGauge />
                 </div>
-                
+                {/* 
                 <div className="calendar-box">
                     <ConditionInsights 
                       userRole={currentUser?.role}
                       assignedFarm={currentUser?.farm}
                     />
                 </div>
+                */}
               </div>
             </div>
 

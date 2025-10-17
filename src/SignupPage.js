@@ -4,6 +4,7 @@ import { FaEye, FaEyeSlash, FaEnvelope, FaUser, FaLock, FaPhone } from "react-ic
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import { logActivity, logMessages } from './utils/logger';
+import { formatUserInputPH, validatePhilippineMobile, normalizeToE164PH, displayHintForPH, stripToDigits } from './utils/phonePh';
 import "./SignupPage.css";
 import "./SignupPage.responsive.css";
 // OTPVerification removed (unused)
@@ -57,6 +58,9 @@ export default function SignupPage() {
   const [showTerms, setShowTerms] = useState(false);
   // OTP flow removed (unused)
   const [success, setSuccess] = useState("");
+  const [contactHint, setContactHint] = useState("");
+  const [contactInvalid, setContactInvalid] = useState(false);
+  const [contactInvalidMsg, setContactInvalidMsg] = useState("");
   const [farms, setFarms] = useState([]);
   const [loadingFarms, setLoadingFarms] = useState(true);
   // Google signup removed (unused UI)
@@ -122,6 +126,60 @@ export default function SignupPage() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+
+    if (name === 'contactNumber') {
+      const prevValue = formData.contactNumber || '';
+      const prevDigits = stripToDigits(prevValue);
+      const nextFormatted = formatUserInputPH(value).value;
+      const nextDigits = stripToDigits(nextFormatted);
+
+      // Compute local-style digits for prefix enforcement
+      let localDigits = nextDigits;
+      if (nextFormatted.startsWith('+63')) {
+        const after = stripToDigits(nextFormatted.slice(3));
+        localDigits = after ? `0${after}` : '';
+      } else if (nextDigits.startsWith('63')) {
+        const after = nextDigits.slice(2);
+        localDigits = after ? `0${after}` : '';
+      }
+
+      // Allow deletions always; enforce prefix only on insertions/expansions
+      const isDeletion = nextDigits.length < prevDigits.length;
+      if (!isDeletion) {
+        if ((localDigits.length === 1 && localDigits[0] !== '0') ||
+            (localDigits.length >= 2 && !localDigits.startsWith('09'))) {
+          // Reject this change (keep previous value)
+          return;
+        }
+      }
+
+      setFormData((prev) => ({ ...prev, contactNumber: nextFormatted }));
+      const hint = displayHintForPH(nextFormatted);
+      const suppressed = (
+        hint === 'Mobile numbers are 11 digits locally or +63 plus 10 digits.' ||
+        hint === 'Add 10 more digits after +63.'
+      );
+      setContactHint(suppressed ? '' : hint);
+
+      // Live invalid states: length only (prefix is enforced via input blocking)
+      let invalid = false;
+      let msg = '';
+      if (nextFormatted.startsWith('+63')) {
+        const after = stripToDigits(nextFormatted.slice(3));
+        if (after.length > 10) {
+          invalid = true;
+          msg = 'Number must be +63 followed by 10 digits.';
+        }
+      } else if (localDigits && localDigits.length > 11) {
+        invalid = true;
+        msg = 'Mobile number must be 11 digits (e.g., 09XXXXXXXXX).';
+      }
+
+      setContactInvalid(invalid);
+      setContactInvalidMsg(invalid ? msg : '');
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -145,10 +203,10 @@ export default function SignupPage() {
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
       return;
     }
-    // Contact number validation (11 digits)
-    const contactRegex = /^\d{11}$/;
-    if (!contactRegex.test(formData.contactNumber)) {
-      const errorMsg = "Contact number must be exactly 11 digits.";
+    // Contact number validation and normalization to +63xxxxxxxxxx
+    const phoneValidation = validatePhilippineMobile(formData.contactNumber);
+    if (!phoneValidation.valid) {
+      const errorMsg = phoneValidation.message || "Enter a valid PH mobile number.";
       setError(errorMsg);
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
       return;
@@ -166,10 +224,12 @@ export default function SignupPage() {
       return;
     }
     try {
+      // Always send normalized E.164 (+63) to backend
+      const normalizedContact = normalizeToE164PH(formData.contactNumber);
       await signup(
         formData.email,
         formData.username,
-        formData.contactNumber,
+        normalizedContact || formData.contactNumber,
         formData.farmId,
         formData.password
       );
@@ -269,12 +329,15 @@ export default function SignupPage() {
             <input
               type="text"
               name="contactNumber"
-              placeholder="Contact Number"
+              placeholder="Contact Number (+63…)"
               value={formData.contactNumber}
               onChange={handleChange}
-              className="sign-input-field"
+              className={`sign-input-field${contactInvalid ? ' invalid' : ''}`}
               required
             />
+            {contactInvalid && contactInvalidMsg !== 'Mobile numbers must start with 09.' && (
+              <div className="sign-error-inline">{contactInvalidMsg}</div>
+            )}
           </div>
 
           <div className="farm-selection-wrapper">

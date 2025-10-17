@@ -124,16 +124,10 @@ export const addNewUser = async (userData, currentUser) => {
 // Update user status
 export const updateUserStatus = async (userId, status, role, collectionHint, userEmail, userName) => {
   try {
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.log('[updateUserStatus] Called with:', { userId, status, role, collectionHint, userEmail, userName });
-    }
+    // removed verbose dev log
     const roleNormalized = String(role || '').toLowerCase();
     let collectionName = collectionHint || ((roleNormalized === 'fish farmer' || roleNormalized === 'fish_farmer') ? 'mobileUsers' : 'users');
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.log('[updateUserStatus] Using collection:', collectionName);
-    }
+    // removed verbose dev log
     const statusLower = String(status || '').toLowerCase();
     
     // Helper function to find user by email
@@ -165,15 +159,9 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
 
     const tryUpdate = async (coll) => {
       const ref = doc(db, coll, userId);
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.log(`[tryUpdate] Trying collection: ${coll}, userId: ${userId}, ref:`, ref);
-      }
+      // removed verbose dev log
       const snap = await getDoc(ref);
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.log(`[tryUpdate] Document exists in ${coll}:`, snap.exists());
-      }
+      // removed verbose dev log
       if (!snap.exists()) return false;
       try {
         const updateFields = {
@@ -187,10 +175,7 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           updateFields.phoneVerified = false;
         }
         await updateDoc(ref, sanitizeObjectStrings(updateFields));
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.log(`[tryUpdate] Successfully updated ${coll} collection`);
-        }
+        // removed verbose dev log
         return true;
       } catch (updateError) {
         if (process.env.NODE_ENV === 'development') {
@@ -201,40 +186,71 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       }
     };
 
+    // Also update counterpart document in the other collection if it exists (by id or email)
+    const updateCounterpartIfExists = async (primaryCollection, fields, email) => {
+      const counterpart = primaryCollection === 'users' ? 'mobileUsers' : 'users';
+
+      // Try counterpart by same id
+      try {
+        const refById = doc(db, counterpart, userId);
+        const snapById = await getDoc(refById);
+        if (snapById.exists()) {
+          await updateDoc(refById, sanitizeObjectStrings(fields));
+        } else if (email) {
+          // Try by email if provided
+          const q = query(collection(db, counterpart), where('email', '==', email));
+          const qs = await getDocs(q);
+          for (const d of qs.docs) {
+            await updateDoc(doc(db, counterpart, d.id), sanitizeObjectStrings(fields));
+          }
+        }
+      } catch (_) {
+        // Best-effort; ignore errors updating counterpart so primary update isn't blocked
+      }
+    };
+
     let updated = false;
     try {
       updated = await tryUpdate(collectionName);
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.error('[updateUserStatus] First tryUpdate failed:', error);
+      if (updated) {
+        const mirrorFields = {
+          status: status || 'Active',
+          adminActivated: true,
+          pendingActivation: false,
+          lastModified: serverTimestamp(),
+          ...(statusLower === 'inactive' ? { phoneVerified: false } : {})
+        };
+        await updateCounterpartIfExists(collectionName, mirrorFields, userEmail);
       }
+    } catch (error) {
+      // keep errors minimal
     }
     if (!updated) {
       collectionName = collectionName === 'users' ? 'mobileUsers' : 'users';
       try {
         updated = await tryUpdate(collectionName);
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.error('[updateUserStatus] Second tryUpdate failed:', error);
+        if (updated) {
+          const mirrorFields = {
+            status: status || 'Active',
+            adminActivated: true,
+            pendingActivation: false,
+            lastModified: serverTimestamp(),
+            ...(statusLower === 'inactive' ? { phoneVerified: false } : {})
+          };
+          await updateCounterpartIfExists(collectionName, mirrorFields, userEmail);
         }
+      } catch (error) {
+        // keep errors minimal
       }
     }
     
     // If still not updated, try to find by email
     if (!updated && userEmail) {
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.log('[updateUserStatus] Direct ID lookup failed, trying email lookup...');
-      }
+      // removed verbose dev log
       const userByEmail = await findUserByEmail(userEmail);
       
       if (userByEmail) {
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.log('[updateUserStatus] Found user by email:', userByEmail);
-        }
+        // removed verbose dev log
         // Update the correct document
         const ref = doc(db, userByEmail.collection, userByEmail.id);
         try {
@@ -248,17 +264,13 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
             updateFields.phoneVerified = false;
           }
           await updateDoc(ref, sanitizeObjectStrings(updateFields));
+          // mirror update as well
+          await updateCounterpartIfExists(userByEmail.collection, updateFields, userEmail);
         } catch (updateError) {
-          if (process.env.NODE_ENV === 'development') {
-            // eslint-disable-next-line no-console
-            console.error('[updateUserStatus] Failed to update via email lookup:', updateError);
-          }
+          // keep errors minimal
           throw updateError;
         }
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.log('[updateUserStatus] Successfully updated via email lookup');
-        }
+        // removed verbose dev log
         return { success: true, collection: userByEmail.collection };
       }
     }
@@ -357,12 +369,31 @@ export const directUpdateUserStatus = async (userId, email, username, collection
     const ref = doc(db, targetCollection, targetId);
     
     try {
-      await updateDoc(ref, sanitizeObjectStrings({
+      const updateFields = {
         status: 'Active',
         adminActivated: true,
         pendingActivation: false,
         lastModified: serverTimestamp()
-      }));
+      };
+      await updateDoc(ref, sanitizeObjectStrings(updateFields));
+
+      // Best-effort mirror update in the counterpart collection
+      try {
+        const counterpart = targetCollection === 'users' ? 'mobileUsers' : 'users';
+        const refById = doc(db, counterpart, targetId);
+        const snapById = await getDoc(refById);
+        if (snapById.exists()) {
+          await updateDoc(refById, sanitizeObjectStrings(updateFields));
+        } else if (email) {
+          const q = query(collection(db, counterpart), where('email', '==', email));
+          const qs = await getDocs(q);
+          for (const d of qs.docs) {
+            await updateDoc(doc(db, counterpart, d.id), sanitizeObjectStrings(updateFields));
+          }
+        }
+      } catch (_) {
+        // ignore counterpart failures
+      }
       
       
       
@@ -490,10 +521,21 @@ export const activateTechOfficer = async (userId) => {
       if (!snap.exists()) throw new Error('User not found in any collection');
       collectionName = 'mobileUsers';
     }
-    await updateDoc(ref, sanitizeObjectStrings({
+    const updateFields = sanitizeObjectStrings({
       adminActivated: true,
       lastModified: new Date().toISOString()
-    }));
+    });
+    await updateDoc(ref, updateFields);
+
+    // Mirror adminActivated in counterpart collection if present (best-effort)
+    try {
+      const counterpart = collectionName === 'users' ? 'mobileUsers' : 'users';
+      const refById = doc(db, counterpart, userId);
+      const snapById = await getDoc(refById);
+      if (snapById.exists()) {
+        await updateDoc(refById, updateFields);
+      }
+    } catch (_) {}
     return { success: true, collection: collectionName };
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
