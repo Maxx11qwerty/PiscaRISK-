@@ -39,6 +39,8 @@ const PiscaRiskHome = () => {
   });
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartGroupMode, setChartGroupMode] = useState('farm');
   
   // Timer states for Temporary Tech Officers
   const [ttoTimers, setTtoTimers] = useState({}); // { [userId]: { remaining, status } }
@@ -818,9 +820,11 @@ const PiscaRiskHome = () => {
                 {chartIndex === 0 ? (
                   <ReportsChart />
                 ) : (
-                  <PondsAtRiskStackedChart onDrilldown={openDrilldown} />
+                  <PondsAtRiskStackedChart onDrilldown={openDrilldown} onLoadingChange={setChartLoading} onGroupModeChange={setChartGroupMode} />
                 )}
-                <button className="next-chart-btn" onClick={nextChart} aria-label="Next chart">→</button>
+                <button className={`next-chart-btn ${chartLoading ? 'loading' : ''} ${chartGroupMode === 'risk' ? 'risk-view' : ''} ${chartIndex === 0 ? 'reports-chart' : 'ponds-chart'}`} onClick={nextChart} aria-label={chartIndex === 0 ? "Next chart" : "Previous chart"}>
+                  {chartIndex === 0 ? "←" : "→"}
+                </button>
               </div>
 
               <div className="right-sidebar">

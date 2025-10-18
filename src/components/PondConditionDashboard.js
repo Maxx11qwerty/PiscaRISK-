@@ -1295,6 +1295,117 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
         </div>
         
+        {/* Export Button */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (isTTO) {
+                // Log the restricted access attempt
+                const username = currentUser?.username || currentUser?.email || 'Unknown';
+                try {
+                  logTemporaryTechOfficerActivity(
+                    'temporaryTechOfficer',
+                    logMessages.temporaryTechOfficer.exportAttempt(username, 'pond condition data'),
+                    username,
+                    currentUser?.role || 'temp_tech_officer'
+                  );
+                } catch (_) {}
+              } else {
+                setExportMenuOpen((v) => !v);
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+            }}
+          >
+            <FaFileExport />
+            <span style={{ textDecoration: 'underline' }}>Export</span>
+          </button>
+          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 6,
+                background: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                zIndex: 5,
+                minWidth: 180,
+                overflow: 'hidden'
+              }}
+            >
+              <button
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('export', logMessages.export.csvDownload(u, 'fishpond condition data with logs'), u); 
+                    } catch (_) {}
+                    exportFishConditionWithLogsCSV(
+                      filteredReports,
+                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
+                      'fishpond_combined.csv'
+                    );
+                    setExportMenuOpen(false);
+                  }}
+              >
+                Export CSV
+              </button>
+              <div style={{ height: 1, background: '#e5e7eb' }} />
+              <button
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  cursor: 'pointer'
+                }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('export', logMessages.export.pdfDownload(u, 'fishpond condition data with logs'), u); 
+                    } catch (_) {}
+                    exportFishConditionWithLogsPDF(
+                      filteredReports,
+                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
+                      'fishpond_combined.pdf'
+                    );
+                    setExportMenuOpen(false);
+                  }}
+              >
+                Export PDF
+              </button>
+            </div>
+          )}
+        </div>
+        
         <div className="report-summary">
           <div className="summary-item">
             <FaFish className="summary-icon" />
@@ -1495,6 +1606,19 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               </button>
             )}
           </div>
+          
+          {/* Pond Data Legend */}
+          <div className="pond-legend" style={{ 
+            marginTop: '8px', 
+            fontSize: '0.85rem', 
+            color: '#6b7280',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center'
+          }}>
+            <span>🟢 = {t('pondCondition.has_data')}</span>
+            <span>🔴 = {t('pondCondition.no_data_yet')}</span>
+          </div>
         </div>
         
         <div className="filter-group">
@@ -1509,116 +1633,6 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
             <option value="thisMonth">This Month</option>
             <option value="custom">{t('pondCondition.custom_date')}</option>
           </select>
-        </div>
-        <div className="filter-group" style={{ alignSelf: 'end', position: 'relative' }}>
-          <label style={{ visibility: 'hidden' }}>Export</label>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (isTTO) {
-                // Log the restricted access attempt
-                const username = currentUser?.username || currentUser?.email || 'Unknown';
-                try {
-                  logTemporaryTechOfficerActivity(
-                    'temporaryTechOfficer',
-                    logMessages.temporaryTechOfficer.exportAttempt(username, 'pond condition data'),
-                    username,
-                    currentUser?.role || 'temp_tech_officer'
-                  );
-                } catch (_) {}
-              } else {
-                setExportMenuOpen((v) => !v);
-              }
-            }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              margin: 0,
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
-              fontSize: '0.95rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
-            }}
-          >
-            <FaFileExport />
-            <span style={{ textDecoration: 'underline' }}>Export</span>
-          </button>
-          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: 6,
-                background: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-                zIndex: 5,
-                minWidth: 180,
-                overflow: 'hidden'
-              }}
-            >
-              <button
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'transparent',
-                  padding: '10px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('export', logMessages.export.csvDownload(u, 'fishpond condition data with logs'), u); 
-                    } catch (_) {}
-                    exportFishConditionWithLogsCSV(
-                      filteredReports,
-                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
-                      'fishpond_combined.csv'
-                    );
-                    setExportMenuOpen(false);
-                  }}
-              >
-                Export CSV
-              </button>
-              <div style={{ height: 1, background: '#e5e7eb' }} />
-              <button
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'transparent',
-                  padding: '10px 12px',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('export', logMessages.export.pdfDownload(u, 'fishpond condition data with logs'), u); 
-                    } catch (_) {}
-                    exportFishConditionWithLogsPDF(
-                      filteredReports,
-                      { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
-                      'fishpond_combined.pdf'
-                    );
-                    setExportMenuOpen(false);
-                  }}
-              >
-                Export PDF
-              </button>
-            </div>
-          )}
         </div>
         
         {reportFilter === 'custom' && (

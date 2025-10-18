@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { downloadChartAsImage, exportChartDataCSV } from '../utils/exportStackedbarChart';
 import { logActivity, logMessages } from '../utils/logger';
 import { GiHamburgerMenu } from 'react-icons/gi';
+import { FaSync } from 'react-icons/fa';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchRiskReportData } from '../services/riskDataService';
@@ -25,7 +26,7 @@ const normalizeFarmName = (name) => {
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 };
 
-const PondsAtRiskStackedChart = ({ onDrilldown }) => {
+const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChange }) => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { farmsById, farmsNameByKey } = useFarms();
@@ -37,6 +38,21 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   const [hoverSeriesKey, setHoverSeriesKey] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [exportOpen, setExportOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Notify parent of loading state changes
+  useEffect(() => {
+    if (onLoadingChange) {
+      onLoadingChange(loading);
+    }
+  }, [loading, onLoadingChange]);
+
+  // Notify parent of group mode changes
+  useEffect(() => {
+    if (onGroupModeChange) {
+      onGroupModeChange(groupMode);
+    }
+  }, [groupMode, onGroupModeChange]);
   const [timeFilter, setTimeFilter] = useState('today'); // today | week | month | custom
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -47,6 +63,69 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     'blue-ocean-aquafarm': 'Maningas Fish Farm',
     'marine-species-cultivation': 'Labay Fish Farm',
   }), []);
+
+  // Track viewport width to tune chart for 360–480px
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' && window.innerWidth ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth || 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
+  const chartHeights = {
+    farm: isStdPhone ? 360 : 300,
+    risk: isStdPhone ? 420 : 340,
+  };
+  // Farm view sizing (phones): balanced between label width and plot
+  const yAxisWidthFarm = isStdPhone ? 80 : 120;
+  const barSizePx = isStdPhone ? 32 : 30; // used for farm view and row estimate
+  // Risk view sizing (phones): tighter Y-axis and thicker bars to push plot left and enlarge
+  const yAxisWidthRisk = isStdPhone ? 48 : 120;
+  const barSizeRiskPx = isStdPhone ? 40 : 30;
+  // Margins: use a slightly tighter top margin for risk view on phones to move chart up
+  const chartMarginFarm = isStdPhone ? { top: 8, right: 0, left: 0, bottom: 22 } : { top: 12, right: 24, left: -20, bottom: 32 };
+  const chartMarginRisk = isStdPhone ? { top: 20, right: 0, left: 0, bottom: 14 } : { top: 12, right: 24, left: -60, bottom: 32 };
+  const xAxisLabelStyle = { fill: '#FFFFFF', fontSize: isStdPhone ? 12 : 13, fontWeight: 500 };
+
+  // Custom Y-axis tick to override any global styles (responsive size)
+  const YAxisTick = React.useCallback((props) => {
+    const { x, y, payload } = props;
+    const value = String(payload?.value ?? '');
+    const shouldWrap = isStdPhone && groupMode === 'farm' && value.length > 0;
+    let lines = [value];
+    if (shouldWrap) {
+      if (/\bFish\s+Farm\b/i.test(value)) {
+        const idx = value.toLowerCase().indexOf('fish farm');
+        const head = value.slice(0, idx).trim();
+        lines = [head, 'Fish Farm'];
+      } else {
+        const parts = value.split(/\s+/);
+        if (parts.length > 1) {
+          lines = [parts[0], parts.slice(1).join(' ')];
+        }
+      }
+    }
+    const fontSize = isStdPhone ? 12 : 15;
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={0}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#ffffff"
+          style={{ fontSize, fontWeight: 700, pointerEvents: 'none' }}
+        >
+          {lines.map((line, idx) => (
+            <tspan key={idx} x={0} dy={idx === 0 ? 0 : fontSize + 2}>{line}</tspan>
+          ))}
+        </text>
+      </g>
+    );
+  }, [isStdPhone, groupMode]);
 
   const canonFromItem = (item) => {
     const origName = item?.name || '';
@@ -59,28 +138,45 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   };
 
 
-  useEffect(() => {
-    const run = async () => {
-      try {
+  // Data fetching function
+  const fetchData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else {
         setLoading(true);
-        const data = (await fetchRiskReportData()) || [];
-        // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
-        const filteredData = data.filter(f => 
-          f.farm_key !== 'rojo-hatchery' && 
-          f.name !== 'Rojo Hatchery' &&
-          f.key !== 'rojo-hatchery' &&
-          f.farm_key !== 'freshwater-finfish-farm' &&
-          f.name !== 'Freshwater Finfish Farm' &&
-          f.key !== 'freshwater-finfish-farm' &&
-          !f.name?.toLowerCase().includes('freshwater finfish')
-        );
-        setFarms(filteredData);
-      } finally {
+      }
+      const data = (await fetchRiskReportData()) || [];
+      // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
+      const filteredData = data.filter(f => 
+        f.farm_key !== 'rojo-hatchery' && 
+        f.name !== 'Rojo Hatchery' &&
+        f.key !== 'rojo-hatchery' &&
+        f.farm_key !== 'freshwater-finfish-farm' &&
+        f.name !== 'Freshwater Finfish Farm' &&
+        f.key !== 'freshwater-finfish-farm' &&
+        !f.name?.toLowerCase().includes('freshwater finfish')
+      );
+      setFarms(filteredData);
+      setLastUpdated(new Date());
+    } finally {
+      if (isRefresh) {
+        setIsRefreshing(false);
+      } else {
         setLoading(false);
       }
-    };
-    run();
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchData();
   }, []);
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    fetchData(true);
+  };
 
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const assignedFarmName = isAssignedToFarm ? (farmsById[currentUser.farm]?.name || null) : null;
@@ -537,44 +633,76 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     return 'recently';
   }, [timeFilter]);
 
-  // Insight summary based on currently displayed aggregation (byFarmData reflects the latest date within range)
+  // Dynamic chart title and subtitle based on view mode
+  const chartTitle = groupMode === 'farm' 
+    ? 'Ponds at Risk per Farm'
+    : 'Farms by Risk Category';
+  
+  const chartSubtitle = groupMode === 'farm'
+    ? 'Shows how many ponds in each farm fall under High, Medium, or Low risk based on recent monitoring reports.'
+    : 'Shows which farms have ponds in each risk level category based on recent monitoring reports.';
+
+  // Insight summary with context-aware wording
   const insightSummary = useMemo(() => {
     if (!Array.isArray(byFarmData) || byFarmData.length === 0) return '';
     const totals = byFarmData.reduce((acc, f) => {
-      acc.High += Number(f.High || 0);
-      acc.Medium += Number(f.Medium || 0);
-      acc.Low += Number(f.Low || 0);
+      acc.high += Number(f.High || 0);
+      acc.medium += Number(f.Medium || 0);
+      acc.low += Number(f.Low || 0);
       return acc;
-    }, { High: 0, Medium: 0, Low: 0 });
+    }, { high: 0, medium: 0, low: 0 });
 
-    const maxVal = Math.max(totals.High, totals.Medium, totals.Low);
-    let dominant = 'low';
-    if (maxVal === totals.High) dominant = 'high';
-    else if (maxVal === totals.Medium) dominant = 'medium';
-    else dominant = 'low';
+    const totalPonds = totals.high + totals.medium + totals.low;
+    const dominantRisk = totalPonds === 0
+      ? 'NONE'
+      : (totals.high > totals.medium && totals.high > totals.low) ? 'HIGH'
+      : (totals.medium > totals.high && totals.medium > totals.low) ? 'MEDIUM'
+      : (totals.low > totals.high && totals.low > totals.medium) ? 'LOW'
+      : 'MIXED';
 
-    const farmsWithHigh = byFarmData.filter(f => Number(f.High || 0) > 0).map(f => f.name);
-    let highPart = '';
-    if (farmsWithHigh.length === 1) highPart = `${farmsWithHigh[0]} still has high-risk ponds that need monitoring.`;
-    else if (farmsWithHigh.length === 2) highPart = `${farmsWithHigh[0]} and ${farmsWithHigh[1]} still have high-risk ponds that need monitoring.`;
-    else if (farmsWithHigh.length > 2) {
-      const others = farmsWithHigh.length - 2;
-      const othersText = others > 0 ? `, and ${others} other${others > 1 ? 's' : ''}` : '';
-      highPart = `${farmsWithHigh[0]}, ${farmsWithHigh[1]}${othersText} still have high-risk ponds that need monitoring.`;
-    }
+    // Resolve selected farm name if a specific farm is chosen (or assigned users)
+    const selectedFarmName = (() => {
+      if (isAssignedToFarm) return assignedFarmName || filteredFarms[0]?.name || '';
+      if (selectedFarm && selectedFarm !== 'all') {
+        const match = byFarmData.find(f => f.farmKey === selectedFarm || (f.name && normalizeFarmName(f.name) === selectedFarm));
+        return match?.name || filteredFarms.find(f => f.key === selectedFarm)?.name || '';
+      }
+      return '';
+    })();
 
-    let base = '';
-    if (totals.High + totals.Medium + totals.Low === 0) {
-      base = `No ponds ${periodLabel}.`;
+    let summaryText = '';
+    if (totalPonds === 0) {
+      summaryText = 'No recent risk reports have been submitted for any farm.';
+    } else if (dominantRisk === 'HIGH') {
+      summaryText =
+        groupMode === 'farm'
+          ? (selectedFarmName
+              ? `${selectedFarmName} has several ponds in high risk and requires close monitoring.`
+              : `Most ponds ${periodLabel} are in high risk across farms, requiring attention.`)
+          : `High-risk conditions are most common this ${periodLabel} across multiple farms.`;
+    } else if (dominantRisk === 'MEDIUM') {
+      summaryText =
+        groupMode === 'farm'
+          ? (selectedFarmName
+              ? `${selectedFarmName} shows moderate pond conditions — some early signs of risk.`
+              : `Several ponds ${periodLabel} show moderate conditions; ongoing monitoring is recommended.`)
+          : `Moderate-risk reports are frequent this ${periodLabel}, suggesting developing issues.`;
+    } else if (dominantRisk === 'LOW') {
+      summaryText =
+        groupMode === 'farm'
+          ? (selectedFarmName
+              ? `${selectedFarmName} ponds are currently stable with low-risk conditions.`
+              : `Most ponds ${periodLabel} are stable and show low-risk conditions.`)
+          : `Low-risk conditions dominate this ${periodLabel}, reflecting overall stability across farms.`;
     } else {
-      if (dominant === 'low') base = `Most ponds ${periodLabel} are in low risk`;
-      else if (dominant === 'medium') base = `Most ponds ${periodLabel} are in medium risk`;
-      else base = `Most ponds ${periodLabel} are in high risk`;
+      summaryText = groupMode === 'farm'
+        ? `Risk levels are mixed across farms; review individual pond data for details.`
+        : `Risk categories are balanced this ${periodLabel}; no single level dominates.`;
     }
+    
 
-    if (highPart) return `${base}, but ${highPart}`;
-    return `${base}.`;
-  }, [byFarmData, periodLabel]);
+    return summaryText;
+  }, [byFarmData, periodLabel, isAssignedToFarm, assignedFarmName, filteredFarms, selectedFarm]);
 
   // Assign distinct colors to farms for risk view
   const farmColorMap = useMemo(() => {
@@ -601,10 +729,14 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || payload.length === 0) return null;
     const highlightKey = hoverSeriesKey || activeLegendKey;
-    const filtered = highlightKey
-      ? payload.filter(p => p.name === highlightKey)
-      : payload;
-    if (filtered.length === 0) return null;
+    let filtered = payload;
+    if (highlightKey) {
+      filtered = payload.filter(p => (p.dataKey || p.name) === highlightKey);
+      if (filtered.length === 0) {
+        // Fallback: if naming mismatch (e.g., translated legend name), don't hide data
+        filtered = payload;
+      }
+    }
     const total = filtered.reduce((sum, it) => sum + (Number(it.value) || 0), 0);
     
     // Get the correct colors based on user assignment and group mode
@@ -674,7 +806,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
             {pondEntries.length > 0 && (
               <div style={{ marginTop: 6 }}>
                 {(() => {
-                  const maxShow = 3;
+                  const maxShow = 2;
                   const shown = pondEntries.slice(0, maxShow);
                   const remaining = Math.max(0, pondEntries.length - shown.length);
                   return (
@@ -702,13 +834,13 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                             style={{
                               background: 'transparent',
                               border: 'none',
-                              color: '#60a5fa',
+                              color: '#ffffff',
                               textDecoration: 'underline',
                               cursor: 'pointer',
                               padding: 0
                             }}
                           >
-                            View all in Risk Reports ({remaining} more)
+                            Click to View all in Risk Reports ({remaining} more)
                           </button>
                         </div>
                       )}
@@ -739,14 +871,21 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
     };
     
     return (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+      <div style={{ 
+        display: isStdPhone && groupMode === 'risk' ? 'grid' : 'flex', 
+        gridTemplateColumns: isStdPhone && groupMode === 'risk' ? '1fr 1fr' : 'none',
+        flexWrap: isStdPhone && groupMode === 'risk' ? 'nowrap' : 'wrap',
+        gap: 12, 
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
         {payload.map((entry, idx) => {
           const isActive = activeLegendKey === entry.value;
           const legendColor = getLegendColor(entry);
           return (
             <div
               key={idx}
-              onMouseEnter={() => setActiveLegendKey(entry.value)}
+              onMouseEnter={() => setActiveLegendKey(entry.dataKey || entry.value)}
               onMouseLeave={() => setActiveLegendKey(null)}
               style={{
                 display: 'inline-flex',
@@ -757,7 +896,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                 cursor: 'pointer',
                 background: isActive ? 'rgba(127, 252, 255, 0.15)' : 'transparent',
                 border: isActive ? '1px solid rgba(127, 252, 255, 0.6)' : '1px solid transparent',
-                color: '#ffffff'
+                color: '#ffffff',
+                justifyContent: isStdPhone && groupMode === 'risk' ? 'flex-start' : 'center'
               }}
             >
               <span style={{ width: 10, height: 10, background: legendColor, display: 'inline-block', borderRadius: 2 }} />
@@ -810,21 +950,104 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
 
   const noDataInRange = useMemo(() => byFarmData.every(d => (d.__total || 0) === 0), [byFarmData]);
 
+  // Estimate row height for vertical bar stacks to size tall lists and enable scroll on phones
+  const rowPixelEstimate = barSizePx + 14; // bar + gap
+  const farmDynamicHeight = Math.max(
+    chartHeights.farm,
+    (Array.isArray(byFarmData) ? byFarmData.length : 0) * rowPixelEstimate + 80 // +80 padding for axes/legend
+  );
+  const needScrollFarm = isStdPhone && farmDynamicHeight > chartHeights.farm;
+
+  // Risk view can get crowded when many farms are stacked within each risk row.
+  // Increase inner height proportional to number of farms and enable scroll on phones.
+  const riskSeriesCount = Array.isArray(mergedFarms) ? mergedFarms.length : 0;
+  const riskDynamicHeight = Math.max(
+    chartHeights.risk,
+    isStdPhone ? chartHeights.risk + Math.max(0, riskSeriesCount - 10) * (barSizeRiskPx + 6) : chartHeights.risk
+  );
+  const needScrollRisk = isStdPhone && riskDynamicHeight > chartHeights.risk;
+
   if (loading) {
     return <div className="loading-reports">{t('pondsAtRiskChart.loadingChartData')}</div>;
   }
 
   return (
-    <div className="bar-chart-container" id="stacked-risk-chart">
-      <h3 className="chart-title">
-        {isAssignedToFarm 
-          ? `${assignedFarmName || filteredFarms[0]?.name || currentUser.farm} Pond Risk`
-          : t('pondsAtRiskChart.title')
-        }
+    <>
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+      <div className="bar-chart-container" id="stacked-risk-chart" style={{ 
+        background: 'transparent', 
+        boxShadow: 'none',
+        paddingBottom: isStdPhone ? '60px' : '24px'
+      }}>
+      <h3 className="chart-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        {isStdPhone && (
+          <button
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+              if (!isTemporaryTechOfficer) {
+                setExportOpen(v => !v);
+              }
+            }}
+            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+            style={{ 
+              background: 'transparent', 
+              border: 'none', 
+              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : '#7ffcff', 
+              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              display: 'flex', 
+              alignItems: 'center',
+              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1,
+              padding: '4px'
+            }}
+            aria-label="Export"
+            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+          >
+            <GiHamburgerMenu style={{ fontSize: '1.2rem' }} />
+          </button>
+        )}
+        {chartTitle}
       </h3>
-      <div style={{ marginTop: -6, marginBottom: 8, fontSize: '0.9rem', color: 'rgba(255,255,255,0.8)' }}>
-        Shows the distribution of pond risk levels per farm based on recent monitoring reports.
-      </div>
+      <p className="chart-subtitle" style={{ 
+        textAlign: 'center', 
+        color: 'rgba(255, 255, 255, 0.91)', 
+        fontSize: '14px', 
+        margin: '8px 0 16px 0',
+        lineHeight: '1.4',
+        maxWidth: '600px',
+        marginLeft: 'auto',
+        marginRight: 'auto'
+      }}>
+        {chartSubtitle}
+      </p>
+      {isStdPhone && exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+        <div style={{ 
+          position: 'absolute', 
+          left: '50%', 
+          top: '60px', 
+          transform: 'translateX(-50%)', 
+          background: '#fff', 
+          border: '1px solid #e5e7eb', 
+          borderRadius: 8, 
+          boxShadow: '0 8px 20px rgba(0,0,0,0.08)', 
+          minWidth: 200, 
+          overflow: 'hidden', 
+          zIndex: 5 
+        }}>
+          <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'png', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
+          <div style={{ height: 1, background: '#e5e7eb' }} />
+          <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'jpeg', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
+          <div style={{ height: 1, background: '#e5e7eb' }} />
+          <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const data = groupMode === 'farm' ? byFarmData : byRiskData; exportChartDataCSV(data, 'ponds_at_risk.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'stacked chart data'), u); } catch (_) {} setExportOpen(false); }}>Export CSV</button>
+        </div>
+      )}
       <div className="chart-controls">
         {!isAssignedToFarm && (
           <>
@@ -887,7 +1110,35 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
             </select>
           </>
         )}
-        <div style={{ marginLeft: 'auto', position: 'relative' }}>
+        <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={(e) => { 
+              e.stopPropagation();
+              handleRefresh();
+            }}
+            disabled={isRefreshing}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'white',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              display: isStdPhone ? 'none' : 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: isRefreshing ? 0.6 : 1,
+              transition: 'all 0.2s ease'
+            }}
+            title={isRefreshing ? "Refreshing..." : "Refresh Data"}
+          >
+            <FaSync 
+              size={20} 
+              style={{ 
+                animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
+              }} 
+            />
+          </button>
           <div style={{ position: 'relative' }}>
             <button
               onClick={(e) => { 
@@ -903,7 +1154,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
                 border: 'none', 
                 color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
                 cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
-                display: 'flex', 
+                display: isStdPhone ? 'none' : 'flex', 
                 alignItems: 'center',
                 opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
               }}
@@ -912,7 +1163,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
             >
               <GiHamburgerMenu style={{ fontSize: '20px' }} />
             </button>
-            {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+            {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && !isStdPhone && (
               <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
                 <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'png', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
                 <div style={{ height: 1, background: '#e5e7eb' }} />
@@ -938,26 +1189,83 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
       {/* Insight line moved to below the chart as requested */}
 
       {groupMode === 'farm' ? (
-        <ResponsiveContainer width="100%" height={300}>
+        needScrollFarm ? (
+          <div style={{ maxHeight: chartHeights.farm, overflowY: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+            <ResponsiveContainer width="100%" height={farmDynamicHeight}>
+              <BarChart
+                layout="vertical"
+                data={byFarmData}
+                barCategoryGap="8%"
+                barSize={barSizePx}
+                onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+                onMouseLeave={() => setHoverSeriesKey(null)}
+                margin={chartMarginFarm}
+              >
+                <CartesianGrid horizontal={false} />
+                <XAxis
+                  type="number"
+                  allowDecimals={false}
+                  domain={[0, Math.max(7, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
+                  label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                  tickCount={8}
+                  ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+                />
+                <YAxis type="category" dataKey="name" width={yAxisWidthFarm} tick={<YAxisTick />} tickMargin={8} />
+                <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
+                <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 60 : 30 }} />
+                <Bar
+                  dataKey="High"
+                  name={t('pondsAtRiskChart.high')}
+                  stackId="a"
+                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
+                  fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
+                  onMouseEnter={() => setHoverSeriesKey('High')}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="Medium"
+                  name={t('pondsAtRiskChart.medium')}
+                  stackId="a"
+                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
+                  fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
+                  onMouseEnter={() => setHoverSeriesKey('Medium')}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="Low"
+                  name={t('pondsAtRiskChart.low')}
+                  stackId="a"
+                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
+                  fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
+                  onMouseEnter={() => setHoverSeriesKey('Low')}
+                  isAnimationActive={false}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={chartHeights.farm}>
           <BarChart
             layout="vertical"
             data={byFarmData}
-            barCategoryGap="10%"
-            barSize={18}
+            barCategoryGap="8%"
+            barSize={barSizePx}
             onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
             onMouseLeave={() => setHoverSeriesKey(null)}
-            margin={{ top: 12, right: 24, left: 12, bottom: 32 }}
+            margin={chartMarginFarm}
           >
             <CartesianGrid horizontal={false} />
             <XAxis
               type="number"
               allowDecimals={false}
-              domain={[0, Math.max(1, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
-              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: { fill: '#FFFFFF', fontSize: 13, fontWeight: 500 } }}
+              domain={[0, Math.max(7, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
+              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+              tickCount={8}
+              ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
             />
-            <YAxis type="category" dataKey="name" width={100} />
+            <YAxis type="category" dataKey="name" width={yAxisWidthFarm} tick={<YAxisTick />} tickMargin={8} />
             <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
-            <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: 30 }} />
+            <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 80 : 30 }} />
             <Bar
               dataKey="High"
               name={t('pondsAtRiskChart.high')}
@@ -986,50 +1294,106 @@ const PondsAtRiskStackedChart = ({ onDrilldown }) => {
               isAnimationActive={false}
             />
           </BarChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        )
       ) : (
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart
-            layout="vertical"
-            data={byRiskData}
-            barCategoryGap="10%"
-            barSize={18}
-            onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
-            onMouseLeave={() => setHoverSeriesKey(null)}
-            margin={{ top: 12, right: 24, left: 12, bottom: 32 }}
-          >
-            <CartesianGrid horizontal={false} />
-            <XAxis
-              type="number"
-              allowDecimals={false}
-              domain={[0, Math.max(1, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
-              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: { fill: '#FFFFFF', fontSize: 13, fontWeight: 500 } }}
-            />
-            <YAxis type="category" dataKey="risk" width={110} />
-            <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
-            <Legend content={renderLegend} verticalAlign="top" align="center" wrapperStyle={{ paddingTop: 4 }} />
-            {mergedFarms.map((f, idx) => {
-              return (
-              <Bar
-                key={`${f.key}-${idx}`}
-                dataKey={f.name}
-                name={f.name}
-                stackId="a"
-                fill={farmColorMap.get(f.name) || '#7ffcff'}
-                fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === f.name ? 1 : 0.15) : 1}
-                onMouseEnter={() => setHoverSeriesKey(f.name)}
+        needScrollRisk ? (
+          <div style={{ maxHeight: chartHeights.risk, overflowY: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+            <ResponsiveContainer width="100%" height={riskDynamicHeight}>
+              <BarChart
+                layout="vertical"
+                data={byRiskData}
+                barCategoryGap="8%"
+                barSize={barSizeRiskPx}
+                onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
                 onMouseLeave={() => setHoverSeriesKey(null)}
-                isAnimationActive={false}
-                onClick={(_, dataIndex) => handleBarClick({ clickedFarmName: f.name }, dataIndex)}
+                margin={chartMarginRisk}
+              >
+                <CartesianGrid horizontal={false} />
+                <XAxis
+                  type="number"
+                  allowDecimals={false}
+                  domain={[0, Math.max(7, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
+                  label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                  tickCount={8}
+                  ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+                />
+                <YAxis type="category" dataKey="risk" width={yAxisWidthRisk} tick={<YAxisTick />} tickMargin={4} />
+              <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ 
+                pointerEvents: 'none', 
+                left: isStdPhone ? 300 : 'auto',
+                right: isStdPhone ? 'auto' : 'auto'
+              }} />
+                <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 5 : 30 }} />
+                {mergedFarms.map((f, idx) => {
+                  return (
+                  <Bar
+                    key={`${f.key}-${idx}`}
+                    dataKey={f.name}
+                    name={f.name}
+                    stackId="a"
+                    fill={farmColorMap.get(f.name) || '#7ffcff'}
+                    fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === f.name ? 1 : 0.15) : 1}
+                    onMouseEnter={() => setHoverSeriesKey(f.name)}
+                    onMouseLeave={() => setHoverSeriesKey(null)}
+                    isAnimationActive={false}
+                    onClick={(_, dataIndex) => handleBarClick({ clickedFarmName: f.name }, dataIndex)}
+                  />
+                ); })}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={chartHeights.risk}>
+            <BarChart
+              layout="vertical"
+              data={byRiskData}
+              barCategoryGap="8%"
+              barSize={barSizeRiskPx}
+              onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+              onMouseLeave={() => setHoverSeriesKey(null)}
+              margin={chartMarginRisk}
+            >
+              <CartesianGrid horizontal={false} />
+              <XAxis
+                type="number"
+                allowDecimals={false}
+                domain={[0, Math.max(7, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
+                label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                tickCount={8}
+                ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
               />
-            ); })}
-          </BarChart>
-        </ResponsiveContainer>
+              <YAxis type="category" dataKey="risk" width={yAxisWidthRisk} tick={<YAxisTick />} tickMargin={4} />
+                <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ 
+                  pointerEvents: 'none', 
+                  left: isStdPhone ? 50 : 'auto',
+                  right: isStdPhone ? 'auto' : 'auto'
+                }} />
+              <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 80 : 30 }} />
+              {mergedFarms.map((f, idx) => {
+                return (
+                <Bar
+                  key={`${f.key}-${idx}`}
+                  dataKey={f.name}
+                  name={f.name}
+                  stackId="a"
+                  fill={farmColorMap.get(f.name) || '#7ffcff'}
+                  fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === f.name ? 1 : 0.15) : 1}
+                  onMouseEnter={() => setHoverSeriesKey(f.name)}
+                  onMouseLeave={() => setHoverSeriesKey(null)}
+                  isAnimationActive={false}
+                  onClick={(_, dataIndex) => handleBarClick({ clickedFarmName: f.name }, dataIndex)}
+                />
+              ); })}
+            </BarChart>
+          </ResponsiveContainer>
+        )
       )}
-            <div className="reports-last-updated">
+            <div className={`reports-last-updated ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
         {t('pondsAtRiskChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
       </div>
     </div>
+    </>
   );
 };
 

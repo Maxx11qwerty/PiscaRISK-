@@ -161,7 +161,9 @@
     "submitted_by": "Isinumite ni",
     "contact": "Kontak",
     "additional_notes": "Mga Karagdagang Komento",
-    "no_reports_for_selected_filters": "Walang mga ulat para sa napiling mga filter"
+    "no_reports_for_selected_filters": "Walang mga ulat para sa napiling mga filter",
+    "has_data": "May data",
+    "no_data_yet": "Wala pang data"
   },
   "reports": {
     "title": "Mga Ulat",

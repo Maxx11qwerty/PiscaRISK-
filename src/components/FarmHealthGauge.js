@@ -38,8 +38,17 @@ const FarmHealthGauge = () => {
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const assignedFarmKey = isAssignedToFarm ? normalizeFarmName(farmsNameByKey[currentUser.farm] || currentUser.farm) : null;
+  const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
+
+  // Track viewport width for responsive behavior
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Resolve assigned farm name
   useEffect(() => {
@@ -348,13 +357,65 @@ const FarmHealthGauge = () => {
   return (
     <div className="health-gauge-container" id="health-gauge-section">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h3 className="chart-title" style={{ margin: 0 }}>
+        <h3 className="chart-title" style={{ 
+          margin: 0, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          gap: '8px' 
+        }}>
+          {isStdPhone && (
+            <button
+              onClick={() => {
+                const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+                if (!isTemporaryTechOfficer) {
+                  setExportOpen(v => !v);
+                }
+              }}
+              disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
+                cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+                display: 'flex', 
+                alignItems: 'center',
+                opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1,
+                padding: '4px'
+              }}
+              aria-label={t('farmHealthGauge.exportAriaLabel')}
+              title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('farmHealthGauge.exportAriaLabel')}
+            >
+              <GiHamburgerMenu style={{ fontSize: '1.2rem' }} />
+            </button>
+          )}
           {isAssignedToFarm 
             ? t('farmHealthGauge.titleAssigned', { farm: assignedFarmDisplayName || t('farmHealthGauge.loading', { defaultValue: 'Loading…' }) })
             : t('farmHealthGauge.title')
           }
         </h3>
-        <div style={{ position: 'relative' }}>
+        {isStdPhone && exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            top: '60px',
+            transform: 'translateX(-50%)',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 8,
+            boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+            minWidth: 200,
+            overflow: 'hidden',
+            zIndex: 5
+          }}>
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadGaugeAsImage('#health-gauge-section', 'png', 'farm_health_gauge'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'health gauge PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
+            <div style={{ height: 1, background: '#e5e7eb' }} />
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadGaugeAsImage('#health-gauge-section', 'jpeg', 'farm_health_gauge'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'health gauge JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
+            <div style={{ height: 1, background: '#e5e7eb' }} />
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); exportHealthGaugeCSV({ farmName, percent: displayPercent, status: displayStatus, asOf: new Date() }, 'farm_health.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'farm health data'), u); } catch (_) {} setExportOpen(false); }}>Export CSV</button>
+          </div>
+        )}
+        <div style={{ position: 'relative', display: isStdPhone ? 'none' : 'block' }}>
           <button
             onClick={() => {
               const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
@@ -424,7 +485,7 @@ const FarmHealthGauge = () => {
             <ResponsiveContainer width="100%" height="100%">
               <RadialBarChart
                 key={displayPercent}
-                innerRadius="70%"
+                innerRadius="65%"
                 outerRadius="100%"
                 data={chartData}
                 startAngle={180}
@@ -452,23 +513,44 @@ const FarmHealthGauge = () => {
               </div>
               {(() => {
                 const s = String(displayStatus || '').toUpperCase();
+                const isOutdated = (typeof latestMs === 'number' && latestMs > 0) && ((Date.now() - latestMs) > (24 * 60 * 60 * 1000));
                 let text = '';
                 if (selectedFarm === 'all') {
-                  text = s === 'GOOD'
-                    ? 'Stable conditions across all farms.'
-                    : s === 'CAUTION'
-                    ? 'Some farms show early signs of risk.'
-                    : s === 'CRITICAL'
-                    ? 'Multiple farms require urgent attention.'
-                    : '';
+                  if (isOutdated) {
+                    text = s === 'GOOD'
+                      ? 'Conditions were stable across all farms during the last update.'
+                      : s === 'CAUTION'
+                      ? 'Some farms previously showed signs of risk; new updates may be needed.'
+                      : s === 'CRITICAL'
+                      ? 'Several farms were at high risk; confirm if conditions persist.'
+                      : '';
+                  } else {
+                    text = s === 'GOOD'
+                      ? 'Stable conditions across all farms.'
+                      : s === 'CAUTION'
+                      ? 'Some farms show early signs of risk.'
+                      : s === 'CRITICAL'
+                      ? 'Multiple farms require urgent attention.'
+                      : '';
+                  }
                 } else {
-                  text = s === 'GOOD'
-                    ? 'Stable farm conditions based on recent monitoring data.'
-                    : s === 'CAUTION'
-                    ? 'Moderate conditions, potential risks emerging.'
-                    : s === 'CRITICAL'
-                    ? 'Unstable conditions; immediate attention required.'
-                    : '';
+                  if (isOutdated) {
+                    text = s === 'GOOD'
+                      ? 'Farm conditions were stable during the last update.'
+                      : s === 'CAUTION'
+                      ? 'Moderate conditions were observed earlier; potential risks may have developed.'
+                      : s === 'CRITICAL'
+                      ? 'High-risk conditions were detected previously; verify current status.'
+                      : '';
+                  } else {
+                    text = s === 'GOOD'
+                      ? 'Stable farm conditions based on recent monitoring data.'
+                      : s === 'CAUTION'
+                      ? 'Moderate conditions, potential risks emerging.'
+                      : s === 'CRITICAL'
+                      ? 'Unstable conditions; immediate attention required.'
+                      : '';
+                  }
                 }
                 return text ? (
                   <div style={{ marginTop: 22, fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', textAlign: 'center', padding: '0 8px' }}>

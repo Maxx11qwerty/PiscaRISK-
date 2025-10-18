@@ -91,22 +91,16 @@
   .bar-chart-container .recharts-wrapper {
     height: 78% !important; /* leave more room for title and controls */
   }
-  .bar-chart-container .recharts-legend-wrapper {
-    position: static !important; /* keep under the chart */
-    width: 100% !important;
-    margin-top: 6px !important;
-    display: block !important;
-    overflow: visible !important; /* no horizontal scroll */
-    white-space: normal !important;
-  }
-  .bar-chart-container .recharts-legend-wrapper > div {
-    display: grid !important;
-    grid-template-columns: repeat(3, auto) !important; /* 3 on first row */
+  /* Custom legend positioning for small phones */
+  .bar-chart-container .custom-legend {
+    margin-top: -60px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
     gap: 8px 10px !important;
     justify-content: center !important;
     align-items: center !important;
   }
-  .bar-chart-container .recharts-legend-wrapper * {
+  .bar-chart-container .custom-legend * {
     font-size: 11px !important; /* smaller legend text for tiny phones */
     line-height: 1.2 !important;
   }
@@ -135,9 +129,9 @@
 }
 
 /* 361px to 480px: Standard phones */
-@media (min-width: 361px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) {
   .bar-chart-container {
-    height: 66%;
+    height: 55%;
     max-width: 100%;
     padding: 16px;
     overflow: visible; /* avoid clipping the heading */
@@ -148,26 +142,20 @@
   .chart-controls { position: relative; }
   .chart-controls > div:last-child { margin-left: auto; margin-right: -4px; }
   .bar-chart-container .recharts-wrapper {
-    height: 78% !important; /* allocate space for title and filters */
+    height: 70% !important; /* allocate space for title and filters */
     margin-top: 0.5rem;
   }
-  .bar-chart-container .recharts-legend-wrapper {
-    position: static !important;
-    width: 100% !important;
-    margin-top: 6px !important;
-    display: block !important;
-    overflow: visible !important; /* no horizontal scroll */
-    white-space: normal !important;
-  }
-  .bar-chart-container .recharts-legend-wrapper > div {
-    display: grid !important;
-    grid-template-columns: repeat(3, auto) !important; /* 3 items first row, remaining wrap */
+  /* Custom legend positioning for standard phones */
+  .bar-chart-container .custom-legend {
+    margin-top: -80px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
     gap: 8px 12px !important;
     justify-content: center !important;
     align-items: center !important;
   }
-  .bar-chart-container .recharts-legend-wrapper * {
-    font-size: 12px !important; /* compact but readable */
+  .bar-chart-container .custom-legend * {
+    font-size: 14px !important; /* larger text for better readability */
     line-height: 1.25 !important;
   }
   .chart-title {
@@ -381,6 +369,42 @@
   transform: translateX(-50%);
   width: 100%;
   padding: 0 1rem;
+}
+
+/* Hamburger menu icon styling for mobile 360-480px */
+@media (min-width: 360px) and (max-width: 480px) {
+  .chart-title button {
+    transition: all 0.2s ease;
+    border-radius: 4px;
+  }
+  
+  .chart-title button:hover {
+    background: rgba(127, 252, 255, 0.1) !important;
+    transform: scale(1.1);
+  }
+  
+  .reports-last-updated {
+    bottom: 10px !important;
+  }
+  
+  .reports-last-updated.risk-view {
+    bottom: 10px !important;
+    margin-bottom: 60px !important; /* Move up using margin-bottom */
+    color: #ffffff !important; /* Red color for testing */
+  }
+  
+  .recharts-tooltip-wrapper {
+    left: -95px !important;
+    right: auto !important;
+  }
+  
+  /* Force tooltip positioning for risk view on mobile */
+  .bar-chart-container .recharts-tooltip-wrapper {
+    left: -66px !important;
+    right: auto !important;
+  }
+  
+  
 }
 
 /* Recharts Default Styles Override */

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaExclamationTriangle, FaShieldAlt, FaInfoCircle, FaLightbulb } from 'react-icons/fa';
 import { RiAlertFill } from 'react-icons/ri';
@@ -26,7 +26,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     return () => { mountedRef.current = false; };
   }, []);
   const [detailsFarmKey, setDetailsFarmKey] = useState(null);
-  const [actionsFarmKey, setActionsFarmKey] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [feedbackCache, setFeedbackCache] = useState({});
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -34,7 +33,59 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
   const [selectedTimestamp, setSelectedTimestamp] = useState('latest');
   const [showHistoryFilter, setShowHistoryFilter] = useState(false);
   const [forcedDateMs, setForcedDateMs] = useState(null);
+  const isUserActionRef = useRef(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [checklistData, setChecklistData] = useState({});
+  const [historicalChecklistData, setHistoricalChecklistData] = useState({});
+  const [selectedPond, setSelectedPond] = useState(null);
+  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [showUrgentRecommendations, setShowUrgentRecommendations] = useState(false);
+  const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
+  const [pondSearchTerm, setPondSearchTerm] = useState('');
+  const [showPondDropdown, setShowPondDropdown] = useState(false);
   const appliedInitialFilterRef = React.useRef(false);
+
+  // Auto-close urgent recommendations when switching tabs
+  useEffect(() => {
+    setShowUrgentRecommendations(false);
+  }, [activeTab]);
+
+  // Close pond dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showPondDropdown && !event.target.closest('.pond-search-container')) {
+        setShowPondDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPondDropdown]);
+
+  // Clear pond selection if it doesn't match the current risk level filter
+  useEffect(() => {
+    if (!selectedPond) return;
+    
+    const farm = farms.find(f => f.farm_key === detailsFarmKey);
+    if (!farm) return;
+    
+    const availablePonds = getAvailablePonds(farm);
+    const filteredPonds = availablePonds.filter(pond => {
+      if (selectedRiskLevel === 'all') return true;
+      return normalizeRisk(pond.riskLevel) === selectedRiskLevel;
+    });
+    
+    // Check if selected pond matches the current risk level filter
+    const selectedPondMatchesFilter = filteredPonds.some(pond => pond.name === selectedPond);
+    
+    // Only clear if the pond doesn't match the filter AND we're not on "all" risk levels
+    if (!selectedPondMatchesFilter && selectedRiskLevel !== 'all') {
+      setSelectedPond(null);
+      setPondSearchTerm('');
+    }
+  }, [selectedRiskLevel, selectedPond, detailsFarmKey, farms]);
 
   // Allowed farm IDs and live names
   const allowedFarmIds = useMemo(() => ([
@@ -177,6 +228,66 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     } catch (e) {
     }
     return null;
+  };
+
+  const fetchChecklistCompletion = async (farmName, targetDateMs = null) => {
+    try {
+      const checklistQuery = query(
+        collection(db, 'checklist_completions'),
+        where('farm_details.farm_name', '==', farmName)
+      );
+      const checklistSnap = await getDocs(checklistQuery);
+      
+      if (checklistSnap.empty) {
+        console.log('No checklist data found for farm:', farmName);
+        return null;
+      }
+      
+      // Get all checklist completions
+      const checklistDocs = [];
+      checklistSnap.forEach(doc => {
+        const data = { id: doc.id, ...doc.data() };
+        checklistDocs.push(data);
+      });
+      
+      // If targetDateMs is provided, filter by date
+      if (targetDateMs) {
+        const targetDate = new Date(targetDateMs).toDateString();
+        const filteredDocs = checklistDocs.filter(doc => {
+          const docTime = doc.timestamp?.seconds ? doc.timestamp.seconds * 1000 : 0;
+          const docDate = new Date(docTime).toDateString();
+          return docDate === targetDate;
+        });
+        
+        if (filteredDocs.length === 0) {
+          console.log('No checklist data found for date:', targetDate);
+          return null;
+        }
+        
+        // Sort by timestamp to get the most recent for that date
+        filteredDocs.sort((a, b) => {
+          const aTime = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0;
+          const bTime = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0;
+          return bTime - aTime;
+        });
+        
+        return filteredDocs[0] || null;
+      }
+      
+      // Sort by timestamp to get the most recent
+      checklistDocs.sort((a, b) => {
+        const aTime = a.timestamp?.seconds ? a.timestamp.seconds * 1000 : 0;
+        const bTime = b.timestamp?.seconds ? b.timestamp.seconds * 1000 : 0;
+        return bTime - aTime;
+      });
+      
+      const latestDoc = checklistDocs[0] || null;
+      
+      return latestDoc;
+    } catch (e) {
+      console.error('Error fetching checklist completion:', e);
+      return null;
+    }
   };
 
   // Fetch predictions (risk_predictions) and aggregate feedback (model_feedback)
@@ -781,6 +892,50 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     loadForDetails();
   }, [detailsFarmKey, farms, feedbackCache]);
 
+  // Fetch checklist completion data when details modal opens
+  useEffect(() => {
+    const loadChecklistData = async () => {
+      if (!detailsFarmKey) return;
+      const farm = farms.find(f => f.farm_key === detailsFarmKey);
+      if (!farm) return;
+      const checklist = await fetchChecklistCompletion(farm.farm_name);
+      if (checklist) {
+        setChecklistData(prev => ({ ...prev, [detailsFarmKey]: checklist }));
+      }
+    };
+    loadChecklistData();
+  }, [detailsFarmKey, farms]);
+
+  // Fetch historical checklist data when in history mode and timestamp changes
+  useEffect(() => {
+    const loadHistoricalChecklistData = async () => {
+      if (!detailsFarmKey || !showHistoryFilter) return;
+      
+      const farm = farms.find(f => f.farm_key === detailsFarmKey);
+      if (!farm) return;
+      
+      const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
+        ? forcedDateMs
+        : (selectedTimestamp !== 'latest' ? parseInt(selectedTimestamp, 10) : null);
+      
+      if (effectiveSelectedMs) {
+        const historicalChecklist = await fetchChecklistCompletion(farm.farm_name, effectiveSelectedMs);
+        setHistoricalChecklistData(prev => ({ 
+          ...prev, 
+          [`${detailsFarmKey}_${effectiveSelectedMs}`]: historicalChecklist 
+        }));
+      }
+    };
+    loadHistoricalChecklistData();
+  }, [detailsFarmKey, showHistoryFilter, selectedTimestamp, forcedDateMs, farms]);
+
+  // Reset selected pond when farm changes
+  useEffect(() => {
+    if (detailsFarmKey) {
+      setSelectedPond(null);
+    }
+  }, [detailsFarmKey]);
+
   // Refresh farm data when details modal opens to ensure latest data
   useEffect(() => {
     const refreshFarmData = async () => {
@@ -788,7 +943,11 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       
       // Reset to latest mode when modal opens
       setSelectedTimestamp('latest');
+      // Only reset showHistoryFilter if it's not a user action
+      if (!isUserActionRef.current) {
       setShowHistoryFilter(false);
+      }
+      isUserActionRef.current = false;
       
       try {
         // Only show loader if we don't already have predictions to render
@@ -1045,6 +1204,50 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     return sortedDates;
   };
 
+  // Get all unique dates from farm predictions for a specific pond
+  const getDatesForPond = (farm, pondName) => {
+    if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
+    
+    // Filter predictions for the specific pond
+    const pondPredictions = farm.predictions.filter(pred => {
+      const formattedPondName = formatPondName(pred.fish_pond);
+      return formattedPondName === pondName;
+    });
+    
+    if (pondPredictions.length === 0) return [];
+    
+    // Get unique dates
+    const dateSet = new Set();
+    pondPredictions
+      .map(p => p.timestamp)
+      .filter(ts => ts)
+      .forEach(ts => {
+        const ms = getTimestampMs(ts);
+        const date = new Date(ms);
+        const dateKey = date.toDateString(); // e.g., "Mon Dec 15 2024"
+        dateSet.add(dateKey);
+      });
+
+    // Convert to array and sort by date (latest first)
+    const sortedDates = Array.from(dateSet)
+      .map(dateStr => {
+        // Find the latest timestamp for this date to use for sorting
+        const latestMs = Math.max(
+          ...pondPredictions
+            .map(p => getTimestampMs(p.timestamp))
+            .filter(ms => new Date(ms).toDateString() === dateStr)
+        );
+        return {
+          date: dateStr,
+          value: latestMs, // Use latest timestamp as the value for filtering
+          label: dateStr
+        };
+      })
+      .sort((a, b) => b.value - a.value); // Latest first
+
+    return sortedDates;
+  };
+
   // Compute freshness label and color for a given timestamp (ms)
   const getFreshness = (latestMs) => {
     if (!latestMs || latestMs <= 0) {
@@ -1109,6 +1312,237 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       return raw.replace(/fish/ig, 'Fish').replace(/pond/ig, 'Pond');
     }
     return `Fish Pond ${raw}`;
+  };
+
+  // Get available ponds for the selected farm
+  const getAvailablePonds = (farm) => {
+    if (!farm || !farm.predictions || !Array.isArray(farm.predictions)) return [];
+    
+    // Get the latest timestamp across all predictions to determine what's "current"
+    const allTimestamps = farm.predictions
+      .map(pred => getTimestampMs(pred.timestamp))
+      .filter(ts => ts > 0);
+    
+    if (allTimestamps.length === 0) return [];
+    
+    const latestTimestamp = Math.max(...allTimestamps);
+    const latestDate = new Date(latestTimestamp).toDateString();
+    
+    // Only consider predictions from the latest date (current/latest data)
+    const currentPredictions = farm.predictions.filter(pred => {
+      const predTime = getTimestampMs(pred.timestamp);
+      const predDate = new Date(predTime).toDateString();
+      return predDate === latestDate;
+    });
+    
+    // Get unique ponds from current predictions only
+    const pondMap = new Map();
+    currentPredictions.forEach(pred => {
+      const pondName = pred.fish_pond || 'Unknown Pond';
+      const formattedName = formatPondName(pondName);
+      const riskLevel = normalizeRisk(pred.risk_level);
+      
+      if (!pondMap.has(formattedName)) {
+        pondMap.set(formattedName, {
+          name: formattedName,
+          originalName: pondName,
+          riskLevel: riskLevel,
+          latestPrediction: pred
+        });
+      } else {
+        // Keep the latest prediction for this pond
+        const existing = pondMap.get(formattedName);
+        const existingTime = getTimestampMs(existing.latestPrediction.timestamp);
+        const currentTime = getTimestampMs(pred.timestamp);
+        if (currentTime > existingTime) {
+          pondMap.set(formattedName, {
+            name: formattedName,
+            originalName: pondName,
+            riskLevel: riskLevel,
+            latestPrediction: pred
+          });
+        }
+      }
+    });
+    
+    return Array.from(pondMap.values()).sort((a, b) => {
+      // Sort by pond number
+      const aNum = a.name.match(/\d+/);
+      const bNum = b.name.match(/\d+/);
+      if (aNum && bNum) {
+        return parseInt(aNum[0]) - parseInt(bNum[0]);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  // Get urgent recommendations for high-risk scenarios from actual risk predictions
+  const getUrgentRecommendations = (riskLevel, farmKey, selectedPond, predictions) => {
+    const normalizedRisk = normalizeRisk(riskLevel);
+    if (normalizedRisk !== 'High') return [];
+    
+    // Find the most recent prediction for the selected pond and farm
+    // First try to find predictions with exactly 7 recommendations (the specific ones from your data)
+    let relevantPrediction = predictions
+      .filter(pred => 
+        pred.farm_key === farmKey && 
+        normalizeRisk(pred.risk_level) === 'High' &&
+        formatPondName(pred.fish_pond) === selectedPond &&
+        Array.isArray(pred.recommended_actions) &&
+        pred.recommended_actions.length === 7
+      )
+      .sort((a, b) => {
+        const timeA = getTimestampMs(a.timestamp);
+        const timeB = getTimestampMs(b.timestamp);
+        return timeB - timeA; // Most recent first
+      })[0];
+    
+    // If no prediction with exactly 7 recommendations, try to find one with the specific recommendations
+    if (!relevantPrediction) {
+      const targetRecommendations = [
+        "Immediate water quality testing and correction",
+        "Quarantine affected fish population",
+        "Emergency water treatment application",
+        "Suspend all feeding until conditions improve",
+        "Consult aquatic veterinarian immediately",
+        "Increase aeration and oxygen levels",
+        "Isolate pond from other water systems"
+      ];
+      
+      relevantPrediction = predictions
+        .filter(pred => 
+          pred.farm_key === farmKey && 
+          normalizeRisk(pred.risk_level) === 'High' &&
+          formatPondName(pred.fish_pond) === selectedPond &&
+          Array.isArray(pred.recommended_actions) &&
+          pred.recommended_actions.length >= 7 &&
+          targetRecommendations.every(target => 
+            pred.recommended_actions.some(rec => rec.includes(target.split(' ').slice(-2).join(' ')))
+          )
+        )
+        .sort((a, b) => {
+          const timeA = getTimestampMs(a.timestamp);
+          const timeB = getTimestampMs(b.timestamp);
+          return timeB - timeA; // Most recent first
+        })[0];
+    }
+    
+    // If still no exact match, look for predictions that contain all 7 specific recommendations
+    if (!relevantPrediction) {
+      const targetRecommendations = [
+        "Immediate water quality testing and correction",
+        "Quarantine affected fish population", 
+        "Emergency water treatment application",
+        "Suspend all feeding until conditions improve",
+        "Consult aquatic veterinarian immediately",
+        "Increase aeration and oxygen levels",
+        "Isolate pond from other water systems"
+      ];
+      
+      relevantPrediction = predictions
+        .filter(pred => 
+          pred.farm_key === farmKey && 
+          normalizeRisk(pred.risk_level) === 'High' &&
+          formatPondName(pred.fish_pond) === selectedPond &&
+          Array.isArray(pred.recommended_actions) &&
+          pred.recommended_actions.length >= 7 &&
+          targetRecommendations.every(target => 
+            pred.recommended_actions.some(rec => rec.toLowerCase().includes(target.toLowerCase().split(' ').slice(-2).join(' ')))
+          )
+        )
+        .sort((a, b) => {
+          const timeA = getTimestampMs(a.timestamp);
+          const timeB = getTimestampMs(b.timestamp);
+          return timeB - timeA; // Most recent first
+        })[0];
+    }
+    
+    // If no prediction with exactly 7 recommendations, fall back to any prediction with recommendations
+    if (!relevantPrediction) {
+      relevantPrediction = predictions
+        .filter(pred => 
+          pred.farm_key === farmKey && 
+          normalizeRisk(pred.risk_level) === 'High' &&
+          formatPondName(pred.fish_pond) === selectedPond &&
+          Array.isArray(pred.recommended_actions) &&
+          pred.recommended_actions.length > 0
+        )
+        .sort((a, b) => {
+          // First, prioritize predictions with fewer recommendations (more specific)
+          const aCount = a.recommended_actions?.length || 0;
+          const bCount = b.recommended_actions?.length || 0;
+          if (aCount !== bCount) {
+            return aCount - bCount; // Fewer recommendations first (more specific)
+          }
+          
+          // If same number of recommendations, sort by timestamp
+          const timeA = getTimestampMs(a.timestamp);
+          const timeB = getTimestampMs(b.timestamp);
+          return timeB - timeA; // Most recent first
+        })[0];
+    }
+    
+    
+    // Return the recommended_actions from the prediction, or fallback to default
+    if (relevantPrediction && Array.isArray(relevantPrediction.recommended_actions) && relevantPrediction.recommended_actions.length > 0) {
+      // If we have more than 7 recommendations, try to extract only the urgent ones
+      if (relevantPrediction.recommended_actions.length > 7) {
+        // Look for the specific 7 urgent recommendations from your Firestore document
+        const targetRecommendations = [
+          "Immediate water quality testing and correction",
+          "Quarantine affected fish population",
+          "Emergency water treatment application", 
+          "Suspend all feeding until conditions improve",
+          "Consult aquatic veterinarian immediately",
+          "Increase aeration and oxygen levels",
+          "Isolate pond from other water systems"
+        ];
+        
+        // Try to find these specific recommendations in the array
+        const foundUrgentRecommendations = targetRecommendations.filter(target => 
+          relevantPrediction.recommended_actions.some(rec => 
+            rec.toLowerCase().includes(target.toLowerCase().split(' ').slice(-2).join(' '))
+          )
+        );
+        
+        // If we found the specific urgent recommendations, use them
+        if (foundUrgentRecommendations.length >= 5) { // At least 5 out of 7
+          return foundUrgentRecommendations;
+        }
+        
+        // Otherwise, try keyword-based filtering
+        const urgentKeywords = [
+          'immediate', 'emergency', 'quarantine', 'suspend', 'consult', 'increase', 'isolate',
+          'critical', 'urgent', 'asap', 'right away', 'immediately'
+        ];
+        
+        const urgentRecommendations = relevantPrediction.recommended_actions.filter(rec => 
+          urgentKeywords.some(keyword => rec.toLowerCase().includes(keyword))
+        );
+        
+        // If we found urgent recommendations, use them; otherwise use the last 7 (most likely the urgent ones)
+        if (urgentRecommendations.length > 0) {
+          return urgentRecommendations;
+        } else {
+          // Return the last 7 recommendations (most likely the urgent ones from your data)
+          return relevantPrediction.recommended_actions.slice(-7);
+        }
+      }
+      
+      return relevantPrediction.recommended_actions;
+    }
+    
+    // Fallback recommendations if no specific ones found
+    return [
+      'Adjust aeration system immediately to improve oxygen levels',
+      'Conduct emergency water testing for ammonia and nitrite',
+      'Add detoxifying agent to stabilize water parameters',
+      'Isolate affected fish for observation and treatment',
+      'Increase water circulation and flow rate',
+      'Check and clean all filtration systems',
+      'Monitor fish behavior for signs of distress',
+      'Prepare emergency water change if parameters worsen'
+    ];
   };
 
   // Extract recommended actions from reason text
@@ -1614,21 +2048,13 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         if (detailsFarmKey === farm.farm_key) return; // prevent re-opening same modal
                         if (detailsFarmKey) return; // another details modal already open
                         setDetailsFarmKey(farm.farm_key);
+                        setActiveTab('overview'); // Reset to overview tab when opening
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                           logActivity('report', `View Details opened for farm ${farm.farm_name} in Risk Reports`, u); 
                         } catch (_) {}
                       }}>
                         <span className="btn-icon"><IoTimeSharp /></span> {t('riskReportModal.viewDetails')}
-                      </button>
-                      <button className="suggested-actions-btn" onClick={() => {
-                        setActionsFarmKey(farm.farm_key);
-                        try { 
-                          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('report', `Suggested Actions opened for farm ${farm.farm_name} in Risk Reports`, u); 
-                        } catch (_) {}
-                      }}>
-                        <span className="btn-icon"><PiNoteFill /></span> {t('riskReportModal.latestSuggestedActions')}
                       </button>
               </div>
                   </>
@@ -1662,8 +2088,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         const farm = farms.find(f => f.farm_key === detailsFarmKey);
         if (!farm || !farm.has_reports) return null;
         
-        // Get available dates for this farm
-        const availableDates = getAllDates(farm);
+        // Get available dates for this farm - filter by selected pond if one is selected
+        const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
         
         // Determine effective selected date (forced from chart click, or from UIselection)
         const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
@@ -1697,22 +2123,85 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           const selectedMs = effectiveSelectedMs;
           // Get all reports from the same date as the selected timestamp
           const selectedDate = new Date(selectedMs).toDateString();
-          // Keep latest per pond for that date
-          const sameDayReports = (farm.predictions || []).filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === selectedDate);
-          const pondMap = new Map();
-          sameDayReports
-            .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
-            .forEach(pred => {
-              const pond = pred.fish_pond || 'Unknown Pond';
-              if (!pondMap.has(pond)) pondMap.set(pond, pred);
+          
+          console.log('Date filtering debug:', {
+            selectedMs,
+            selectedDate,
+            totalPredictions: farm.predictions?.length || 0,
+            effectiveSelectedMs
+          });
+          
+          // Get ALL reports for that date (not just latest per pond)
+          const sameDayReports = (farm.predictions || []).filter(p => {
+            const reportDate = new Date(getTimestampMs(p.timestamp)).toDateString();
+            const matches = reportDate === selectedDate;
+            if (matches) {
+              console.log('Found matching report:', {
+                fish_pond: p.fish_pond,
+                timestamp: p.timestamp,
+                reportDate,
+                selectedDate
+              });
+            }
+            return matches;
+          });
+          
+          console.log('Filtered reports count:', sameDayReports.length);
+          
+          // Sort by timestamp (latest first) and then by pond name for consistent ordering
+          displayPredictions = sameDayReports
+            .sort((a, b) => {
+              const timeDiff = getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp);
+              if (timeDiff !== 0) return timeDiff;
+              // If same timestamp, sort by pond name
+              return (a.fish_pond || '').localeCompare(b.fish_pond || '');
             });
-          displayPredictions = Array.from(pondMap.values());
         }
         
-        // Get last updated timestamp
-        const lastUpdated = displayPredictions.length > 0 
-          ? new Date(Math.max(...displayPredictions.map(p => getTimestampMs(p.timestamp))))
-          : new Date();
+        // Filter by selected pond and risk level only when NOT in history mode
+        if (!showHistoryFilter) {
+        // Filter by selected pond if one is selected
+        if (selectedPond) {
+            console.log('Filtering by selected pond:', selectedPond);
+          displayPredictions = displayPredictions.filter(pred => {
+            const formattedPondName = formatPondName(pred.fish_pond);
+            return formattedPondName === selectedPond;
+          });
+            console.log('After pond filtering:', displayPredictions.length, 'reports');
+          }
+          
+          // Filter by selected risk level if not 'all'
+          if (selectedRiskLevel !== 'all') {
+            console.log('Filtering by selected risk level:', selectedRiskLevel);
+            displayPredictions = displayPredictions.filter(pred => {
+              const risk = normalizeRisk(pred.risk_level);
+              return risk === selectedRiskLevel;
+            });
+            console.log('After risk level filtering:', displayPredictions.length, 'reports');
+          }
+        } else {
+          console.log('History mode: Showing all reports for selected date (ignoring pond and risk level filters)');
+        }
+        
+        console.log('Final displayPredictions before rendering:', displayPredictions.length, 'reports');
+        
+        // Get last updated timestamp - always use the latest data, not filtered historical data
+        const lastUpdated = (() => {
+          if (!farm || !farm.predictions || farm.predictions.length === 0) {
+            return new Date();
+          }
+          
+          // Always get the latest timestamp from all farm predictions, not just the filtered ones
+          const allTimestamps = farm.predictions
+            .map(p => getTimestampMs(p.timestamp))
+            .filter(ts => ts > 0);
+          
+          if (allTimestamps.length === 0) {
+            return new Date();
+          }
+          
+          return new Date(Math.max(...allTimestamps));
+        })();
         
         return (
           <div className="farm-details-modal-overlay">
@@ -1731,6 +2220,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                   setDetailsFarmKey(null);
                   setSelectedTimestamp('latest');
                   setShowHistoryFilter(false);
+                  setActiveTab('overview');
                   try { 
                     const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                     logActivity('report', `Details modal closed in Risk Reports`, u); 
@@ -1738,158 +2228,166 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                 }}>✕</button>
               </div>
               <div className="farm-details-content">
-                <div
-                  style={{
-                    background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    color: '#0c4a6e',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    marginBottom: 12,
-                    fontSize: '0.95rem',
-                    lineHeight: 1.4
-                  }}
-                >
-                  <span style={{ marginRight: 8 }}>💡</span>
-                  Confidence represents how certain the system is about its risk prediction based on the latest data. A higher value means the prediction is more reliable, while a lower confidence indicates that the result may be less accurate due to limited or inconsistent data.
+                {/* Tab Navigation */}
+                <div className="tab-navigation">
+                  <button 
+                    className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('overview')}
+                  >
+                    Overview
+                  </button>
+                  <button 
+                    className={`tab-button ${activeTab === 'checklist' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('checklist')}
+                  >
+                    Checklist Completion
+                  </button>
+                  <button 
+                    className={`tab-button ${activeTab === 'insights' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('insights')}
+                  >
+                    Insights
+                  </button>
                 </div>
-                {detailsLoading && (
-                  <div style={{
-                    marginBottom: '12px',
-                    padding: '10px 12px',
-                    background: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 6,
-                    color: '#6b7280',
-                    fontSize: '0.9rem'
-                  }}>
-                    {t('riskReportModal.loadingFarmRiskData')}
-                  </div>
-                )}
-                {/* Date Filter - Only show when viewing history */}
-                {showHistoryFilter && (
-                  <div className="timestamp-filter-section" style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <label htmlFor="date-select" style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
-                      📅 Select Report Date:
-                    </label>
-                    <select
-                      id="date-select"
-                      value={selectedTimestamp}
-                      onChange={(e) => setSelectedTimestamp(e.target.value)}
-                      style={{
-                        padding: '8px 12px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                        background: 'white',
-                        color: '#374151',
-                        minWidth: '200px'
-                      }}
-                    >
-                      <option value="latest">Latest Report Per Pond</option>
-                      {availableDates.map((date, index) => (
-                        <option key={date.value} value={date.value}>
-                          {date.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="pond-details-table">
-                    <table className="pond-table">
-                <thead>
-                  <tr>
-                    <th>{t('riskReportModal.pond')}</th>
-                    <th style={{ whiteSpace: 'nowrap' }}>{t('riskReportModal.riskLevel')}</th>
-                    <th>{t('riskReportModal.confidence')}</th>
-                  </tr>
-                </thead>
-                    <tbody>
-                      {displayPredictions.length > 0 ? displayPredictions.map((p, index) => {
-                        const risk = normalizeRisk(p.risk_level);
-                        const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
-                    const submittedMs = getTimestampMs(p.submitted_timestamp);
-                    const generatedMs = getTimestampMs(p.generated_timestamp || p.timestamp);
-                    const submittedDate = submittedMs ? new Date(submittedMs).toLocaleDateString() : '—';
-                    const generatedDate = generatedMs ? new Date(generatedMs).toLocaleDateString() : '—';
+
+                {/* Pond Selection */}
+                {(() => {
+                  const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                  if (!farm) return null;
+                  
+                  const availablePonds = getAvailablePonds(farm);
+                  if (availablePonds.length === 0) return null;
+                  
+                  // Filter ponds by risk level
+                  const filteredPonds = availablePonds.filter(pond => {
+                    if (selectedRiskLevel === 'all') return true;
+                    return normalizeRisk(pond.riskLevel) === selectedRiskLevel;
+                  });
+                  
+                  // Filter ponds by search term
+                  const searchFilteredPonds = filteredPonds.filter(pond => {
+                    if (!pondSearchTerm) return true;
+                    return pond.name.toLowerCase().includes(pondSearchTerm.toLowerCase());
+                  });
+                  
+                  // For dropdown display, show all filtered ponds when dropdown is open
+                  // Only apply search filter if user is actively typing (search term is not empty)
+                  const dropdownPonds = pondSearchTerm ? searchFilteredPonds : filteredPonds;
+                  
+                  return (
+                    <div className="pond-selection-section">
+                      {/* Risk Level Filter */}
+                      <div className="risk-level-filter">
+                        <label htmlFor="risk-level-select" className="risk-level-label">
+                          Filter by Risk Level:
+                        </label>
+                        <select
+                          id="risk-level-select"
+                          value={selectedRiskLevel}
+                          onChange={(e) => setSelectedRiskLevel(e.target.value)}
+                          className="risk-level-dropdown"
+                          disabled={showHistoryFilter}
+                          style={{ 
+                            opacity: showHistoryFilter ? 0.5 : 1,
+                            cursor: showHistoryFilter ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <option value="all">All Risk Levels</option>
+                          <option value="High">High Risk Only</option>
+                          <option value="Medium">Medium Risk Only</option>
+                          <option value="Low">Low Risk Only</option>
+                          <option value="Normal">Normal Risk Only</option>
+                        </select>
+                      </div>
+                      
+                      {/* Searchable Pond Selection */}
+                      <div className="pond-search-container">
+                        <label htmlFor="pond-search" className="pond-search-label">
+                          Select Pond:
+                        </label>
+                        <div className="pond-search-wrapper">
+                          <input
+                            id="pond-search"
+                            type="text"
+                            value={pondSearchTerm}
+                            onChange={(e) => {
+                              if (!showHistoryFilter) {
+                              setPondSearchTerm(e.target.value);
+                              setShowPondDropdown(true);
+                              }
+                            }}
+                            onFocus={() => {
+                              if (!showHistoryFilter) {
+                              setShowPondDropdown(true);
+                              // Clear search term when focusing to show all ponds
+                              if (!pondSearchTerm) {
+                                setPondSearchTerm('');
+                                }
+                              }
+                            }}
+                            placeholder={showHistoryFilter ? "History Mode - All Ponds" : (selectedPond ? `${selectedPond} - Click to see all ponds` : "Type to search ponds...")}
+                            className="pond-search-input"
+                            disabled={showHistoryFilter}
+                            style={{ 
+                              opacity: showHistoryFilter ? 0.5 : 1,
+                              cursor: showHistoryFilter ? 'not-allowed' : 'pointer'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => !showHistoryFilter && setShowPondDropdown(!showPondDropdown)}
+                            className="pond-dropdown-toggle"
+                            disabled={showHistoryFilter}
+                            style={{ 
+                              opacity: showHistoryFilter ? 0.5 : 1,
+                              cursor: showHistoryFilter ? 'not-allowed' : 'pointer'
+                            }}
+                          >
+                            ▼
+                          </button>
+                        </div>
                         
-                        return (
-                        <React.Fragment key={p.id || index}>
-                          {/* Main pond row */}
-                          <tr className="pond-table-row">
-                            <td className="pond-name" style={{ whiteSpace: 'nowrap' }}>{formatPondName(p.fish_pond) || '—'}</td>
-                            <td>{emoji} {risk === 'High' ? t('riskReportModal.highRisk') : risk === 'Medium' ? t('riskReportModal.mediumRisk') : risk === 'Low' ? t('riskReportModal.lowRisk') : t('riskReportModal.normalRisk')}</td>
-                            <td className="confidence-value">
-                              {(() => {
-                                if (typeof p.confidence !== 'number') return '—';
-                                const value = Number(p.confidence);
-                                const interp = getConfidenceInterpretation(value, p.risk_level);
-                                if (!interp) return `${value.toFixed(1)}%`;
-                                return (
-                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ color: interp.color, fontWeight: 600 }}>
-                                      {value.toFixed(1)}% {interp.emoji} {interp.label}
-                                    </span>
-                                    <span className="confidence-meta">
-                                      {interp.label} about {normalizeRisk(p.risk_level)} Risk
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                          </tr>
-                          {/* Details row */}
-                          <tr className="pond-details-row">
-                            <td colSpan="3" className="pond-details-cell">
-                              <div className="pond-reason-details">
-                                {(() => {
-                                  const reasonText = buildPondReason(p);
-                                  const recommendedActions = extractRecommendedActions(reasonText);
-                                  const cleanReason = cleanReasonText(reasonText);
-                                  
-                                  return (
-                                    <>
-                                      <div className="reason-summary">
-                                        <strong>Reason:</strong> {cleanReason}
-                                      </div>
-                                      {recommendedActions && (
-                                        <div className="recommended-actions">
-                                          <strong>Actions:</strong> {recommendedActions}
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                                <div className="timestamps-info">
-                                  <span className="timestamp-item">
-                                    <strong>Data submitted:</strong> {submittedDate}
-                                  </span>
-                                  <span className="timestamp-item">
-                                    <strong>Prediction generated:</strong> {generatedDate}
+                        {showPondDropdown && !showHistoryFilter && (
+                          <div className="pond-dropdown-list">
+                            {dropdownPonds.length > 0 ? (
+                              dropdownPonds.map((pond, index) => (
+                                <div
+                                  key={index}
+                                  className={`pond-dropdown-item ${selectedPond === pond.name ? 'selected' : ''}`}
+                                  onClick={() => {
+                                    setSelectedPond(pond.name);
+                                    setPondSearchTerm(''); // Clear search term to show all ponds next time
+                                    setShowPondDropdown(false);
+                                  }}
+                                >
+                                  <span className="pond-name">{pond.name}</span>
+                                  <span className={`pond-risk ${normalizeRisk(pond.riskLevel).toLowerCase()}`}>
+                                    {pond.riskLevel} Risk
                                   </span>
                                 </div>
+                              ))
+                            ) : (
+                              <div className="pond-dropdown-item no-results">
+                                No ponds found matching your search
                               </div>
-                            </td>
-                          </tr>
-                        </React.Fragment>
-                        );
-                      }) : (
-                        <tr>
-                          <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
-                            No predictions found for selected time period
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                
-                {/* View History Button */}
-                {selectedTimestamp === 'latest' && availableDates.length > 0 && !showHistoryFilter && (
-                  <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                {/* View History / Back to Latest Button */}
+                      {(() => {
+                        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                        if (!farm) return null;
+                        
+                        const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
+                        
+                        if (selectedTimestamp === 'latest' && availableDates.length > 0 && !showHistoryFilter) {
+                          return (
+                  <div className="view-history-section">
                     <button
                       onClick={() => {
+                                  isUserActionRef.current = true;
                         setShowHistoryFilter(true);
                         // Show the most recent date
                         const mostRecentDate = availableDates[0];
@@ -1897,124 +2395,1127 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           setSelectedTimestamp(mostRecentDate.value);
                         }
                       }}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#1A4375',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500'
-                      }}
+                      className="view-history-button"
                     >
                       View History
                     </button>
                   </div>
-                )}
-
-                {/* Back to Latest Button - Only show when viewing history */}
-                {showHistoryFilter && (
-                  <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                          );
+                        } else if (showHistoryFilter) {
+                          return (
+                  <div className="view-history-section">
                     <button
                       onClick={() => {
+                                  isUserActionRef.current = true;
                         setShowHistoryFilter(false);
                         setSelectedTimestamp('latest');
                       }}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#6b7280',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginRight: '10px'
-                      }}
+                      className="back-to-latest-button"
                     >
-                      Back to Latest
+                                Exit History Mode
                     </button>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                    </div>
+                  );
+                })()}
 
-      {/* Suggested Actions Modal */}
-      {actionsFarmKey && (() => {
-        const farm = farms.find(f => f.farm_key === actionsFarmKey);
-        if (!farm || !farm.has_reports) return null;
-        
-        // Get latest recommended actions from latest predictions only
-        const latestPredictions = getLatestBatchPerPond(farm);
-        const actions = Array.from(new Set(
-          latestPredictions.flatMap(p => p.recommended_actions || [])
-        ));
-        
-        return (
-          <div className="farm-details-modal-overlay">
-            <div className="farm-details-modal">
-              <div className="farm-details-header">
-                <h3>{farm.farm_name} — {t('riskReportModal.latestSuggestedActions')}</h3>
-                {(() => {
-                  // Get the latest timestamp from the latest predictions
-                  if (latestPredictions.length > 0) {
-                    const latestPrediction = latestPredictions
-                      .filter(p => p.timestamp)
-                      .sort((a, b) => {
-                        const aMs = getTimestampMs(a.timestamp);
-                        const bMs = getTimestampMs(b.timestamp);
-                        return bMs - aMs;
-                      })[0];
+                  {/* Date Filter - Only show when viewing history */}
+                  {showHistoryFilter && (() => {
+                    const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                    if (!farm) return null;
                     
-                    if (latestPrediction) {
-                      const latestDate = new Date(getTimestampMs(latestPrediction.timestamp));
+                    const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
+                    
+                    console.log('Available dates for dropdown:', availableDates);
+                    
+                    return (
+                      <div className="timestamp-filter-section" style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <label htmlFor="date-select" style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#374151' }}>
+                          📅 Select Report Date{selectedPond ? ` for ${selectedPond}` : ''}:
+                        </label>
+                        <select
+                          id="date-select"
+                          value={selectedTimestamp}
+                          onChange={(e) => {
+                            console.log('Date selected from dropdown:', e.target.value);
+                            setSelectedTimestamp(e.target.value);
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            background: 'white',
+                            color: '#374151',
+                            minWidth: '200px'
+                          }}
+                        >
+                          <option value="latest">{selectedPond ? `Latest Report for ${selectedPond}` : 'Latest Report Per Pond'}</option>
+                          {availableDates.map((date, index) => (
+                            <option key={date.value} value={date.value}>
+                              {date.label}
+                            </option>
+                          ))}
+                        </select>
+                  </div>
+                    );
+                  })()}
+
+                  {/* Tab Content */}
+                  <div className="tab-content">
+                  {(() => {
+                    const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                    if (!farm) return null;
+                    
+                    const availablePonds = getAvailablePonds(farm);
+                    const filteredPonds = availablePonds.filter(pond => {
+                      if (selectedRiskLevel === 'all') return true;
+                      return normalizeRisk(pond.riskLevel) === selectedRiskLevel;
+                    });
+                    
+                    // Check if selected pond matches the current risk level filter
+                    const selectedPondMatchesFilter = selectedPond && filteredPonds.some(pond => pond.name === selectedPond);
+                    
+                    // Show no pond message if no pond selected OR selected pond doesn't match risk filter
+                    // BUT only when not viewing history (when viewing history, show all reports for the selected date)
+                    if (!showHistoryFilter && (!selectedPond || !selectedPondMatchesFilter)) {
                       return (
-                        <p style={{ 
-                          fontSize: '0.9em', 
-                          color: '#666', 
-                          margin: '5px 0 0 0',
-                          fontStyle: 'italic'
-                        }}>
-                          {t('riskReportModal.asOf')}: {latestDate.toLocaleDateString()}
-                        </p>
+                        <div className="no-pond-selected">
+                          <div className="no-pond-message">
+                            <h4>
+                              {!selectedPond 
+                                ? "💬 Please select a pond to continue." 
+                                : `🔍 No ponds found with ${selectedRiskLevel === 'all' ? 'any' : selectedRiskLevel} risk level. Please select a different risk level or choose another pond.`
+                              }
+                            </h4>
+                          </div>
+                        </div>
                       );
                     }
-                  }
-                  return null;
-                })()}
-                <button className="close-modal-btn" onClick={() => {
-                  setActionsFarmKey(null);
-                  try { 
-                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                    logActivity('report', `Suggested Actions modal closed in Risk Reports`, u); 
-                  } catch (_) {}
-                }}>✕</button>
-              </div>
-              <div className="farm-details-content">
-                <div className="recommended-actions">
-                  <h4>{t('riskReportModal.recommendedActions')}</h4>
-                  {actions.length > 0 ? (
-                    <ul className="actions-list">
-                      {actions.map((a, i) => (
-                        <li key={i} className={`action-item ${i < 2 ? 'high-priority' : 'medium-priority'}`}>
-                          <span className="action-icon">✔</span>
-                          <span>{a}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>{t('riskReportModal.noSpecificActionsAvailable')}</p>
+                    
+                    console.log('Tab content rendering - activeTab:', activeTab);
+                    
+                    return (
+                    <>
+                      {activeTab === 'overview' && (
+                    <div className="tab-panel">
+                      {console.log('Overview tab is active, rendering table')}
+                      
+                      <div
+                        style={{
+                          background: '#f0f9ff',
+                          border: '1px solid #bae6fd',
+                          color: '#0c4a6e',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          marginBottom: 12,
+                          fontSize: '0.95rem',
+                          lineHeight: 1.4
+                        }}
+                      >
+                        <span style={{ marginRight: 8 }}>💡</span>
+                        Overview shows the pond's current risk level and how confident the system is about that prediction. A higher confidence means the result is more reliable, while a lower confidence indicates that the result may be less accurate due to limited or inconsistent data.
+                      </div>
+
+                      {detailsLoading && (
+                        <div style={{
+                          marginBottom: '12px',
+                          padding: '10px 12px',
+                          background: '#f9fafb',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 6,
+                          color: '#6b7280',
+                          fontSize: '0.9rem'
+                        }}>
+                          {t('riskReportModal.loadingFarmRiskData')}
+                        </div>
+                      )}
+                      
+                      {showHistoryFilter ? (
+                        // Card-based layout for history mode
+                        <div className="historical-reports-cards">
+                          {console.log('Rendering cards with displayPredictions:', displayPredictions.length, 'reports')}
+                          {displayPredictions.length > 0 ? (() => {
+                            // Group predictions by pond
+                            const pondGroups = {};
+                            displayPredictions.forEach(p => {
+                              const pondName = formatPondName(p.fish_pond) || 'Unknown Pond';
+                              if (!pondGroups[pondName]) {
+                                pondGroups[pondName] = [];
+                              }
+                              pondGroups[pondName].push(p);
+                            });
+
+                            const pondNames = Object.keys(pondGroups).sort();
+
+                            return pondNames.map((pondName, pondIndex) => {
+                              const pondReports = pondGroups[pondName];
+                              const isMultipleReports = pondReports.length > 1;
+                              
+                              return (
+                                <div key={pondName} className="pond-group-cards">
+                                  {/* Pond divider */}
+                                  {pondIndex > 0 && (
+                                    <div className="pond-divider" style={{ 
+                                      textAlign: 'center', 
+                                      margin: '20px 0',
+                                      color: '#6b7280',
+                                      fontSize: '0.875rem',
+                                      fontWeight: '600'
+                                    }}>
+                                      ──── Different Pond ────
+                                    </div>
+                                  )}
+                                  
+                                  {/* Cards for each report in this pond */}
+                                  {pondReports.map((p, reportIndex) => {
+                                    const risk = normalizeRisk(p.risk_level);
+                                    const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
+                                    const generatedMs = getTimestampMs(p.generated_timestamp || p.timestamp);
+                                    const reportTime = generatedMs ? new Date(generatedMs).toLocaleTimeString() : '—';
+                                    
+                                    return (
+                                      <div 
+                                        key={p.id || `${pondName}-${reportIndex}`}
+                                        className="historical-report-card"
+                            style={{
+                              background: 'white',
+                                          border: '1px solid #e5e7eb',
+                                          borderRadius: '8px',
+                                          padding: '16px',
+                                          marginBottom: '12px',
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s ease',
+                                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.borderColor = '#3b82f6';
+                                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.15)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.borderColor = '#e5e7eb';
+                                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                                        }}
+                                        onClick={() => {
+                                          const cardId = p.id || `${pondName}-${reportIndex}`;
+                                          setExpandedCardId(expandedCardId === cardId ? null : cardId);
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <div>
+                                            <div style={{ fontWeight: '600', fontSize: '1rem', color: '#1f2937' }}>
+                                              {pondName}
+                                              {isMultipleReports && (
+                                                <span style={{ 
+                                                  fontSize: '0.75rem', 
+                                                  color: '#6b7280', 
+                                                  marginLeft: '8px',
+                                                  fontWeight: '500'
+                                                }}>
+                                                  Report #{reportIndex + 1} • {reportTime}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div style={{ marginTop: '4px', fontSize: '0.875rem', color: '#6b7280' }}>
+                                              {emoji} {risk === 'High' ? t('riskReportModal.highRisk') : risk === 'Medium' ? t('riskReportModal.mediumRisk') : risk === 'Low' ? t('riskReportModal.lowRisk') : t('riskReportModal.normalRisk')}
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: 'right' }}>
+                                            {(() => {
+                                              if (typeof p.confidence !== 'number') return <span style={{ color: '#6b7280' }}>—</span>;
+                                              const value = Number(p.confidence);
+                                              const interp = getConfidenceInterpretation(value, p.risk_level);
+                                              if (!interp) return <span style={{ fontWeight: '600' }}>{value.toFixed(1)}%</span>;
+                                              return (
+                                                <div>
+                                                  <div style={{ color: interp.color, fontWeight: 600, fontSize: '0.875rem' }}>
+                                                    {value.toFixed(1)}% {interp.emoji} {interp.label}
+                                                  </div>
+                                                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
+                                                    {interp.label} about {normalizeRisk(p.risk_level)} Risk
+                                                  </div>
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Expanded Details */}
+                                        {expandedCardId === (p.id || `${pondName}-${reportIndex}`) && (
+                                          <div style={{ 
+                                            marginTop: '16px', 
+                                            paddingTop: '16px', 
+                                            borderTop: '1px solid #e5e7eb',
+                                            fontSize: '0.875rem'
+                                          }}>
+                                            <div className="pond-reason-details">
+                                              {(() => {
+                                                const reasonText = buildPondReason(p);
+                                                const recommendedActions = extractRecommendedActions(reasonText);
+                                                const cleanReason = cleanReasonText(reasonText);
+                                                
+                                                return (
+                                                  <>
+                                                    <div className="reason-summary" style={{ marginBottom: '12px' }}>
+                                                      <strong>Reason:</strong> {cleanReason}
+                                                    </div>
+                                                    {recommendedActions && (
+                                                      <div className="recommended-actions" style={{ marginBottom: '12px' }}>
+                                                        <strong>Actions:</strong> {recommendedActions}
+                                                      </div>
+                                                    )}
+                                                  </>
+                                                );
+                                              })()}
+                                              <div className="timestamps-info" style={{ 
+                                                display: 'flex', 
+                                                gap: '16px', 
+                                                flexWrap: 'wrap',
+                                                fontSize: '0.8rem',
+                                                color: '#6b7280'
+                                              }}>
+                                                <span className="timestamp-item">
+                                                  <strong>Data submitted:</strong> {(() => {
+                                                    const submittedMs = getTimestampMs(p.submitted_timestamp);
+                                                    return submittedMs ? new Date(submittedMs).toLocaleDateString() : '—';
+                                                  })()}
+                                                </span>
+                                                <span className="timestamp-item">
+                                                  <strong>Prediction generated:</strong> {generatedMs ? new Date(generatedMs).toLocaleDateString() : '—'}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            });
+                          })() : (
+                            <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                              No predictions were recorded for this period. The system will update automatically when new data becomes available.
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // Original table layout for normal mode
+                      <div className="pond-details-table">
+                          <table className="pond-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '40%' }}>{t('riskReportModal.pond')}</th>
+                          <th style={{ whiteSpace: 'nowrap', width: '30%' }}>{t('riskReportModal.riskLevel')}</th>
+                          <th style={{ width: '30%', textAlign: 'right' }}>{t('riskReportModal.confidence')}</th>
+                        </tr>
+                      </thead>
+                          <tbody>
+                              {console.log('Table rendering - displayPredictions.length:', displayPredictions.length)}
+                              {displayPredictions.length > 0 ? (() => {
+                                console.log('Rendering table with displayPredictions:', displayPredictions.length, 'reports');
+                                
+                                // Group predictions by pond
+                                const pondGroups = {};
+                                displayPredictions.forEach(p => {
+                                  const pondName = formatPondName(p.fish_pond) || 'Unknown Pond';
+                                  if (!pondGroups[pondName]) {
+                                    pondGroups[pondName] = [];
+                                  }
+                                  pondGroups[pondName].push(p);
+                                });
+
+                                const pondNames = Object.keys(pondGroups).sort();
+                                console.log('Pond groups:', pondGroups);
+                                console.log('Pond names:', pondNames);
+                                let rowIndex = 0;
+
+                                return pondNames.map((pondName, pondIndex) => {
+                                  const pondReports = pondGroups[pondName];
+                                  const isMultipleReports = pondReports.length > 1;
+                                  
+                                  return (
+                                    <React.Fragment key={pondName}>
+                                      {/* Add divider if this is not the first pond */}
+                                      {pondIndex > 0 && (
+                                        <tr className="pond-divider-row">
+                                          <td colSpan="3" style={{ 
+                                            padding: '15px 0', 
+                                            borderTop: '3px solid #d1d5db',
+                                            background: '#f8fafc'
+                                          }}>
+                                            <div style={{ 
+                                              textAlign: 'center', 
+                                              color: '#6b7280', 
+                                              fontSize: '0.875rem',
+                                              fontWeight: '600',
+                                              letterSpacing: '0.5px'
+                                            }}>
+                                              ──── Different Pond ────
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                      
+                                      {pondReports.map((p, reportIndex) => {
+                              const risk = normalizeRisk(p.risk_level);
+                              const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
+                          const submittedMs = getTimestampMs(p.submitted_timestamp);
+                          const generatedMs = getTimestampMs(p.generated_timestamp || p.timestamp);
+                          const submittedDate = submittedMs ? new Date(submittedMs).toLocaleDateString() : '—';
+                          const generatedDate = generatedMs ? new Date(generatedMs).toLocaleDateString() : '—';
+                                        const reportTime = generatedMs ? new Date(generatedMs).toLocaleTimeString() : '—';
+                              
+                              return (
+                                          <React.Fragment key={p.id || `${pondName}-${reportIndex}`}>
+                                {/* Main pond row */}
+                                <tr className="pond-table-row">
+                                              <td className="pond-name" style={{ whiteSpace: 'nowrap', width: '40%' }}>
+                                                {pondName}
+                                                {isMultipleReports && (
+                                                  <div style={{ 
+                                                    fontSize: '0.75rem', 
+                                                    color: '#6b7280', 
+                                                    marginTop: '2px',
+                                                    fontWeight: '500'
+                                                  }}>
+                                                    Report #{reportIndex + 1} • {reportTime}
+                                                  </div>
+                                                )}
+                                              </td>
+                                  <td style={{ width: '30%' }}>{emoji} {risk === 'High' ? t('riskReportModal.highRisk') : risk === 'Medium' ? t('riskReportModal.mediumRisk') : risk === 'Low' ? t('riskReportModal.lowRisk') : t('riskReportModal.normalRisk')}</td>
+                                  <td className="confidence-value" style={{ width: '30%', textAlign: 'right' }}>
+                                    {(() => {
+                                      if (typeof p.confidence !== 'number') return '—';
+                                      const value = Number(p.confidence);
+                                      const interp = getConfidenceInterpretation(value, p.risk_level);
+                                      if (!interp) return `${value.toFixed(1)}%`;
+                                      return (
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                          <span style={{ color: interp.color, fontWeight: 600 }}>
+                                            {value.toFixed(1)}% {interp.emoji} {interp.label}
+                                          </span>
+                                          <span className="confidence-meta">
+                                            {interp.label} about {normalizeRisk(p.risk_level)} Risk
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                </tr>
+                                {/* Details row */}
+                                <tr className="pond-details-row">
+                                  <td colSpan="3" className="pond-details-cell">
+                                    <div className="pond-reason-details">
+                                      {(() => {
+                                        const reasonText = buildPondReason(p);
+                                        const recommendedActions = extractRecommendedActions(reasonText);
+                                        const cleanReason = cleanReasonText(reasonText);
+                                        
+                                        return (
+                                          <>
+                                            <div className="reason-summary">
+                                              <strong>Reason:</strong> {cleanReason}
+                                            </div>
+                                            {recommendedActions && (
+                                              <div className="recommended-actions">
+                                                <strong>Actions:</strong> {recommendedActions}
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                      <div className="timestamps-info">
+                                        <span className="timestamp-item">
+                                          <strong>Data submitted:</strong> {submittedDate}
+                                        </span>
+                                        <span className="timestamp-item">
+                                          <strong>Prediction generated:</strong> {generatedDate}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </React.Fragment>
+                              );
+                                      })}
+                                    </React.Fragment>
+                                  );
+                                });
+                              })() : (
+                              <tr>
+                                <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                                    No predictions were recorded for this period. The system will update automatically when new data becomes available.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      )}
+                      
+                      {/* Show urgent recommendations in overview if no checklist data exists for this specific pond */}
+                      {(() => {
+                        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                        const checklist = checklistData[detailsFarmKey];
+                        
+                        // Check if checklist data exists for the specific selected pond
+                        const hasChecklistForThisPond = checklist && 
+                          checklist.location_info?.fish_pond && 
+                          formatPondName(checklist.location_info.fish_pond) === selectedPond;
+                        
+                        console.log('Overview Urgent Recommendations Debug:', {
+                          farmKey: detailsFarmKey,
+                          hasChecklist: !!checklist,
+                          hasChecklistForThisPond,
+                          checklistPond: checklist?.location_info?.fish_pond,
+                          selectedPond,
+                          hasFarm: !!farm
+                        });
+                        
+                        // Only show urgent recommendations in overview if there's no checklist data for this specific pond
+                        if (hasChecklistForThisPond) {
+                          console.log('No urgent recommendations in overview - checklist data exists for this pond');
+                          return null;
+                        }
+                        
+                        if (!farm) {
+                          console.log('No urgent recommendations in overview - no farm data');
+                          return null;
+                        }
+                        
+                        // Hide urgent recommendations if there are no predictions to show
+                        if (displayPredictions.length === 0) {
+                          console.log('No urgent recommendations in overview - no predictions available');
+                          return null;
+                        }
+                        
+                        const availablePonds = getAvailablePonds(farm);
+                        const selectedPondData = availablePonds.find(pond => pond.name === selectedPond);
+                        const currentRiskLevel = selectedPondData?.riskLevel || 'Normal';
+                        
+                        // Get all predictions for this farm to find recommended_actions
+                        const farmPredictions = farm.predictions || [];
+                        const urgentRecommendations = getUrgentRecommendations(
+                          currentRiskLevel, 
+                          detailsFarmKey, 
+                          selectedPond, 
+                          farmPredictions
+                        );
+                        
+                        console.log('Overview urgent recommendations result:', {
+                          currentRiskLevel,
+                          urgentRecommendationsCount: urgentRecommendations.length,
+                          urgentRecommendations
+                        });
+                        
+                        if (urgentRecommendations.length === 0) {
+                          console.log('No urgent recommendations in overview - no urgent recommendations found');
+                          return null;
+                        }
+                        
+                        console.log('Rendering urgent recommendations in overview');
+                        return (
+                          <div className="urgent-recommendations-section">
+                            <div 
+                              className="urgent-recommendations-header"
+                              onClick={() => setShowUrgentRecommendations(!showUrgentRecommendations)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <div>
+                                <h5>🔥 Urgent Recommendations (High Risk Only)</h5>
+                                <div className="urgent-recommendations-subtitle">
+                                  {farm?.farm_name || 'Unknown Farm'} - {selectedPond}
+                                </div>
+                              </div>
+                              <span className="urgent-toggle-icon">
+                                {showUrgentRecommendations ? '▼' : '▶'}
+                              </span>
+                            </div>
+                            
+                            {showUrgentRecommendations && (
+                              <div className="urgent-recommendations-list">
+                                {urgentRecommendations.length === 8 && urgentRecommendations[0] === 'Adjust aeration system immediately to improve oxygen levels' ? (
+                                  <div className="urgent-recommendations-warning">
+                                    ⚠️ Using fallback recommendations - Database recommendations not found
+                                  </div>
+                                ) : urgentRecommendations.length > 7 ? (
+                                  <div className="urgent-recommendations-info">
+                                    ℹ️ Showing urgent recommendations from risk prediction system ({urgentRecommendations.length} total)
+                                  </div>
+                                ) : (
+                                  <div className="urgent-recommendations-source">
+                                    ✅ Recommendations from risk prediction system ({urgentRecommendations.length} recommendations)
+                                  </div>
+                                )}
+                                {urgentRecommendations.map((rec, index) => (
+                                  <div key={index} className="urgent-recommendation-item">
+                                    <span className="urgent-recommendation-bullet">•</span>
+                                    <span className="urgent-recommendation-text">{rec}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      
+
+                    </div>
                   )}
+
+                  {activeTab === 'checklist' && (
+                    <div className="tab-panel">
+                      <div className="checklist-completion-section">
+                        {(() => {
+                          const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                          
+                          // When in history mode, use historical checklist data
+                          let checklist;
+                          if (showHistoryFilter) {
+                            const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
+                              ? forcedDateMs
+                              : (selectedTimestamp !== 'latest' ? parseInt(selectedTimestamp, 10) : null);
+                            
+                            if (effectiveSelectedMs) {
+                              checklist = historicalChecklistData[`${detailsFarmKey}_${effectiveSelectedMs}`];
+                            }
+                          } else {
+                            checklist = checklistData[detailsFarmKey];
+                          }
+                          
+                          // Get current risk level for the selected pond
+                          const availablePonds = farm ? getAvailablePonds(farm) : [];
+                          const pondRiskData = availablePonds.find(pond => pond.name === selectedPond);
+                          const currentRiskLevel = pondRiskData?.riskLevel || 'Normal';
+                          
+                          if (!checklist) {
+                            return (
+                              <div className={showHistoryFilter ? "historical-reports-cards" : "no-checklist-data"}>
+                                <div className={showHistoryFilter ? "historical-report-card" : "no-checklist-data"} style={showHistoryFilter ? {
+                                  background: 'white',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '8px',
+                                  padding: '16px',
+                                  textAlign: 'center'
+                                } : {}}>
+                                  <h4 style={{ margin: showHistoryFilter ? '0 0 8px 0' : '0', color: showHistoryFilter ? '#1f2937' : 'inherit' }}>📋 Checklist Completion</h4>
+                                  <p style={{ margin: '0', color: showHistoryFilter ? '#6b7280' : 'inherit' }}>No checklist has been started for this pond yet.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // Check if the selected pond has checklist data
+                          const selectedPondData = checklist.location_info?.fish_pond;
+                          const formattedSelectedPond = selectedPond ? formatPondName(selectedPond) : null;
+                          const formattedChecklistPond = selectedPondData ? formatPondName(selectedPondData) : null;
+                          
+                          
+                          // If a specific pond is selected but checklist data is for a different pond
+                          // Only apply this check when NOT in history mode
+                          if (!showHistoryFilter && selectedPond && formattedChecklistPond && formattedSelectedPond !== formattedChecklistPond) {
+                            return (
+                              <div className="no-checklist-data">
+                                <h4>📋 Checklist Completion</h4>
+                                <p>No checklist has been started for this pond yet.</p>
+                              </div>
+                            );
+                          }
+
+                          const { completed_checklist = [], completion_metrics = {}, farm_details = {}, location_info = {}, predictive_analytics = {} } = checklist;
+                          const completionRate = completion_metrics.completion_rate || 0;
+                          const totalTasks = completion_metrics.total_tasks || 0;
+                          const completedTasks = completion_metrics.completed_tasks || 0;
+                          const highPriorityCompletion = completion_metrics.high_priority_completion || 0;
+                          const riskReduction = predictive_analytics.completed_tasks_benefits?.risk_reduction?.risk_reduction_percentage || 0;
+                          const preventionEffectiveness = predictive_analytics.completed_tasks_benefits?.risk_reduction?.prevention_effectiveness || 0;
+                          const systemStability = predictive_analytics.completed_tasks_benefits?.risk_reduction?.system_stability || 'Unknown';
+                          
+                          const nextRecommendations = predictive_analytics.next_recommendations || [];
+
+                          return (
+                            <>
+                              {/* Conditional info text based on risk level */}
+                              <div
+                                style={{
+                                  background: '#f0f9ff',
+                                  border: '1px solid #bae6fd',
+                                  color: '#0c4a6e',
+                                  padding: '10px 12px',
+                                  borderRadius: 8,
+                                  marginBottom: 12,
+                                  fontSize: '0.95rem',
+                                  lineHeight: 1.4
+                                }}
+                              >
+                                {normalizeRisk(currentRiskLevel) === 'High' ? (
+                                  <>
+                                    <span style={{ marginRight: 8 }}>⚠️</span>
+                                    This section highlights the current checklist progress for the selected pond. Immediate attention is recommended to complete remaining tasks and reduce high-risk conditions.
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ marginRight: 8 }}>💡</span>
+                                    This section shows how many checklist tasks have been completed for the selected pond. It helps track progress and identify areas that need attention before risks increase.
+                                  </>
+                                )}
+                              </div>
+                              
+                              <div className="checklist-summary-card">
+                                <div className="farm-info">
+                                  <strong>Farm:</strong> {farm_details.farm_name || farm?.farm_name || 'Unknown Farm'}<br/>
+                                  <strong>Pond:</strong> {location_info.fish_pond || 'Unknown Pond'}
+                                </div>
+                                
+                                <div className="progress-section">
+                                  <div className="progress-header">
+                                    <span>Progress:</span>
+                                    <span className="completion-rate">{completionRate}%</span>
+                                  </div>
+                                  <div className="progress-bar">
+                                    <div 
+                                      className="progress-fill" 
+                                      style={{ width: `${completionRate}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="progress-status">
+                                    {completionRate === 100 ? '✅ All tasks completed' : `${completedTasks}/${totalTasks} tasks completed`}
+                                  </div>
+                                </div>
+
+                                <div className="task-summary">
+                                  <div className="summary-item">
+                                    <span className="summary-label">• {totalTasks} total tasks</span>
+                                  </div>
+                                  <div className="summary-item">
+                                    <span className="summary-label">• {completedTasks} completed</span>
+                                  </div>
+                                  <div className="summary-item">
+                                    <span className="summary-label">• {completion_metrics.total_high_priority_tasks || 0} high-priority tasks pending</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="breakdown-section">
+                                <h5>Breakdown by Category</h5>
+                                <div className="breakdown-table">
+                                  <div className="table-header">
+                                    <div className="header-cell">Category</div>
+                                    <div className="header-cell">Task</div>
+                                    <div className="header-cell">Priority</div>
+                                    <div className="header-cell">Status</div>
+                                  </div>
+                                  {completed_checklist.map((task, index) => (
+                                    <div key={index} className={`table-row ${task.completed ? 'completed-row' : 'pending-row'}`}>
+                                      <div className="table-cell category-cell">
+                                        {task.category?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
+                                      </div>
+                                      <div className="table-cell task-cell">
+                                        {task.task || 'Unknown Task'}
+                                      </div>
+                                      <div className="table-cell priority-cell">
+                                        <span className={`priority-badge ${task.priority || 'low'}`}>
+                                          {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1) || 'Low'}
+                                        </span>
+                                      </div>
+                                      <div className="table-cell status-cell">
+                                        {task.completed ? '✅ Done' : '⏳ Pending'}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="metrics-section">
+                                <h5>Completion Metrics</h5>
+                                <div className="metrics-grid">
+                                  <div className="metric-item">
+                                    <span className="metric-label">Completion Rate:</span>
+                                    <span className="metric-value">{completionRate}%</span>
+                                  </div>
+                                  <div className="metric-item">
+                                    <span className="metric-label">High Priority Completion:</span>
+                                    <span className="metric-value">{highPriorityCompletion}%</span>
+                                  </div>
+                                  <div className="metric-item">
+                                    <span className="metric-label">System Stability:</span>
+                                    <span className="metric-value">{systemStability}</span>
+                                  </div>
+                                  <div className="metric-item">
+                                    <span className="metric-label">Risk Reduction:</span>
+                                    <span className="metric-value">{riskReduction}%</span>
+                                  </div>
+                                  <div className="metric-item">
+                                    <span className="metric-label">Prevention Effectiveness:</span>
+                                    <span className="metric-value">{preventionEffectiveness}%</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Urgent Recommendations - Only show for High Risk when checklist data exists for this specific pond */}
+                              {(() => {
+                                const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                                if (!farm) return null;
+                                
+                                // Check if checklist data exists for the specific selected pond
+                                const hasChecklistForThisPond = checklist && 
+                                  checklist.location_info?.fish_pond && 
+                                  formatPondName(checklist.location_info.fish_pond) === selectedPond;
+                                
+                                // Only show urgent recommendations in checklist tab if checklist data exists for this specific pond
+                                if (!hasChecklistForThisPond) return null;
+                                
+                                const availablePonds = getAvailablePonds(farm);
+                                const selectedPondData = availablePonds.find(pond => pond.name === selectedPond);
+                                const currentRiskLevel = selectedPondData?.riskLevel || 'Normal';
+                                
+                                // Get all predictions for this farm to find recommended_actions
+                                const farmPredictions = farm.predictions || [];
+                                const urgentRecommendations = getUrgentRecommendations(
+                                  currentRiskLevel, 
+                                  detailsFarmKey, 
+                                  selectedPond, 
+                                  farmPredictions
+                                );
+                                
+                                if (urgentRecommendations.length === 0) return null;
+                                
+                                return (
+                                  <div className="urgent-recommendations-section">
+                                    <div 
+                                      className="urgent-recommendations-header"
+                                      onClick={() => setShowUrgentRecommendations(!showUrgentRecommendations)}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <div>
+                                        <h5>🔥 Urgent Recommendations (High Risk Only)</h5>
+                                        <div className="urgent-recommendations-subtitle">
+                                          {farm?.farm_name || 'Unknown Farm'} - {selectedPond}
+                                        </div>
+                                      </div>
+                                      <span className="urgent-toggle-icon">
+                                        {showUrgentRecommendations ? '▼' : '▶'}
+                                      </span>
+                                    </div>
+                                    
+                                    {showUrgentRecommendations && (
+                                      <div className="urgent-recommendations-list">
+                                        {urgentRecommendations.length === 8 && urgentRecommendations[0] === 'Adjust aeration system immediately to improve oxygen levels' ? (
+                                          <div className="urgent-recommendations-warning">
+                                            ⚠️ Using fallback recommendations - Database recommendations not found
+                                          </div>
+                                        ) : urgentRecommendations.length > 7 ? (
+                                          <div className="urgent-recommendations-info">
+                                            ℹ️ Showing urgent recommendations from risk prediction system ({urgentRecommendations.length} total)
+                                          </div>
+                                        ) : (
+                                          <div className="urgent-recommendations-source">
+                                            ✅ Recommendations from risk prediction system ({urgentRecommendations.length} recommendations)
+                                          </div>
+                                        )}
+                                        {urgentRecommendations.map((rec, index) => (
+                                          <div key={index} className="urgent-recommendation-item">
+                                            <span className="urgent-recommendation-bullet">•</span>
+                                            <span className="urgent-recommendation-text">{rec}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+
+                              {nextRecommendations.length > 0 && (
+                                <div className="recommendations-section">
+                                  <h5>Next Recommendations</h5>
+                                  <div className="recommendations-list">
+                                    {nextRecommendations.map((rec, index) => (
+                                      <div key={index} className="recommendation-item">
+                                        <span className="recommendation-arrow">→</span>
+                                        <span className="recommendation-text">{rec}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'insights' && (
+                    <div className="tab-panel">
+                      <div className="ai-insights-section">
+                        {(() => {
+                          const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                          
+                          // When in history mode, use historical checklist data
+                          let checklist;
+                          if (showHistoryFilter) {
+                            const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
+                              ? forcedDateMs
+                              : (selectedTimestamp !== 'latest' ? parseInt(selectedTimestamp, 10) : null);
+                            
+                            if (effectiveSelectedMs) {
+                              checklist = historicalChecklistData[`${detailsFarmKey}_${effectiveSelectedMs}`];
+                            }
+                          } else {
+                            checklist = checklistData[detailsFarmKey];
+                          }
+                          
+                          // Get current risk level for the selected pond
+                          const availablePonds = farm ? getAvailablePonds(farm) : [];
+                          const pondRiskData = availablePonds.find(pond => pond.name === selectedPond);
+                          const currentRiskLevel = pondRiskData?.riskLevel || 'Normal';
+                          
+                          if (!checklist || !checklist.predictive_analytics) {
+                            return (
+                              <div className={showHistoryFilter ? "historical-reports-cards" : "no-insights-data"}>
+                                <div className={showHistoryFilter ? "historical-report-card" : "no-insights-data"} style={showHistoryFilter ? {
+                                  background: 'white',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '8px',
+                                  padding: '16px',
+                                  textAlign: 'center'
+                                } : {}}>
+                                  <h4 style={{ margin: showHistoryFilter ? '0 0 8px 0' : '0', color: showHistoryFilter ? '#1f2937' : 'inherit' }}>🎯 Insights</h4>
+                                  <p style={{ margin: '0', color: showHistoryFilter ? '#6b7280' : 'inherit' }}>No completed tasks detected. Insights will be available once progress is made.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // Check if the selected pond has AI insights data
+                          const selectedPondData = checklist.location_info?.fish_pond;
+                          const formattedSelectedPond = selectedPond ? formatPondName(selectedPond) : null;
+                          const formattedChecklistPond = selectedPondData ? formatPondName(selectedPondData) : null;
+                          
+                          
+                          // If a specific pond is selected but AI insights data is for a different pond
+                          // Only apply this check when NOT in history mode
+                          if (!showHistoryFilter && selectedPond && formattedChecklistPond && formattedSelectedPond !== formattedChecklistPond) {
+                            return (
+                              <div className="no-insights-data">
+                                <h4>🎯 Insights</h4>
+                                <p>No completed tasks detected. Insights will be available once progress is made.</p>
+                              </div>
+                            );
+                          }
+
+                          const { predictive_analytics = {} } = checklist;
+                          const {
+                            overall_assessment = 'Unknown',
+                            completed_tasks_benefits = {},
+                            risk_reduction = {},
+                            next_recommendations = [],
+                            recommended_focus = [],
+                            incomplete_tasks_risks = {},
+                            impact_analysis = {}
+                          } = predictive_analytics;
+                          
+                          // Get risk_timeline directly from predictive_analytics (where it actually is)
+                          const risk_timeline = predictive_analytics.risk_timeline || {};
+                          
+                          // Get improvement_timeline from completed_tasks_benefits (where it actually is)
+                          const improvement_timeline = completed_tasks_benefits?.improvement_timeline || {};
+                          
+                          // Get urgency_level from multiple possible locations
+                          let urgency_level = checklist.urgency_level || 
+                                            predictive_analytics.urgency_level ||
+                                            incomplete_tasks_risks?.urgency_level;
+                          
+                          // If urgency_level is not found, try to derive it from other data
+                          if (!urgency_level) {
+                            // Check if we can derive urgency from risk_level or other indicators
+                            const riskLevel = checklist.risk_level || 'Unknown';
+                            const completionRate = checklist.completion_metrics?.completion_rate || 0;
+                            
+                            // Simple heuristic: if completion rate is 100% and risk is low, urgency is likely low
+                            // if completion rate is low or risk is high, urgency is likely high
+                            if (completionRate === 100 && riskLevel.toLowerCase().includes('low')) {
+                              urgency_level = 'Low';
+                            } else if (completionRate < 50 || riskLevel.toLowerCase().includes('high')) {
+                              urgency_level = 'High';
+                            } else {
+                              urgency_level = 'Medium'; // Default fallback
+                            }
+                          }
+                          
+
+                          const benefits = completed_tasks_benefits.benefits || [];
+                          const confidenceBoost = completed_tasks_benefits.confidence_boost || 0;
+                          const preventionEffectiveness = completed_tasks_benefits?.risk_reduction?.prevention_effectiveness || 0;
+                          const riskReductionPercentage = completed_tasks_benefits?.risk_reduction?.risk_reduction_percentage || 0;
+                          const systemStability = completed_tasks_benefits?.risk_reduction?.system_stability || 'Unknown';
+                          
+                          // Get next_recommendations from completed_tasks_benefits (where it actually is)
+                          const nextRecommendationsFromBenefits = completed_tasks_benefits?.next_recommendations || [];
+
+                          return (
+                            <>
+                              <h4>🎯 Insights</h4>
+                              
+                              {/* Conditional info text based on risk level */}
+                              <div
+                                style={{
+                                  background: '#f0f9ff',
+                                  border: '1px solid #bae6fd',
+                                  color: '#0c4a6e',
+                                  padding: '10px 12px',
+                                  borderRadius: 8,
+                                  marginBottom: 12,
+                                  fontSize: '0.95rem',
+                                  lineHeight: 1.4
+                                }}
+                              >
+                                {normalizeRisk(currentRiskLevel) === 'High' ? (
+                                  <>
+                                    <span style={{ marginRight: 8 }}>⚠️</span>
+                                    This section shows critical insights for the selected pond. Immediate action is recommended to address severe risks and restore system stability before conditions worsen.
+                                  </>
+                                ) : normalizeRisk(currentRiskLevel) === 'Medium' ? (
+                                  <>
+                                    <span style={{ marginRight: 8 }}>💡</span>
+                                    This section provides insights into the pond's current condition. It helps identify moderate risks, ongoing improvements, and actions that can enhance system stability.
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ marginRight: 8 }}>💡</span>
+                                    This section provides insights into the pond's stable condition. It highlights performance trends, recovery timelines, and next recommendations to sustain good system health.
+                                  </>
+                                )}
+                              </div>
+                              
+                              <div className="insights-summary-card">
+                                <div className="assessment-grid">
+                                  <div className="assessment-item">
+                                    <span className="assessment-label">Overall Assessment:</span>
+                                    <span className={`assessment-value ${overall_assessment.toLowerCase()}`}>
+                                      {overall_assessment}
+                                    </span>
+                                  </div>
+                                  <div className="assessment-item">
+                                    <span className="assessment-label">Urgency Level:</span>
+                                    <span className={`urgency-value ${urgency_level.toLowerCase()}`}>
+                                      {urgency_level}
+                                    </span>
+                                  </div>
+                                  <div className="assessment-item">
+                                    <span className="assessment-label">Confidence Boost:</span>
+                                    <span className="confidence-value">
+                                      {confidenceBoost >= 0 ? '+' : ''}{confidenceBoost}%
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="timeline-section">
+                                <h5>🕒 Recovery Timeline</h5>
+                                <div className="timeline-grid">
+                                  <div className="timeline-item">
+                                    <span className="timeline-label">• Immediate Benefits:</span>
+                                    <span className="timeline-value">{improvement_timeline.immediate_benefits || 'Unknown'}</span>
+                                  </div>
+                                  <div className="timeline-item">
+                                    <span className="timeline-label">• Short-Term:</span>
+                                    <span className="timeline-value">{improvement_timeline.short_term_improvements || 'Unknown'}</span>
+                                  </div>
+                                  <div className="timeline-item">
+                                    <span className="timeline-label">• Medium-Term:</span>
+                                    <span className="timeline-value">{improvement_timeline.medium_term_recovery || 'Unknown'}</span>
+                                  </div>
+                                  <div className="timeline-item">
+                                    <span className="timeline-label">• Full Stabilization:</span>
+                                    <span className="timeline-value">{improvement_timeline.full_stabilization || 'Unknown'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="system-stability-section">
+                                <h5>🌊 System Stability</h5>
+                                <div className="stability-grid">
+                                  <div className="stability-item">
+                                    <span className="stability-label">• Overall Risk Level:</span>
+                                    <span className="stability-value">{checklist.risk_level || 'Unknown'}</span>
+                                  </div>
+                                  <div className="stability-item">
+                                    <span className="stability-label">• System Stability:</span>
+                                    <span className="stability-value">{systemStability}</span>
+                                  </div>
+                                  <div className="stability-item">
+                                    <span className="stability-label">• Prevention Effectiveness:</span>
+                                    <span className="stability-value">{preventionEffectiveness}%</span>
+                                  </div>
+                                  <div className="stability-item">
+                                    <span className="stability-label">• Risk Reduction Achieved:</span>
+                                    <span className="stability-value">{riskReductionPercentage}%</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {benefits.length > 0 && (
+                                <div className="benefits-section">
+                                  <h5>💡 Key Insights</h5>
+                                  <div className="benefits-list">
+                                    {benefits.map((benefit, index) => (
+                                      <div key={index} className="benefit-item">
+                                        <span className="benefit-text">{benefit}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {(next_recommendations.length > 0 || nextRecommendationsFromBenefits.length > 0) && (
+                                <div className="next-recommendations-section">
+                                  <h5>🧭 Next Recommendations</h5>
+                                  <div className="recommendations-list">
+                                    {(next_recommendations.length > 0 ? next_recommendations : nextRecommendationsFromBenefits).map((recommendation, index) => (
+                                      <div key={index} className="recommendation-item">
+                                        <span className="recommendation-text">• {recommendation}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {recommended_focus.length > 0 && (
+                                <div className="recommended-focus-section">
+                                  <h5>📅 Next Recommended Focus:</h5>
+                                  <div className="focus-list">
+                                    {recommended_focus.map((focus, index) => (
+                                      <div key={index} className="focus-item">
+                                        <span className="focus-text">• {focus}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                    </>
+                  );
+                })()}
                 </div>
               </div>
             </div>
           </div>
         );
       })()}
+
     </div>
   );
 };

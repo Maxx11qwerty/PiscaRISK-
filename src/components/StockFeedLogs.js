@@ -203,7 +203,7 @@ const StockFeedLogs = ({ farmId, farmName }) => {
           <SectionTitle icon={<FaChartBar />} title="Estimates" />
           <div className="condition-grid">
             <Row label="Days to Harvest" value={item.estimated_days_to_harvest != null ? `${item.estimated_days_to_harvest} days` : null} />
-            <Row label="Est. Weight" value={item.estimated_harvest_weight != null ? `${item.estimated_harvest_weight}` : null} />
+            <Row label="Est. Weight" value={item.estimated_harvest_weight != null ? `${item.estimated_harvest_weight} (kg)` : null} />
             <Row label="Est. Value" value={item.estimated_value != null ? formatCurrency(item.estimated_value) : null} />
             <Row label="Est. Profit" value={item.estimated_profit != null ? formatCurrency(item.estimated_profit) : null} />
           </div>

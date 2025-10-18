@@ -161,7 +161,9 @@
     "submitted_by": "Submitted by",
     "contact": "Contact",
     "additional_notes": "Additional Notes",
-    "no_reports_for_selected_filters": "No reports for selected filters"
+    "no_reports_for_selected_filters": "No reports for selected filters",
+    "has_data": "Has data",
+    "no_data_yet": "No data yet"
   },
   "reports": {
     "title": "Reports",
