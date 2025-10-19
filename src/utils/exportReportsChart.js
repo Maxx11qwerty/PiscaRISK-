@@ -30,6 +30,7 @@ export const downloadReportsChartImage = (containerSelector, type = 'png', filen
 
 const withinTimeFilter = (date, timeFilter) => {
   const now = new Date();
+  if (timeFilter === 'all') return true;
   if (timeFilter === 'daily') {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay() + 1);
@@ -55,6 +56,9 @@ const formatDate = (d) => new Date(d).toLocaleString();
 
 const getPeriodLabel = (date, timeFilter) => {
   const now = new Date();
+  if (timeFilter === 'all') {
+    return 'All time';
+  }
   if (timeFilter === 'daily') {
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay() + 1);

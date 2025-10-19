@@ -5,6 +5,175 @@
 	white-space: nowrap;
 }
 
+/* Feedback mobile breakpoint rules (360px–480px) requested to be included here */
+@media (min-width: 360px) and (max-width: 480px) {
+  .feedback-detail-placeholder { min-height: 320px; }
+  .feedback-tabs { display: none !important; }
+  .mobile-tab-row { display: flex; gap: .5rem; margin: .5rem 0 0 .5rem; }
+  .mobile-tab { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; padding: .45rem .7rem; font-size: .85rem; color: #1A4375; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+  .mobile-tab { position: relative; }
+  .mobile-tab .mobile-badge { position: absolute; top: -8px; right: -6px; background: #1A4375; color: #fff; border-radius: 999px; padding: 2px 6px; font-size: .65rem; font-weight: 700; box-shadow: 0 2px 6px rgba(26,67,117,.25); }
+  .mobile-tab.active { background: #1A4375; color: #fff; border-color: #1A4375; }
+  .feedback-wrapper { margin-top: 1.5rem; }
+  .feedback-tabs { 
+    margin: 1rem auto 0.5rem auto; 
+    margin-left: 0; 
+    margin-bottom: 0; 
+    width: 95%; 
+    padding-bottom: 0; 
+    display: flex; 
+    flex-direction: row; 
+    align-items: center;
+    gap: 0.5rem; 
+    overflow: visible; 
+    position: sticky; 
+    top: 60px; 
+    z-index: 1100; 
+    background: #fff;
+  }
+}
+
+/* Mobile feedback detail styles for 360px–480px */
+@media (min-width: 360px) and (max-width: 480px) {
+  .feedback-detail.mobile-open {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    top: 160px; /* start below header */
+    bottom: 0; /* extend to bottom */
+    width: 100vw;
+    height: calc(100vh - 60px); /* full height minus header */
+    border-radius: 0;
+    padding: 12px;
+    z-index: 1300; /* higher z-index to cover filter buttons */
+    overflow-y: auto; /* allow scrolling within the detail view */
+    background: #fff; /* ensure solid background */
+  }
+
+  /* Inbox panel layout on mobile: anchor under header and fill width */
+  .inbox-container.open,
+  .inbox-container.closed {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    top: 120px; /* below header/tabs area */
+    width: 100vw;
+    margin: 0 auto;
+    height: calc(100vh - 140px) !important; /* leave space for header/footer */
+    max-height: none !important;
+    bottom: auto !important;
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    z-index: 1200;
+  }
+
+  /* Hide inbox content by default on mobile, only show when explicitly opened */
+  .inbox-container.closed {
+    display: none !important;
+  }
+
+  .inbox-container.open {
+    display: block !important;
+  }
+
+  /* Reduce visual noise inside the floating inbox */
+  .inbox-container .unread-badge { display: none !important; }
+
+  /* Softer backdrop when inbox is open */
+  .feedback .inbox-backdrop {
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+  }
+
+  /* Mobile close button for inbox content */
+  .inbox-container .inbox-close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    color: #6b7280;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .inbox-container .inbox-close-btn:hover {
+    background: #e5e7eb;
+    color: #374151;
+    transform: scale(1.05);
+  }
+
+  /* Close button for response/archive views in mobile */
+  .feedback-detail .detail-close-btn {
+    position: fixed;
+    top: 80px;
+    right: 16px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1400;
+    color: #6b7280;
+    font-size: 18px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+
+  .feedback-detail .detail-close-btn:hover {
+    background: #e5e7eb;
+    color: #374151;
+    transform: scale(1.05);
+  }
+
+  /* Ensure close buttons are visible on mobile */
+  .inbox-container.open .inbox-close-btn {
+    display: flex !important;
+  }
+
+  /* Hide inbox close button when viewing message detail */
+  .feedback.detail-open .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Alternative approach - hide when detail is open */
+  .feedback-detail.mobile-open ~ .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Force hide when detail is open using more specific selector */
+  .feedback .feedback-detail.mobile-open ~ .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Show detail close button only when viewing message detail */
+  .feedback-detail.mobile-open .detail-close-btn {
+    display: flex !important;
+  }
+
+  /* Hide detail close button when not viewing message detail */
+  .feedback-detail:not(.mobile-open) .detail-close-btn {
+    display: none !important;
+  }
+}
+
 /* Pond Divider Styles */
 .pond-divider-row {
 	background: #f8fafc;
@@ -2007,6 +2176,167 @@
   .confidence-info {
     white-space: normal;
     word-break: break-word;
+  }
+
+  /* Pond Selection and Risk Filter Mobile Layout */
+  .pond-selection-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .risk-level-filter {
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .risk-level-label {
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #1f2937;
+    font-weight: 600;
+  }
+
+  .risk-level-dropdown {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+  }
+
+  .pond-search-container {
+    width: 100%;
+  }
+
+  .pond-search-label {
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #1f2937;
+    font-weight: 600;
+  }
+
+  .pond-search-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  .pond-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+  }
+
+  .pond-dropdown-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .pond-dropdown-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .pond-dropdown-item {
+    padding: 10px 12px;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .pond-dropdown-item:hover {
+    background: #f9fafb;
+  }
+
+  .pond-dropdown-item:last-child {
+    border-bottom: none;
+  }
+  
+  /* Breakdown table: prevent text overlay on mobile */
+  .breakdown-table {
+    margin-top: 0; /* remove negative offset on narrow screens */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure header and rows maintain a readable min width and scroll horizontally */
+  .breakdown-table .table-header,
+  .breakdown-table .table-row {
+    min-width: 640px;
+  }
+  
+  /* Tighter cell styling for mobile with wrapping */
+  .breakdown-table .header-cell,
+  .breakdown-table .table-cell {
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: break-word;
+  }
+  
+  /* Category column readability */
+  .breakdown-table .category-cell {
+    font-weight: 700;
+  }
+
+  /* Farm cards grid risk counts: organized stacking and wrapping */
+  .farm-cards-grid {
+    gap: 12px;
+  }
+  /* Outer risk-counts block within each card */
+  .farm-risk-card .risk-counts {
+    width: 100%;
+    gap: 6px;
+  }
+  /* The row that contains confidence info and the badges container */
+  .farm-risk-card .risk-counts > div {
+    display: flex;
+    flex-direction: column !important;
+    align-items: flex-start;
+    gap: 6px;
+    width: 100%;
+  }
+  /* The inner badges container (second nested .risk-counts) */
+  .farm-risk-card .risk-counts > div .risk-counts {
+    margin-left: 0 !important;
+    width: 100%;
+    justify-content: flex-start !important;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  /* Ensure the label line spans full width above badges */
+  .farm-risk-card .risk-counts .confidence-info {
+    width: 100%;
+  }
+  /* Slight spacing between badges */
+  .farm-risk-card .risk-counts .risk-badge {
+    margin-right: 6px;
   }
 }
 

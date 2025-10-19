@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadChartAsImage, exportChartDataCSV } from '../utils/exportStackedbarChart';
 import { logActivity, logMessages } from '../utils/logger';
 import { GiHamburgerMenu } from 'react-icons/gi';
@@ -36,6 +36,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [activeLegendKey, setActiveLegendKey] = useState(null);
   const [hoverSeriesKey, setHoverSeriesKey] = useState(null);
+  const [barSegmentClicked, setBarSegmentClicked] = useState(false);
+  const barSegmentClickedRef = useRef(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [exportOpen, setExportOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -222,7 +224,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         map.set(name, { ...cur, predictions: preds });
       }
     });
-    return Array.from(map.values());
+    const result = Array.from(map.values());
+    return result;
   }, [filteredFarms]);
 
   // Date range for aggregation
@@ -262,12 +265,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
 
   const normalizeRisk = (level) => {
     if (!level || typeof level !== 'string') return 'Normal';
-    const s = level.toLowerCase();
+    const s = level.toLowerCase().trim();
     if (s.includes('high') || s.includes('critical')) return 'High';
     if (s.includes('medium')) return 'Medium';
     if (s.includes('low')) return 'Low';
     if (s.includes('normal')) return 'Normal';
-    return level.charAt(0).toUpperCase() + level.slice(1);
+    return 'Normal';
   };
 
   // Helpers mirrored from RiskReportModal for consistency
@@ -431,14 +434,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         .forEach(pred => {
           const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
           const existing = pondMap.get(pond);
-          if (!existing) { pondMap.set(pond, pred); return; }
-          const a = getTimestampMs(existing.timestamp);
-          const b = getTimestampMs(pred.timestamp);
-          const delta = Math.abs(b - a);
-          // If exact tie, or within 60s tolerance, prefer lower severity
-          if ((b === a || delta <= 60000) && sev(pred.risk_level) < sev(existing.risk_level)) {
-            pondMap.set(pond, pred);
+          if (!existing) { 
+            pondMap.set(pond, pred); 
           }
+          // Skip subsequent predictions for the same pond (data is already sorted by timestamp descending)
         });
       return Array.from(pondMap.values());
     };
@@ -476,6 +475,8 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         else if (lvl === 'Medium') medium += 1;
         else if (lvl === 'Low') low += 1;
       });
+
+
       return {
         name: f.name,
         High: high,
@@ -487,7 +488,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     });
 
     return result;
-  }, [filteredFarms, rangeStart, rangeEnd]);
+  }, [mergedFarms, rangeStart, rangeEnd]);
 
   const byRiskData = useMemo(() => {
     // X-axis = High/Medium/Low, stacked by farm
@@ -518,12 +519,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       const latestPerPond = getLatestBatchPerPondForRange(preds);
       const normalize = (lvl) => {
         if (!lvl || typeof lvl !== 'string') return 'Normal';
-        const s = lvl.toLowerCase();
+        const s = lvl.toLowerCase().trim();
         if (s.includes('high') || s.includes('critical')) return 'High';
         if (s.includes('medium')) return 'Medium';
         if (s.includes('low')) return 'Low';
         if (s.includes('normal')) return 'Normal';
-        return lvl.charAt(0).toUpperCase() + lvl.slice(1);
+        return 'Normal';
       };
       const sev = (lvl) => ({ Normal:0, Low:1, Medium:2, High:3 })[normalize(lvl)] ?? 0;
       const ts = (p) => getTimestampMs(p.timestamp);
@@ -565,6 +566,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
       const latestDateKey = new Date(latestMs).toDateString();
       const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+      
       const pondMap = new Map();
       const sev = (lvl) => {
         const s = (lvl || '').toString().toLowerCase();
@@ -575,12 +577,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         .forEach(pred => {
           const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
           const existing = pondMap.get(pond);
-          if (!existing) { pondMap.set(pond, pred); return; }
-          const a = getTimestampMs(existing.timestamp);
-          const b = getTimestampMs(pred.timestamp);
-          const delta = Math.abs(b - a);
-          if ((b === a || delta <= 60000) && sev(pred.risk_level) < sev(existing.risk_level)) {
-            pondMap.set(pond, pred);
+          if (!existing) { 
+            pondMap.set(pond, pred); 
+          } else {
           }
         });
       return Array.from(pondMap.values());
@@ -597,6 +596,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         const confidencePct = typeof p.confidence === 'number' && !Number.isNaN(p.confidence)
           ? Math.round(p.confidence * 10) / 10
           : null;
+        
         bucket[level].push({
           pond: pondName,
           reason,
@@ -606,7 +606,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       });
       details.set(f.name, bucket);
     });
-
+    
     return details; // Map for O(1) lookup
   }, [mergedFarms, rangeStart, rangeEnd]);
 
@@ -915,29 +915,71 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       const item = byFarmData[index];
       const farm = mergedFarms.find(f => f.key === item.farmKey || f.name === item.name);
       const clickDateMs = farm ? getLatestDateMsForFarm(farm.predictions) : null;
-      onDrilldown({ 
-        type: 'farm', 
-        farmKey: item.farmKey,
-        clickDateMs,
-        timeFilter: timeFilter,
-        customStart: customStart,
-        customEnd: customEnd,
-        rangeStart: rangeStart,
-        rangeEnd: rangeEnd
-      });
+      
+      // If we have clickedRiskLevel and clickedFarmName, treat it as risk mode drilldown
+      if (data && data.clickedRiskLevel && data.clickedFarmName) {
+        
+        // Get the specific ponds for this farm and risk level combination
+        const farmDetails = pondDetailsByFarm.get(data.clickedFarmName);
+        let clickedPonds = [];
+        if (farmDetails && farmDetails[data.clickedRiskLevel]) {
+          clickedPonds = farmDetails[data.clickedRiskLevel].map(pond => pond.pond);
+        } else {
+        }
+        
+        onDrilldown({
+          type: 'risk',
+          risk: data.clickedRiskLevel,
+          clickedFarmName: data.clickedFarmName,
+          clickedRiskLevel: data.clickedRiskLevel,
+          clickedPonds: clickedPonds,
+          clickDateMs,
+          timeFilter: timeFilter,
+          customStart: customStart,
+          customEnd: customEnd,
+          rangeStart: rangeStart,
+          rangeEnd: rangeEnd
+        });
+      } else {
+        // Original farm mode behavior
+        onDrilldown({ 
+          type: 'farm', 
+          farmKey: item.farmKey,
+          clickDateMs,
+          timeFilter: timeFilter,
+          customStart: customStart,
+          customEnd: customEnd,
+          rangeStart: rangeStart,
+          rangeEnd: rangeEnd
+        });
+      }
     } else {
       const item = byRiskData[index];
       let clickDateMs = null;
+      let clickedPonds = [];
+      
       if (data && data.clickedFarmName) {
         const farm = mergedFarms.find(f => f.name === data.clickedFarmName);
-        if (farm) clickDateMs = getLatestDateMsForFarm(farm.predictions);
+        if (farm) {
+          clickDateMs = getLatestDateMsForFarm(farm.predictions);
+          // Get the specific ponds for this farm and risk level combination
+          const farmDetails = pondDetailsByFarm.get(data.clickedFarmName);
+          if (farmDetails && farmDetails[item.risk]) {
+            clickedPonds = farmDetails[item.risk].map(pond => pond.pond);
+          } else {
+          }
+        }
       }
+      
+      
       onDrilldown({ 
         type: 'risk', 
         risk: item.risk, 
         farms: filteredFarms.map(f => f.key),
         // Prefer explicit clicked farm name if provided by segment click; fallback to hovered key
         clickedFarmName: (data && data.clickedFarmName) || hoverSeriesKey || null,
+        clickedRiskLevel: item.risk, // Pass the specific risk level that was clicked
+        clickedPonds: clickedPonds, // Pass the specific ponds that were clicked
         clickDateMs,
         timeFilter: timeFilter,
         customStart: customStart,
@@ -1027,7 +1069,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       }}>
         {chartSubtitle}
       </p>
-      {isStdPhone && exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+      {isStdPhone && exportOpen && (
         <div style={{ 
           position: 'absolute', 
           left: '50%', 
@@ -1143,27 +1185,23 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <button
               onClick={(e) => { 
                 e.stopPropagation(); 
-                const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-                if (!isTemporaryTechOfficer) {
-                  setExportOpen(v => !v);
-                }
+                setExportOpen(v => !v);
               }}
-              disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
               style={{ 
                 background: 'transparent', 
                 border: 'none', 
-                color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
-                cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+                color: 'white', 
+                cursor: 'pointer', 
                 display: isStdPhone ? 'none' : 'flex', 
                 alignItems: 'center',
-                opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+                opacity: 1
               }}
               aria-label="Export"
-              title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+              title="Export"
             >
               <GiHamburgerMenu style={{ fontSize: '20px' }} />
             </button>
-            {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && !isStdPhone && (
+            {exportOpen && !isStdPhone && (
               <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
                 <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'png', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
                 <div style={{ height: 1, background: '#e5e7eb' }} />
@@ -1194,10 +1232,20 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <ResponsiveContainer width="100%" height={farmDynamicHeight}>
               <BarChart
                 layout="vertical"
-                data={byFarmData}
+                data={(() => {
+                  return byFarmData;
+                })()}
                 barCategoryGap="8%"
                 barSize={barSizePx}
-                onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+                onClick={({ activeTooltipIndex }) => { 
+                  // Don't trigger if a specific Bar segment was clicked (handled by individual Bar onClick)
+                  if (activeTooltipIndex != null && !barSegmentClickedRef.current) { 
+                    handleBarClick(null, activeTooltipIndex); 
+                  } else {
+                  }
+                  barSegmentClickedRef.current = false; // Reset the flag
+                  setBarSegmentClicked(false); // Reset the state
+                }}
                 onMouseLeave={() => setHoverSeriesKey(null)}
                 margin={chartMarginFarm}
               >
@@ -1220,6 +1268,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('High')}
+                  onClick={(data, index) => { 
+                    barSegmentClickedRef.current = true;
+                    setBarSegmentClicked(true); 
+                    handleBarClick({ clickedRiskLevel: 'High', clickedFarmName: data?.name }, index); 
+                  }}
                   isAnimationActive={false}
                 />
                 <Bar
@@ -1229,6 +1282,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Medium')}
+                  onClick={(data, index) => { 
+                    barSegmentClickedRef.current = true;
+                    setBarSegmentClicked(true); 
+                    handleBarClick({ clickedRiskLevel: 'Medium', clickedFarmName: data?.name }, index); 
+                  }}
                   isAnimationActive={false}
                 />
                 <Bar
@@ -1238,6 +1296,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Low')}
+                  onClick={(data, index) => { 
+                    barSegmentClickedRef.current = true;
+                    setBarSegmentClicked(true); 
+                    handleBarClick({ clickedRiskLevel: 'Low', clickedFarmName: data?.name }, index); 
+                  }}
                   isAnimationActive={false}
                 />
               </BarChart>
@@ -1250,7 +1313,15 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             data={byFarmData}
             barCategoryGap="8%"
             barSize={barSizePx}
-            onClick={({ activeTooltipIndex }) => { if (activeTooltipIndex != null) handleBarClick(null, activeTooltipIndex); }}
+            onClick={({ activeTooltipIndex }) => { 
+              // Don't trigger if a specific Bar segment was clicked (handled by individual Bar onClick)
+              if (activeTooltipIndex != null && !barSegmentClickedRef.current) { 
+                handleBarClick(null, activeTooltipIndex); 
+              } else {
+              }
+              barSegmentClickedRef.current = false; // Reset the flag
+              setBarSegmentClicked(false); // Reset the state
+            }}
             onMouseLeave={() => setHoverSeriesKey(null)}
             margin={chartMarginFarm}
           >
@@ -1273,6 +1344,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('High')}
+              onClick={(data, index) => { 
+                barSegmentClickedRef.current = true;
+                setBarSegmentClicked(true); 
+                handleBarClick({ clickedRiskLevel: 'High', clickedFarmName: data?.name }, index); 
+              }}
               isAnimationActive={false}
             />
             <Bar
@@ -1282,6 +1358,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Medium')}
+              onClick={(data, index) => { 
+                barSegmentClickedRef.current = true;
+                setBarSegmentClicked(true); 
+                handleBarClick({ clickedRiskLevel: 'Medium', clickedFarmName: data?.name }, index); 
+              }}
               isAnimationActive={false}
             />
             <Bar
@@ -1291,6 +1372,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Low')}
+              onClick={(data, index) => { 
+                barSegmentClickedRef.current = true;
+                setBarSegmentClicked(true); 
+                handleBarClick({ clickedRiskLevel: 'Low', clickedFarmName: data?.name }, index); 
+              }}
               isAnimationActive={false}
             />
           </BarChart>

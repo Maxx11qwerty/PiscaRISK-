@@ -12,6 +12,7 @@ import {
 import { MdManageAccounts } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import './Sidebar.css';
 
 const Sidebar = ({
@@ -28,6 +29,8 @@ const Sidebar = ({
 }) => {
   const { t, i18n } = useTranslation();
   const { language, setLanguage } = useLanguage();
+  const { pendingActivations } = useNotifications();
+
 
   const formatRole = (role) => {
     if (!role) return 'User';
@@ -117,7 +120,14 @@ const Sidebar = ({
               <span>{t('sidebar.dashboard')}</span>
             </div>
             <div className="sidebar-nav-item" onClick={onAccountManagementClick}>
-              <MdManageAccounts className="sidebar-nav-icon" />
+              <div className="sidebar-nav-icon-container">
+                <MdManageAccounts className="sidebar-nav-icon" />
+                {pendingActivations > 0 && (
+                  <span className="sidebar-notification-badge" title={`${pendingActivations} farmers awaiting activation`}>
+                    {pendingActivations > 99 ? '99+' : pendingActivations}
+                  </span>
+                )}
+              </div>
               <span>
                 Account
                 <br />
@@ -138,20 +148,17 @@ const Sidebar = ({
 
             <div className="sidebar-export-container">
               <div
-                className={`sidebar-nav-item export-nav-item ${(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'disabled' : ''}`}
+                className="sidebar-nav-item export-nav-item"
                 onClick={() => {
-                  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-                  if (!isTemporaryTechOfficer) {
-                    setShowDownloadOptions(!showDownloadOptions);
-                  }
+                  setShowDownloadOptions(!showDownloadOptions);
                 }}
-                title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('common.export')}
+                title={t('common.export')}
               >
                 <FaFileExport className="sidebar-nav-icon" />
                 <span>{t('common.export')}</span>
               </div>
 
-              {showDownloadOptions && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+              {showDownloadOptions && (
                 <div className="sidebar-download-options">
                   <div
                     className="sidebar-download-option"

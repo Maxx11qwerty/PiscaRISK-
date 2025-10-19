@@ -149,14 +149,24 @@ const FarmHealthGauge = () => {
     }
   }, [isAssignedToFarm, assignedFarmKey, currentUser?.farm]);
 
-  // Helper: get latest batch (same generated date) and dedupe per pond (match RiskReportModal)
+  // Date range filtering helper (same as RiskReportModal and PondsAtRiskStackedChart)
+  const withinRange = (ts) => {
+    // For now, use all data - in the future this could be made configurable
+    return true;
+  };
+
+  // Helper: get latest batch (same generated date) and dedupe per pond WITHIN DATE RANGE (match RiskReportModal)
   const getLatestBatchPerPond = (farm) => {
     if (!farm?.predictions || !Array.isArray(farm.predictions)) return [];
-    const withTs = farm.predictions.filter(p => getTimestampMs(p.timestamp) > 0);
-    if (withTs.length === 0) return [];
-    const latestMs = Math.max(...withTs.map(p => getTimestampMs(p.timestamp)));
+    
+    // Filter by date range first (same as RiskReportModal and PondsAtRiskStackedChart)
+    const inRange = farm.predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
+    if (inRange.length === 0) return [];
+    
+    // Find the latest timestamp in range and take that DATE
+    const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
     const latestDateKey = new Date(latestMs).toDateString();
-    const sameDay = withTs.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+    const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
     const pondMap = new Map();
     sameDay
       .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
@@ -195,16 +205,12 @@ const FarmHealthGauge = () => {
         const ms = getTimestampMs(ts);
         if (ms > latestTimestampMs) latestTimestampMs = ms;
         
-        // Prefer explicit prediction confidence (accept number-like strings)
-        const numConf = (p.confidence != null && !Number.isNaN(Number(p.confidence))) ? Number(p.confidence) : null;
-        if (typeof numConf === 'number' && Number.isFinite(numConf)) {
-          const bounded = Math.max(0, Math.min(100, numConf));
-          scoreSum += bounded; // 0–100
-        } else {
-          const level = (p.risk_level || 'Normal');
-          const score = riskScoreMap[level] ?? 0;
-          scoreSum += score;
-        }
+        // Use risk level for health calculation, NOT confidence score
+        // Confidence score indicates how sure the system is about the risk level,
+        // not the actual health condition
+        const level = (p.risk_level || 'Normal');
+        const score = riskScoreMap[level] ?? 0;
+        scoreSum += score;
         pondCount += 1;
       });
     };
@@ -384,7 +390,7 @@ const FarmHealthGauge = () => {
                 padding: '4px'
               }}
               aria-label={t('farmHealthGauge.exportAriaLabel')}
-              title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('farmHealthGauge.exportAriaLabel')}
+              title={t('farmHealthGauge.exportAriaLabel')}
             >
               <GiHamburgerMenu style={{ fontSize: '1.2rem' }} />
             </button>
@@ -394,7 +400,7 @@ const FarmHealthGauge = () => {
             : t('farmHealthGauge.title')
           }
         </h3>
-        {isStdPhone && exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+        {isStdPhone && exportOpen && (
           <div style={{
             position: 'absolute',
             left: '50%',
@@ -418,27 +424,23 @@ const FarmHealthGauge = () => {
         <div style={{ position: 'relative', display: isStdPhone ? 'none' : 'block' }}>
           <button
             onClick={() => {
-              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (!isTemporaryTechOfficer) {
-                setExportOpen(v => !v);
-              }
+              setExportOpen(v => !v);
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              color: 'white', 
+              cursor: 'pointer', 
               display: 'flex', 
               alignItems: 'center',
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              opacity: 1
             }}
             aria-label={t('farmHealthGauge.exportAriaLabel')}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('farmHealthGauge.exportAriaLabel')}
+            title={t('farmHealthGauge.exportAriaLabel')}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
-          {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          {exportOpen && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 200, overflow: 'hidden', zIndex: 5 }}>
               <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const farmName = isAssignedToFarm ? (assignedFarmName || currentUser.farm) : (selectedFarm === 'all' ? t('farmHealthGauge.allFarms') : (farms.find(f => f.key === selectedFarm)?.name || selectedFarm)); downloadGaugeAsImage('#health-gauge-section', 'png', 'farm_health', { farmName }); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'farm health PNG'), u); } catch (_) {} setExportOpen(false); }}>{t('farmHealthGauge.downloadPNG')}</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
@@ -572,6 +574,11 @@ const FarmHealthGauge = () => {
       <div style={{ marginTop: 8, fontSize: '0.9rem', color: '#bfc8d4' }}>
         Overall farm health score based on recent pond risk predictions.
       </div>
+        <div style={{ marginTop: 6, fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span>High Risk → 0% (0-39%)</span>
+          <span>Medium Risk → 50% (40-69%)</span>
+          <span>Low Risk → 100% (70-100%)</span>
+        </div>
       <div style={{ marginTop: 4, fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>{infoLabel}</div>
     </div>
   );

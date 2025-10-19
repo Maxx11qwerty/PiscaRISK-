@@ -2165,3 +2165,107 @@ margin-left: 2rem; /* 2rem gap from left edge */
   margin-left: 1rem; /* Minimal gap for small mobile when sidebar is collapsed */
 }
 }
+
+/* Mobile close button styles for 360-480px breakpoint */
+@media (min-width: 360px) and (max-width: 480px) {
+  /* Mobile close button for inbox content */
+  .inbox-container .inbox-close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    color: #6b7280;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .inbox-container .inbox-close-btn:hover {
+    background: #e5e7eb;
+    color: #374151;
+    transform: scale(1.05);
+  }
+
+  /* Close button for response/archive views in mobile */
+  .feedback-detail .detail-close-btn {
+    position: fixed;
+    top: 80px;
+    right: 16px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1400;
+    color: #6b7280;
+    font-size: 18px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+
+  .feedback-detail .detail-close-btn:hover {
+    background: #e5e7eb;
+    color: #374151;
+    transform: scale(1.05);
+  }
+
+  /* Hide the inline header close button in mobile detail view to avoid duplicate X */
+  .feedback-detail.mobile-open .close-detail {
+    display: none !important;
+  }
+
+  /* Hide inbox close button when viewing message detail - using sibling selector */
+  .feedback-detail.mobile-open ~ .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Alternative approach using the detail-open class */
+  .feedback.detail-open .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Most specific selector using the mobile-detail-open class */
+  .feedback.mobile-detail-open .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Force hide when detail is open - target the sibling relationship */
+  .feedback .feedback-detail.mobile-open ~ .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Nuclear option - hide any inbox close button when detail is open */
+  .feedback.mobile-detail-open .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Additional fallback using :has() selector */
+  .feedback:has(.feedback-detail.mobile-open) .inbox-container .inbox-close-btn {
+    display: none !important;
+  }
+
+  /* Show detail close button only when viewing message detail */
+  .feedback-detail.mobile-open .detail-close-btn {
+    display: flex !important;
+  }
+
+  /* Hide detail close button when not viewing message detail */
+  .feedback-detail:not(.mobile-open) .detail-close-btn {
+    display: none !important;
+  }
+}

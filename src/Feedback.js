@@ -50,7 +50,6 @@ const formatFirestoreTimestamp = (timestamp) => {
         });
       }
     } catch (error) {
-      console.log('Could not parse date string:', timestamp);
     }
   }
   
@@ -425,6 +424,13 @@ const Feedback = () => {
   const archiveCount = feedbacks.filter(f => passesFarmFilter(f) && f.status === 'archived').length;
 
   const handleFeedbackClick = async (feedback) => {
+    // If clicking on the same feedback that's already open, close it
+    if (selectedFeedback && selectedFeedback.id === feedback.id) {
+      setSelectedFeedback(null);
+      if (isNarrow) setInboxOpen(true);
+      return;
+    }
+
     // If feedback is unread and user is admin/tech officer, mark it as read
     if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer')) {
       try {
@@ -559,6 +565,10 @@ const Feedback = () => {
 
   const closeDetailView = () => {
     setSelectedFeedback(null);
+    // Reopen inbox on mobile when closing detail view
+    if (isNarrow) {
+      setInboxOpen(true);
+    }
     try { 
       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
       logActivity('feedback', `Detail view closed in Feedback`, u); 
@@ -889,7 +899,7 @@ const Feedback = () => {
   }, [sidebarOpen]);
 
   return (
-    <div className={`feedback ${ (sidebarOpen || !sidebarCollapsed) ? 'sidebar-open' : '' } ${inboxOpen ? 'inbox-open' : ''}`}>
+    <div className={`feedback ${ (sidebarOpen || !sidebarCollapsed) ? 'sidebar-open' : '' } ${inboxOpen ? 'inbox-open' : ''} ${selectedFeedback && isNarrow ? 'detail-open' : ''} ${selectedFeedback && isNarrow ? 'mobile-detail-open' : ''}`}>
       <header className="feedback-header-bar">
         <div className="header-logo-container">
         <FaBars className="header-hamburger-icon" onClick={handleSidebarToggle} />
@@ -1263,6 +1273,12 @@ const Feedback = () => {
             </div>
           )}
           <div className={`inbox-container ${isNarrow ? (inboxOpen ? 'open' : 'closed') : ''}`}>
+            {/* Mobile close button for inbox */}
+            {isNarrow && !selectedFeedback && (
+              <button className="inbox-close-btn" onClick={() => setInboxOpen(false)}>
+                ×
+              </button>
+            )}
             {loading ? (
               <div className="loading-feedback">
                 <div className="loading-spinner"></div>
@@ -1400,6 +1416,12 @@ const Feedback = () => {
           )}
                       {selectedFeedback ? (
               <div className={`feedback-detail ${isNarrow ? 'mobile-open' : ''}`}>
+                {/* Mobile close button for feedback detail */}
+                {isNarrow && selectedFeedback && (
+                  <button className="detail-close-btn" onClick={closeDetailView}>
+                    ×
+                  </button>
+                )}
                 <div className="detail-header-top">
                   <span className="feedback-date">{selectedFeedback.date}</span>
                   <button className="close-detail" onClick={closeDetailView}>

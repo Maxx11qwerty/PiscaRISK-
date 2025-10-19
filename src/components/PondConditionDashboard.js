@@ -1300,42 +1300,27 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (isTTO) {
-                // Log the restricted access attempt
-                const username = currentUser?.username || currentUser?.email || 'Unknown';
-                try {
-                  logTemporaryTechOfficerActivity(
-                    'temporaryTechOfficer',
-                    logMessages.temporaryTechOfficer.exportAttempt(username, 'pond condition data'),
-                    username,
-                    currentUser?.role || 'temp_tech_officer'
-                  );
-                } catch (_) {}
-              } else {
-                setExportMenuOpen((v) => !v);
-              }
+              setExportMenuOpen((v) => !v);
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+            title="Export"
             style={{
               background: 'transparent',
               border: 'none',
               padding: 0,
               margin: 0,
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
+              color: '#1A4375',
+              cursor: 'pointer',
               fontSize: '0.95rem',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              opacity: 1
             }}
           >
             <FaFileExport />
             <span style={{ textDecoration: 'underline' }}>Export</span>
           </button>
-          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          {exportMenuOpen && (
             <div
               style={{
                 position: 'absolute',

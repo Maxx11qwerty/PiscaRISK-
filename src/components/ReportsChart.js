@@ -16,7 +16,7 @@ function ReportsChart() {
   const { farmsById, farms } = useFarms();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState('weekly'); // 'daily', 'weekly', 'monthly'
+  const [timeFilter, setTimeFilter] = useState('weekly'); // 'all', 'daily', 'weekly', 'monthly'
   const [viewMode, setViewMode] = useState('farm'); // 'farm', 'date'
   const [selectedFarm, setSelectedFarm] = useState('all'); // For consistency with stacked chart
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -76,7 +76,7 @@ function ReportsChart() {
     : (isAssignedToFarm ? `Reports Submitted Over Time - ${assignedFarmName || currentUser.farm}` : 'Reports Submitted Over Time');
 
   const chartSubtitle = viewMode === 'farm'
-    ? (isAssignedToFarm ? `Shows the total number of reports submitted from your assigned farm within the selected period.` : `Shows the total number of reports submitted from each farm.`)
+    ? (isAssignedToFarm ? `Shows the total number of reports submitted from your assigned farm within the selected period.` : `Shows the total number of reports submitted from each farm within the selected period.`)
     : (isAssignedToFarm ? `Shows reporting activity trends for your assigned farm throughout the selected time period.` : `Shows reporting activity trends throughout the selected time period.`);
 
   // Farm colors matching the stacked bar chart (View by Risk mode)
@@ -110,6 +110,11 @@ function ReportsChart() {
     return farmColorMap.get(farmName) || '#7ffcff';
   };
 
+  // Known farms canonical list used for grouped views
+  const KNOWN_FARMS = useMemo(() => (
+    ['Aquino Fish Farm', "Vergara's Aqua Farm", 'Maningas Fish Farm', 'Labay Fish Farm']
+  ), []);
+
   // Color indicators based on activity levels (for non-farm views)
   const getActivityColor = (count, maxCount) => {
     if (maxCount === 0) return '#e0e0e0'; // No data
@@ -128,6 +133,11 @@ function ReportsChart() {
     const topPerformer = data.find(item => item.reports === maxReports);
     
     if (viewMode === 'farm') {
+      // If no reports were submitted (totalReports === 0), show appropriate message
+      if (totalReports === 0) {
+        return 'No reports submitted across all farms in the selected period.';
+      }
+      
       return topPerformer 
         ? `${topPerformer.farm || topPerformer.name} submitted the most reports (${maxReports} total). ${totalReports} reports submitted across all farms.`
         : `${totalReports} reports submitted across all farms.`;
@@ -279,7 +289,7 @@ function ReportsChart() {
 
         // Process data based on view mode
         if (viewMode === 'farm') {
-          // Group by farm with proper name mapping
+          // Group by farm with proper name mapping and time filtering
           const farmCounts = {};
           
           // Farm name mapping from riskDataService
@@ -297,69 +307,223 @@ function ReportsChart() {
             'marine-species-cultivation': 'Labay Fish Farm',
           };
           
-          allReports.forEach(report => {
-            let farmName = report.farm || report.farmName || 'Unknown Farm';
-            
-            // Map by ID first
-            if (report.farmId && idToNewName[report.farmId]) {
-              farmName = idToNewName[report.farmId];
-            }
-            // Then try legacy mapping
-            else if (legacyMap[farmName]) {
-              farmName = legacyMap[farmName];
-            }
-            // Handle common variations
-            else if (farmName.toLowerCase().includes('aquino')) {
-              farmName = 'Aquino Fish Farm';
-            } else if (farmName.toLowerCase().includes('vergara')) {
-              farmName = "Vergara's Aqua Farm";
-            } else if (farmName.toLowerCase().includes('maningas')) {
-              farmName = 'Maningas Fish Farm';
-            } else if (farmName.toLowerCase().includes('labay')) {
-              farmName = 'Labay Fish Farm';
-            }
-            
-            // Only count if it's one of our known farms
-            if (['Aquino Fish Farm', "Vergara's Aqua Farm", 'Maningas Fish Farm', 'Labay Fish Farm'].includes(farmName)) {
-              farmCounts[farmName] = (farmCounts[farmName] || 0) + 1;
-            }
-          });
-          
-          chartData = Object.entries(farmCounts)
-            .map(([farm, reports]) => ({ 
-              farm, 
-              reports, 
-              color: getFarmColor(farm) 
-            }))
-            .sort((a, b) => b.reports - a.reports);
-            
-        } else {
-          // Default to date-based view (existing logic)
-          switch (timeFilter) {
-          case 'daily':
-            // Get reports for current week
+          // Special handling: in farm view + daily, show Mon-Sun with 4 bars per day
+          if (timeFilter === 'daily') {
+            // build current week Monday-Sunday
             const startOfWeek = new Date(now);
-            startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Start from Monday
+            const day = startOfWeek.getDay(); // 0 Sun .. 6 Sat
+            const diffToMonday = (day === 0 ? -6 : 1 - day);
+            startOfWeek.setDate(now.getDate() + diffToMonday);
             startOfWeek.setHours(0, 0, 0, 0);
-
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(startOfWeek.getDate() + 6);
             endOfWeek.setHours(23, 59, 59, 999);
 
-            // Initialize data for each day of the week
-            const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            const dailyCounts = daysOfWeek.map(day => ({ day, reports: 0 }));
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+              const d = new Date(startOfWeek);
+              d.setDate(startOfWeek.getDate() + i);
+              const dayKey = d.toLocaleDateString('en-US', { weekday: 'short' });
+              const row = { day: dayKey, dateObj: d };
+              KNOWN_FARMS.forEach(f => { row[f] = 0; });
+              days.push(row);
+            }
+
+            // Count per farm per day using name mapping
+            const mapFarmName = (report) => {
+              let farmName = report.farm || report.farmName || 'Unknown Farm';
+              if (report.farmId && idToNewName[report.farmId]) return idToNewName[report.farmId];
+              if (legacyMap[farmName]) return legacyMap[farmName];
+              const lower = String(farmName).toLowerCase();
+              if (lower.includes('aquino')) return 'Aquino Fish Farm';
+              if (lower.includes('vergara')) return "Vergara's Aqua Farm";
+              if (lower.includes('maningas')) return 'Maningas Fish Farm';
+              if (lower.includes('labay')) return 'Labay Fish Farm';
+              return farmName;
+            };
+
+            allReports.forEach(r => {
+              if (r.date < startOfWeek || r.date > endOfWeek) return;
+              const farmName = mapFarmName(r);
+              if (!KNOWN_FARMS.includes(farmName)) return;
+              const idx = days.findIndex(d => d.dateObj.getFullYear() === r.date.getFullYear() && d.dateObj.getMonth() === r.date.getMonth() && d.dateObj.getDate() === r.date.getDate());
+              if (idx !== -1) {
+                days[idx][farmName] = (days[idx][farmName] || 0) + 1;
+              }
+            });
+
+            chartData = days.map(({ dateObj, ...rest }) => rest);
+          } else if (timeFilter === 'weekly') {
+            // Weekly grouping: current month weeks, 4 bars per week
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            const firstDayOfMonth = startOfMonth.getDay();
+            const totalDays = endOfMonth.getDate();
+            const totalWeeks = Math.ceil((totalDays + firstDayOfMonth) / 7);
+
+            const weeks = Array.from({ length: totalWeeks }, (_, i) => {
+              const row = { week: `Week ${i + 1}` };
+              KNOWN_FARMS.forEach(f => { row[f] = 0; });
+              return row;
+            });
+
+            const mapFarmName = (report) => {
+              let farmName = report.farm || report.farmName || 'Unknown Farm';
+              if (report.farmId && idToNewName[report.farmId]) return idToNewName[report.farmId];
+              if (legacyMap[farmName]) return legacyMap[farmName];
+              const lower = String(farmName).toLowerCase();
+              if (lower.includes('aquino')) return 'Aquino Fish Farm';
+              if (lower.includes('vergara')) return "Vergara's Aqua Farm";
+              if (lower.includes('maningas')) return 'Maningas Fish Farm';
+              if (lower.includes('labay')) return 'Labay Fish Farm';
+              return farmName;
+            };
+
+            allReports.forEach(r => {
+              const d = r.date;
+              if (d < startOfMonth || d > endOfMonth) return;
+              const farmName = mapFarmName(r);
+              if (!KNOWN_FARMS.includes(farmName)) return;
+              const dayOfMonth = d.getDate();
+              const weekNumber = Math.floor((dayOfMonth + firstDayOfMonth - 1) / 7);
+              if (weekNumber >= 0 && weekNumber < totalWeeks) {
+                weeks[weekNumber][farmName] = (weeks[weekNumber][farmName] || 0) + 1;
+              }
+            });
+
+            chartData = weeks;
+          } else if (timeFilter === 'monthly') {
+            // Monthly grouping: last 6 months, 4 bars per month
+            const months = Array.from({ length: 6 }, (_, i) => {
+              const monthIndex = (now.getMonth() - i + 12) % 12;
+              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              const row = { month: monthNames[monthIndex] };
+              KNOWN_FARMS.forEach(f => { row[f] = 0; });
+              return row;
+            }).reverse();
+
+            const mapFarmName = (report) => {
+              let farmName = report.farm || report.farmName || 'Unknown Farm';
+              if (report.farmId && idToNewName[report.farmId]) return idToNewName[report.farmId];
+              if (legacyMap[farmName]) return legacyMap[farmName];
+              const lower = String(farmName).toLowerCase();
+              if (lower.includes('aquino')) return 'Aquino Fish Farm';
+              if (lower.includes('vergara')) return "Vergara's Aqua Farm";
+              if (lower.includes('maningas')) return 'Maningas Fish Farm';
+              if (lower.includes('labay')) return 'Labay Fish Farm';
+              return farmName;
+            };
+
+            allReports.forEach(r => {
+              const d = r.date;
+              const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
+              if (monthDiff < 6) {
+                const farmName = mapFarmName(r);
+                if (!KNOWN_FARMS.includes(farmName)) return;
+                const monthIndex = 5 - monthDiff; // Reverse order
+                months[monthIndex][farmName] = (months[monthIndex][farmName] || 0) + 1;
+              }
+            });
+
+            chartData = months;
+          } else {
+            // Apply time filter when viewing by farm for non-daily modes, then aggregate per farm
+            let filteredReports = allReports;
+            if (timeFilter !== 'all') {
+              const start = new Date(now);
+              const end = new Date(now);
+              if (timeFilter === 'weekly') {
+                // current month
+                start.setDate(1);
+                start.setHours(0, 0, 0, 0);
+                end.setMonth(now.getMonth() + 1, 0);
+                end.setHours(23, 59, 59, 999);
+              } else if (timeFilter === 'monthly') {
+                // last 6 months window
+                const startMonthly = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                const endMonthly = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                endMonthly.setHours(23, 59, 59, 999);
+                filteredReports = filteredReports.filter(r => r.date >= startMonthly && r.date <= endMonthly);
+              }
+              if (timeFilter === 'weekly') {
+                filteredReports = filteredReports.filter(r => r.date >= start && r.date <= end);
+              }
+            }
+
+            // Initialize all known farms with 0 reports
+            KNOWN_FARMS.forEach(farm => { farmCounts[farm] = 0; });
+
+            filteredReports.forEach(report => {
+              let farmName = report.farm || report.farmName || 'Unknown Farm';
+              if (report.farmId && idToNewName[report.farmId]) {
+                farmName = idToNewName[report.farmId];
+              } else if (legacyMap[farmName]) {
+                farmName = legacyMap[farmName];
+              } else if (farmName.toLowerCase().includes('aquino')) {
+                farmName = 'Aquino Fish Farm';
+              } else if (farmName.toLowerCase().includes('vergara')) {
+                farmName = "Vergara's Aqua Farm";
+              } else if (farmName.toLowerCase().includes('maningas')) {
+                farmName = 'Maningas Fish Farm';
+              } else if (farmName.toLowerCase().includes('labay')) {
+                farmName = 'Labay Fish Farm';
+              }
+              if (KNOWN_FARMS.includes(farmName)) {
+                farmCounts[farmName] = (farmCounts[farmName] || 0) + 1;
+              }
+            });
+
+            chartData = Object.entries(farmCounts)
+              .map(([farm, reports]) => ({ farm, reports, color: getFarmColor(farm) }))
+              .sort((a, b) => b.reports - a.reports);
+          }
+          
+          
+        } else {
+          // Default to date-based view (existing logic)
+          switch (timeFilter) {
+          case 'daily':
+            // Get reports for the last 7 days (more useful than current week)
+            const sevenDaysAgo = new Date(now);
+            sevenDaysAgo.setDate(now.getDate() - 6); // Last 7 days including today
+            sevenDaysAgo.setHours(0, 0, 0, 0);
+
+            const endOfToday = new Date(now);
+            endOfToday.setHours(23, 59, 59, 999);
+
+
+            // Initialize data for the last 7 days
+            const last7Days = [];
+            for (let i = 6; i >= 0; i--) {
+              const date = new Date(now);
+              date.setDate(now.getDate() - i);
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+              last7Days.push({ 
+                day: dayName, 
+                reports: 0,
+                fullDate: new Date(date) // Keep full date for filtering
+              });
+            }
 
             // Count reports for each day
             allReports.forEach(report => {
               const reportDate = report.date;
-              if (reportDate >= startOfWeek && reportDate <= endOfWeek) {
-                const dayIndex = (reportDate.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
-                dailyCounts[dayIndex].reports++;
+              if (reportDate >= sevenDaysAgo && reportDate <= endOfToday) {
+                // Find which day this report belongs to
+                const dayIndex = last7Days.findIndex(day => {
+                  const dayDate = day.fullDate;
+                  return reportDate.getDate() === dayDate.getDate() &&
+                         reportDate.getMonth() === dayDate.getMonth() &&
+                         reportDate.getFullYear() === dayDate.getFullYear();
+                });
+                if (dayIndex !== -1) {
+                  last7Days[dayIndex].reports++;
+                }
               }
             });
 
-            chartData = dailyCounts;
+
+            chartData = last7Days;
             break;
 
           case 'weekly':
@@ -437,7 +601,8 @@ function ReportsChart() {
     return <div className="loading-reports">{t('reportsChart.loading')}</div>;
   }
 
-  if (data.length === 0) {
+  // Only show "no data" message for date view mode, not for farm view mode
+  if (data.length === 0 && viewMode === 'date') {
     return (
       <div className="bar-chart-container" id="reports-chart-card" style={{ background: 'transparent', boxShadow: 'none' }}>
         <h3 className="chart-title">
@@ -446,17 +611,19 @@ function ReportsChart() {
             : t('reportsChart.title')
           }
         </h3>
-        <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
-          <select 
-            value={timeFilter} 
-            onChange={(e) => setTimeFilter(e.target.value)}
-            className="time-filter"
-          >
-            <option value="daily">{t('reportsChart.daily')}</option>
-            <option value="weekly">{t('reportsChart.weekly')}</option>
-            <option value="monthly">{t('reportsChart.monthly')}</option>
-          </select>
-        </div>
+        {viewMode === 'date' && (
+          <div className="chart-controls" style={{ display: 'flex', alignItems: 'center' }}>
+            <select 
+              value={timeFilter} 
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="time-filter"
+            >
+              <option value="daily">{t('reportsChart.daily')}</option>
+              <option value="weekly">{t('reportsChart.weekly')}</option>
+              <option value="monthly">{t('reportsChart.monthly')}</option>
+            </select>
+          </div>
+        )}
         <div style={{ 
           textAlign: 'center', 
           color: '#cbd5e1', 
@@ -519,7 +686,7 @@ function ReportsChart() {
       }}>
         {chartSubtitle}
       </p>
-        {isStdPhone && exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+        {isStdPhone && exportOpen && (
           <div style={{
             position: 'absolute',
             left: '50%',
@@ -553,16 +720,6 @@ function ReportsChart() {
               >
                 View by Farm
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewMode === 'date'}
-                className={`toggle-segment ${viewMode === 'date' ? 'active' : ''}`}
-                style={{ fontSize: '12px', padding: '4px 8px' }}
-                onClick={() => setViewMode('date')}
-              >
-                View by Date
-              </button>
             </div>
           )}
           {isAssignedToFarm && (
@@ -570,7 +727,19 @@ function ReportsChart() {
               View by Date
             </div>
           )}
-          {viewMode === 'date' && (
+          {(viewMode === 'farm') && (
+            <select 
+              value={timeFilter} 
+              onChange={(e) => setTimeFilter(e.target.value)}
+              className="time-filter"
+            >
+              <option value="all">All time</option>
+              <option value="daily">{t('reportsChart.daily')}</option>
+              <option value="weekly">{t('reportsChart.weekly')}</option>
+              <option value="monthly">{t('reportsChart.monthly')}</option>
+            </select>
+          )}
+          {(viewMode === 'date') && (
             <select 
               value={timeFilter} 
               onChange={(e) => setTimeFilter(e.target.value)}
@@ -584,38 +753,23 @@ function ReportsChart() {
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
           <button
             onClick={() => {
-              const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (isTTO) {
-                // Log the restricted access attempt
-                const username = currentUser?.username || currentUser?.email || 'Unknown';
-                try {
-                  logTemporaryTechOfficerActivity(
-                    'temporaryTechOfficer',
-                    logMessages.temporaryTechOfficer.exportAttempt(username, 'reports chart'),
-                    username,
-                    currentUser?.role || 'temp_tech_officer'
-                  );
-                } catch (_) {}
-              } else {
-                setExportOpen(v => !v);
-              }
+              setExportOpen(v => !v);
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              color: 'white', 
+              cursor: 'pointer', 
               display: isStdPhone ? 'none' : 'flex', // Hide on mobile screens (360px-480px)
               alignItems: 'center',
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              opacity: 1
             }}
             aria-label="Export"
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+            title="Export"
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
-          {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          {exportOpen && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 220, overflow: 'hidden', zIndex: 5 }}>
               <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('#reports-chart-card', 'png', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
               <div style={{ height: 1, background: '#e5e7eb' }} />
@@ -640,13 +794,13 @@ function ReportsChart() {
         <BarChart data={data}>
           <CartesianGrid vertical={false} />
             <XAxis 
-              dataKey={viewMode === 'farm' ? 'farm' : (timeFilter === 'daily' ? 'day' : timeFilter === 'weekly' ? 'week' : 'month')}
+              dataKey={(viewMode === 'farm') ? (timeFilter === 'daily' ? 'day' : (timeFilter === 'weekly' ? 'week' : (timeFilter === 'monthly' ? 'month' : 'farm'))) : (timeFilter === 'daily' ? 'day' : timeFilter === 'weekly' ? 'week' : 'month')}
               interval={0}
               angle={isStdPhone ? -45 : 0}
               textAnchor={isStdPhone ? 'end' : 'middle'}
               height={isStdPhone ? 60 : 40}
               tickFormatter={(value) => {
-                if (viewMode === 'date') {
+                if (viewMode === 'date' || (viewMode === 'farm' && timeFilter === 'daily')) {
                   if (timeFilter === 'daily') {
                     // Convert day abbreviations to full day names
                     const dayMap = {
@@ -687,7 +841,7 @@ function ReportsChart() {
                 const { x, y, payload } = props;
                 const value = payload.value;
                 
-                if (viewMode === 'farm' && isStdPhone) {
+                if (viewMode === 'farm' && isStdPhone && timeFilter === 'all') {
                   const farmName = value;
                   let firstLine, secondLine;
                   
@@ -765,84 +919,62 @@ function ReportsChart() {
             />
           </YAxis>
           <Tooltip />
-          <Bar 
-            dataKey="reports" 
-            radius={[8, 8, 0, 0]}
-            animationDuration={2000}
-            animationBegin={0}
-            animationEasing="ease-in-out"
-            isAnimationActive={true}
-            animationId="barAnimation"
-          >
-            {viewMode === 'farm' ? (
-              // For farm view, use individual colors for each bar
-              data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))
-            ) : (
-              // For other views, use activity-based colors
-              data.map((entry, index) => {
-                const maxReports = Math.max(...data.map(item => item.reports || 0));
-                return (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={getActivityColor(entry.reports, maxReports)} 
-                  />
-                );
-              })
-            )}
-          </Bar>
+          {viewMode === 'farm' && (timeFilter === 'daily' || timeFilter === 'weekly' || timeFilter === 'monthly') ? (
+            // Four grouped bars per day, one per farm
+            KNOWN_FARMS.map((farm) => (
+              <Bar
+                key={`bar-${farm}`}
+                dataKey={farm}
+                name={farm}
+                radius={[8, 8, 0, 0]}
+                animationDuration={1500}
+                isAnimationActive={true}
+                fill={getFarmColor(farm)}
+              />
+            ))
+          ) : (
+            <Bar 
+              dataKey="reports" 
+              radius={[8, 8, 0, 0]}
+              animationDuration={2000}
+              animationBegin={0}
+              animationEasing="ease-in-out"
+              isAnimationActive={true}
+              animationId="barAnimation"
+            >
+              {viewMode === 'farm' ? (
+                data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))
+              ) : (
+                data.map((entry, index) => {
+                  const maxReports = Math.max(...data.map(item => item.reports || 0));
+                  return (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={getActivityColor(entry.reports, maxReports)} 
+                    />
+                  );
+                })
+              )}
+            </Bar>
+          )}
         </BarChart>
       </ResponsiveContainer>
       
       {/* Farm Color Legend for Farm View */}
-         {viewMode === 'farm' && data.length > 0 && (
-           <div className="custom-legend" style={{
-             marginTop: isStdPhone ? '-80px' : '-20px',
-             display: 'flex',
-             justifyContent: 'flex-start',
-             flexWrap: 'wrap',
-             gap: '16px',
-             padding: '8px',
-           }}>
-          {data.map((item, index) => {
-            // Function to split farm name for mobile display
-            const splitFarmName = (farmName) => {
-              if (!isStdPhone) return farmName; // Return original name for non-mobile
-              
-              // Check if farmName exists and is a string
-              if (!farmName || typeof farmName !== 'string') {
-                return farmName || 'Unknown Farm';
-              }
-              
-              // Split common patterns
-              if (farmName.includes(' Fish Farm')) {
-                const parts = farmName.split(' Fish Farm');
-                return { firstLine: parts[0], secondLine: 'Fish Farm' };
-              }
-              if (farmName.includes(' Aqua Farm')) {
-                const parts = farmName.split(' Aqua Farm');
-                return { firstLine: parts[0], secondLine: 'Aqua Farm' };
-              }
-              if (farmName.includes(' Aquaculture')) {
-                const parts = farmName.split(' Aquaculture');
-                return { firstLine: parts[0], secondLine: 'Aquaculture' };
-              }
-              // Default: try to split at space if name is long
-              const words = farmName.split(' ');
-              if (words.length > 1) {
-                const midPoint = Math.ceil(words.length / 2);
-                return {
-                  firstLine: words.slice(0, midPoint).join(' '),
-                  secondLine: words.slice(midPoint).join(' ')
-                };
-              }
-              return farmName;
-            };
-
-            const farmNameDisplay = splitFarmName(item.farm);
-            
-            return (
+      {viewMode === 'farm' && (
+        <div className="custom-legend" style={{
+          marginTop: isStdPhone ? '-80px' : '-20px',
+          display: 'flex',
+          justifyContent: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '16px',
+          padding: '8px',
+        }}>
+          {timeFilter === 'daily' || timeFilter === 'weekly' || timeFilter === 'monthly' ? (
+            // In daily farm view, legend comes from known farms/colors
+            KNOWN_FARMS.map((farm, index) => (
               <div key={index} style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -853,20 +985,76 @@ function ReportsChart() {
                 <div style={{
                   width: '12px',
                   height: '12px',
-                  backgroundColor: item.color || getFarmColor(item.farm),
+                  backgroundColor: getFarmColor(farm),
                   borderRadius: '2px'
                 }} />
-                {isStdPhone && typeof farmNameDisplay === 'object' ? (
-                  <div style={{ textAlign: 'center' }}>
-                    <div>{farmNameDisplay.firstLine}</div>
-                    <div>{farmNameDisplay.secondLine}</div>
-                  </div>
-                ) : (
-                  <span>{farmNameDisplay}</span>
-                )}
+                <span>{farm}</span>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            data.map((item, index) => {
+              // Function to split farm name for mobile display
+              const splitFarmName = (farmName) => {
+                if (!isStdPhone) return farmName; // Return original name for non-mobile
+                
+                // Check if farmName exists and is a string
+                if (!farmName || typeof farmName !== 'string') {
+                  return farmName || 'Unknown Farm';
+                }
+                
+                // Split common patterns
+                if (farmName.includes(' Fish Farm')) {
+                  const parts = farmName.split(' Fish Farm');
+                  return { firstLine: parts[0], secondLine: 'Fish Farm' };
+                }
+                if (farmName.includes(' Aqua Farm')) {
+                  const parts = farmName.split(' Aqua Farm');
+                  return { firstLine: parts[0], secondLine: 'Aqua Farm' };
+                }
+                if (farmName.includes(' Aquaculture')) {
+                  const parts = farmName.split(' Aquaculture');
+                  return { firstLine: parts[0], secondLine: 'Aquaculture' };
+                }
+                // Default: try to split at space if name is long
+                const words = farmName.split(' ');
+                if (words.length > 1) {
+                  const midPoint = Math.ceil(words.length / 2);
+                  return {
+                    firstLine: words.slice(0, midPoint).join(' '),
+                    secondLine: words.slice(midPoint).join(' ')
+                  };
+                }
+                return farmName;
+              };
+
+              const farmNameDisplay = splitFarmName(item.farm);
+              
+              return (
+                <div key={index} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '15px',
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    backgroundColor: item.color || getFarmColor(item.farm),
+                    borderRadius: '2px'
+                  }} />
+                  {isStdPhone && typeof farmNameDisplay === 'object' ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <div>{farmNameDisplay.firstLine}</div>
+                      <div>{farmNameDisplay.secondLine}</div>
+                    </div>
+                  ) : (
+                    <span>{farmNameDisplay}</span>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
 

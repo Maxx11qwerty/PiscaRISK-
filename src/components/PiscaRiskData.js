@@ -312,6 +312,84 @@ const PiscaRiskData = () => {
     return d >= rangeStart && d <= rangeEnd;
   };
 
+  // Get unique ponds with latest predictions (for summary stats)
+  const uniquePonds = useMemo(() => {
+    const pondMap = new Map();
+    farms.forEach(farm => {
+      const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
+      // Don't filter by time range for summary stats - use all data
+      const sorted = [...preds].sort((a,b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
+      
+      sorted.forEach(p => {
+        const pondKey = `${farm.key}-${p.fish_pond || 'Unknown Pond'}`;
+        if (!pondMap.has(pondKey)) {
+          pondMap.set(pondKey, {
+            ...p,
+            farm_name: toCanonicalDisplay(p.farm || p.farm_name || farm.name),
+            farm_key: normalizeFarmName(toCanonicalDisplay(p.farm || p.farm_name || farm.name))
+          });
+        }
+      });
+    });
+    return Array.from(pondMap.values());
+  }, [farms]);
+
+  // Calculate farm counts with all data, deduplicated by farm + pond (latest per pond)
+  const farmsWithAllDataCounts = useMemo(() => {
+    return farms.map(f => {
+      const preds = Array.isArray(f.predictions) ? f.predictions : [];
+      
+      // Deduplicate by farm + pond name - keep only latest prediction per pond
+      const pondMap = new Map();
+      
+      preds.forEach(p => {
+        const pondName = (p.fish_pond || 'Unknown Pond').toString().trim();
+        const pondKey = `${f.key}-${pondName}`;
+        
+        // Keep only the latest prediction for each pond
+        if (!pondMap.has(pondKey) || getTimestampMs(p.timestamp) > getTimestampMs(pondMap.get(pondKey).timestamp)) {
+          pondMap.set(pondKey, p);
+        }
+      });
+      
+      // Get deduplicated predictions (latest per pond)
+      const sorted = Array.from(pondMap.values());
+      
+      // Count all risk levels from deduplicated data
+      const counts = { high: 0, medium: 0, low: 0, normal: 0 };
+      sorted.forEach(p => {
+        const r = (p.risk_level || '').toString().toLowerCase();
+        if (r === 'high') counts.high += 1;
+        else if (r === 'medium') counts.medium += 1;
+        else if (r === 'low') counts.low += 1;
+        else counts.normal += 1;
+      });
+      
+      // Calculate overall risk based on counts
+      let overallRisk = 'Low';
+      if (counts.high > 0) {
+        overallRisk = 'High';
+      } else if (counts.medium > 0) {
+        overallRisk = 'Medium';
+      } else if (counts.low > 0) {
+        overallRisk = 'Low';
+      } else {
+        overallRisk = 'Low'; // Default to Low instead of Normal
+      }
+      
+      console.log(`${f.name} - Total preds: ${preds.length}, Unique ponds: ${sorted.length}, High: ${counts.high}, Medium: ${counts.medium}, Low: ${counts.low}`);
+      
+      return { 
+        key: f.key, 
+        name: f.name, 
+        counts, 
+        ponds: sorted.length, // Total unique ponds
+        overall_risk: overallRisk
+      };
+    });
+  }, [farms]);
+
+  // Keep the filtered version for chart data section (with time filtering)
   const farmsWithFilteredCounts = useMemo(() => {
     return farms.map(f => {
       const preds = Array.isArray(f.predictions) ? f.predictions : [];
@@ -331,13 +409,44 @@ const PiscaRiskData = () => {
         else if (r === 'low') counts.low += 1;
         else counts.normal += 1;
       });
-      return { key: f.key, name: f.name, counts, ponds: latestPerPond.length };
+      
+      return { 
+        key: f.key, 
+        name: f.name, 
+        counts, 
+        ponds: latestPerPond.length
+      };
     });
   }, [farms, rangeStart, rangeEnd]);
 
   const summaryStats = useMemo(() => {
-    // Total High-Risk Ponds
-    const totalHighRisk = (allPonds || []).reduce((acc, p) => acc + ((p.risk_level || '').toString().toLowerCase() === 'high' ? 1 : 0), 0);
+    // Calculate total high-risk ponds from all farms - count all high-risk instances
+    const totalHighRisk = (() => {
+      let highRiskCount = 0;
+      const farmHighRiskCounts = {};
+      
+      farms.forEach(farm => {
+        const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
+        let farmHighRisk = 0;
+        
+        // Count all high-risk predictions (no deduplication by date)
+        preds.forEach(p => {
+          const riskLevel = (p.risk_level || '').toString().toLowerCase().trim();
+          const isHigh = riskLevel === 'high' || riskLevel.includes('high');
+          if (isHigh) {
+            farmHighRisk++;
+            highRiskCount++;
+          }
+        });
+        
+        farmHighRiskCounts[farm.name] = farmHighRisk;
+      });
+      
+      console.log('Farm high-risk counts (all instances):', farmHighRiskCounts);
+      console.log('Total high-risk ponds (all instances):', highRiskCount);
+      
+      return highRiskCount;
+    })();
 
     // Total Reports Reviewed (%)
     const totals = Object.keys(farmReportsCount).reduce((agg, k) => {
@@ -347,7 +456,7 @@ const PiscaRiskData = () => {
     }, { reviewed: 0, total: 0 });
     const reviewedPct = totals.total > 0 ? Math.round((totals.reviewed / totals.total) * 100) : 0;
 
-    // Average Risk Level across all ponds
+    // Average Risk Level across unique ponds
     const riskToScore = (r) => {
       const s = (r || '').toString().toLowerCase();
       if (s === 'high') return 3;
@@ -359,23 +468,44 @@ const PiscaRiskData = () => {
       if (v >= 2.5) return 'High';
       if (v >= 1.5) return 'Medium';
       if (v >= 0.5) return 'Low';
-      return 'Normal';
+      return 'Low'; // Default to Low instead of Normal
     };
-    const scores = (allPonds || []).map(p => riskToScore(p.risk_level));
+    const scores = (uniquePonds || []).map(p => riskToScore(p.risk_level));
     const avgScore = scores.length > 0 ? (scores.reduce((a,b)=>a+b,0) / scores.length) : 0;
     const avgRiskLabel = scoreToLabel(avgScore);
 
     return { totalHighRisk, reviewedPct, avgRiskLabel };
-  }, [allPonds, farmReportsCount, farmReviewedCount]);
+  }, [farms, farmReportsCount, farmReviewedCount]);
+
+  // Create deduplicated ponds for predictions table (latest per pond per farm) - ALL TIME DATA
+  const deduplicatedPonds = useMemo(() => {
+    const pondMap = new Map();
+    farms.forEach(farm => {
+      const preds = Array.isArray(farm.predictions) ? farm.predictions : [];
+      // Use all data, no time filtering
+      const sorted = [...preds].sort((a,b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
+      
+      sorted.forEach(p => {
+        const pondKey = `${farm.key}-${p.fish_pond || 'Unknown Pond'}`;
+        if (!pondMap.has(pondKey)) {
+          pondMap.set(pondKey, {
+            ...p,
+            farm_name: toCanonicalDisplay(p.farm || p.farm_name || farm.name),
+            farm_key: normalizeFarmName(toCanonicalDisplay(p.farm || p.farm_name || farm.name))
+          });
+        }
+      });
+    });
+    return Array.from(pondMap.values());
+  }, [farms]);
 
   const filteredPonds = useMemo(() => {
     const q = (searchQuery || '').toString().trim().toLowerCase();
-    return (allPonds || []).filter(p => {
+    return (deduplicatedPonds || []).filter(p => {
       if (filterFarmKey !== 'all') {
         const pk = p.farm_key || normalizeFarmName(p.farm || p.farm_name || '');
         if (pk !== filterFarmKey) return false;
       }
-      if (!withinRange(p.timestamp)) return false;
       if (q.length > 0) {
         const hay = [
           (p.farm || p.farm_name || ''),
@@ -386,7 +516,7 @@ const PiscaRiskData = () => {
       }
       return true;
     });
-  }, [allPonds, filterFarmKey, searchQuery, rangeStart, rangeEnd]);
+  }, [deduplicatedPonds, filterFarmKey, searchQuery]);
 
   const { freshnessLabel, lastUpdatedStr, updateColor } = useMemo(() => {
     let latestMs = 0;
@@ -432,22 +562,18 @@ const PiscaRiskData = () => {
           <button 
             className="prd-export-btn" 
             onClick={(e) => {
-              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (!isTemporaryTechOfficer) {
-                const menu = e.currentTarget.nextSibling;
-                const isOpening = menu.style.display !== 'block';
-                if (menu) menu.style.display = isOpening ? 'block' : 'none';
-                try { 
-                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                  logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in PiscaRisk data`, u); 
-                } catch (_) {}
-              }
+              const menu = e.currentTarget.nextSibling;
+              const isOpening = menu.style.display !== 'block';
+              if (menu) menu.style.display = isOpening ? 'block' : 'none';
+              try { 
+                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in PiscaRisk data`, u); 
+              } catch (_) {}
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('piscaRiskData.export.select')}
+            title={t('piscaRiskData.export.select')}
             style={{
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1,
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer'
+              opacity: 1,
+              cursor: 'pointer'
             }}
           >{t('piscaRiskData.export.select')}</button>
           <div className="prd-export-menu-list" style={{ display: 'none' }}>
@@ -463,7 +589,7 @@ const PiscaRiskData = () => {
                 farmReportsCount,
                 farmReviewedCount,
                 weather,
-                summary: { totalFarms: farms.length, totalPonds: allPonds.length, asOf: Date.now() }
+                summary: { totalFarms: farms.length, totalPonds: uniquePonds.length, asOf: Date.now() }
               });
             }}>{t('piscaRiskData.export.csv')}</button>
             <button className="prd-export-menu-item" onClick={(e) => {
@@ -478,7 +604,7 @@ const PiscaRiskData = () => {
                 farmReportsCount,
                 farmReviewedCount,
                 weather,
-                summary: { totalFarms: farms.length, totalPonds: allPonds.length, asOf: Date.now() }
+                summary: { totalFarms: farms.length, totalPonds: uniquePonds.length, asOf: Date.now() }
               });
             }}>{t('piscaRiskData.export.pdf')}</button>
           </div>
@@ -493,12 +619,14 @@ const PiscaRiskData = () => {
         </div>
       </div>
       
-
+      <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0f9ff', border: '1px solid #0ea5e9', borderRadius: 6, fontSize: '0.85rem', color: '#0c4a6e' }}>
+        ℹ️ This report summarizes the latest valid prediction per pond. Duplicate or outdated entries are excluded automatically.
+      </div>
       
       <div className="prd-grid">
         <Section title={t('piscaRiskData.sections.farms.title')} description={t('piscaRiskData.sections.farms.description')}>
           <div className="prd-list farms-overview-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-            {farms.map((f) => (
+            {farmsWithAllDataCounts.map((f) => (
               <div key={f.key} className="prd-card" style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }}>
                 <div className="prd-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
                   <div className="prd-card-title" style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -508,7 +636,6 @@ const PiscaRiskData = () => {
                   <div className="prd-card-sub" style={{ fontSize: '0.75rem', color: '#6b7280' }}>{f.key}</div>
                 </div>
                 <div className="prd-card-body" style={{ display: 'grid', rowGap: 8 }}>
-                  <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.overallRisk')}</span><Pill color={f.overall_risk === 'High' ? '#ef4444' : f.overall_risk === 'Medium' ? '#f59e0b' : '#22c55e'}>{f.overall_risk}</Pill></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.pondsWithReports')}</span><span>{f.ponds}</span></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>{t('piscaRiskData.farmData.totalReports')}</span><span>{farmReportsCount[f.key] || 0}</span></div>
                   <div className="prd-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span>Total Users</span><span>{farmUserCount[f.key] || 0}</span></div>
@@ -535,7 +662,6 @@ const PiscaRiskData = () => {
                       <Pill color="#ef4444">{t('piscaRiskData.farmData.high')}: {f.counts?.high || 0}</Pill>
                       <Pill color="#f59e0b">{t('piscaRiskData.farmData.medium')}: {f.counts?.medium || 0}</Pill>
                       <Pill color="#eab308">{t('piscaRiskData.farmData.low')}: {f.counts?.low || 0}</Pill>
-                      <Pill color="#86efac">{t('piscaRiskData.farmData.normal')}: {f.counts?.normal || 0}</Pill>
                     </span>
                   </div>
                 </div>
@@ -548,27 +674,27 @@ const PiscaRiskData = () => {
           {weather ? (
             <div className="prd-weather" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.location')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>📍 {t('piscaRiskData.weatherData.location')}</div>
                 <div style={{ fontWeight: 600 }}>{weather.locationName || '—'}</div>
               </div>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.condition')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>☁️ {t('piscaRiskData.weatherData.condition')}</div>
                 <div style={{ fontWeight: 600 }}>{weather.weather?.[0]?.description || '—'}</div>
               </div>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.temperature')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>🌡️ {t('piscaRiskData.weatherData.temperature')}</div>
                 <div style={{ fontWeight: 600 }}>{typeof weather.main?.temp === 'number' ? `${Math.round(weather.main.temp)}°C` : '—'}</div>
               </div>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.humidity')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>💧 {t('piscaRiskData.weatherData.humidity')}</div>
                 <div style={{ fontWeight: 600 }}>{typeof weather.main?.humidity === 'number' ? `${weather.main.humidity}%` : '—'}</div>
               </div>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.wind')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>💨 {t('piscaRiskData.weatherData.wind')}</div>
                 <div style={{ fontWeight: 600 }}>{typeof weather.wind?.speed === 'number' ? `${weather.wind.speed} m/s` : '—'}</div>
               </div>
               <div className="prd-weather-item" style={{ padding: '8px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{t('piscaRiskData.weatherData.asOf')}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>🕒 {t('piscaRiskData.weatherData.asOf')}</div>
                 <div style={{ fontWeight: 600 }}>{new Date().toLocaleString()}</div>
               </div>
             </div>
@@ -577,36 +703,6 @@ const PiscaRiskData = () => {
           )}
         </Section>
 
-        <Section title={t('piscaRiskData.sections.chartData.title')} description={t('piscaRiskData.sections.chartData.description')}>
-          <div className="prd-aggregates" style={{ marginBottom: 12 }}>
-            <div className="prd-filters" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>Time:</label>
-                <select value={timeFilter} onChange={(e) => { setTimeFilter(e.target.value); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
-                  <option value="all">All</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                </select>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                {rangeLabel}
-              </div>
-            </div>
-            {farmsWithFilteredCounts.map(f => (
-              <div key={f.key} className="prd-card">
-                <div className="prd-card-header">
-                  <div className="prd-card-title">{f.name}</div>
-                </div>
-                <div className="prd-card-body">
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.high')}</span><strong>{f.counts.high}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.medium')}</span><strong>{f.counts.medium}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.low')}</span><strong>{f.counts.low}</strong></div>
-                  <div className="prd-row"><span>{t('piscaRiskData.farmData.normal')}</span><strong>{f.counts.normal}</strong></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
 
         <Section title={t('piscaRiskData.sections.predictions.title')} description={t('piscaRiskData.sections.predictions.description')}>
           <div className="prd-filters" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
@@ -619,30 +715,19 @@ const PiscaRiskData = () => {
                 ))}
               </select>
             </div>
-            <div>
-              <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>Time:</label>
-              <select value={timeFilter} onChange={(e) => { setTimeFilter(e.target.value); setPage(1); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
-                <option value="all">All</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-              </select>
-            </div>
             <div style={{ flex: '1 1 220px' }}>
               <input type="text" placeholder="Search pond, farm or risk..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }} />
             </div>
             <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280' }}>
-              Showing {filteredPonds.length} of {allPonds.length}
+              Showing {filteredPonds.length} of {deduplicatedPonds.length} (All Time Data)
             </div>
-            {timeFilter !== 'all' ? (
-              <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{rangeLabel}</div>
-            ) : null}
           </div>
           <div className="prd-table">
             <div className="prd-thead">
               <div>{t('piscaRiskData.predictionsTable.farm')}</div>
               <div>{t('piscaRiskData.predictionsTable.pond')}</div>
               <div>{t('piscaRiskData.predictionsTable.risk')}</div>
-              <div>{t('piscaRiskData.predictionsTable.timestamp')}</div>
+              <div>🕒 Last Updated</div>
             </div>
             <div className="prd-tbody">
               {pageItems.map((p) => (
@@ -681,11 +766,11 @@ const PiscaRiskData = () => {
         <Section title={t('piscaRiskData.sections.summary.title')} description={t('piscaRiskData.sections.summary.description')}>
           <div className="prd-summary">
             <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalFarms')}</span><strong>{farms.length}</strong></div>
-            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalPonds')}</span><strong>{allPonds.length}</strong></div>
-            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.asOf')}</span><strong>{new Date().toLocaleString()}</strong></div>
-            <div className="prd-summary-item"><span>Total High-Risk Ponds</span><strong>{summaryStats.totalHighRisk}</strong></div>
-            <div className="prd-summary-item"><span>Total Reports Reviewed (%)</span><strong>{summaryStats.reviewedPct}%</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalPonds')} (latest predictions)</span><strong>{uniquePonds.length}</strong></div>
             <div className="prd-summary-item"><span>Average Risk Level</span><strong>{summaryStats.avgRiskLabel}</strong></div>
+            <div className="prd-summary-item"><span>Total Reports Reviewed</span><strong>{summaryStats.reviewedPct}%</strong></div>
+            <div className="prd-summary-item"><span>Total High-Risk Ponds</span><strong>{summaryStats.totalHighRisk}</strong></div>
+            <div className="prd-summary-item"><span>As of</span><strong>{new Date().toLocaleString()}</strong></div>
           </div>
         </Section>
       </div>

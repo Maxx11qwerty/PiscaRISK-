@@ -373,27 +373,23 @@ const ConditionInsights = ({ userRole, assignedFarm = null, autoRotateMs = 6000,
         <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={() => {
-              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (!isTemporaryTechOfficer) {
-                setExportOpen(v => !v);
-              }
+              setExportOpen(v => !v);
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
             style={{ 
               background: 'transparent', 
               border: 'none', 
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#9ca3af' : 'white', 
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer', 
+              color: 'white', 
+              cursor: 'pointer', 
               display: 'flex', 
               alignItems: 'center',
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              opacity: 1
             }}
             aria-label={t('conditionInsights.export')}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : t('conditionInsights.export')}
+            title={t('conditionInsights.export')}
           >
             <GiHamburgerMenu style={{ fontSize: '20px' }} />
           </button>
-          {exportOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          {exportOpen && (
             <div style={{ position: 'absolute', right: 0, top: 26, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, boxShadow: '0 8px 20px rgba(0,0,0,0.08)', minWidth: 240, overflow: 'hidden', zIndex: 5 }}>
               <button
                 style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}

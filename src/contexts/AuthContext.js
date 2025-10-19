@@ -22,7 +22,7 @@ import {
   applyActionCode
 } from 'firebase/auth';
 import { setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, deleteDoc, addDoc, onSnapshot } from 'firebase/firestore';
 import { sanitizeObjectStrings } from '../utils/sanitize';
 
 export const AuthContext = createContext();
@@ -46,6 +46,44 @@ export const AuthProvider = ({ children }) => {
   const isLoggingOutRef = useRef(false);
   const isProcessingLoginRef = useRef(false);
   const resendVerificationCooldownUntilRef = useRef(0);
+  const userStatusListenerRef = useRef(null);
+
+  // Function to set up real-time monitoring of current user's status
+  const setupUserStatusListener = (userId) => {
+    // Clean up existing listener
+    if (userStatusListenerRef.current) {
+      userStatusListenerRef.current();
+      userStatusListenerRef.current = null;
+    }
+
+    if (!userId) return;
+
+    // Set up listener for user document in Firestore
+    const userDocRef = doc(db, 'users', userId);
+    userStatusListenerRef.current = onSnapshot(userDocRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const userData = docSnapshot.data();
+        const status = String(userData.status || '').toLowerCase();
+        
+        // If user status is inactive, automatically logout
+        if (status === 'inactive') {
+          console.log('User account deactivated, logging out...');
+          logout();
+        }
+      }
+    }, (error) => {
+      console.error('Error monitoring user status:', error);
+    });
+  };
+
+  // Function to clean up user status listener
+  const cleanupUserStatusListener = () => {
+    if (userStatusListenerRef.current) {
+      userStatusListenerRef.current();
+      userStatusListenerRef.current = null;
+    }
+  };
+
   // Ensure auth persistence is set before listeners/sign-in flows
   useEffect(() => {
     (async () => {
@@ -146,7 +184,6 @@ export const AuthProvider = ({ children }) => {
       
       // Check if this is a test user (skip Firestore update for test)
       if (userId === 'test-user-id' || userId === 'real-test-user-id') {
-        console.log('Test phone verification successful - skipping Firestore update');
         
         // Update current user data
         setCurrentUser(prev => ({
@@ -496,6 +533,9 @@ export const AuthProvider = ({ children }) => {
           setCurrentUser(newCurrentUser);
           currentUserRef.current = newCurrentUser;
           
+          // Set up real-time monitoring of user status for automatic logout
+          setupUserStatusListener(user.uid);
+          
           // Clear the processing flag after setting user data
           isProcessingLoginRef.current = false;
           
@@ -509,10 +549,16 @@ export const AuthProvider = ({ children }) => {
         currentUserRef.current = null;
         setRequiresOTP(false);
         setOtpSent(false);
+        
+        // Clean up user status listener
+        cleanupUserStatusListener();
       }
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      cleanupUserStatusListener();
+    };
   }, []);
 
   // Signup function (Farm Admin self-signup)
@@ -769,6 +815,8 @@ const login = async (emailOrContact, password) => {
             const activeTTO = ttoSnapshot.docs[0].data();
             const effectiveTo = activeTTO.effectiveTo;
             
+            // Allow main tech officer to login for monitoring purposes
+            // Only show a warning message instead of blocking login
             if (effectiveTo) {
               const expirationDate = new Date(effectiveTo);
               const expirationString = expirationDate.toLocaleDateString('en-US', {
@@ -781,17 +829,15 @@ const login = async (emailOrContact, password) => {
                 hour12: true
               });
               
-              await signOut(auth);
-              return {
-                success: false,
-                message: `Login restricted: A Temporary Tech Officer is active until ${expirationString}. If you need early access, contact the Super Admin to deactivate the temporary account.`
-              };
+              // Set a flag to show monitoring mode message
+              userData.monitoringMode = true;
+              userData.tempTOExpiration = expirationString;
             }
           }
           
-          // Fallback check: If the main Tech Officer has temporarilyInactiveDueToTempTO flag,
-          // it means there should be an active TTO, so we should block the login
-          if (userData.temporarilyInactiveDueToTempTO && userData.temporaryReplacementReason) {
+          // Fallback check: If the main Tech Officer has hasActiveTempReplacement flag,
+          // it means there should be an active TTO, so we should allow login but show monitoring mode
+          if (userData.hasActiveTempReplacement && userData.temporaryReplacementReason) {
             const effectiveTo = userData.temporaryEffectiveTo;
             if (effectiveTo) {
               const expirationDate = new Date(effectiveTo);
@@ -805,11 +851,9 @@ const login = async (emailOrContact, password) => {
                 hour12: true
               });
               
-              await signOut(auth);
-              return {
-                success: false,
-                message: `Login restricted: A Temporary Tech Officer is active until ${expirationString}. If you need early access, contact the Super Admin to deactivate the temporary account.`
-              };
+              // Set monitoring mode instead of blocking login
+              userData.monitoringMode = true;
+              userData.tempTOExpiration = expirationString;
             }
           }
         } catch (error) {
@@ -1036,6 +1080,9 @@ const login = async (emailOrContact, password) => {
       setRequiresOTP(false);
       setOtpSent(false);
       
+      // Clean up user status listener
+      cleanupUserStatusListener();
+      
       // 3. Clear all storage
       localStorage.clear();
       sessionStorage.clear();
@@ -1083,6 +1130,9 @@ const login = async (emailOrContact, password) => {
       currentUserRef.current = null;
       setRequiresOTP(false);
       setOtpSent(false);
+      
+      // Clean up user status listener
+      cleanupUserStatusListener();
       localStorage.clear();
       sessionStorage.clear();
       suppressAuthUpdatesRef.current = false;

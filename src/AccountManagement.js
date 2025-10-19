@@ -9,6 +9,7 @@ import { RiDeleteBin6Line } from "react-icons/ri";
 // removed export button icon
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
+import { useNotifications } from './contexts/NotificationContext';
 import NotificationBox from './components/NotificationBox';
 import UserPopup from './components/UserPopup';
 import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, updateUserStatus as serviceUpdateUserStatus } from './services/accountService';
@@ -22,21 +23,10 @@ import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeTo
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
   const { currentUser } = useContext(AuthContext);
+  const { addDeactivationToast, addActivationToast } = useNotifications();
   const navigate = useNavigate();
   
-  // Check if user is a Temporary Tech Officer and block access
-  useEffect(() => {
-    const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-    
-    if (isTemporaryTechOfficer) {
-      navigate('/Homepage', { 
-        state: { 
-          errorMessage: '⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.' 
-        } 
-      });
-      return;
-    }
-  }, [currentUser, navigate]);
+  // Temporary Tech Officers now have access to Account Management
   
   const [isMobile, setIsMobile] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -238,11 +228,11 @@ const AccountManagement = () => {
               } : u
             ));
 
-            // Reactivate main Tech Officer when Temporary Tech Officer is auto-deactivated
+            // Clear temp replacement flag when Temporary Tech Officer is auto-deactivated
             try {
               const mainTO = AccountUsers.find(x => {
                 const r = String(x?.role || '').toLowerCase();
-                return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.temporarilyInactiveDueToTempTO;
+                return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.hasActiveTempReplacement;
               });
               
               if (mainTO && mainTO.id) {
@@ -253,7 +243,8 @@ const AccountManagement = () => {
                   temporarilyInactiveDueToTempTO: false,
                   temporaryReplacementReason: null,
                   temporaryEffectiveFrom: null,
-                  temporaryEffectiveTo: null
+                  temporaryEffectiveTo: null,
+                  hasActiveTempReplacement: false
                 });
                 
                 // Update local state for main Tech Officer
@@ -263,11 +254,12 @@ const AccountManagement = () => {
                   temporarilyInactiveDueToTempTO: false,
                   temporaryReplacementReason: null,
                   temporaryEffectiveFrom: null,
-                  temporaryEffectiveTo: null
+                  temporaryEffectiveTo: null,
+                  hasActiveTempReplacement: false
                 } : u));
               }
             } catch (e) {
-              console.error("Failed to reactivate main Tech Officer:", e);
+              console.error("Failed to clear temp replacement flag:", e);
             }
           } catch (error) {
             console.error(`Failed to auto-deactivate ${user.username}:`, error);
@@ -289,26 +281,29 @@ const AccountManagement = () => {
           return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer;
         });
         
-        if (mainTO && !mainTO.temporarilyInactiveDueToTempTO) {
+        if (mainTO && !mainTO.hasActiveTempReplacement) {
           try {
             const { updateDoc, doc } = await import('firebase/firestore');
             const { db } = await import('./firebase');
+            // Keep main Tech Officer active for monitoring purposes
             await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
-              status: 'Inactive',
-              temporarilyInactiveDueToTempTO: true,
+              status: 'Active',
+              temporarilyInactiveDueToTempTO: false,
               temporaryReplacementReason: activeTTO.tempTOReason || 'Temporary assignment',
               temporaryEffectiveFrom: activeTTO.effectiveFrom || null,
-              temporaryEffectiveTo: activeTTO.effectiveTo || null
+              temporaryEffectiveTo: activeTTO.effectiveTo || null,
+              hasActiveTempReplacement: true
             });
             
-            // Update local state
+            // Update local state - keep active
             setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
               ...u,
-              status: 'inactive',
-              temporarilyInactiveDueToTempTO: true,
+              status: 'active',
+              temporarilyInactiveDueToTempTO: false,
               temporaryReplacementReason: activeTTO.tempTOReason || 'Temporary assignment',
               temporaryEffectiveFrom: activeTTO.effectiveFrom || null,
-              temporaryEffectiveTo: activeTTO.effectiveTo || null
+              temporaryEffectiveTo: activeTTO.effectiveTo || null,
+              hasActiveTempReplacement: true
             } : u));
           } catch (e) {
             console.error("Failed to sync main Tech Officer status:", e);
@@ -693,11 +688,11 @@ const AccountManagement = () => {
         } : u
       ));
 
-      // Reactivate main Tech Officer when Temporary Tech Officer is manually deactivated
+      // Clear temp replacement flag when Temporary Tech Officer is manually deactivated
       try {
         const mainTO = AccountUsers.find(x => {
           const r = String(x?.role || '').toLowerCase();
-          return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.temporarilyInactiveDueToTempTO;
+          return (r === 'tech_officer' || r === 'tech officer') && !x.temporaryTechOfficer && x.hasActiveTempReplacement;
         });
         
         if (mainTO && mainTO.id) {
@@ -708,7 +703,8 @@ const AccountManagement = () => {
             temporarilyInactiveDueToTempTO: false,
             temporaryReplacementReason: null,
             temporaryEffectiveFrom: null,
-            temporaryEffectiveTo: null
+            temporaryEffectiveTo: null,
+            hasActiveTempReplacement: false
           });
           
           // Update local state for main Tech Officer
@@ -718,13 +714,16 @@ const AccountManagement = () => {
             temporarilyInactiveDueToTempTO: false,
             temporaryReplacementReason: null,
             temporaryEffectiveFrom: null,
-            temporaryEffectiveTo: null
+            temporaryEffectiveTo: null,
+            hasActiveTempReplacement: false
           } : u));
         }
       } catch (e) {
-        console.error("Failed to reactivate main Tech Officer:", e);
+        console.error("Failed to clear temp replacement flag:", e);
       }
       
+      // Show deactivation toast
+      addDeactivationToast(user.username);
       setMessage({ text: `${user.username} deactivated successfully!`, type: 'success' });
     } catch (error) {
       setMessage({ text: `Error deactivating ${user.username}: ${error.message}`, type: 'error' });
@@ -1095,17 +1094,23 @@ const AccountManagement = () => {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
       }
+      
+      // Additional validation: Only Farm Admins can create Fish Farmers
+      if (newUser.role === 'Fish Farmer' && !currentUser?.farm) {
+        setMessage({ text: 'Only Farm Admins can create Fish Farmer accounts', type: 'error' });
+        return;
+      }
 
       // Removed farm-admin selection requirement for Temporary Tech Officer
 
       setMessage({ text: 'Creating user...', type: 'info' });
 
       // Determine farm assignment
-      // For Tech Officer or Temporary Tech Officer created by Super Admin, enforce no farm assignment
-      const isCreatingTechOfficer = (newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer');
+      // For Tech Officer created by Super Admin, enforce no farm assignment
+      const isCreatingTechOfficer = (newUser.role === 'Tech Officer');
       const farmForNewUser = isCreatingTechOfficer ? null : (currentUser?.farm ? currentUser.farm : selectedFarmId);
-      // Super Admins: Admin requires no farm; Tech Officer requires no farm; Fish Farmer requires farm
-      if (!currentUser?.farm && newUser.role === 'Fish Farmer' && !farmForNewUser) {
+      // Only Farm Admins can create Fish Farmers
+      if (currentUser?.farm && newUser.role === 'Fish Farmer' && !farmForNewUser) {
         setMessage({ text: 'Please select a farm for the user', type: 'error' });
         return;
       }
@@ -1346,6 +1351,9 @@ const AccountManagement = () => {
       
       setMessage({ text: `Tech Officer ${user.username} activated. Note: user must verify their email to become Active.`, type: 'success' });
       
+      // Show activation toast
+      addActivationToast(user.username);
+      
       try { 
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
         logActivity('account', `Tech Officer ${user.username} activated successfully in Account Management`, u); 
@@ -1380,26 +1388,29 @@ const AccountManagement = () => {
           if (mainTO && mainTO.id) {
             const { updateDoc, doc } = await import('firebase/firestore');
             const { db } = await import('./firebase');
+            // Keep main Tech Officer active for monitoring purposes
             await updateDoc(doc(db, mainTO._collection || 'users', mainTO.id), {
-              status: 'Inactive',
-              temporarilyInactiveDueToTempTO: true,
+              status: 'Active',
+              temporarilyInactiveDueToTempTO: false,
               temporaryReplacementReason: user.tempTOReason || 'Temporary assignment',
               temporaryEffectiveFrom: user.effectiveFrom || null,
-              temporaryEffectiveTo: user.effectiveTo || null
+              temporaryEffectiveTo: user.effectiveTo || null,
+              hasActiveTempReplacement: true
             });
             
-            // Update local state for main Tech Officer
+            // Update local state for main Tech Officer - keep active
             setAccountUsers(prev => prev.map(u => u.id === mainTO.id ? {
               ...u,
-              status: 'inactive',
-              temporarilyInactiveDueToTempTO: true,
+              status: 'active',
+              temporarilyInactiveDueToTempTO: false,
               temporaryReplacementReason: user.tempTOReason || 'Temporary assignment',
               temporaryEffectiveFrom: user.effectiveFrom || null,
-              temporaryEffectiveTo: user.effectiveTo || null
+              temporaryEffectiveTo: user.effectiveTo || null,
+              hasActiveTempReplacement: true
             } : u));
           }
         } catch (e) {
-          console.error("Failed to inactivate main Tech Officer:", e);
+          console.error("Failed to update main Tech Officer status:", e);
         }
       }
       
@@ -1443,6 +1454,10 @@ const handleActivateFishFarmer = async (user) => {
         u.id === user.id ? { ...u, status: 'active' } : u
       ));
       setMessage({ text: `${user.username} activated successfully!`, type: 'success' });
+      
+      // Show activation toast
+      addActivationToast(user.username);
+      
       logActivity('account', `Fish Farmer ${user.username} activated successfully`, adminUser);
     } else {
       setMessage({ 
@@ -1484,6 +1499,10 @@ const handleActivateFishFarmer = async (user) => {
         throw new Error(result?.message || 'Failed to activate Admin');
       }
       setMessage({ text: `Admin ${user.username || user.email} activated successfully!`, type: 'success' });
+      
+      // Show activation toast
+      addActivationToast(user.username || user.email);
+      
       try {
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
         logActivity('account', `Admin ${user.username || user.email} activated in Account Management`, u);
@@ -1722,12 +1741,15 @@ const handleActivateFishFarmer = async (user) => {
   // Checkbox selection functions
   const handleSelectAll = (checked) => {
     if (checked) {
-      // Select all users across ALL pages, not just current page
-      const allUserIds = filteredUsers.map(user => user.id).filter(Boolean);
+      // Select all users across ALL pages, not just current page (excluding deactivated users)
+      const allUserIds = filteredUsers
+        .filter(user => String(user.status || '').toLowerCase() !== 'inactive')
+        .map(user => user.id)
+        .filter(Boolean);
       setSelectedUsers(new Set(allUserIds));
       try { 
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('account', `All users selected (${allUserIds.length} users) in Account Management`, u); 
+        logActivity('account', `All active users selected (${allUserIds.length} users) in Account Management`, u); 
       } catch (_) {}
     } else {
       // Deselect all users across all pages
@@ -2381,7 +2403,8 @@ const handleActivateFishFarmer = async (user) => {
                         // Farm-assigned Admins: only Fish Farmer
                         <option value="Fish Farmer">{t('accountManagement.add_user_form.fish_farmer_option')}</option>
                       ) : (
-                        // Super Admins (no farm): Admin, Tech Officer (if not yet created), and Temporary Tech Officer (only if there's a Tech Officer)
+                        // Super Admins (no farm) and Temporary Tech Officers: Admin, Tech Officer (if not yet created), and Temporary Tech Officer (only if there's a Tech Officer)
+                        // Fish Farmers can ONLY be created by Farm Admins
                         <>
                           <option value="Admin">{t('accountManagement.add_user_form.admin_option')}</option>
                           {!hasTechOfficer && (
@@ -2649,10 +2672,10 @@ const handleActivateFishFarmer = async (user) => {
               {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
               <div className="form-row">
                 {/* Conditional Farm Selector */}
-                {!currentUser?.farm ? (
+                {currentUser?.farm ? (
                   <div className="form-group" style={{ width: '100%' }}>
                     <label>Farm</label>
-                    {(newUser.role === 'Tech Officer' || newUser.role === 'Temporary Tech Officer') ? (
+                    {(newUser.role === 'Tech Officer') ? (
                       <input type="text" value="No farm (global access)" readOnly />
                     ) : (
                       <select
@@ -2801,15 +2824,34 @@ const handleActivateFishFarmer = async (user) => {
                       return (
                       <div key={reactKey} className="user-row">
                         <div className="user-cell checkbox-cell">
-                          <input 
-                            type="checkbox" 
-                            className="user-checkbox"
-                            checked={selectedUsers.has(user.id)}
-                            onChange={(e) => {
-                              e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
-                              handleUserSelection(user.id, e.target.checked);
-                            }}
-                          />
+                          {String(user.status || '').toLowerCase() === 'inactive' ? (
+                            <span 
+                              className="deactivated-icon"
+                              style={{
+                                fontSize: '18px',
+                                color: '#6b7280',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '20px',
+                                height: '20px',
+                                cursor: 'not-allowed'
+                              }}
+                              title="User is deactivated"
+                            >
+                              🚫
+                            </span>
+                          ) : (
+                            <input 
+                              type="checkbox" 
+                              className="user-checkbox"
+                              checked={selectedUsers.has(user.id)}
+                              onChange={(e) => {
+                                e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
+                                handleUserSelection(user.id, e.target.checked);
+                              }}
+                            />
+                          )}
                         </div>
                         <div className="user-cell name-cell" data-label="User">
                           <div className="user-info">
@@ -2819,8 +2861,14 @@ const handleActivateFishFarmer = async (user) => {
                               <FaUserCircle className="user-avatar-icon" />
                             )}
                             <div className="account-management-user-details">
-                              <div className="account-management-username">{user.username}</div>
-                              <div className="account-management-user-email">{user.email || t('accountManagement.user_list.no_email')}</div>
+                              <div className="account-management-username" style={{
+                                color: String(user.status || '').toLowerCase() === 'inactive' ? '#6b7280' : 'inherit'
+                              }}>
+                                {user.username}
+                              </div>
+                              <div className="account-management-user-email" style={{
+                                color: String(user.status || '').toLowerCase() === 'inactive' ? '#9ca3af' : 'inherit'
+                              }}>{user.email || t('accountManagement.user_list.no_email')}</div>
                             </div>
                       </div>
                         </div>
@@ -2926,6 +2974,8 @@ const handleActivateFishFarmer = async (user) => {
                                 if (!result?.success) {
                                   throw new Error(result?.error || 'Failed to update status');
                                 }
+                                // Show deactivation toast
+                                addDeactivationToast(user.username || user.email || 'User');
                                 setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
                                 try {
                                   const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';

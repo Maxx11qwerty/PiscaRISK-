@@ -339,28 +339,9 @@ const PiscaRiskHome = () => {
   };
 
   const handleAccountManagementClick = async () => {
-    const isTTO = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-    
     if (currentUser?.role === 'Tech Officer') {
       setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
-      return;
-    }
-    
-    if (isTTO) {
-      // Log the restricted access attempt
-      const username = currentUser?.username || currentUser?.email || 'Unknown';
-      try {
-        await logTemporaryTechOfficerActivity(
-          'temporaryTechOfficer',
-          logMessages.temporaryTechOfficer.restrictedAccess(username, 'Account Management'),
-          username,
-          currentUser?.role || 'temp_tech_officer'
-        );
-      } catch (_) {}
-      
-      setErrorMessage('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
-      setTimeout(() => setErrorMessage(''), 5000);
       return;
     }
     
@@ -433,6 +414,12 @@ const PiscaRiskHome = () => {
     setSelectedPond(1);
     // Reset any targeted farm for Risk Reports so next open shows overview
     setModalFarmName('');
+    setModalDetailsFarmKey(null); // Clear the details farm key
+    setModalInitialRiskLevel('all'); // Reset initial risk level
+    setModalInitialPonds([]); // Reset initial pond list
+    setModalInitialPond(null); // Reset initial pond
+    setModalRangeStart(null); // Reset date range start
+    setModalRangeEnd(null); // Reset date range end
     // Clear navigation state to ensure fresh start
     navigate('/Homepage', { replace: true, state: {} });
     // Increment modal key to force component remount on next open
@@ -448,6 +435,12 @@ const PiscaRiskHome = () => {
   const [drilldownTitle, setDrilldownTitle] = useState('');
   const [drilldownItems, setDrilldownItems] = useState([]);
   const [modalFarmName, setModalFarmName] = useState('');
+  const [modalDetailsFarmKey, setModalDetailsFarmKey] = useState(null);
+  const [modalInitialRiskLevel, setModalInitialRiskLevel] = useState('all');
+  const [modalInitialPond, setModalInitialPond] = useState(null);
+  const [modalInitialPonds, setModalInitialPonds] = useState([]);
+  const [modalRangeStart, setModalRangeStart] = useState(null);
+  const [modalRangeEnd, setModalRangeEnd] = useState(null);
   const [allFarmsRiskData, setAllFarmsRiskData] = useState([]);
 
   useEffect(() => {
@@ -460,7 +453,7 @@ const PiscaRiskHome = () => {
     })();
   }, [currentUser]);
 
-  const openDrilldown = ({ type, farmKey, risk, farms, clickedFarmName, clickDateMs, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
+  const openDrilldown = ({ type, farmKey, risk, farms, clickedFarmName, clickedRiskLevel, clickedPonds, clickDateMs, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];
 
     // Helper: within selected time range
@@ -542,6 +535,10 @@ const PiscaRiskHome = () => {
       if (farm) {
         // Open RiskReportModal focused to this farm (details view)
         setModalFarmName(farm.name);
+        setModalDetailsFarmKey(farmKey); // Set the farm key for details view
+        setModalInitialRiskLevel('all'); // Reset to show all risk levels
+        setModalInitialPonds([]); // Reset pond list
+        setModalInitialPond(null); // Reset pond selection
         setModalContent({ id: 4, title: t('dashboard.riskReports'), content: null, icon: <FaExclamationTriangle className="box-icon" /> });
         setShowModal(true);
         // Persist the clicked date for RiskReportModal via sessionStorage for simplicity
@@ -570,7 +567,25 @@ const PiscaRiskHome = () => {
     } else if (type === 'risk' && risk) {
       // If a specific farm segment was clicked in risk view, open modal focused on that farm
       if (clickedFarmName) {
-        setModalFarmName(clickedFarmName);
+        // Find the farm key for the clicked farm name
+        const clickedFarm = allFarmsRiskData.find(f => f.name === clickedFarmName);
+        
+        // Map the farm key to match the modal's farms array
+        const farmKeyMapping = {
+          'aquino-fish-farm': 'salmon-hatchery-facility',  // Aquino Fish Farm
+          'labay-fish-farm': 'labay-fish-farm',           // Labay Fish Farm
+          'maningas-fish-farm': 'blue-ocean-aquafarm',    // Maningas Fish Farm
+          "vergara's-aqua-farm": 'tilapia-production-center' // Vergara's Aqua Farm
+        };
+        
+        const mappedFarmKey = farmKeyMapping[clickedFarm?.key] || clickedFarm?.key;
+      setModalFarmName(clickedFarmName);
+      setModalDetailsFarmKey(mappedFarmKey); // Set the mapped farm key for details view
+      setModalInitialRiskLevel(clickedRiskLevel || 'all'); // Set the specific risk level that was clicked
+      setModalInitialPonds(clickedPonds || []); // Set the specific ponds that were clicked
+      setModalInitialPond(null); // Reset individual pond selection
+      setModalRangeStart(rangeStart); // Set the date range start
+      setModalRangeEnd(rangeEnd); // Set the date range end
         setModalContent({ id: 4, title: t('dashboard.riskReports'), content: null, icon: <FaExclamationTriangle className="box-icon" /> });
         setShowModal(true);
         try {
@@ -651,14 +666,24 @@ const PiscaRiskHome = () => {
         case 4: // Risk Reports
           return (
             <div className="risk-modal-content">
-              <RiskReportModal isModal={true} initialFarmName={modalFarmName} initialTimestampMs={(function(){ try { const raw = sessionStorage.getItem('riskModal.initialDateMs'); return raw ? parseInt(raw, 10) : null; } catch(_) { return null; } })()} />
+              <RiskReportModal 
+                isModal={true} 
+                initialFarmName={modalFarmName} 
+                initialTimestampMs={(function(){ try { const raw = sessionStorage.getItem('riskModal.initialDateMs'); return raw ? parseInt(raw, 10) : null; } catch(_) { return null; } })()} 
+                initialDetailsFarmKey={modalDetailsFarmKey}
+                initialRiskLevel={modalInitialRiskLevel}
+                initialPond={modalInitialPond}
+                initialPonds={modalInitialPonds}
+                rangeStart={modalRangeStart}
+                rangeEnd={modalRangeEnd}
+              />
             </div>
           );
         default:
           return null;
       }
     };
-  }, [selectedPond, t, location.state, modalKey, modalFarmName]);
+  }, [selectedPond, t, location.state, modalKey, modalFarmName, modalDetailsFarmKey, modalInitialRiskLevel, modalInitialPond, modalInitialPonds]);
 
   return (
     <div className="homepage-container">
@@ -735,6 +760,24 @@ const PiscaRiskHome = () => {
           {errorMessage && (
             <div className="error-message visible">
               {errorMessage}
+            </div>
+          )}
+          
+          {/* Monitoring Mode Indicator for Main Tech Officer */}
+          {currentUser?.monitoringMode && (
+            <div className="monitoring-mode-banner">
+              <div className="monitoring-mode-content">
+                <div className="monitoring-mode-icon">👁️</div>
+                <div className="monitoring-mode-text">
+                  <div className="monitoring-mode-title">Monitoring Mode</div>
+                  <div className="monitoring-mode-message">You are monitoring while a Temporary Tech Officer is active</div>
+                  {currentUser?.tempTOExpiration && (
+                    <div className="monitoring-expiration">
+                      Temporary assignment expires: {currentUser.tempTOExpiration}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           
@@ -910,9 +953,8 @@ const PiscaRiskHome = () => {
               </div>
             </AnimatedModal>
           )}
-
-          {/* Password Change Modal removed - using ProfileSettings password reset instead */}
         </div>
+        
       </div>
   );
 };

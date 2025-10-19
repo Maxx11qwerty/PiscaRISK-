@@ -13,6 +13,9 @@ import ForgotPassword from './components/ForgotPassword';
 import PondConditionDashboard from './components/PondConditionDashboard';
 import * as Auth from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import ToastNotification from './components/ToastNotification';
+import CustomToastContainer from './components/ToastContainer';
 import '../src/utils/sanitize';
 
 
@@ -90,19 +93,22 @@ function App() {
     <BrowserRouter>
       <LanguageProvider>
         <Auth.AuthProvider>
-          <AppRoutes />
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop={false}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="light"
-          />
+          <NotificationProvider>
+            <AppRoutes />
+            <ToastContainer
+              position="top-right"
+              autoClose={5000}
+              hideProgressBar={false}
+              newestOnTop={false}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
+            <CustomToastContainer />
+          </NotificationProvider>
         </Auth.AuthProvider>
       </LanguageProvider>
     </BrowserRouter>

@@ -5,7 +5,7 @@ import { RiAlertFill } from 'react-icons/ri';
 import { PiNoteFill } from 'react-icons/pi';
 import { IoTimeSharp } from 'react-icons/io5';
 import { FaFileExport } from 'react-icons/fa6';
-import { exportRiskOverviewCSV, exportRiskOverviewPDF} from '../utils/exportRiskReport';
+import { exportRiskOverviewCSV, exportRiskOverviewPDF, exportFarmDetailsCSV, exportFarmDetailsPDF} from '../utils/exportRiskReport';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { sanitizeTimestamp } from '../utils/securityUtils';
@@ -14,7 +14,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
 import './RiskReportModal.css';
 
-const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimestampMs = null }) => {
+const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimestampMs = null, initialDetailsFarmKey = null, initialRiskLevel = 'all', initialPond = null, initialPonds = [], rangeStart = null, rangeEnd = null }) => {
   const { t } = useTranslation();
   const { currentUser } = useContext(AuthContext);
   const { farms: liveFarms } = useFarms();
@@ -43,12 +43,55 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
   const [selectedRiskLevel, setSelectedRiskLevel] = useState('all');
   const [pondSearchTerm, setPondSearchTerm] = useState('');
   const [showPondDropdown, setShowPondDropdown] = useState(false);
+  const [specificPonds, setSpecificPonds] = useState([]); // Ponds to show when filtering by clicked bar
   const appliedInitialFilterRef = React.useRef(false);
+  const initialDetailsProcessedRef = React.useRef(false);
 
   // Auto-close urgent recommendations when switching tabs
   useEffect(() => {
     setShowUrgentRecommendations(false);
   }, [activeTab]);
+
+  // Set initial details farm key if provided (only once)
+  useEffect(() => {
+    if (initialDetailsFarmKey && !initialDetailsProcessedRef.current) {
+      setDetailsFarmKey(initialDetailsFarmKey);
+      initialDetailsProcessedRef.current = true;
+    }
+  }, [initialDetailsFarmKey]);
+
+  // Set initial risk level if provided; don't clear specific ponds if they were passed from chart click
+  useEffect(() => {
+    if (initialRiskLevel && initialRiskLevel !== 'all') {
+      setSelectedRiskLevel(initialRiskLevel);
+      if (!initialPonds || initialPonds.length === 0) {
+        setSpecificPonds([]);
+      }
+    }
+  }, [initialRiskLevel, initialPonds]);
+
+  // Set initial pond if provided (takes precedence over auto-selection)
+  useEffect(() => {
+    if (initialPond) {
+      setSelectedPond(initialPond);
+      // Clear specific ponds when manually setting pond
+      setSpecificPonds([]);
+    }
+  }, [initialPond]);
+
+  // Set initial specific ponds if provided
+  useEffect(() => {
+    if (initialPonds && initialPonds.length > 0) {
+      setSpecificPonds(initialPonds);
+      // Preserve clicked risk level if provided; otherwise fall back to 'all'
+      if (initialRiskLevel && initialRiskLevel !== 'all') {
+        setSelectedRiskLevel(initialRiskLevel);
+      } else {
+        setSelectedRiskLevel('all');
+      }
+      setSelectedPond(null);
+    }
+  }, [initialPonds, initialRiskLevel]);
 
   // Close pond dropdown when clicking outside
   useEffect(() => {
@@ -239,7 +282,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       const checklistSnap = await getDocs(checklistQuery);
       
       if (checklistSnap.empty) {
-        console.log('No checklist data found for farm:', farmName);
         return null;
       }
       
@@ -260,7 +302,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         });
         
         if (filteredDocs.length === 0) {
-          console.log('No checklist data found for date:', targetDate);
           return null;
         }
         
@@ -285,7 +326,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       
       return latestDoc;
     } catch (e) {
-      console.error('Error fetching checklist completion:', e);
       return null;
     }
   };
@@ -929,12 +969,52 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     loadHistoricalChecklistData();
   }, [detailsFarmKey, showHistoryFilter, selectedTimestamp, forcedDateMs, farms]);
 
-  // Reset selected pond when farm changes
+  // Reset selected pond when farm changes and auto-select latest pond
   useEffect(() => {
     if (detailsFarmKey) {
-      setSelectedPond(null);
+      // Only auto-select if no initial pond was provided
+      if (!initialPond) {
+        setSelectedPond(null);
+        
+        // Auto-select the pond with the latest risk data
+        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+        if (farm && farm.predictions && Array.isArray(farm.predictions)) {
+          const latestPonds = getLatestRiskPerPond(farm);
+          if (latestPonds.length > 0) {
+            // Filter by risk level if not 'all'
+            let filteredPonds = latestPonds;
+            if (selectedRiskLevel !== 'all') {
+              filteredPonds = latestPonds.filter(pred => {
+                const risk = normalizeRisk(pred.risk_level);
+                return risk === selectedRiskLevel;
+              });
+            }
+            
+            // If no ponds match the risk level filter, use all latest ponds
+            if (filteredPonds.length === 0) {
+              filteredPonds = latestPonds;
+            }
+            
+            // Find the pond with the most recent timestamp
+            let latestPond = null;
+            let latestTimestamp = 0;
+            
+            filteredPonds.forEach(pred => {
+              const timestamp = getTimestampMs(pred.timestamp);
+              if (timestamp > latestTimestamp) {
+                latestTimestamp = timestamp;
+                latestPond = formatPondName(pred.fish_pond);
+              }
+            });
+            
+            if (latestPond) {
+              setSelectedPond(latestPond);
+            }
+          }
+        }
+      }
     }
-  }, [detailsFarmKey]);
+  }, [detailsFarmKey, farms, initialPond, selectedRiskLevel]);
 
   // Refresh farm data when details modal opens to ensure latest data
   useEffect(() => {
@@ -1048,8 +1128,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.error('Error refreshing farm data:', error);
         }
       } finally {
         setDetailsLoading(false);
@@ -1150,14 +1228,27 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     return Array.from(dailyPondMap.values());
   };
 
-  // Get latest batch (same generated date) and dedupe per pond
+  // Date range filtering helper (same as stacked bar chart)
+  const withinRange = (ts) => {
+    if (!rangeStart || !rangeEnd) return true; // if custom not fully set, show all
+    const ms = getTimestampMs(ts);
+    if (ms === 0) return false;
+    const d = new Date(ms);
+    return d >= rangeStart && d <= rangeEnd;
+  };
+
+  // Get latest batch (same generated date) and dedupe per pond - WITHIN SELECTED DATE RANGE
   const getLatestBatchPerPond = (farm) => {
     if (!farm.predictions || !Array.isArray(farm.predictions)) return [];
-    const withTs = farm.predictions.filter(p => getTimestampMs(p.timestamp) > 0);
-    if (withTs.length === 0) return [];
-    const latestMs = Math.max(...withTs.map(p => getTimestampMs(p.timestamp)));
+    
+    // Filter by date range first (same as stacked bar chart)
+    const inRange = farm.predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
+    
+    if (inRange.length === 0) return [];
+    // Find the latest timestamp in range and take that DATE
+    const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
     const latestDateKey = new Date(latestMs).toDateString();
-    const sameDay = withTs.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
+    const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
     const pondMap = new Map();
     sameDay
       .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
@@ -1165,7 +1256,10 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         const pond = pred.fish_pond || 'Unknown Pond';
         if (!pondMap.has(pond)) pondMap.set(pond, pred);
       });
-    return Array.from(pondMap.values());
+    
+    const result = Array.from(pondMap.values());
+  
+    return result;
   };
 
   // Get all unique dates from farm predictions
@@ -1797,36 +1891,32 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
           <button
             onClick={() => {
-              const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-              if (!isTemporaryTechOfficer) {
-                const isOpening = !exportMenuOpen;
-                setExportMenuOpen(v => !v);
-                try { 
-                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                  logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in Risk Reports`, u); 
-                } catch (_) {}
-              }
+              const isOpening = !exportMenuOpen;
+              setExportMenuOpen(v => !v);
+              try { 
+                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                logActivity('export', `Export menu ${isOpening ? 'opened' : 'closed'} in Risk Reports`, u); 
+              } catch (_) {}
             }}
-            disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
-            title={(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? "Export unavailable for temporary accounts" : "Export"}
+            title="Export"
             style={{
               background: 'transparent',
               border: 'none',
               padding: 0,
               margin: 0,
-              color: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? '#6c757d' : '#1A4375',
-              cursor: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 'not-allowed' : 'pointer',
+              color: '#1A4375',
+              cursor: 'pointer',
               fontSize: '0.95rem',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              opacity: (currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') ? 0.5 : 1
+              opacity: 1
             }}
           >
             <FaFileExport />
             <span style={{ textDecoration: 'underline' }}>Export</span>
           </button>
-          {exportMenuOpen && !(currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer') && (
+          {exportMenuOpen && (
             <div
               style={{
                 position: 'absolute',
@@ -1875,7 +1965,14 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         </div>
         {farms.length > 0 ? (
           <div className="farm-cards-grid">
-            {farms.map(farm => (
+            {farms.filter(farm => {
+              // If specific ponds are set, only show farms that have those ponds
+              if (specificPonds.length > 0) {
+                const farmPonds = (farm.predictions || []).map(p => formatPondName(p.fish_pond));
+                return specificPonds.some(pond => farmPonds.includes(pond));
+              }
+              return true;
+            }).map(farm => (
               <div key={farm.farm_key} className={`farm-risk-card ${!farm.has_reports ? 'no-reports' : ''} ${farm.overall_risk === 'High' ? 'high-risk' : farm.overall_risk === 'Medium' ? 'medium-risk' : farm.overall_risk === 'Low' ? 'low-risk' : ''}`}>
                 <div className="farm-card-header">
                   <div className="farm-info">
@@ -1907,15 +2004,40 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                             else counts_hdr.normal++;
                           });
                           const displayRisk = majorityFromCounts(counts_hdr);
+                          
+                          // Calculate confidence for selected pond or all ponds
+                          let displayConfidence = farm.avg_confidence;
+                          if (selectedPond) {
+                            // Filter predictions for the selected pond only
+                            const selectedPondPredictions = latestPerPond_hdr.filter(pred => {
+                              const formattedPondName = formatPondName(pred.fish_pond);
+                              return formattedPondName === selectedPond;
+                            });
+                            
+                            if (selectedPondPredictions.length > 0) {
+                              // Calculate average confidence for the selected pond
+                              const confidences = selectedPondPredictions
+                                .map(p => {
+                                  const v = typeof p.confidence === 'number' ? p.confidence : (typeof p.confidence === 'string' ? parseFloat(p.confidence) : NaN);
+                                  if (!isFinite(v)) return NaN;
+                                  if (v < 0) return 0;
+                                  if (v > 100) return 100;
+                                  return v;
+                                })
+                                .filter(v => isFinite(v) && v > 0);
+                              displayConfidence = confidences.length ? (confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
+                            }
+                          }
+                          
                           return (
                             <>
                               {riskBadge(displayRisk)}
                               {corrected && ` (${t('riskReportModal.corrected')})`}
-                              {farm.avg_confidence > 0 && (
+                              {displayConfidence > 0 && (
                                 <>
                                   <span style={{ padding: '0 6px', color: '#9CA3AF' }}>|</span>
                                   <span className="avg-conf">
-                                    {t('riskReportModal.avgConfidence')}: {farm.avg_confidence.toFixed(1)}%
+                                    {t('riskReportModal.avgConfidence')}: {displayConfidence.toFixed(1)}%
                                   </span>
                                 </>
                               )}
@@ -1979,12 +2101,11 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           <>
                             <div className="risk-counts" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: 10, flexWrap: 'wrap' }}>
-                                <span className="confidence-info">Daily ponds: {latestDaily.length}</span>
+                                <span className="confidence-info">Ponds with reports: {latestDaily.length}</span>
                                 <div className="risk-counts" style={{ marginLeft: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
                                   <span className="risk-badge high-risk">{t('riskReportModal.highRisk')}: {dailyCounts.high}</span>
                                   <span className="risk-badge medium-risk">{t('riskReportModal.mediumRisk')}: {dailyCounts.medium}</span>
                                   <span className="risk-badge low-risk">{t('riskReportModal.lowRisk')}: {dailyCounts.low}</span>
-                                  <span className="risk-badge normal">{t('riskReportModal.normalRisk')}: {dailyCounts.normal}</span>
                                 </div>
                               </div>
                             </div>
@@ -2088,8 +2209,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         const farm = farms.find(f => f.farm_key === detailsFarmKey);
         if (!farm || !farm.has_reports) return null;
         
-        // Get available dates for this farm - filter by selected pond if one is selected
-        const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
+        // Get available dates for this farm
+        const availableDates = getAllDates(farm);
         
         // Determine effective selected date (forced from chart click, or from UIselection)
         const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
@@ -2124,30 +2245,15 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           // Get all reports from the same date as the selected timestamp
           const selectedDate = new Date(selectedMs).toDateString();
           
-          console.log('Date filtering debug:', {
-            selectedMs,
-            selectedDate,
-            totalPredictions: farm.predictions?.length || 0,
-            effectiveSelectedMs
-          });
-          
           // Get ALL reports for that date (not just latest per pond)
           const sameDayReports = (farm.predictions || []).filter(p => {
             const reportDate = new Date(getTimestampMs(p.timestamp)).toDateString();
             const matches = reportDate === selectedDate;
             if (matches) {
-              console.log('Found matching report:', {
-                fish_pond: p.fish_pond,
-                timestamp: p.timestamp,
-                reportDate,
-                selectedDate
-              });
             }
             return matches;
           });
-          
-          console.log('Filtered reports count:', sameDayReports.length);
-          
+                    
           // Sort by timestamp (latest first) and then by pond name for consistent ordering
           displayPredictions = sameDayReports
             .sort((a, b) => {
@@ -2162,29 +2268,65 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         if (!showHistoryFilter) {
         // Filter by selected pond if one is selected
         if (selectedPond) {
-            console.log('Filtering by selected pond:', selectedPond);
           displayPredictions = displayPredictions.filter(pred => {
             const formattedPondName = formatPondName(pred.fish_pond);
             return formattedPondName === selectedPond;
           });
-            console.log('After pond filtering:', displayPredictions.length, 'reports');
           }
           
           // Filter by selected risk level if not 'all'
           if (selectedRiskLevel !== 'all') {
-            console.log('Filtering by selected risk level:', selectedRiskLevel);
             displayPredictions = displayPredictions.filter(pred => {
               const risk = normalizeRisk(pred.risk_level);
               return risk === selectedRiskLevel;
             });
-            console.log('After risk level filtering:', displayPredictions.length, 'reports');
+          }
+          
+          // Filter by specific ponds if provided (from bar click)
+          if (specificPonds.length > 0) {
+            displayPredictions = displayPredictions.filter(pred => {
+              const formattedPondName = formatPondName(pred.fish_pond);
+              return specificPonds.includes(formattedPondName);
+            });
           }
         } else {
-          console.log('History mode: Showing all reports for selected date (ignoring pond and risk level filters)');
         }
-        
-        console.log('Final displayPredictions before rendering:', displayPredictions.length, 'reports');
-        
+
+        // If coming from a stacked-bar segment click (specificPonds set) AND a specific risk level is chosen,
+        // override displayPredictions to show the latest report per clicked pond at that risk level within the provided range,
+        // regardless of date batches used above.
+        if (Array.isArray(specificPonds) && specificPonds.length > 0 && selectedRiskLevel !== 'all') {
+          const inRange = (p) => {
+            if (!rangeStart || !rangeEnd) return true;
+            const ms = getTimestampMs(p.timestamp);
+            if (!ms || Number.isNaN(ms)) return false;
+            const d = new Date(ms);
+            return d >= rangeStart && d <= rangeEnd;
+          };
+          const pondLatest = new Map();
+          (farm.predictions || []).forEach(pred => {
+            if (!inRange(pred)) return;
+            const risk = normalizeRisk(pred.risk_level);
+            if (risk !== selectedRiskLevel) return;
+            const pondName = formatPondName(pred.fish_pond);
+            if (!specificPonds.includes(pondName)) return;
+            const ms = getTimestampMs(pred.timestamp);
+            const existing = pondLatest.get(pondName);
+            if (!existing || ms > getTimestampMs(existing.timestamp)) {
+              pondLatest.set(pondName, pred);
+            }
+          });
+          const onlyClickedAtRisk = Array.from(pondLatest.values());
+          if (onlyClickedAtRisk.length > 0) {
+            // Sort consistently (latest first, then pond name)
+            displayPredictions = onlyClickedAtRisk.sort((a, b) => {
+              const diff = getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp);
+              if (diff !== 0) return diff;
+              return (a.fish_pond || '').localeCompare(b.fish_pond || '');
+            });
+          }
+        }
+              
         // Get last updated timestamp - always use the latest data, not filtered historical data
         const lastUpdated = (() => {
           if (!farm || !farm.predictions || farm.predictions.length === 0) {
@@ -2209,23 +2351,94 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
               <div className="farm-details-header">
                 <div className="header-content">
                   <h3>{farm.farm_name} — Daily Pond Risk Predictions</h3>
-                  <div className="last-updated-info">
-                    {(() => {
-                      const fmt = lastUpdated?.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-                      return `Last updated: ${fmt || '—'}`;
-                    })()}
+                  <div className="last-updated-info" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span>
+                      {(() => {
+                        const fmt = lastUpdated?.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+                        return `Last updated: ${fmt || '—'}`;
+                      })()}
+                    </span>
+                    <div className="export-menu-container" style={{ position: 'relative' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExportMenuOpen(!exportMenuOpen);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 0,
+                          margin: 0,
+                          color: '#1A4375',
+                          cursor: 'pointer',
+                          fontSize: '0.95rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <FaFileExport />
+                        <span style={{ textDecoration: 'underline' }}>Export</span>
+                      </button>
+                      {exportMenuOpen && (
+                        <div className="export-menu" style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          background: 'white',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '6px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                          zIndex: 1000,
+                          minWidth: '120px',
+                          marginTop: '4px'
+                        }}>
+                          <button
+                            style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try { 
+                                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                logActivity('export', logMessages.export.csvDownload(u, 'farm details data'), u); 
+                              } catch (_) {}
+                              exportFarmDetailsCSV(farm, `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.csv`);
+                              setExportMenuOpen(false);
+                            }}
+                          >
+                            Export CSV
+                          </button>
+                          <div style={{ height: 1, background: '#e5e7eb' }} />
+                          <button
+                            style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try { 
+                                const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                logActivity('export', logMessages.export.pdfDownload(u, 'farm details data'), u); 
+                              } catch (_) {}
+                              exportFarmDetailsPDF(farm, `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.pdf`);
+                              setExportMenuOpen(false);
+                            }}
+                          >
+                            Export PDF
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button className="close-modal-btn" onClick={() => {
-                  setDetailsFarmKey(null);
-                  setSelectedTimestamp('latest');
-                  setShowHistoryFilter(false);
-                  setActiveTab('overview');
-                  try { 
-                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                    logActivity('report', `Details modal closed in Risk Reports`, u); 
-                  } catch (_) {}
-                }}>✕</button>
+                <div className="header-actions">
+                  <button className="close-modal-btn" onClick={() => {
+                    setDetailsFarmKey(null);
+                    setSelectedTimestamp('latest');
+                    setShowHistoryFilter(false);
+                    setActiveTab('overview');
+                    try { 
+                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                      logActivity('report', `Details modal closed in Risk Reports`, u); 
+                    } catch (_) {}
+                  }}>✕</button>
+                </div>
               </div>
               <div className="farm-details-content">
                 {/* Tab Navigation */}
@@ -2380,7 +2593,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         const farm = farms.find(f => f.farm_key === detailsFarmKey);
                         if (!farm) return null;
                         
-                        const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
+                        const availableDates = getAllDates(farm);
                         
                         if (selectedTimestamp === 'latest' && availableDates.length > 0 && !showHistoryFilter) {
                           return (
@@ -2389,6 +2602,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                       onClick={() => {
                                   isUserActionRef.current = true;
                         setShowHistoryFilter(true);
+                        // Clear selected pond in history mode to show all ponds
+                        setSelectedPond(null);
                         // Show the most recent date
                         const mostRecentDate = availableDates[0];
                         if (mostRecentDate) {
@@ -2409,6 +2624,28 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   isUserActionRef.current = true;
                         setShowHistoryFilter(false);
                         setSelectedTimestamp('latest');
+                        // Restore latest pond selection when exiting history mode
+                        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                        if (farm && farm.predictions && Array.isArray(farm.predictions)) {
+                          const latestPonds = getLatestRiskPerPond(farm);
+                          if (latestPonds.length > 0) {
+                            // Find the pond with the most recent timestamp
+                            let latestPond = null;
+                            let latestTimestamp = 0;
+                            
+                            latestPonds.forEach(pred => {
+                              const timestamp = getTimestampMs(pred.timestamp);
+                              if (timestamp > latestTimestamp) {
+                                latestTimestamp = timestamp;
+                                latestPond = formatPondName(pred.fish_pond);
+                              }
+                            });
+                            
+                            if (latestPond) {
+                              setSelectedPond(latestPond);
+                            }
+                          }
+                        }
                       }}
                       className="back-to-latest-button"
                     >
@@ -2429,9 +2666,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                     const farm = farms.find(f => f.farm_key === detailsFarmKey);
                     if (!farm) return null;
                     
-                    const availableDates = selectedPond ? getDatesForPond(farm, selectedPond) : getAllDates(farm);
+                    const availableDates = getAllDates(farm);
                     
-                    console.log('Available dates for dropdown:', availableDates);
                     
                     return (
                       <div className="timestamp-filter-section" style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -2442,7 +2678,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           id="date-select"
                           value={selectedTimestamp}
                           onChange={(e) => {
-                            console.log('Date selected from dropdown:', e.target.value);
                             setSelectedTimestamp(e.target.value);
                           }}
                           style={{
@@ -2498,14 +2733,65 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                       );
                     }
                     
-                    console.log('Tab content rendering - activeTab:', activeTab);
-                    
                     return (
                     <>
+                      {/* Informational message about latest reports */}
+                      {!showHistoryFilter && selectedTimestamp === 'latest' && selectedPond && (
+                        <div
+                          style={{
+                            background: '#f0fdf4',
+                            border: '1px solid #bbf7d0',
+                            color: '#166534',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            marginBottom: 12,
+                            fontSize: '0.9rem',
+                            lineHeight: 1.4,
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          Only ponds with the latest risk reports are shown.
+                        </div>
+                      )}
+
+                      {/* No latest reports message */}
+                      {!showHistoryFilter && selectedTimestamp === 'latest' && selectedPond && (() => {
+                        const farm = farms.find(f => f.farm_key === detailsFarmKey);
+                        if (!farm) return null;
+                        
+                        const latestPonds = getLatestRiskPerPond(farm);
+                        const hasLatestForSelectedPond = latestPonds.some(pred => 
+                          formatPondName(pred.fish_pond) === selectedPond
+                        );
+                        
+                        if (!hasLatestForSelectedPond) {
+                          return (
+                            <div
+                              style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                color: '#dc2626',
+                                padding: '12px 16px',
+                                borderRadius: 8,
+                                marginBottom: 12,
+                                fontSize: '0.95rem',
+                                lineHeight: 1.4,
+                                textAlign: 'center',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              No latest reports found for this pond.
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
                       {activeTab === 'overview' && (
-                    <div className="tab-panel">
-                      {console.log('Overview tab is active, rendering table')}
-                      
+                    <div className="tab-panel">                      
                       <div
                         style={{
                           background: '#f0f9ff',
@@ -2539,7 +2825,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                       {showHistoryFilter ? (
                         // Card-based layout for history mode
                         <div className="historical-reports-cards">
-                          {console.log('Rendering cards with displayPredictions:', displayPredictions.length, 'reports')}
                           {displayPredictions.length > 0 ? (() => {
                             // Group predictions by pond
                             const pondGroups = {};
@@ -2716,9 +3001,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         </tr>
                       </thead>
                           <tbody>
-                              {console.log('Table rendering - displayPredictions.length:', displayPredictions.length)}
                               {displayPredictions.length > 0 ? (() => {
-                                console.log('Rendering table with displayPredictions:', displayPredictions.length, 'reports');
                                 
                                 // Group predictions by pond
                                 const pondGroups = {};
@@ -2731,8 +3014,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 });
 
                                 const pondNames = Object.keys(pondGroups).sort();
-                                console.log('Pond groups:', pondGroups);
-                                console.log('Pond names:', pondNames);
                                 let rowIndex = 0;
 
                                 return pondNames.map((pondName, pondIndex) => {
@@ -2868,30 +3149,18 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         const hasChecklistForThisPond = checklist && 
                           checklist.location_info?.fish_pond && 
                           formatPondName(checklist.location_info.fish_pond) === selectedPond;
-                        
-                        console.log('Overview Urgent Recommendations Debug:', {
-                          farmKey: detailsFarmKey,
-                          hasChecklist: !!checklist,
-                          hasChecklistForThisPond,
-                          checklistPond: checklist?.location_info?.fish_pond,
-                          selectedPond,
-                          hasFarm: !!farm
-                        });
-                        
+
                         // Only show urgent recommendations in overview if there's no checklist data for this specific pond
                         if (hasChecklistForThisPond) {
-                          console.log('No urgent recommendations in overview - checklist data exists for this pond');
                           return null;
                         }
                         
                         if (!farm) {
-                          console.log('No urgent recommendations in overview - no farm data');
                           return null;
                         }
                         
                         // Hide urgent recommendations if there are no predictions to show
                         if (displayPredictions.length === 0) {
-                          console.log('No urgent recommendations in overview - no predictions available');
                           return null;
                         }
                         
@@ -2908,18 +3177,10 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           farmPredictions
                         );
                         
-                        console.log('Overview urgent recommendations result:', {
-                          currentRiskLevel,
-                          urgentRecommendationsCount: urgentRecommendations.length,
-                          urgentRecommendations
-                        });
-                        
                         if (urgentRecommendations.length === 0) {
-                          console.log('No urgent recommendations in overview - no urgent recommendations found');
                           return null;
                         }
                         
-                        console.log('Rendering urgent recommendations in overview');
                         return (
                           <div className="urgent-recommendations-section">
                             <div 
