@@ -6,7 +6,7 @@ import { initializeFirestore, collection, addDoc, getDocs } from "firebase/fires
 // Web App Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBBmZgmCzEXBYphPhm5C3Lyd9cUlIh4s_0",
-  authDomain: "piscarisk.firebaseapp.com",
+  authDomain: "www.piscarisk.com", // Updated to use custom domain for session persistence
   projectId: "piscarisk",
   storageBucket: "piscarisk.appspot.com",
   messagingSenderId: "272731177206",
@@ -18,16 +18,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 // Ensure durable sessions across refreshes and tabs (within the same browser profile)
-// Prefer IndexedDB (more robust), fallback to localStorage if needed
-// Special handling for Edge browser compatibility
+// Enhanced persistence configuration for production domain
 try {
   const isEdge = /Edg/.test(navigator.userAgent);
-  if (isEdge) {
+  const hostname = window.location.hostname;
+  const isProduction = hostname === 'www.piscarisk.com';
+  
+  if (isProduction) {
+    // For production domain, use IndexedDB for better cross-tab persistence
+    setPersistence(auth, indexedDBLocalPersistence).catch(() => {
+      console.warn('Failed to set IndexedDB persistence, falling back to localStorage');
+      return setPersistence(auth, browserLocalPersistence);
+    }).catch(() => {
+      console.warn('Failed to set any persistence, using default');
+    });
+  } else if (isEdge) {
     // Edge sometimes has IndexedDB issues, use localStorage for better compatibility
     setPersistence(auth, browserLocalPersistence).catch(() => {
       console.warn('Failed to set browser persistence, using default');
     });
   } else {
+    // Development and other environments
     setPersistence(auth, indexedDBLocalPersistence).catch(() => setPersistence(auth, browserLocalPersistence));
   }
 } catch (_) {
@@ -58,21 +69,39 @@ if (typeof window !== "undefined") {
       .then(({ getAnalytics, logEvent }) => {
         try {
           analytics = getAnalytics(app);
-          // Suppress Google Analytics deprecated parameter warnings
+          
+          // Enhanced Google Analytics error handling
           if (window.gtag) {
             const originalGtag = window.gtag;
             window.gtag = function(...args) {
               try {
                 return originalGtag.apply(this, args);
               } catch (error) {
-                // Silently handle deprecated parameter warnings
-                if (error.message && error.message.includes('deprecated parameters')) {
+                // Silently handle deprecated parameter warnings and network errors
+                if (error.message && (
+                  error.message.includes('deprecated parameters') ||
+                  error.message.includes('ERR_NAME_NOT_RESOLVED') ||
+                  error.message.includes('net::ERR_')
+                )) {
                   return;
                 }
                 throw error;
               }
             };
           }
+          
+          // Override console.warn to suppress GA warnings
+          const originalWarn = console.warn;
+          console.warn = function(...args) {
+            const message = args.join(' ');
+            if (message.includes('deprecated parameters for the initialization function') || 
+                message.includes('feature_collector.js') ||
+                message.includes('using deprecated parameters')) {
+              return; // Suppress these specific warnings
+            }
+            originalWarn.apply(console, args);
+          };
+          
         } catch (error) {
           console.warn('Analytics initialization failed:', error?.message || error);
         }

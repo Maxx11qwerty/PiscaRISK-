@@ -22,7 +22,22 @@
     -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LcfiMorAAAAANiZcyAwFAMoD0nEaH_fEvIcdV_8"></script>
-
+    
+    <!-- Suppress Google Analytics deprecated parameter warnings -->
+    <script>
+      // Override console.warn to filter out Google Analytics deprecated parameter warnings
+      (function() {
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+          const message = args.join(' ');
+          if (message.includes('deprecated parameters for the initialization function') || 
+              message.includes('feature_collector.js')) {
+            return; // Suppress these specific warnings
+          }
+          originalWarn.apply(console, args);
+        };
+      })();
+    </script>
 
     <!--
       Notice the use of %PUBLIC_URL% in the tags above.
