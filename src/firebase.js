@@ -33,11 +33,13 @@ try {
 } catch (_) {
   // No-op for non-browser environments
 }
-// Use initializeFirestore with auto-detected long polling to avoid WebChannel 400s
-// in environments that block streaming/XHR (reverse proxies, strict networks, ad-blockers).
+// Use initializeFirestore with enhanced configuration for better connectivity
 const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
-  ignoreUndefinedProperties: true
+  ignoreUndefinedProperties: true,
+  // Add retry configuration for better reliability
+  maxRetries: 3,
+  retryDelayMs: 1000
 });
 let analytics = null;
 
@@ -53,15 +55,30 @@ if (typeof window !== "undefined") {
 
   if (shouldEnableAnalytics) {
     import("firebase/analytics")
-      .then(({ getAnalytics }) => {
+      .then(({ getAnalytics, logEvent }) => {
         try {
           analytics = getAnalytics(app);
+          // Suppress Google Analytics deprecated parameter warnings
+          if (window.gtag) {
+            const originalGtag = window.gtag;
+            window.gtag = function(...args) {
+              try {
+                return originalGtag.apply(this, args);
+              } catch (error) {
+                // Silently handle deprecated parameter warnings
+                if (error.message && error.message.includes('deprecated parameters')) {
+                  return;
+                }
+                throw error;
+              }
+            };
+          }
         } catch (error) {
-          // optional: console.warn('Analytics initialization failed:', error?.message || error);
+          console.warn('Analytics initialization failed:', error?.message || error);
         }
       })
       .catch((error) => {
-        // optional: console.warn('Analytics import failed:', error?.message || error);
+        console.warn('Analytics import failed:', error?.message || error);
       });
   } else {
     // Analytics disabled for this environment
