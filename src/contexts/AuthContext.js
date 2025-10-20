@@ -73,6 +73,8 @@ export const AuthProvider = ({ children }) => {
       }
     }, (error) => {
       console.error('Error monitoring user status:', error);
+      // Don't logout on network errors - only on actual status changes
+      // This prevents false logouts due to temporary network issues
     });
   };
 
@@ -534,7 +536,13 @@ export const AuthProvider = ({ children }) => {
           currentUserRef.current = newCurrentUser;
           
           // Set up real-time monitoring of user status for automatic logout
-          setupUserStatusListener(user.uid);
+          // Add delay for Edge browser to prevent race conditions
+          const isEdge = /Edg/.test(navigator.userAgent);
+          if (isEdge) {
+            setTimeout(() => setupUserStatusListener(user.uid), 1000);
+          } else {
+            setupUserStatusListener(user.uid);
+          }
           
           // Clear the processing flag after setting user data
           isProcessingLoginRef.current = false;

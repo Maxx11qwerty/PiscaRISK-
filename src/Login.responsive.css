@@ -44,7 +44,7 @@
   .social-login-button { max-width: 100%; }
   .login-btn { width: 100%; max-width: none; }
   .login-password-toggle {
-    right: -2.75rem;
+    right: 0.75rem !important;
     width: 1.75rem;
     height: 1.75rem;
   }
@@ -83,22 +83,108 @@
     margin: 0;
     padding: 0;
     overflow-x: hidden;
-}
-  *, *::before, *::after { box-sizing: border-box; }
-  html { overflow-x: hidden; }
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+  }
   
+  /* Mobile keyboard focus fix - use CSS-only approach */
   .login-container {
-    min-height: 100lvh; /* or 100dvh */
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: auto;
     position: relative;
     background-color: #2C517D;
-    padding: 0; /* remove internal gaps */
+    padding: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* keep content anchored at top */
+    justify-content: flex-start; /* Start from top to allow scrolling */
     margin: 0;
-    gap: 0; /* no extra spacing between children */
-}
+    gap: 0;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  
+  .login-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  
+  /* Position form section appropriately for mobile */
+  .form-section {
+    width: 92vw;
+    max-width: 340px;
+    padding: 1.25rem;
+    margin-top: 2rem; /* Normal margin for mobile */
+    margin-bottom: 2rem; /* Normal margin for mobile */
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  
+  /* When input is focused, scroll it into center view */
+  .input-field:focus,
+  .login-password-input:focus {
+    scroll-margin-top: 20vh; /* Reasonable margin for mobile */
+    scroll-margin-bottom: 20vh;
+    transform: translateZ(0);
+  }
+  
+  /* Ensure the login wrapper has appropriate height for mobile */
+  .login-wrapper {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: 2rem; /* Add some padding at bottom */
+  }
+  
+  /* When mobile input is focused, adjust layout conservatively */
+  body.mobile-input-focused .form-section {
+    margin-top: 10vh;
+    margin-bottom: 10vh;
+  }
+  
+  /* Force the focused input to be centered with smaller margins */
+  body.mobile-input-focused .input-field:focus,
+  body.mobile-input-focused .login-password-input:focus {
+    scroll-margin-top: 30vh;
+    scroll-margin-bottom: 30vh;
+    position: relative;
+    z-index: 1000;
+  }
+  
+  /* Logo section positioning */
+  .logo-section {
+    width: 92vw;
+    max-width: 340px;
+    margin: 1rem 0 0.75rem 0;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  .logo {
+    width: 44%;
+    max-width: 160px;
+    height: auto;
+    margin-left: 0;
+  }
+  
+  .title {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+    margin: 0;
+    text-align: center;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; }
+  html { overflow-x: hidden; }
 
   .login-container, .login-wrapper { width: 100%; max-width: 100%; overflow-x: hidden; }
   .form-section { width: 92vw; max-width: 340px; padding: 1.25rem; }
@@ -113,13 +199,13 @@
   .title { font-size: clamp(1.4rem, 6vw, 2rem); margin: 0; text-align: center; }
 
 .bottom-text {
-  margin-top: auto; /* This will push it to bottom */
   position: static;
   width: 100%;
-    text-align: center;
-    margin: 0.5rem 0 0 0; /* small spacing above */
+  text-align: center;
+  margin: 1rem 0 0 0; /* Adequate spacing above */
   z-index: 2;
   order: 99;
+  padding: 0 1rem; /* Add horizontal padding */
 }
 
   .logo-section { align-items: center; margin-left: 0; margin-bottom: 1.5rem; }
@@ -135,7 +221,7 @@
   .social-login-button { max-width: 100%; }
   .login-btn { width: 100%; max-width: none; }
   .login-password-toggle {
-    right: -2.75rem;
+    right: 0.75rem !important;
     width: 1.75rem;
     height: 1.75rem;
   }
@@ -237,4 +323,111 @@
 @media (max-width: 575px) {
   .login-container { padding-bottom: 0 !important; min-height: 100dvh !important; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
   .bottom-text { position: static !important; left: auto !important; right: auto !important; transform: none !important; bottom: auto !important; width: 100% !important; max-width: 100% !important; text-align: center !important; margin: 0 !important; z-index: 10 !important; align-self: center !important; }
+}
+
+/* Login Password Icons Fix - 360px to 480px - NUCLEAR OPTION */
+@media (min-width: 360px) and (max-width: 480px) {
+  /* OVERRIDE ALL OTHER BREAKPOINTS - Force visibility */
+  .login-password-toggle {
+    right: 0.75rem !important;
+    position: absolute !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.25rem !important;
+    color: #64748B !important;
+    /* Mobile keyboard focus prevention */
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    outline: none !important;
+  }
+  
+  .login-eye-icon {
+    width: 1.35rem !important;
+    height: 1.35rem !important;
+    z-index: 1001 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  .login-lock-icon {
+    position: absolute !important;
+    left: 0.75rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    color: #777 !important;
+    font-size: 1rem !important;
+    pointer-events: none !important;
+    z-index: 1000 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+  
+  .login-password-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    z-index: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  .login-password-input {
+    width: 100% !important;
+    padding-left: 2.5rem !important;
+    padding-right: 2.5rem !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* FOCUS STATES - Override everything */
+  .login-password-wrapper:focus-within .login-lock-icon,
+  .login-password-wrapper:focus-within .login-password-toggle {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1000 !important;
+  }
+  
+  .login-password-wrapper:focus-within .login-password-toggle {
+    display: flex !important;
+  }
+  
+  .login-password-wrapper:focus-within .login-password-toggle .login-eye-icon {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1001 !important;
+  }
+  
+  .login-password-input:focus {
+    padding-left: 2.5rem !important;
+    padding-right: 2.5rem !important;
+  }
+  
+  .login-password-input:focus + .login-password-toggle {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 1000 !important;
+  }
+  
+  .login-password-toggle:hover {
+    color: #1A4375 !important;
+    transform: translateY(-50%) !important;
+  }
 }

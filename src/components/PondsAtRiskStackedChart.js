@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadChartAsImage, exportChartDataCSV } from '../utils/exportStackedbarChart';
 import { logActivity, logMessages } from '../utils/logger';
 import { GiHamburgerMenu } from 'react-icons/gi';
-import { FaSync } from 'react-icons/fa';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchRiskReportData } from '../services/riskDataService';
@@ -40,7 +39,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const barSegmentClickedRef = useRef(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [exportOpen, setExportOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Notify parent of loading state changes
   useEffect(() => {
@@ -79,17 +77,17 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
   const chartHeights = {
     farm: isStdPhone ? 360 : 300,
-    risk: isStdPhone ? 420 : 340,
+    risk: isStdPhone ? 360 : 300,
   };
   // Farm view sizing (phones): balanced between label width and plot
   const yAxisWidthFarm = isStdPhone ? 80 : 120;
   const barSizePx = isStdPhone ? 32 : 30; // used for farm view and row estimate
   // Risk view sizing (phones): tighter Y-axis and thicker bars to push plot left and enlarge
   const yAxisWidthRisk = isStdPhone ? 48 : 120;
-  const barSizeRiskPx = isStdPhone ? 40 : 30;
+  const barSizeRiskPx = isStdPhone ? 34 : 28;
   // Margins: use a slightly tighter top margin for risk view on phones to move chart up
   const chartMarginFarm = isStdPhone ? { top: 8, right: 0, left: 0, bottom: 22 } : { top: 12, right: 24, left: -20, bottom: 32 };
-  const chartMarginRisk = isStdPhone ? { top: 20, right: 0, left: 0, bottom: 14 } : { top: 12, right: 24, left: -60, bottom: 32 };
+  const chartMarginRisk = isStdPhone ? { top: 12, right: 0, left: 0, bottom: 6 } : { top: 10, right: 24, left: -60, bottom: 24 };
   const xAxisLabelStyle = { fill: '#FFFFFF', fontSize: isStdPhone ? 12 : 13, fontWeight: 500 };
 
   // Custom Y-axis tick to override any global styles (responsive size)
@@ -110,7 +108,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         }
       }
     }
-    const fontSize = isStdPhone ? 12 : 15;
+    // Make Y-axis labels larger in Risk view (High/Medium/Low)
+    const fontSize = groupMode === 'risk'
+      ? (isStdPhone ? 14 : 18)
+      : (isStdPhone ? 12 : 15);
     return (
       <g transform={`translate(${x},${y})`}>
         <text
@@ -141,13 +142,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
 
 
   // Data fetching function
-  const fetchData = async (isRefresh = false) => {
+  const fetchData = async () => {
     try {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
       const data = (await fetchRiskReportData()) || [];
       // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
       const filteredData = data.filter(f => 
@@ -162,11 +159,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       setFarms(filteredData);
       setLastUpdated(new Date());
     } finally {
-      if (isRefresh) {
-        setIsRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
@@ -175,10 +168,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     fetchData();
   }, []);
 
-  // Manual refresh function
-  const handleRefresh = () => {
-    fetchData(true);
-  };
+  // Manual refresh removed (auto-refresh handled by data updates if any)
 
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const assignedFarmName = isAssignedToFarm ? (farmsById[currentUser.farm]?.name || null) : null;
@@ -419,25 +409,22 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       // Keep only predictions within the selected range using the same field as the modal (timestamp)
       const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
       if (inRange.length === 0) return [];
-      // Find the latest timestamp in range and take that DATE
-      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
-      const latestDateKey = new Date(latestMs).toDateString();
-      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
-      // From that day, keep the latest per pond; first-encountered after sort wins (modal behavior)
+      // Across the entire range, keep the latest per pond; on exact timestamp ties, prefer lower severity
       const pondMap = new Map();
       const sev = (lvl) => {
         const s = (lvl || '').toString().toLowerCase();
         if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
       };
-      sameDay
-        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+      const ts = (p) => getTimestampMs(p.timestamp);
+      inRange
+        .sort((a, b) => ts(b) - ts(a))
         .forEach(pred => {
           const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
           const existing = pondMap.get(pond);
-          if (!existing) { 
-            pondMap.set(pond, pred); 
+          if (!existing) { pondMap.set(pond, pred); return; }
+          if (ts(pred) === ts(existing) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
           }
-          // Skip subsequent predictions for the same pond (data is already sorted by timestamp descending)
         });
       return Array.from(pondMap.values());
     };
@@ -499,15 +486,21 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       if (!Array.isArray(predictions) || predictions.length === 0) return [];
       const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
       if (inRange.length === 0) return [];
-      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
-      const latestDateKey = new Date(latestMs).toDateString();
-      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
       const pondMap = new Map();
-      sameDay
-        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+      const ts = (p) => getTimestampMs(p.timestamp);
+      const sev = (lvl) => {
+        const s = (lvl || '').toString().toLowerCase();
+        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
+      };
+      inRange
+        .sort((a, b) => ts(b) - ts(a))
         .forEach(pred => {
           const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
-          if (!pondMap.has(pond)) pondMap.set(pond, pred);
+          const existing = pondMap.get(pond);
+          if (!existing) { pondMap.set(pond, pred); return; }
+          if (ts(pred) === ts(existing) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
+          }
         });
       return Array.from(pondMap.values());
     };
@@ -563,23 +556,20 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       if (!Array.isArray(predictions) || predictions.length === 0) return [];
       const inRange = predictions.filter(p => withinRange(p.timestamp) && getTimestampMs(p.timestamp) > 0);
       if (inRange.length === 0) return [];
-      const latestMs = Math.max(...inRange.map(p => getTimestampMs(p.timestamp)));
-      const latestDateKey = new Date(latestMs).toDateString();
-      const sameDay = inRange.filter(p => new Date(getTimestampMs(p.timestamp)).toDateString() === latestDateKey);
-      
       const pondMap = new Map();
+      const ts = (p) => getTimestampMs(p.timestamp);
       const sev = (lvl) => {
         const s = (lvl || '').toString().toLowerCase();
         if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
       };
-      sameDay
-        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
+      inRange
+        .sort((a, b) => ts(b) - ts(a))
         .forEach(pred => {
           const pond = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
           const existing = pondMap.get(pond);
-          if (!existing) { 
-            pondMap.set(pond, pred); 
-          } else {
+          if (!existing) { pondMap.set(pond, pred); return; }
+          if (ts(pred) === ts(existing) && sev(pred.risk_level) < sev(existing.risk_level)) {
+            pondMap.set(pond, pred);
           }
         });
       return Array.from(pondMap.values());
@@ -602,6 +592,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
           reason,
           confidence: confidencePct,
           riskLevel: level,
+          date: p.timestamp ? new Date(getTimestampMs(p.timestamp)) : null,
         });
       });
       details.set(f.name, bucket);
@@ -624,23 +615,40 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     }, 0);
   }, [byRiskData, filteredFarms]);
 
+  // Generate sensible X-axis ticks up to a max value
+  const buildTicks = React.useCallback((maxValue) => {
+    const safeMax = Math.max(1, Math.ceil(Number(maxValue || 0)));
+    // Aim for ~10 ticks; increase step if values are large
+    let step = 1;
+    if (safeMax > 12) step = Math.ceil(safeMax / 10);
+    const ticks = [];
+    for (let v = 0; v <= safeMax; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== safeMax) ticks.push(safeMax);
+    return ticks;
+  }, []);
+
+  const farmDomainMax = useMemo(() => Math.max(1, Math.ceil((maxFarmStackTotal || 0) * 1.1)), [maxFarmStackTotal]);
+  const riskDomainMax = useMemo(() => Math.max(1, Math.ceil((maxRiskStackTotal || 0) * 1.1)), [maxRiskStackTotal]);
+  const xTicksFarm = useMemo(() => buildTicks(farmDomainMax), [buildTicks, farmDomainMax]);
+  const xTicksRisk = useMemo(() => buildTicks(riskDomainMax), [buildTicks, riskDomainMax]);
+
   // Human label for selected period
   const periodLabel = useMemo(() => {
-    if (timeFilter === 'today') return 'today';
-    if (timeFilter === 'week') return 'this week';
-    if (timeFilter === 'month') return 'this month';
-    if (timeFilter === 'custom') return 'in the selected period';
-    return 'recently';
-  }, [timeFilter]);
+    if (timeFilter === 'today') return t('pondsAtRiskChart.today');
+    if (timeFilter === 'week') return t('pondsAtRiskChart.thisWeek');
+    if (timeFilter === 'month') return t('pondsAtRiskChart.thisMonth');
+    if (timeFilter === 'custom') return t('pondsAtRiskChart.thisMonth');
+    return '';
+  }, [timeFilter, t]);
 
   // Dynamic chart title and subtitle based on view mode
   const chartTitle = groupMode === 'farm' 
-    ? 'Ponds at Risk per Farm'
-    : 'Farms by Risk Category';
+    ? t('pondsAtRiskChart.chartTitleFarm')
+    : t('pondsAtRiskChart.chartTitleRisk');
   
   const chartSubtitle = groupMode === 'farm'
-    ? 'Shows how many ponds in each farm fall under High, Medium, or Low risk based on recent monitoring reports.'
-    : 'Shows which farms have ponds in each risk level category based on recent monitoring reports.';
+    ? t('pondsAtRiskChart.chartSubtitleFarm')
+    : t('pondsAtRiskChart.chartSubtitleRisk');
 
   // Insight summary with context-aware wording
   const insightSummary = useMemo(() => {
@@ -672,12 +680,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
 
     let summaryText = '';
     if (totalPonds === 0) {
-      summaryText = 'No recent risk reports have been submitted for any farm.';
+      summaryText = `${selectedFarmName} has no recent risk reports available.`;
     } else if (dominantRisk === 'HIGH') {
       summaryText =
         groupMode === 'farm'
           ? (selectedFarmName
-              ? `${selectedFarmName} has several ponds in high risk and requires close monitoring.`
+              ? `${selectedFarmName} has several ponds in high risk and requires immediate attention.`
               : `Most ponds ${periodLabel} are in high risk across farms, requiring attention.`)
           : `High-risk conditions are most common this ${periodLabel} across multiple farms.`;
     } else if (dominantRisk === 'MEDIUM') {
@@ -741,9 +749,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     
     // Get the correct colors based on user assignment and group mode
     const getTooltipColor = (item) => {
-      // If it's a risk level (High, Medium, Low), use risk colors
+      // If it's a risk level (High, Medium, Low), always use default risk colors
       if (['High', 'Medium', 'Low'].includes(item.name)) {
-        const colors = isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS : RISK_COLORS;
+        const colors = RISK_COLORS;
         return colors[item.name] || '#000000';
       }
       // If it's a farm name (in risk group mode), use farm colors
@@ -784,7 +792,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     if (total === 0) {
       return (
         <div className="custom-tooltip">
-          <div>No risk reported</div>
+          <div>{t('pondsAtRiskChart.tooltipNoRisk')}</div>
         </div>
       );
     }
@@ -813,12 +821,18 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                     <>
                       {shown.map((p, i) => (
                         <div key={`pond-${i}`} style={{ marginTop: 4 }}>
-                          <div style={{ fontWeight: 600 }}>{p.pond} - {p.riskLevel} Risk</div>
+                          <div style={{ fontWeight: 600 }}>
+                            {p.pond} - {p.riskLevel} Risk{(timeFilter === 'week' || timeFilter === 'month') && p.date ? (
+                              <span style={{ fontSize: '11px', fontWeight: '400', color: 'rgba(255,255,255,0.8)' }}>
+                                {' '}({p.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                              </span>
+                            ) : ''}
+                          </div>
                           {p.reason && (
-                            <div>Reason: {p.reason}</div>
+                            <div>{t('pondsAtRiskChart.tooltipReason')}: {p.reason}</div>
                           )}
                           {typeof p.confidence === 'number' && (
-                            <div>Confidence: {confidenceText(p.confidence, p.riskLevel)}</div>
+                            <div>{t('pondsAtRiskChart.tooltipConfidence')}: {confidenceText(p.confidence, p.riskLevel)}</div>
                           )}
                         </div>
                       ))}
@@ -840,7 +854,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                               padding: 0
                             }}
                           >
-                            Click to View all in Risk Reports ({remaining} more)
+                            {t('pondsAtRiskChart.tooltipViewAll', { count: remaining })}
                           </button>
                         </div>
                       )}
@@ -861,9 +875,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     
     // Get the correct colors based on user assignment and group mode
     const getLegendColor = (entry) => {
-      // If it's a risk level (High, Medium, Low), use risk colors
+      // If it's a risk level (High, Medium, Low), always use default risk colors
       if (['High', 'Medium', 'Low'].includes(entry.value)) {
-        const colors = isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS : RISK_COLORS;
+        const colors = RISK_COLORS;
         return colors[entry.value] || '#000000';
       }
       // If it's a farm name (in risk group mode), use farm colors
@@ -1109,9 +1123,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               className="time-filter"
               style={{ marginLeft: 8, fontSize: '12px', padding: '4px 8px', height: '28px' }}
             >
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
+              <option value="today">{t('pondsAtRiskChart.today')}</option>
+              <option value="week">{t('pondsAtRiskChart.thisWeek')}</option>
+              <option value="month">{t('pondsAtRiskChart.thisMonth')}</option>
             </select>
             <div className="toggle-group" role="tablist" aria-label="Group by">
               <button
@@ -1146,41 +1160,13 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               className="time-filter"
               style={{ fontSize: '12px', padding: '4px 8px', height: '28px' }}
             >
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
+              <option value="today">{t('pondsAtRiskChart.today')}</option>
+              <option value="week">{t('pondsAtRiskChart.thisWeek')}</option>
+              <option value="month">{t('pondsAtRiskChart.thisMonth')}</option>
             </select>
           </>
         )}
         <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={(e) => { 
-              e.stopPropagation();
-              handleRefresh();
-            }}
-            disabled={isRefreshing}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'white',
-              cursor: isRefreshing ? 'not-allowed' : 'pointer',
-              padding: '4px',
-              borderRadius: '4px',
-              display: isStdPhone ? 'none' : 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: isRefreshing ? 0.6 : 1,
-              transition: 'all 0.2s ease'
-            }}
-            title={isRefreshing ? "Refreshing..." : "Refresh Data"}
-          >
-            <FaSync 
-              size={20} 
-              style={{ 
-                animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
-              }} 
-            />
-          </button>
           <div style={{ position: 'relative' }}>
             <button
               onClick={(e) => { 
@@ -1215,7 +1201,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       </div>
 
       {noDataInRange && (
-        <div style={{ textAlign: 'center', color: '#cbd5e1', padding: '8px 0' }}>No risks reported for this period</div>
+        <div style={{ textAlign: 'center', color: '#cbd5e1', padding: '8px 0' }}>{t('pondsAtRiskChart.noRisksThisPeriod')}</div>
       )}
 
       {!noDataInRange && insightSummary && (
@@ -1253,10 +1239,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <XAxis
                   type="number"
                   allowDecimals={false}
-                  domain={[0, Math.max(7, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
-                  label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
-                  tickCount={8}
-                  ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+                  domain={[0, xTicksFarm[xTicksFarm.length - 1]]}
+                  label={{ value: t('pondsAtRiskChart.axisLabelNumberOfPonds'), position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                  ticks={xTicksFarm}
                 />
                 <YAxis type="category" dataKey="name" width={yAxisWidthFarm} tick={<YAxisTick />} tickMargin={8} />
                 <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
@@ -1265,7 +1250,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   dataKey="High"
                   name={t('pondsAtRiskChart.high')}
                   stackId="a"
-                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
+                  fill={RISK_COLORS.High}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('High')}
                   onClick={(data, index) => { 
@@ -1279,7 +1264,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   dataKey="Medium"
                   name={t('pondsAtRiskChart.medium')}
                   stackId="a"
-                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
+                  fill={RISK_COLORS.Medium}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Medium')}
                   onClick={(data, index) => { 
@@ -1293,7 +1278,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   dataKey="Low"
                   name={t('pondsAtRiskChart.low')}
                   stackId="a"
-                  fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
+                  fill={RISK_COLORS.Low}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Low')}
                   onClick={(data, index) => { 
@@ -1326,13 +1311,12 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             margin={chartMarginFarm}
           >
             <CartesianGrid horizontal={false} />
-            <XAxis
+                <XAxis
               type="number"
               allowDecimals={false}
-              domain={[0, Math.max(7, Math.ceil((maxFarmStackTotal || 0) * 1.1))]}
-              label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
-              tickCount={8}
-              ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+              domain={[0, xTicksFarm[xTicksFarm.length - 1]]}
+                  label={{ value: t('pondsAtRiskChart.axisLabelNumberOfPonds'), position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+              ticks={xTicksFarm}
             />
             <YAxis type="category" dataKey="name" width={yAxisWidthFarm} tick={<YAxisTick />} tickMargin={8} />
             <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ pointerEvents: 'none' }} />
@@ -1341,7 +1325,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               dataKey="High"
               name={t('pondsAtRiskChart.high')}
               stackId="a"
-              fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.High : RISK_COLORS.High}
+              fill={RISK_COLORS.High}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('High')}
               onClick={(data, index) => { 
@@ -1355,7 +1339,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               dataKey="Medium"
               name={t('pondsAtRiskChart.medium')}
               stackId="a"
-              fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Medium : RISK_COLORS.Medium}
+              fill={RISK_COLORS.Medium}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Medium')}
               onClick={(data, index) => { 
@@ -1369,7 +1353,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               dataKey="Low"
               name={t('pondsAtRiskChart.low')}
               stackId="a"
-              fill={isAssignedToFarm ? ASSIGNED_FARM_RISK_COLORS.Low : RISK_COLORS.Low}
+              fill={RISK_COLORS.Low}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Low')}
               onClick={(data, index) => { 
@@ -1399,10 +1383,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <XAxis
                   type="number"
                   allowDecimals={false}
-                  domain={[0, Math.max(7, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
-                  label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
-                  tickCount={8}
-                  ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+                  domain={[0, xTicksRisk[xTicksRisk.length - 1]]}
+                  label={{ value: t('pondsAtRiskChart.axisLabelNumberOfPonds'), position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                  ticks={xTicksRisk}
                 />
                 <YAxis type="category" dataKey="risk" width={yAxisWidthRisk} tick={<YAxisTick />} tickMargin={4} />
               <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ 
@@ -1410,7 +1393,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 left: isStdPhone ? 300 : 'auto',
                 right: isStdPhone ? 'auto' : 'auto'
               }} />
-                <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 5 : 30 }} />
+              <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 0 : 16 }} />
                 {mergedFarms.map((f, idx) => {
                   return (
                   <Bar
@@ -1444,10 +1427,9 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               <XAxis
                 type="number"
                 allowDecimals={false}
-                domain={[0, Math.max(7, Math.ceil((maxRiskStackTotal || 0) * 1.1))]}
-                label={{ value: 'Number of Ponds', position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
-                tickCount={8}
-                ticks={[0, 1, 2, 3, 4, 5, 6, 7]}
+                domain={[0, xTicksRisk[xTicksRisk.length - 1]]}
+                label={{ value: t('pondsAtRiskChart.axisLabelNumberOfPonds'), position: 'insideBottom', offset: -10, style: xAxisLabelStyle }}
+                ticks={xTicksRisk}
               />
               <YAxis type="category" dataKey="risk" width={yAxisWidthRisk} tick={<YAxisTick />} tickMargin={4} />
                 <Tooltip content={<CustomTooltip />} cursor={false} wrapperStyle={{ 
@@ -1455,7 +1437,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                   left: isStdPhone ? 50 : 'auto',
                   right: isStdPhone ? 'auto' : 'auto'
                 }} />
-              <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 80 : 30 }} />
+              <Legend content={renderLegend} verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: isStdPhone ? 48 : 20 }} />
               {mergedFarms.map((f, idx) => {
                 return (
                 <Bar

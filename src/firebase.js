@@ -1,7 +1,7 @@
 // src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, setPersistence, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
+import { initializeFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 
 // Web App Firebase Configuration
 const firebaseConfig = {
@@ -19,12 +19,26 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 // Ensure durable sessions across refreshes and tabs (within the same browser profile)
 // Prefer IndexedDB (more robust), fallback to localStorage if needed
+// Special handling for Edge browser compatibility
 try {
-  setPersistence(auth, indexedDBLocalPersistence).catch(() => setPersistence(auth, browserLocalPersistence));
+  const isEdge = /Edg/.test(navigator.userAgent);
+  if (isEdge) {
+    // Edge sometimes has IndexedDB issues, use localStorage for better compatibility
+    setPersistence(auth, browserLocalPersistence).catch(() => {
+      console.warn('Failed to set browser persistence, using default');
+    });
+  } else {
+    setPersistence(auth, indexedDBLocalPersistence).catch(() => setPersistence(auth, browserLocalPersistence));
+  }
 } catch (_) {
   // No-op for non-browser environments
 }
-const db = getFirestore(app);
+// Use initializeFirestore with auto-detected long polling to avoid WebChannel 400s
+// in environments that block streaming/XHR (reverse proxies, strict networks, ad-blockers).
+const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+  ignoreUndefinedProperties: true
+});
 let analytics = null;
 
 // Analytics initialization (client-side only)

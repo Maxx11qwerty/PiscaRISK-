@@ -21,6 +21,7 @@ function ReportsChart() {
   const [selectedFarm, setSelectedFarm] = useState('all'); // For consistency with stacked chart
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [exportOpen, setExportOpen] = useState(false);
+  const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
 
@@ -34,6 +35,25 @@ function ReportsChart() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Close mobile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (mobileExportOpen && !event.target.closest('.mobile-export-dropdown')) {
+        setMobileExportOpen(false);
+      }
+    };
+
+    if (mobileExportOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [mobileExportOpen]);
 
   // Initialize viewMode and timeFilter for assigned users
   useEffect(() => {
@@ -652,7 +672,7 @@ function ReportsChart() {
             onClick={() => {
               const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
               if (!isTemporaryTechOfficer) {
-                setExportOpen(v => !v);
+                setMobileExportOpen(v => !v);
               }
             }}
             disabled={currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer'}
@@ -686,8 +706,8 @@ function ReportsChart() {
       }}>
         {chartSubtitle}
       </p>
-        {isStdPhone && exportOpen && (
-          <div style={{
+        {isStdPhone && mobileExportOpen && (
+          <div className="mobile-export-dropdown" style={{
             position: 'absolute',
             left: '50%',
             top: '60px',
@@ -700,11 +720,11 @@ function ReportsChart() {
             overflow: 'hidden',
             zIndex: 5
           }}>
-            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('reports-chart-card', 'png', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart PNG'), u); } catch (_) {} setExportOpen(false); }}>Download PNG</button>
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('reports-chart-card', 'png', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart PNG'), u); } catch (_) {} setMobileExportOpen(false); }}>Download PNG</button>
             <div style={{ height: 1, background: '#e5e7eb' }} />
-            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('reports-chart-card', 'jpeg', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadReportsChartImage('reports-chart-card', 'jpeg', 'reports_chart'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'reports chart JPEG'), u); } catch (_) {} setMobileExportOpen(false); }}>Download JPEG</button>
             <div style={{ height: 1, background: '#e5e7eb' }} />
-            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={async () => { await exportReportsDataCSV(timeFilter, 'reports_chart_data.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'reports chart data'), u); } catch (_) {} setExportOpen(false); }}>Export CSV</button>
+            <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={async () => { await exportReportsDataCSV(timeFilter, 'reports_chart_data.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'reports chart data'), u); } catch (_) {} setMobileExportOpen(false); }}>Export CSV</button>
           </div>
         )}
         <div className="chart-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

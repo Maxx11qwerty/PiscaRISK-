@@ -372,7 +372,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         const predictions = [];
         predsSnap.forEach(doc => {
           const data = doc.data();
-          const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
+          const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || t('riskReportModal.unknownFarm');
           let farmKey = normalizeName(rawName);
           const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
           if (explicitId && allowedIdToName[explicitId]) {
@@ -405,7 +405,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
             id: doc.id,
             farm: farmName,
             farm_key: farmKey,
-            fish_pond: data.fish_pond || data.input_data?.fish_pond || 'Unknown Pond',
+            fish_pond: data.fish_pond || data.input_data?.fish_pond || t('riskReportModal.unknownPond'),
             risk_level: normalizeRisk(data.risk_level),
             confidence: parseFloat(data.confidence ?? data.input_data?.confidence) || 0,
             fish_condition: data.fish_condition || data.input_data?.fish_condition || 'Unknown',
@@ -427,7 +427,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           const data = doc.data();
           if (data.is_aggregate) {
             // This is an aggregate feedback for a farm
-            const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || 'Unknown Farm';
+          const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || t('riskReportModal.unknownFarm');
             let farmKey = normalizeName(rawName);
             const explicitId = data.farm_id || data.farmId || data.input_data?.farm_id || data.input_data?.farmId || null;
             if (explicitId && allowedIdToName[explicitId]) {
@@ -466,7 +466,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           } else if (data.predictions && Array.isArray(data.predictions)) {
             // This contains individual predictions within modal_feedback
             data.predictions.forEach(pred => {
-              const farmName = pred.farm_name || pred.farm || pred.input_data?.farm_name || pred.input_data?.farm || data.farm_name || data.farm || 'Unknown Farm';
+              const farmName = pred.farm_name || pred.farm || pred.input_data?.farm_name || pred.input_data?.farm || data.farm_name || data.farm || t('riskReportModal.unknownFarm');
               const farmKey = normalizeFarmName(farmName);
               allFarms.add(farmKey);
               if (farmName === 'Unknown Farm') unknownFromFb += 1;
@@ -478,7 +478,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                 id: pred.id || doc.id,
                 farm: farmName,
                 farm_key: farmKey,
-                fish_pond: pred.input_data?.fish_pond || pred.fish_pond || 'Unknown Pond',
+                fish_pond: pred.input_data?.fish_pond || pred.fish_pond || t('riskReportModal.unknownPond'),
                 risk_level: normalizeRisk(pred.risk_level),
                 confidence: parseFloat(pred.confidence) || 0,
                 fish_condition: pred.input_data?.fish_condition || pred.fish_condition || 'Unknown',
@@ -501,7 +501,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         if (condSnap) {
           condSnap.forEach(doc => {
             const data = doc.data();
-            const rawName = data.farm_name || data.farm || 'Unknown Farm';
+            const rawName = data.farm_name || data.farm || t('riskReportModal.unknownFarm');
             let farmKey = normalizeName(rawName);
             const explicitId = data.farm_id || data.farmId || null;
             if (explicitId && allowedIdToName[explicitId]) {
@@ -1187,7 +1187,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     // Group predictions by pond, but only keep the first (latest) occurrence of each pond
     const pondMap = new Map();
     sortedPredictions.forEach(pred => {
-      const pond = pred.fish_pond || 'Unknown Pond';
+      const pond = pred.fish_pond || t('riskReportModal.unknownPond');
       if (!pondMap.has(pond)) {
         pondMap.set(pond, pred);
       }
@@ -1216,7 +1216,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         return ts > 0 && ts > cutoffMs;
       })
       .forEach(pred => {
-        const pondKey = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+        const pondKey = (pred.fish_pond || t('riskReportModal.unknownPond')).toString().trim().toLowerCase();
         const dateKey = new Date(getTimestampMs(pred.timestamp)).toDateString();
         const compositeKey = `${pondKey}-${dateKey}`;
         const existing = dailyPondMap.get(compositeKey);
@@ -1253,7 +1253,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     sameDay
       .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp))
       .forEach(pred => {
-        const pond = pred.fish_pond || 'Unknown Pond';
+        const pond = pred.fish_pond || t('riskReportModal.unknownPond');
         if (!pondMap.has(pond)) pondMap.set(pond, pred);
       });
     
@@ -1377,6 +1377,145 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     return 'Normal';
   };
 
+  // Calculate confidence trend from previous day/week
+  const calculateConfidenceTrend = (predictions, currentConfidence, farmName = '') => {
+    if (!Array.isArray(predictions) || predictions.length === 0 || !currentConfidence) return null;
+    
+    const now = new Date();
+    const recent = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); // Last 3 days
+    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
+    const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
+    
+    // Get predictions from different time periods with more practical windows - FIXED
+    const recentPreds = predictions.filter(p => {
+      const predDate = new Date(getTimestampMs(p.timestamp));
+      return predDate >= recent; // Last 3 days
+    });
+    
+    const lastWeekPreds = predictions.filter(p => {
+      const predDate = new Date(getTimestampMs(p.timestamp));
+      return predDate >= lastWeek && predDate < recent; // 7 days ago to 3 days ago
+    });
+    
+    const lastMonthPreds = predictions.filter(p => {
+      const predDate = new Date(getTimestampMs(p.timestamp));
+      return predDate >= lastMonth && predDate < lastWeek; // 30 days ago to 7 days ago
+    });
+
+    if (farmName && /maningas/i.test(farmName)) {
+      const fmt = (p) => ({ ts: getTimestampMs(p.timestamp), conf: typeof p.confidence === 'number' ? p.confidence : (typeof p.confidence === 'string' ? parseFloat(p.confidence) : null) });
+    }
+    
+    
+    // Calculate average confidence for previous periods
+    const calculateAvgConfidence = (preds) => {
+      const confidences = preds
+        .map(p => {
+          const v = typeof p.confidence === 'number' ? p.confidence : 
+                   (typeof p.confidence === 'string' ? parseFloat(p.confidence) : NaN);
+          if (!isFinite(v) || v <= 0) return NaN;
+          if (v < 0) return 0;
+          if (v > 100) return 100;
+          return v;
+        })
+        .filter(v => isFinite(v) && v > 0);
+      
+      return confidences.length ? confidences.reduce((a, b) => a + b, 0) / confidences.length : null;
+    };
+    
+    // Try different time periods in order of preference
+    // For 'recent', compare against the immediately previous readings (exclude newest timestamp)
+    let recentAvg = null;
+    if (recentPreds.length > 0) {
+      const ts = (p) => getTimestampMs(p.timestamp);
+      const mostRecentTs = Math.max(...recentPreds.map(ts).filter(v => Number.isFinite(v) && v > 0));
+      const previousRecentPreds = recentPreds.filter(p => ts(p) > 0 && ts(p) < mostRecentTs);
+      // If there is at least one previous reading in the recent window, use that as comparison
+      if (previousRecentPreds.length > 0) {
+        recentAvg = calculateAvgConfidence(previousRecentPreds);
+      } else {
+        // Fallback: use the whole recent window (may yield 0.0% if identical to current)
+        recentAvg = calculateAvgConfidence(recentPreds);
+      }
+      if (farmName && /maningas/i.test(farmName)) {
+      }
+    }
+    const lastWeekAvg = calculateAvgConfidence(lastWeekPreds);
+    const lastMonthAvg = calculateAvgConfidence(lastMonthPreds);
+    
+    // Check recent first (most recent)
+    if (recentAvg !== null) {
+      const change = currentConfidence - recentAvg;
+      if (Math.abs(change) >= 0.05) { // Lowered threshold to 0.05%
+        if (farmName && /maningas/i.test(farmName)) {
+        }
+        return {
+          change: change.toFixed(1),
+          period: 'recent',
+          icon: change > 0 ? '🔺' : '🔻'
+        };
+      }
+      // If we have recent readings, prefer showing stability for recent rather than falling back
+      if (farmName && /maningas/i.test(farmName)) {
+      }
+      return {
+        change: '0.0',
+        period: 'recent',
+        icon: '➡️'
+      };
+    }
+    
+    // Check last week
+    // Only consider last week if there were no recent readings
+    if (recentAvg === null && lastWeekAvg !== null) {
+      const change = currentConfidence - lastWeekAvg;
+      if (Math.abs(change) >= 0.05) {
+        if (farmName && /maningas/i.test(farmName)) {
+        }
+        return {
+          change: change.toFixed(1),
+          period: 'last week',
+          icon: change > 0 ? '🔺' : '🔻'
+        };
+      } else if (change === 0) {
+        // Show stability indicator for exact matches
+        if (farmName && /maningas/i.test(farmName)) {
+        }
+        return {
+          change: '0.0',
+          period: 'last week',
+          icon: '➡️'
+        };
+      }
+    }
+    
+    // Check last month as final fallback
+    // Only consider last month if both recent and last week had no readings
+    if (recentAvg === null && lastWeekAvg === null && lastMonthAvg !== null) {
+      const change = currentConfidence - lastMonthAvg;
+      if (Math.abs(change) >= 0.05) { // Lowered threshold to 0.05% for consistency
+        if (farmName && /maningas/i.test(farmName)) {
+        }
+        return {
+          change: change.toFixed(1),
+          period: 'last month',
+          icon: change > 0 ? '🔺' : '🔻'
+        };
+      } else if (change === 0) {
+        // Show stability indicator for exact matches
+        if (farmName && /maningas/i.test(farmName)) {
+        }
+        return {
+          change: '0.0',
+          period: 'last month',
+          icon: '➡️'
+        };
+      }
+    }
+    
+    return null;
+  };
+
   const severityRank = (level) => {
     const n = normalizeRisk(level);
     if (n === 'High') return 0;
@@ -1398,7 +1537,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     const raw = (pondName || '').toString().trim();
     if (!raw) return 'Fish Pond';
     const lower = raw.toLowerCase();
-    if (lower.includes('unknown')) return 'Unknown Pond';
+    if (lower.includes('unknown')) return t('riskReportModal.unknownPond');
     const num = raw.match(/\d+/);
     if (num) return `Fish Pond ${num[0]}`;
     // If already includes words fish/pond, fix capitalization
@@ -1432,7 +1571,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     // Get unique ponds from current predictions only
     const pondMap = new Map();
     currentPredictions.forEach(pred => {
-      const pondName = pred.fish_pond || 'Unknown Pond';
+      const pondName = pred.fish_pond || t('riskReportModal.unknownPond');
       const formattedName = formatPondName(pondName);
       const riskLevel = normalizeRisk(pred.risk_level);
       
@@ -1476,154 +1615,61 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     if (normalizedRisk !== 'High') return [];
     
     // Find the most recent prediction for the selected pond and farm
-    // First try to find predictions with exactly 7 recommendations (the specific ones from your data)
-    let relevantPrediction = predictions
-      .filter(pred => 
-        pred.farm_key === farmKey && 
-        normalizeRisk(pred.risk_level) === 'High' &&
-        formatPondName(pred.fish_pond) === selectedPond &&
-        Array.isArray(pred.recommended_actions) &&
-        pred.recommended_actions.length === 7
-      )
+    // Check both the original farmKey and the mapped farm key (aquino-fish-farm)
+    const possibleFarmKeys = [farmKey];
+    
+    // Add mapped farm key if it exists
+    if (farmKey === 'salmon-hatchery-facility') {
+      possibleFarmKeys.push('aquino-fish-farm');
+    }
+    
+    // Get all matching predictions first, but work with RAW data before merging
+    // We need to access the original predictions before they get merged in deduplicatePredictions
+    const allFarms = farms || [];
+    const rawPredictions = allFarms.flatMap(farm => farm.predictions || []);
+    
+    const matchingPredictions = rawPredictions
+      .filter(pred => {
+        const matchesFarm = possibleFarmKeys.includes(pred.farm_key);
+        const matchesRisk = normalizeRisk(pred.risk_level) === 'High';
+        const formattedPond = formatPondName(pred.fish_pond);
+        const matchesPond = formattedPond === selectedPond;
+        const hasActions = Array.isArray(pred.recommended_actions) && pred.recommended_actions.length > 0;
+        
+        return matchesFarm && matchesRisk && matchesPond && hasActions;
+      })
       .sort((a, b) => {
         const timeA = getTimestampMs(a.timestamp);
         const timeB = getTimestampMs(b.timestamp);
         return timeB - timeA; // Most recent first
-      })[0];
+      });
     
-    // If no prediction with exactly 7 recommendations, try to find one with the specific recommendations
+    // Take only the most recent prediction
+    const relevantPrediction = matchingPredictions[0];    
+    // If no prediction found, return empty array
     if (!relevantPrediction) {
-      const targetRecommendations = [
-        "Immediate water quality testing and correction",
-        "Quarantine affected fish population",
-        "Emergency water treatment application",
-        "Suspend all feeding until conditions improve",
-        "Consult aquatic veterinarian immediately",
-        "Increase aeration and oxygen levels",
-        "Isolate pond from other water systems"
-      ];
-      
-      relevantPrediction = predictions
-        .filter(pred => 
-          pred.farm_key === farmKey && 
-          normalizeRisk(pred.risk_level) === 'High' &&
-          formatPondName(pred.fish_pond) === selectedPond &&
-          Array.isArray(pred.recommended_actions) &&
-          pred.recommended_actions.length >= 7 &&
-          targetRecommendations.every(target => 
-            pred.recommended_actions.some(rec => rec.includes(target.split(' ').slice(-2).join(' ')))
-          )
-        )
-        .sort((a, b) => {
-          const timeA = getTimestampMs(a.timestamp);
-          const timeB = getTimestampMs(b.timestamp);
-          return timeB - timeA; // Most recent first
-        })[0];
+      return [];
     }
     
-    // If still no exact match, look for predictions that contain all 7 specific recommendations
-    if (!relevantPrediction) {
-      const targetRecommendations = [
-        "Immediate water quality testing and correction",
-        "Quarantine affected fish population", 
-        "Emergency water treatment application",
-        "Suspend all feeding until conditions improve",
-        "Consult aquatic veterinarian immediately",
-        "Increase aeration and oxygen levels",
-        "Isolate pond from other water systems"
-      ];
-      
-      relevantPrediction = predictions
-        .filter(pred => 
-          pred.farm_key === farmKey && 
-          normalizeRisk(pred.risk_level) === 'High' &&
-          formatPondName(pred.fish_pond) === selectedPond &&
-          Array.isArray(pred.recommended_actions) &&
-          pred.recommended_actions.length >= 7 &&
-          targetRecommendations.every(target => 
-            pred.recommended_actions.some(rec => rec.toLowerCase().includes(target.toLowerCase().split(' ').slice(-2).join(' ')))
-          )
-        )
-        .sort((a, b) => {
-          const timeA = getTimestampMs(a.timestamp);
-          const timeB = getTimestampMs(b.timestamp);
-          return timeB - timeA; // Most recent first
-        })[0];
-    }
-    
-    // If no prediction with exactly 7 recommendations, fall back to any prediction with recommendations
-    if (!relevantPrediction) {
-      relevantPrediction = predictions
-        .filter(pred => 
-          pred.farm_key === farmKey && 
-          normalizeRisk(pred.risk_level) === 'High' &&
-          formatPondName(pred.fish_pond) === selectedPond &&
-          Array.isArray(pred.recommended_actions) &&
-          pred.recommended_actions.length > 0
-        )
-        .sort((a, b) => {
-          // First, prioritize predictions with fewer recommendations (more specific)
-          const aCount = a.recommended_actions?.length || 0;
-          const bCount = b.recommended_actions?.length || 0;
-          if (aCount !== bCount) {
-            return aCount - bCount; // Fewer recommendations first (more specific)
-          }
-          
-          // If same number of recommendations, sort by timestamp
-          const timeA = getTimestampMs(a.timestamp);
-          const timeB = getTimestampMs(b.timestamp);
-          return timeB - timeA; // Most recent first
-        })[0];
-    }
-    
-    
-    // Return the recommended_actions from the prediction, or fallback to default
+    // Return the recommended_actions from the prediction
     if (relevantPrediction && Array.isArray(relevantPrediction.recommended_actions) && relevantPrediction.recommended_actions.length > 0) {
-      // If we have more than 7 recommendations, try to extract only the urgent ones
-      if (relevantPrediction.recommended_actions.length > 7) {
-        // Look for the specific 7 urgent recommendations from your Firestore document
-        const targetRecommendations = [
-          "Immediate water quality testing and correction",
-          "Quarantine affected fish population",
-          "Emergency water treatment application", 
-          "Suspend all feeding until conditions improve",
-          "Consult aquatic veterinarian immediately",
-          "Increase aeration and oxygen levels",
-          "Isolate pond from other water systems"
-        ];
-        
-        // Try to find these specific recommendations in the array
-        const foundUrgentRecommendations = targetRecommendations.filter(target => 
-          relevantPrediction.recommended_actions.some(rec => 
-            rec.toLowerCase().includes(target.toLowerCase().split(' ').slice(-2).join(' '))
-          )
-        );
-        
-        // If we found the specific urgent recommendations, use them
-        if (foundUrgentRecommendations.length >= 5) { // At least 5 out of 7
-          return foundUrgentRecommendations;
-        }
-        
-        // Otherwise, try keyword-based filtering
-        const urgentKeywords = [
-          'immediate', 'emergency', 'quarantine', 'suspend', 'consult', 'increase', 'isolate',
-          'critical', 'urgent', 'asap', 'right away', 'immediately'
-        ];
-        
-        const urgentRecommendations = relevantPrediction.recommended_actions.filter(rec => 
-          urgentKeywords.some(keyword => rec.toLowerCase().includes(keyword))
-        );
-        
-        // If we found urgent recommendations, use them; otherwise use the last 7 (most likely the urgent ones)
-        if (urgentRecommendations.length > 0) {
-          return urgentRecommendations;
-        } else {
-          // Return the last 7 recommendations (most likely the urgent ones from your data)
-          return relevantPrediction.recommended_actions.slice(-7);
-        }
-      }
+      // Filter to show only urgent recommendations (items 7-13 from the array)
+      const urgentKeywords = [
+        'immediate', 'emergency', 'quarantine', 'suspend', 'consult', 'increase', 'isolate',
+        'critical', 'urgent', 'asap', 'right away', 'immediately'
+      ];
       
-      return relevantPrediction.recommended_actions;
+      const urgentRecommendations = relevantPrediction.recommended_actions.filter(rec => 
+        urgentKeywords.some(keyword => rec.toLowerCase().includes(keyword))
+      );
+      
+      // If we found urgent recommendations, return them; otherwise return the last 7 (most likely urgent)
+      if (urgentRecommendations.length > 0) {
+        return urgentRecommendations;
+      } else {
+        // Return the last 7 recommendations (most likely the urgent ones)
+        return relevantPrediction.recommended_actions.slice(-7);
+      }
     }
     
     // Fallback recommendations if no specific ones found
@@ -1857,35 +1903,98 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       </div>
 
       {/* Average Confidence Indicator for Assigned Farm */}
-      {assignedFarmConfidence !== null && (
-        <div className="prd-confidence-indicator">
-          <div className="prd-confidence-card">
-            <div className="prd-confidence-header">
-              <h3 className="prd-confidence-title">
-                {assignedFarmName} – Prediction Confidence
-              </h3>
-            </div>
-            <div className="prd-confidence-value">
-              <span className="prd-confidence-number">{assignedFarmConfidence}%</span>
-              <div className="prd-confidence-bar">
-                <div 
-                  className="prd-confidence-fill" 
-                  style={{ 
-                    width: `${assignedFarmConfidence}%`,
-                    backgroundColor: assignedFarmConfidence >= 80 ? '#10b981' : 
-                                   assignedFarmConfidence >= 50 ? '#f59e0b' : '#ef4444'
-                  }}
-                ></div>
+      {assignedFarmConfidence !== null && (() => {
+        // Calculate trend for assigned farm
+        const assignedFarm = farms.find(farm => {
+          const farmKey = farm.farm_key;
+          const farmName = farm.farm_name;
+          const currentUserFarm = currentUser.farm;
+          return farmKey === normalizeFarmName(currentUserFarm) ||
+                 farmKey === normalizeFarmName(assignedFarmName) ||
+                 farmName === currentUserFarm ||
+                 farmName === assignedFarmName ||
+                 farmName?.toLowerCase() === currentUserFarm?.toLowerCase() ||
+                 farmName?.toLowerCase() === assignedFarmName?.toLowerCase();
+        });
+        
+        const assignedFarmTrend = assignedFarm ? calculateConfidenceTrend(assignedFarm.predictions, assignedFarmConfidence, assignedFarmName) : null;
+        
+        return (
+          <div className="prd-confidence-indicator">
+            <div className="prd-confidence-card">
+              <div className="prd-confidence-header">
+                <h3 className="prd-confidence-title">
+                  {assignedFarmName} – Prediction Confidence
+                </h3>
               </div>
-            </div>
-            <div className="prd-confidence-description">
-              {assignedFarmConfidence >= 80 ? 'High' :
-               assignedFarmConfidence >= 50 ? 'Medium' : 
-               'Low'}
+              <div className="prd-confidence-value">
+                <span className="prd-confidence-number">{assignedFarmConfidence}%</span>
+              </div>
+              <div 
+                className="prd-confidence-description" 
+                style={{
+                  color: assignedFarmConfidence >= 80 ? '#10b981' : 
+                         assignedFarmConfidence >= 50 ? '#f59e0b' : '#ef4444',
+                  fontWeight: '600'
+                }}
+                ref={(el) => {
+                  if (el) {
+                    el.style.setProperty('color', assignedFarmConfidence >= 80 ? '#10b981' : 
+                                                      assignedFarmConfidence >= 50 ? '#f59e0b' : '#ef4444', 'important');
+                  }
+                }}
+              >
+                {assignedFarmConfidence >= 80 ? 'Reliable' :
+                 assignedFarmConfidence >= 50 ? 'Moderate' : 
+                 'Uncertain'}
+              </div>
+              <div className="prd-confidence-explanation" style={{
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#4b5563',
+                lineHeight: '1.4',
+                textAlign: 'center'
+              }}>
+                {assignedFarmConfidence >= 80 ? 
+                  'The system shows strong reliability in predicting farm risks.' :
+                 assignedFarmConfidence >= 50 ? 
+                  '⚠️ The system shows moderate reliability in predicting farm risks.' :
+                  '⚠️ The system shows low reliability in predicting farm risks.'
+                }
+              </div>
+              {assignedFarmTrend && (
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: assignedFarmTrend.change > 0 ? '#10b981' : assignedFarmTrend.change < 0 ? '#ef4444' : '#6b7280',
+                  fontWeight: '500',
+                  textAlign: 'center'
+                }}>
+                  {assignedFarmConfidence >= 80 ? (
+                    assignedFarmTrend.change > 0 ? 
+                      `📈 Confidence has improved by +${assignedFarmTrend.change}% since the last analysis.` :
+                      assignedFarmTrend.change < 0 ?
+                        `📉 Confidence has decreased by ${assignedFarmTrend.change}% since the last analysis.` :
+                        `📊 Confidence has remained stable compared to the last analysis.`
+                  ) : assignedFarmConfidence >= 50 ? (
+                    assignedFarmTrend.change > 0 ? 
+                      `📈 Confidence has improved by +${assignedFarmTrend.change}% since the last analysis.` :
+                      assignedFarmTrend.change < 0 ?
+                        `📉 Confidence has decreased by ${assignedFarmTrend.change}% since the last analysis.` :
+                        `📊 Confidence has remained stable compared to the last analysis.`
+                  ) : (
+                    assignedFarmTrend.change > 0 ? 
+                      `📈 Confidence has improved by +${assignedFarmTrend.change}% since the last analysis.` :
+                      assignedFarmTrend.change < 0 ?
+                        `📉 Confidence has decreased by ${assignedFarmTrend.change}% since the last analysis.` :
+                        `🔄 Confidence may increase as more reports are collected.`
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="farm-overview-section">
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
@@ -2007,6 +2116,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           
                           // Calculate confidence for selected pond or all ponds
                           let displayConfidence = farm.avg_confidence;
+                          let trendData = null;
+                          
                           if (selectedPond) {
                             // Filter predictions for the selected pond only
                             const selectedPondPredictions = latestPerPond_hdr.filter(pred => {
@@ -2026,7 +2137,12 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 })
                                 .filter(v => isFinite(v) && v > 0);
                               displayConfidence = confidences.length ? (confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
+                              // Calculate trend for selected pond
+                              trendData = calculateConfidenceTrend(selectedPondPredictions, displayConfidence, `${farm.farm_name} (${selectedPond})`);
                             }
+                          } else {
+                            // Calculate trend for all ponds using full prediction history
+                            trendData = calculateConfidenceTrend(farm.predictions, displayConfidence, farm.farm_name);
                           }
                           
                           return (
@@ -2038,6 +2154,16 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   <span style={{ padding: '0 6px', color: '#9CA3AF' }}>|</span>
                                   <span className="avg-conf">
                                     {t('riskReportModal.avgConfidence')}: {displayConfidence.toFixed(1)}%
+                                    {trendData && (
+                                      <span style={{ 
+                                        marginLeft: '8px', 
+                                        fontSize: '12px', 
+                                        color: trendData.icon === '🔺' ? '#10b981' : trendData.icon === '🔻' ? '#ef4444' : '#6b7280',
+                                        fontWeight: '500'
+                                      }}>
+                                        {trendData.icon} {trendData.change > 0 ? '+' : ''}{trendData.change}% since {trendData.period}
+                                      </span>
+                                    )}
                                   </span>
                                 </>
                               )}
@@ -2080,6 +2206,52 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                     )}
         </div>
       </div>
+
+                    {/* Subtle note about risk calculation */}
+                    {farm.has_reports && (() => {
+                      // Calculate the same displayRisk that's shown in the UI
+                      const dailyPredictions7_hdr = getLatestPerPondPerDay(farm.predictions, 7);
+                      const predictionsToUse_hdr = dailyPredictions7_hdr.length > 0 ? dailyPredictions7_hdr : getLatestPerPondPerDay(farm.predictions, 30);
+                      const withTs_hdr = predictionsToUse_hdr.filter(p => getTimestampMs(p.timestamp) > 0);
+                      const sorted_hdr = [...withTs_hdr].sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
+                      const pondMap_hdr = new Map();
+                      sorted_hdr.forEach(pred => {
+                        const pondKey = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
+                        if (!pondMap_hdr.has(pondKey)) pondMap_hdr.set(pondKey, pred);
+                      });
+                      const latestPerPond_hdr = Array.from(pondMap_hdr.values());
+                      const counts_hdr = { high: 0, medium: 0, low: 0, normal: 0 };
+                      latestPerPond_hdr.forEach(pred => {
+                        const risk = normalizeRisk(pred.risk_level);
+                        if (risk === 'High') counts_hdr.high++;
+                        else if (risk === 'Medium') counts_hdr.medium++;
+                        else if (risk === 'Low') counts_hdr.low++;
+                        else counts_hdr.normal++;
+                      });
+                      const displayRisk = majorityFromCounts(counts_hdr);
+                      
+                      return (
+                        <div style={{ 
+                          marginTop: '8px', 
+                          padding: '8px 12px', 
+                          background: 'rgba(59, 130, 246, 0.05)', 
+                          border: '1px solid rgba(59, 130, 246, 0.1)', 
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          color: '#4b5563',
+                          lineHeight: '1.4'
+                        }}>
+                          ℹ️ {displayRisk === 'High' 
+                            ? "The farm's overall risk is determined by the pond with the most serious condition — some ponds show high-risk readings. Average Confidence indicates how confident the system is about these results."
+                            : displayRisk === 'Medium'
+                            ? "The farm's overall risk is determined by the pond with the most serious condition — some ponds show moderate risk levels. Average Confidence indicates how confident the system is about these results."
+                            : displayRisk === 'Low'
+                            ? "The farm's overall risk is determined by the pond with the most serious condition — all ponds in this farm are currently stable. Average Confidence indicates how confident the system is about these results."
+                            : "The farm's overall risk is determined by the pond with the most serious condition. Average Confidence indicates how confident the system is about these results."
+                          }
+                        </div>
+                      );
+                    })()}
 
                 {farm.has_reports ? (
                   <>
@@ -2447,19 +2619,19 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                     className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
                     onClick={() => setActiveTab('overview')}
                   >
-                    Overview
+                    {t('riskReportModal.tabs.overview')}
                   </button>
                   <button 
                     className={`tab-button ${activeTab === 'checklist' ? 'active' : ''}`}
                     onClick={() => setActiveTab('checklist')}
                   >
-                    Checklist Completion
+                    {t('riskReportModal.tabs.checklist')}
                   </button>
                   <button 
                     className={`tab-button ${activeTab === 'insights' ? 'active' : ''}`}
                     onClick={() => setActiveTab('insights')}
                   >
-                    Insights
+                    {t('riskReportModal.tabs.insights')}
                   </button>
                 </div>
 
@@ -2492,7 +2664,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                       {/* Risk Level Filter */}
                       <div className="risk-level-filter">
                         <label htmlFor="risk-level-select" className="risk-level-label">
-                          Filter by Risk Level:
+                          {t('riskReportModal.filters.riskLevel')}
                         </label>
                         <select
                           id="risk-level-select"
@@ -2505,10 +2677,10 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                             cursor: showHistoryFilter ? 'not-allowed' : 'pointer'
                           }}
                         >
-                          <option value="all">All Risk Levels</option>
-                          <option value="High">High Risk Only</option>
-                          <option value="Medium">Medium Risk Only</option>
-                          <option value="Low">Low Risk Only</option>
+                          <option value="all">{t('riskReportModal.filters.allRisks')}</option>
+                          <option value="High">{t('riskReportModal.filters.highOnly')}</option>
+                          <option value="Medium">{t('riskReportModal.filters.mediumOnly')}</option>
+                          <option value="Low">{t('riskReportModal.filters.lowOnly')}</option>
                           <option value="Normal">Normal Risk Only</option>
                         </select>
                       </div>
@@ -2829,7 +3001,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                             // Group predictions by pond
                             const pondGroups = {};
                             displayPredictions.forEach(p => {
-                              const pondName = formatPondName(p.fish_pond) || 'Unknown Pond';
+                              const pondName = formatPondName(p.fish_pond) || t('riskReportModal.unknownPond');
                               if (!pondGroups[pondName]) {
                                 pondGroups[pondName] = [];
                               }
@@ -3006,7 +3178,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 // Group predictions by pond
                                 const pondGroups = {};
                                 displayPredictions.forEach(p => {
-                                  const pondName = formatPondName(p.fish_pond) || 'Unknown Pond';
+                                  const pondName = formatPondName(p.fish_pond) || t('riskReportModal.unknownPond');
                                   if (!pondGroups[pondName]) {
                                     pondGroups[pondName] = [];
                                   }
@@ -3191,7 +3363,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                               <div>
                                 <h5>🔥 Urgent Recommendations (High Risk Only)</h5>
                                 <div className="urgent-recommendations-subtitle">
-                                  {farm?.farm_name || 'Unknown Farm'} - {selectedPond}
+                                  {farm?.farm_name || t('riskReportModal.unknownFarm')} - {selectedPond}
                                 </div>
                               </div>
                               <span className="urgent-toggle-icon">
@@ -3330,8 +3502,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                               
                               <div className="checklist-summary-card">
                                 <div className="farm-info">
-                                  <strong>Farm:</strong> {farm_details.farm_name || farm?.farm_name || 'Unknown Farm'}<br/>
-                                  <strong>Pond:</strong> {location_info.fish_pond || 'Unknown Pond'}
+                                  <strong>{t('riskReportModal.farm')}:</strong> {farm_details.farm_name || farm?.farm_name || t('riskReportModal.unknownFarm')}<br/>
+                                  <strong>{t('riskReportModal.pond')}:</strong> {location_info.fish_pond || t('riskReportModal.unknownPond')}
                                 </div>
                                 
                                 <div className="progress-section">
@@ -3436,60 +3608,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 const selectedPondData = availablePonds.find(pond => pond.name === selectedPond);
                                 const currentRiskLevel = selectedPondData?.riskLevel || 'Normal';
                                 
-                                // Get all predictions for this farm to find recommended_actions
-                                const farmPredictions = farm.predictions || [];
-                                const urgentRecommendations = getUrgentRecommendations(
-                                  currentRiskLevel, 
-                                  detailsFarmKey, 
-                                  selectedPond, 
-                                  farmPredictions
-                                );
-                                
-                                if (urgentRecommendations.length === 0) return null;
-                                
-                                return (
-                                  <div className="urgent-recommendations-section">
-                                    <div 
-                                      className="urgent-recommendations-header"
-                                      onClick={() => setShowUrgentRecommendations(!showUrgentRecommendations)}
-                                      style={{ cursor: 'pointer' }}
-                                    >
-                                      <div>
-                                        <h5>🔥 Urgent Recommendations (High Risk Only)</h5>
-                                        <div className="urgent-recommendations-subtitle">
-                                          {farm?.farm_name || 'Unknown Farm'} - {selectedPond}
-                                        </div>
-                                      </div>
-                                      <span className="urgent-toggle-icon">
-                                        {showUrgentRecommendations ? '▼' : '▶'}
-                                      </span>
-                                    </div>
-                                    
-                                    {showUrgentRecommendations && (
-                                      <div className="urgent-recommendations-list">
-                                        {urgentRecommendations.length === 8 && urgentRecommendations[0] === 'Adjust aeration system immediately to improve oxygen levels' ? (
-                                          <div className="urgent-recommendations-warning">
-                                            ⚠️ Using fallback recommendations - Database recommendations not found
-                                          </div>
-                                        ) : urgentRecommendations.length > 7 ? (
-                                          <div className="urgent-recommendations-info">
-                                            ℹ️ Showing urgent recommendations from risk prediction system ({urgentRecommendations.length} total)
-                                          </div>
-                                        ) : (
-                                          <div className="urgent-recommendations-source">
-                                            ✅ Recommendations from risk prediction system ({urgentRecommendations.length} recommendations)
-                                          </div>
-                                        )}
-                                        {urgentRecommendations.map((rec, index) => (
-                                          <div key={index} className="urgent-recommendation-item">
-                                            <span className="urgent-recommendation-bullet">•</span>
-                                            <span className="urgent-recommendation-text">{rec}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
                               })()}
 
                               {nextRecommendations.length > 0 && (

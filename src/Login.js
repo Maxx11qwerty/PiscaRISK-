@@ -19,6 +19,27 @@ export default function Login() {
       console.error(...args);
     }
   };
+
+  // Suppress ResizeObserver errors which are common and usually harmless
+  useEffect(() => {
+    const originalError = window.onerror;
+    window.onerror = (message, source, lineno, colno, error) => {
+      if (message && message.includes('ResizeObserver loop completed with undelivered notifications')) {
+        // Suppress ResizeObserver errors
+        return true;
+      }
+      // Let other errors through
+      if (originalError) {
+        return originalError(message, source, lineno, colno, error);
+      }
+      return false;
+    };
+
+    // Cleanup
+    return () => {
+      window.onerror = originalError;
+    };
+  }, []);
   // Custom hook for screen size tracking
   const useScreenSize = () => {
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
@@ -84,6 +105,63 @@ export default function Login() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // Mobile keyboard focus fix - add class and scroll with error handling
+  useEffect(() => {
+    let scrollTimeout;
+    
+    const handleInputFocus = (e) => {
+      // Only apply on mobile devices (360px to 480px)
+      if (window.innerWidth >= 360 && window.innerWidth <= 480) {
+        // Add a class to the body for CSS targeting
+        document.body.classList.add('mobile-input-focused');
+        
+        // Clear any existing timeout
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        
+        // Use scrollIntoView with center block and error handling
+        scrollTimeout = setTimeout(() => {
+          try {
+            e.target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+              inline: 'nearest'
+            });
+          } catch (error) {
+            // Silently handle scroll errors to prevent ResizeObserver issues
+            console.warn('Scroll error handled:', error);
+          }
+        }, 100);
+      }
+    };
+
+    const handleInputBlur = (e) => {
+      if (window.innerWidth >= 360 && window.innerWidth <= 480) {
+        // Remove the class when input loses focus
+        document.body.classList.remove('mobile-input-focused');
+        
+        // Clear any pending scroll timeout
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+      }
+    };
+
+    // Add event listeners to input fields
+    const inputFields = document.querySelectorAll('.input-field, .login-password-input');
+    inputFields.forEach(input => {
+      input.addEventListener('focus', handleInputFocus);
+      input.addEventListener('blur', handleInputBlur);
+    });
+
+    // Cleanup
+    return () => {
+      inputFields.forEach(input => {
+        input.removeEventListener('focus', handleInputFocus);
+        input.removeEventListener('blur', handleInputBlur);
+      });
+      document.body.classList.remove('mobile-input-focused');
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, []);
 
   // Contact number validation
   const validateContactNumber = (contact) => {
@@ -334,6 +412,8 @@ export default function Login() {
                   type="button"
                   className="login-password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onTouchStart={(e) => e.preventDefault()}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (

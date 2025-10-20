@@ -42,6 +42,7 @@ const FarmHealthGauge = () => {
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const assignedFarmKey = isAssignedToFarm ? normalizeFarmName(farmsNameByKey[currentUser.farm] || currentUser.farm) : null;
   const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
+  const isDesktopNarrow = viewportWidth >= 1024 && viewportWidth <= 1279;
 
   // Track viewport width for responsive behavior
   useEffect(() => {
@@ -484,23 +485,23 @@ const FarmHealthGauge = () => {
           </div>
         ) : (
           <>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={isDesktopNarrow ? "85%" : "100%"}>
               <RadialBarChart
                 key={displayPercent}
-                innerRadius="65%"
-                outerRadius="100%"
+                innerRadius={isDesktopNarrow ? "72%" : "65%"}
+                outerRadius={isDesktopNarrow ? "90%" : "100%"}
                 data={chartData}
                 startAngle={180}
                 endAngle={0}
                 cx="50%"
-                cy="40%"
+                cy={isDesktopNarrow ? "38%" : "40%"}
               >
                 <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
                 <RadialBar
                   minAngle={0}
                   clockWise
                   dataKey="value"
-                  cornerRadius={20}
+                  cornerRadius={isDesktopNarrow ? 14 : 20}
                   background={{ fill: 'rgba(255,255,255,0.15)' }}
                   isAnimationActive
                   animationDuration={900}
@@ -509,8 +510,8 @@ const FarmHealthGauge = () => {
               </RadialBarChart>
             </ResponsiveContainer>
             <div className="center-overlay">
-              <div className="gauge-percent">{displayPercent}%</div>
-              <div className="gauge-status" style={{ color: displayColor, fontSize: '1.35rem' }}>
+              <div className="gauge-percent" style={{ fontSize: isDesktopNarrow ? '1.8rem' : undefined }}>{displayPercent}%</div>
+              <div className="gauge-status" style={{ color: displayColor, fontSize: isDesktopNarrow ? '1.1rem' : '1.35rem' }}>
                 {t(`farmHealthGauge.status.${String(displayStatus || '').toLowerCase()}`, { defaultValue: displayStatus })}
               </div>
               {(() => {
@@ -520,37 +521,37 @@ const FarmHealthGauge = () => {
                 if (selectedFarm === 'all') {
                   if (isOutdated) {
                     text = s === 'GOOD'
-                      ? 'Conditions were stable across all farms during the last update.'
+                      ? t('farmHealthGauge.summaries.all.outdated.good')
                       : s === 'CAUTION'
-                      ? 'Some farms previously showed signs of risk; new updates may be needed.'
+                      ? t('farmHealthGauge.summaries.all.outdated.caution')
                       : s === 'CRITICAL'
-                      ? 'Several farms were at high risk; confirm if conditions persist.'
+                      ? t('farmHealthGauge.summaries.all.outdated.critical')
                       : '';
                   } else {
                     text = s === 'GOOD'
-                      ? 'Stable conditions across all farms.'
+                      ? t('farmHealthGauge.summaries.all.fresh.good')
                       : s === 'CAUTION'
-                      ? 'Some farms show early signs of risk.'
+                      ? t('farmHealthGauge.summaries.all.fresh.caution')
                       : s === 'CRITICAL'
-                      ? 'Multiple farms require urgent attention.'
+                      ? t('farmHealthGauge.summaries.all.fresh.critical')
                       : '';
                   }
                 } else {
                   if (isOutdated) {
                     text = s === 'GOOD'
-                      ? 'Farm conditions were stable during the last update.'
+                      ? t('farmHealthGauge.summaries.single.outdated.good')
                       : s === 'CAUTION'
-                      ? 'Moderate conditions were observed earlier; potential risks may have developed.'
+                      ? t('farmHealthGauge.summaries.single.outdated.caution')
                       : s === 'CRITICAL'
-                      ? 'High-risk conditions were detected previously; verify current status.'
+                      ? t('farmHealthGauge.summaries.single.outdated.critical')
                       : '';
                   } else {
                     text = s === 'GOOD'
-                      ? 'Stable farm conditions based on recent monitoring data.'
+                      ? t('farmHealthGauge.summaries.single.fresh.good')
                       : s === 'CAUTION'
-                      ? 'Moderate conditions, potential risks emerging.'
+                      ? t('farmHealthGauge.summaries.single.fresh.caution')
                       : s === 'CRITICAL'
-                      ? 'Unstable conditions; immediate attention required.'
+                      ? t('farmHealthGauge.summaries.single.fresh.critical')
                       : '';
                   }
                 }
@@ -572,12 +573,12 @@ const FarmHealthGauge = () => {
         )}
       </div>
       <div style={{ marginTop: 8, fontSize: '0.9rem', color: '#bfc8d4' }}>
-        Overall farm health score based on recent pond risk predictions.
+        {t('farmHealthGauge.summaryOverall')}
       </div>
         <div style={{ marginTop: 6, fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <span>High Risk → 0% (0-39%)</span>
-          <span>Medium Risk → 50% (40-69%)</span>
-          <span>Low Risk → 100% (70-100%)</span>
+          <span>{t('farmHealthGauge.legendHigh')}</span>
+          <span>{t('farmHealthGauge.legendMedium')}</span>
+          <span>{t('farmHealthGauge.legendLow')}</span>
         </div>
       <div style={{ marginTop: 4, fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>{infoLabel}</div>
     </div>

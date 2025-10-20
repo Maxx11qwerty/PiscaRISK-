@@ -613,14 +613,19 @@ const PiscaRiskData = () => {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${updateColor}` }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: updateColor }} />
-            <span style={{ color: '#111827' }}>{freshnessLabel}</span>
+            <span style={{ color: '#111827' }}>{
+              freshnessLabel === 'Current data' ? t('piscaRiskData.freshness.current') :
+              freshnessLabel === 'Recent data' ? t('piscaRiskData.freshness.recent') :
+              freshnessLabel === 'Outdated data' ? t('piscaRiskData.freshness.outdated') :
+              t('piscaRiskData.freshness.cached')
+            }</span>
           </span>
-          <span style={{ color: '#6b7280' }}>Last updated: <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
+          <span style={{ color: '#6b7280' }}>{t('piscaRiskData.freshness.lastUpdatedLabel')} <strong style={{ color: '#111827' }}>{lastUpdatedStr}</strong></span>
         </div>
       </div>
       
       <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0f9ff', border: '1px solid #0ea5e9', borderRadius: 6, fontSize: '0.85rem', color: '#0c4a6e' }}>
-        ℹ️ This report summarizes the latest valid prediction per pond. Duplicate or outdated entries are excluded automatically.
+        ℹ️ {t('piscaRiskData.latestValidSummary')}
       </div>
       
       <div className="prd-grid">
@@ -709,17 +714,17 @@ const PiscaRiskData = () => {
             <div>
               <label style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: 6 }}>{t('piscaRiskData.predictionsTable.farm')}:</label>
               <select value={filterFarmKey} onChange={(e) => { setFilterFarmKey(e.target.value); setPage(1); }} style={{ padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: 6 }}>
-                <option value="all">All Farms</option>
+                <option value="all">{t('piscaRiskData.allFarms')}</option>
                 {farms.map(f => (
                   <option key={f.key} value={f.key}>{f.name}</option>
                 ))}
               </select>
             </div>
             <div style={{ flex: '1 1 220px' }}>
-              <input type="text" placeholder="Search pond, farm or risk..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }} />
+              <input type="text" placeholder={t('piscaRiskData.searchPlaceholder')} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} style={{ width: '100%', padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6 }} />
             </div>
             <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280' }}>
-              Showing {filteredPonds.length} of {deduplicatedPonds.length} (All Time Data)
+              {t('piscaRiskData.showing', { count: filteredPonds.length, total: deduplicatedPonds.length })}
             </div>
           </div>
           <div className="prd-table">
@@ -727,7 +732,7 @@ const PiscaRiskData = () => {
               <div>{t('piscaRiskData.predictionsTable.farm')}</div>
               <div>{t('piscaRiskData.predictionsTable.pond')}</div>
               <div>{t('piscaRiskData.predictionsTable.risk')}</div>
-              <div>🕒 Last Updated</div>
+              <div>🕒 {t('piscaRiskData.lastUpdated')}</div>
             </div>
             <div className="prd-tbody">
               {pageItems.map((p) => (
@@ -766,11 +771,11 @@ const PiscaRiskData = () => {
         <Section title={t('piscaRiskData.sections.summary.title')} description={t('piscaRiskData.sections.summary.description')}>
           <div className="prd-summary">
             <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalFarms')}</span><strong>{farms.length}</strong></div>
-            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalPonds')} (latest predictions)</span><strong>{uniquePonds.length}</strong></div>
-            <div className="prd-summary-item"><span>Average Risk Level</span><strong>{summaryStats.avgRiskLabel}</strong></div>
-            <div className="prd-summary-item"><span>Total Reports Reviewed</span><strong>{summaryStats.reviewedPct}%</strong></div>
-            <div className="prd-summary-item"><span>Total High-Risk Ponds</span><strong>{summaryStats.totalHighRisk}</strong></div>
-            <div className="prd-summary-item"><span>As of</span><strong>{new Date().toLocaleString()}</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalPonds')}</span><strong>{uniquePonds.length}</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.averageRisk')}</span><strong>{summaryStats.avgRiskLabel}</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalReviewed')}</span><strong>{summaryStats.reviewedPct}%</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.totalHighRisk')}</span><strong>{summaryStats.totalHighRisk}</strong></div>
+            <div className="prd-summary-item"><span>{t('piscaRiskData.summaryData.asOf')}</span><strong>{new Date().toLocaleString()}</strong></div>
           </div>
         </Section>
       </div>

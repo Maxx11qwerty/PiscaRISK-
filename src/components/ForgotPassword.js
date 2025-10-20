@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './ForgotPassword.css';
@@ -10,6 +10,63 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const navigate = useNavigate();
+
+  // Mobile keyboard focus fix for 360px-480px breakpoint
+  useEffect(() => {
+    let scrollTimeout;
+    
+    const handleInputFocus = (e) => {
+      // Only apply on mobile devices (360px to 480px)
+      if (window.innerWidth >= 360 && window.innerWidth <= 480) {
+        // Add a class to the body for CSS targeting
+        document.body.classList.add('mobile-input-focused');
+        
+        // Clear any existing timeout
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        
+        // Use scrollIntoView with center block and error handling
+        scrollTimeout = setTimeout(() => {
+          try {
+            e.target.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+              inline: 'nearest'
+            });
+          } catch (error) {
+            // Silently handle scroll errors to prevent ResizeObserver issues
+            console.warn('Scroll error handled:', error);
+          }
+        }, 100);
+      }
+    };
+
+    const handleInputBlur = (e) => {
+      if (window.innerWidth >= 360 && window.innerWidth <= 480) {
+        // Remove the class when input loses focus
+        document.body.classList.remove('mobile-input-focused');
+        
+        // Clear any pending scroll timeout
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+      }
+    };
+
+    // Add event listeners to email input field
+    const emailInput = document.getElementById('email');
+    if (emailInput) {
+      emailInput.addEventListener('focus', handleInputFocus);
+      emailInput.addEventListener('blur', handleInputBlur);
+    }
+
+    // Cleanup
+    return () => {
+      if (emailInput) {
+        emailInput.removeEventListener('focus', handleInputFocus);
+        emailInput.removeEventListener('blur', handleInputBlur);
+      }
+      document.body.classList.remove('mobile-input-focused');
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

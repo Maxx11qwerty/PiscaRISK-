@@ -513,7 +513,22 @@
     "noSpecificActionsAvailable": "Walang specific na aksyon available para sa sakahang ito.",
     "corrected": "Naitama",
     "asOf": "Bilang ng",
-    "latestSuggestedActions": "Pinakabagong Inirerekomendang Aksyon"
+    "latestSuggestedActions": "Pinakabagong Inirerekomendang Aksyon",
+    "tabs": {
+      "overview": "Pangkalahatang Tanaw",
+      "checklist": "Kumpletong Checklist",
+      "insights": "Mga Pahiwatig"
+    },
+    "filters": {
+      "riskLevel": "I-filter ayon sa Antas ng Panganib:",
+      "allRisks": "Lahat ng Antas ng Panganib",
+      "highOnly": "Mataas na Panganib lang",
+      "mediumOnly": "Katamtamang Panganib lang",
+      "lowOnly": "Mababang Panganib lang"
+    },
+    "farm": "Sakahan",
+    "unknownFarm": "Hindi Kilalang Sakahan",
+    "unknownPond": "Hindi Kilalang Palaisdaan"
   },
   "pondsAtRiskChart": {
     "title": "Mga Palaisdaan na may Panganib bawat Isdaan",
@@ -525,7 +540,26 @@
     "high": "Mataas",
     "medium": "Katamtaman",
     "low": "Mababa",
-    "asOf": "Bilang ng"
+    "asOf": "Bilang ng",
+    "chartTitleFarm": "Mga Palaisdaan na may Panganib bawat Sakahan",
+    "chartTitleRisk": "Mga Sakahan ayon sa Kategorya ng Panganib",
+    "chartSubtitleFarm": "Ipinapakita kung ilang palaisdaan sa bawat sakahan ang nasa Mataas, Katamtaman, o Mababang panganib batay sa mga pinakahuling ulat.",
+    "chartSubtitleRisk": "Ipinapakita kung alin-aling sakahan ang may mga palaisdaan sa bawat antas ng panganib batay sa mga pinakahuling ulat.",
+    "axisLabelNumberOfPonds": "Bilang ng mga Palaisdaan",
+    "today": "Ngayon",
+    "thisWeek": "Ngayong Linggo",
+    "thisMonth": "Ngayong Buwan",
+    "noRisksThisPeriod": "Walang naiulat na panganib para sa panahong ito",
+    "tooltipNoRisk": "Walang naiulat na panganib",
+    "tooltipReason": "Dahilan",
+    "tooltipConfidence": "Kumpiyansa",
+    "tooltipViewAll": "I-click para Tingnan lahat sa Risk Reports ({{count}} pa)",
+    "confidenceVerySure": "Napaka-Tiyak",
+    "confidenceLikelyAccurate": "Malamang na Tumpak",
+    "confidenceUncertain": "Hindi Tiyak",
+    "confidenceVerySureTitle": "Napaka-tiyak ng system na ang panganib ay {{risk}} na Panganib.",
+    "confidenceLikelyAccurateTitle": "Medyo tiyak ang system na ang panganib ay {{risk}} na Panganib.",
+    "confidenceUncertainTitle": "Hindi tiyak ang system — pakisuri muli ang aktuwal na kalagayan ng palaisdaan."
   },
   "accountManagement": {
     "add_user_form": {
@@ -672,6 +706,18 @@
   },
   "piscaRiskData": {
     "loading": "Naglo-load ng data ng PiscaRISK…",
+    "allFarms": "Lahat ng mga Sakahan",
+    "lastUpdated": "Huling na-update",
+    "latestValidSummary": "Ibinubuod ng ulat na ito ang pinakahuling valid na hula sa bawat palaisdaan. Awtomatikong inaalis ang dobleng o luma nang mga entry.",
+    "showing": "Ipinapakita ang {{count}} sa {{total}} (Lahat ng Panahon)",
+    "searchPlaceholder": "Maghanap ng palaisdaan, sakahan o panganib...",
+    "freshness": {
+      "current": "Kasalukuyang data",
+      "recent": "Kamakailang data",
+      "outdated": "Luma na ang data",
+      "cached": "Hindi Pinakabago (Cache)",
+      "lastUpdatedLabel": "Huling na-update:"
+    },
     "export": {
       "label": "I-export:",
       "select": "Pumili",
@@ -704,6 +750,7 @@
       "overallRisk": "Pangkalahatang Panganib",
       "pondsWithReports": "Mga Palaisdaan na may mga Ulat",
       "totalReports": "Kabuuang mga Ulat",
+      "totalUsers": "Kabuuang mga User",
       "reviewedReports": "Mga Ulat na Nareview",
       "counts": "Mga Bilang",
       "high": "Mataas",
@@ -737,6 +784,9 @@
     "summaryData": {
       "totalFarms": "Kabuuang mga Sakahan",
       "totalPonds": "Kabuuang mga Palaisdaan (may pinakabagong mga hula)",
+      "averageRisk": "Karaniwang Antas ng Panganib",
+      "totalReviewed": "Kabuuang Nareview na mga Ulat",
+      "totalHighRisk": "Kabuuang Mataas na Panganib na Palaisdaan",
       "asOf": "Bilang ng"
     },
     "pagination": {
@@ -764,7 +814,7 @@
     "titleAssigned": "Kalusugan ng {{farm}}",
     "allFarms": "Lahat ng mga Sakahan",
     "status": {
-      "good": "MAHUSAY",
+      "good": "GOOD",
       "caution": "BABALA",
       "critical": "KRITIKAL"
     },
@@ -785,7 +835,37 @@
     "exportAriaLabel": "I-export",
     "downloadPNG": "I-download ang PNG",
     "downloadJPEG": "I-download ang JPEG",
-    "exportCSV": "I-export ang CSV"
+    "exportCSV": "I-export ang CSV",
+    "summaryOverall": "Kabuuang iskor ng kalusugan ng sakahan batay sa mga pinakahuling hula ng panganib sa palaisdaan.",
+    "legendHigh": "Mataas na Panganib → 0% (0-39%)",
+    "legendMedium": "Katamtamang Panganib → 50% (40-69%)",
+    "legendLow": "Mababang Panganib → 100% (70-100%)",
+    "summaries": {
+      "all": {
+        "fresh": {
+          "good": "Matatag ang mga kalagayan sa lahat ng sakahan.",
+          "caution": "May ilang sakahan na nagpapakita ng maagang senyales ng panganib.",
+          "critical": "Maraming sakahan ang nangangailangan ng agarang aksyon."
+        },
+        "outdated": {
+          "good": "Matatag ang mga kalagayan sa lahat ng sakahan noong huling update.",
+          "caution": "May mga nakaraang senyales ng panganib; maaaring kailangan ng mga bagong update.",
+          "critical": "Maraming sakahan ang naitalang mataas ang panganib; kumpirmahin kung nagpapatuloy pa."
+        }
+      },
+      "single": {
+        "fresh": {
+          "good": "Matatag ang kalagayan ng sakahan batay sa pinakahuling datos.",
+          "caution": "Katamtamang kalagayan; maaaring umusbong ang mga panganib.",
+          "critical": "Hindi matatag ang kalagayan; kailangan ng agarang aksyon."
+        },
+        "outdated": {
+          "good": "Matatag ang kalagayan ng sakahan noong huling update.",
+          "caution": "Nakitaan ng katamtamang kalagayan dati; maaaring may umunlad na panganib.",
+          "critical": "Na-detect dati ang mataas na panganib; pakitiyak ang kasalukuyang kalagayan."
+        }
+      }
+    }
   }
   ,
   "conditionInsights": {

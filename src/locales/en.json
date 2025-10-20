@@ -52,7 +52,7 @@
     "dontSeeEmail": "💡 Don't see the email?",
     "checkSpam": "Check your spam/junk folder. Sometimes password reset emails end up there.",
     "tryAnotherEmail": "Try Another Email",
-    "successMessage": "Password reset email sent successfully to {{email}}!",
+    "successMessage": "Password reset email sent successfully to {{email}}",
     "errors": {
       "failedToSend": "Failed to send password reset email",
       "userNotFound": "No account found with this email address",
@@ -409,7 +409,23 @@
     "noSpecificActionsAvailable": "No specific actions available for this farm.",
     "corrected": "Corrected",
     "asOf": "As of",
-    "latestSuggestedActions": "Latest Suggested Actions"
+    "latestSuggestedActions": "Latest Suggested Actions",
+    "tabs": {
+      "overview": "Overview",
+      "checklist": "Checklist Completion",
+      "insights": "Insights"
+    },
+    "filters": {
+      "riskLevel": "Filter by Risk Level:",
+      "allRisks": "All Risk Levels",
+      "highOnly": "High Risk Only",
+      "mediumOnly": "Medium Risk Only",
+      "lowOnly": "Low Risk Only"
+    }
+  ,
+    "farm": "Farm",
+    "unknownFarm": "Unknown Farm",
+    "unknownPond": "Unknown Pond"
   },
   "pondsAtRiskChart": {
     "title": "Ponds at Risk per Farm",
@@ -421,7 +437,26 @@
     "high": "High",
     "medium": "Medium",
     "low": "Low",
-    "asOf": "As of"
+    "asOf": "As of",
+    "chartTitleFarm": "Ponds at Risk per Farm",
+    "chartTitleRisk": "Farms by Risk Category",
+    "chartSubtitleFarm": "Shows how many ponds in each farm fall under High, Medium, or Low risk based on recent monitoring reports.",
+    "chartSubtitleRisk": "Shows which farms have ponds in each risk level category based on recent monitoring reports.",
+    "axisLabelNumberOfPonds": "Number of Ponds",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "noRisksThisPeriod": "No risks reported for this period",
+    "tooltipNoRisk": "No risk reported",
+    "tooltipReason": "Reason",
+    "tooltipConfidence": "Confidence",
+    "tooltipViewAll": "Click to View all in Risk Reports ({{count}} more)",
+    "confidenceVerySure": "Very Sure",
+    "confidenceLikelyAccurate": "Likely Accurate",
+    "confidenceUncertain": "Uncertain",
+    "confidenceVerySureTitle": "The system is very sure that the risk is {{risk}} Risk.",
+    "confidenceLikelyAccurateTitle": "The system is fairly sure that the risk is {{risk}} Risk.",
+    "confidenceUncertainTitle": "The system is uncertain — please recheck the pond’s actual condition."
   },
   "common": {
     "loading": "Loading...",
@@ -677,6 +712,18 @@
   },
   "piscaRiskData": {
     "loading": "Loading PiscaRISK data…",
+    "allFarms": "All Farms",
+    "lastUpdated": "Last Updated",
+    "latestValidSummary": "This report summarizes the latest valid prediction per pond. Duplicate or outdated entries are excluded automatically.",
+    "showing": "Showing {{count}} of {{total}} (All Time Data)",
+    "searchPlaceholder": "Search pond, farm or risk...",
+    "freshness": {
+      "current": "Current data",
+      "recent": "Recent data",
+      "outdated": "Outdated data",
+      "cached": "Not Latest Data (Cached)",
+      "lastUpdatedLabel": "Last updated:"
+    },
     "export": {
       "label": "Export:",
       "select": "Select",
@@ -709,6 +756,7 @@
       "overallRisk": "Overall Risk",
       "pondsWithReports": "Ponds With Reports",
       "totalReports": "Total Reports",
+      "totalUsers": "Total Users",
       "reviewedReports": "Reviewed Reports",
       "counts": "Counts",
       "high": "High",
@@ -742,6 +790,9 @@
     "summaryData": {
       "totalFarms": "Total Farms",
       "totalPonds": "Total Ponds (with latest predictions)",
+      "averageRisk": "Average Risk Level",
+      "totalReviewed": "Total Reports Reviewed",
+      "totalHighRisk": "Total High-Risk Ponds",
       "asOf": "As of"
     },
     "pagination": {
@@ -790,7 +841,37 @@
     "exportAriaLabel": "Export",
     "downloadPNG": "Download PNG",
     "downloadJPEG": "Download JPEG",
-    "exportCSV": "Export CSV"
+    "exportCSV": "Export CSV",
+    "summaryOverall": "Overall farm health score based on recent pond risk predictions.",
+    "legendHigh": "High Risk → 0% (0-39%)",
+    "legendMedium": "Medium Risk → 50% (40-69%)",
+    "legendLow": "Low Risk → 100% (70-100%)",
+    "summaries": {
+      "all": {
+        "fresh": {
+          "good": "Stable conditions across all farms.",
+          "caution": "Some farms show early signs of risk.",
+          "critical": "Multiple farms require urgent attention."
+        },
+        "outdated": {
+          "good": "Conditions were stable across all farms during the last update.",
+          "caution": "Some farms previously showed signs of risk; new updates may be needed.",
+          "critical": "Several farms were at high risk; confirm if conditions persist."
+        }
+      },
+      "single": {
+        "fresh": {
+          "good": "Stable farm conditions based on recent monitoring data.",
+          "caution": "Moderate conditions, potential risks emerging.",
+          "critical": "Unstable conditions; immediate attention required."
+        },
+        "outdated": {
+          "good": "Farm conditions were stable during the last update.",
+          "caution": "Moderate conditions were observed earlier; potential risks may have developed.",
+          "critical": "High-risk conditions were detected previously; verify current status."
+        }
+      }
+    }
   }
   ,
   "conditionInsights": {

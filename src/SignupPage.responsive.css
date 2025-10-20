@@ -66,6 +66,236 @@
   .sign-error-message { padding: 0.5rem; font-size: 0.75rem; }
   .sign-terms-text { font-size: 0.75rem; }
   .sign-checkbox { width: 12px; height: 12px; }
+  
+  /* Terms Modal for Small Mobile */
+  .terms-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 0.5rem;
+  }
+  
+  .terms-modal {
+    width: 98vw;
+    max-width: 320px;
+    max-height: 95vh;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .terms-modal-header {
+    background: #1A4375;
+    color: #fff;
+    font-family: 'customfont3';
+    font-size: 1rem;
+    padding: 0.875rem 1rem;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  .terms-modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+  }
+  
+  .terms-modal-content {
+    padding: 1rem 1.25rem;
+    color: #062750;
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: left;
+    font-family: 'customfont2';
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .terms-modal-footer {
+    display: flex;
+    justify-content: center;
+    padding: 1rem 1.25rem 1.25rem 1.25rem;
+    flex-shrink: 0;
+  }
+  
+  .terms-modal-continue {
+    background: #1A4375;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.625rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: background 0.2s;
+    width: 100%;
+    max-width: 180px;
+  }
+}
+
+/* Signup Page Mobile Layout Fix - 360px to 480px */
+@media (min-width: 360px) and (max-width: 480px) {
+  /* Terms and checkbox - bring checkbox closer to text */
+  .sign-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem; /* Reduced gap from 0.75rem to 0.5rem */
+    margin: 0.75rem 0 1rem 0;
+  }
+  
+  .sign-checkbox {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+  }
+  
+  .sign-terms-text {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0;
+    flex: 1; /* Allow text to take remaining space */
+  }
+}
+
+/* Terms Modal Mobile Fix - 360px to 480px */
+@media (min-width: 360px) and (max-width: 480px) {
+  /* Terms modal overlay */
+  .terms-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+  
+  /* Terms modal container */
+  .terms-modal {
+    width: 95vw;
+    max-width: 340px;
+    max-height: 90vh;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  /* Terms modal header */
+  .terms-modal-header {
+    background: #1A4375;
+    color: #fff;
+    font-family: 'customfont3';
+    font-size: 1.1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  /* Close button */
+  .terms-modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+  }
+  
+  .terms-modal-close:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Modal content */
+  .terms-modal-content {
+    padding: 1.25rem 1.5rem;
+    color: #062750;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: left;
+    font-family: 'customfont2';
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Modal footer */
+  .terms-modal-footer {
+    display: flex;
+    justify-content: center;
+    padding: 1.25rem 1.5rem 1.5rem 1.5rem;
+    flex-shrink: 0;
+  }
+  
+  /* Continue button */
+  .terms-modal-continue {
+    background: #1A4375;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 2rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: background 0.2s;
+    width: 100%;
+    max-width: 200px;
+  }
+  
+  .terms-modal-continue:hover {
+    background: #16345a;
+  }
+  
+  .terms-modal-continue:active {
+    transform: translateY(1px);
+  }
 }
 
 /* Landscape Mobile */

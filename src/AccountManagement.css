@@ -32,7 +32,7 @@
 }
 
 /* Override: On 360–480px, anchor filter dropdown under the Filter button */
-@media (min-width: 360px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) and (max-width: 885px) {
   .manage-wrapper .add-user-button-container { position: relative !important; }
   .manage-wrapper .add-user-button-container .filter-dropdown {
     position: absolute !important;
@@ -85,7 +85,7 @@ body {
 }
 
 /* Mobile header blur + backdrop activation to mirror Feedback (360px–480px) */
-@media (min-width: 360px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) and (max-width: 885px) {
 .account-header-bar.blurred {
   backdrop-filter: blur(6px) saturate(120%);
   -webkit-backdrop-filter: blur(6px) saturate(120%);
@@ -1366,7 +1366,7 @@ border: 1px solid #ef9a9a;
 }
 
 /* Mobile-specific fixes for add user form */
-@media (min-width: 360px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) and (max-width: 885px){
   .add-user-form-container {
     padding: 0.5rem;
     align-items: flex-start;
@@ -1436,7 +1436,7 @@ border: 1px solid #ef9a9a;
 
 }
 
-@media (max-width: 360px) {
+@media (max-width: 360px) and (max-width: 885px){
   .add-user-form-container {
     padding: 0.25rem;
     align-items: flex-start;
@@ -3387,7 +3387,7 @@ z-index: 1000;
 /* ======================================== */
 /* SCREEN SIZE: 1536px (Common Laptop Resolution) */
 /* ======================================== */
-@media (min-width: 1536px) and (max-width: 1919px) {
+@media (min-width: 1536px) and (max-width: 1919px) and (orientation: landscape) {
   .account-header-bar {
     padding: 1rem 2rem;
     height: 60px;
@@ -3594,7 +3594,7 @@ z-index: 1000;
   .header-cell.contact-cell {
     width: 120px !important;
     padding: 0.5rem !important;
-    margin-left: -1.5rem !important;
+    margin-left: 1.5rem !important;
   }
 
   .user-cell.contact-cell {
@@ -3605,9 +3605,9 @@ z-index: 1000;
   }
   
   .header-cell.actions-cell {
-    width: 150px !important;
+    width: 50px !important;
     padding: 0.5rem !important;
-    margin-left: -2.5rem !important;
+    margin-left: .5em !important;
   }
     
   .user-cell.actions-cell {
@@ -3617,9 +3617,9 @@ z-index: 1000;
   }
   
   .header-cell.joined-cell {
-    width: 120px !important;
+    width: 60px !important;
     padding: 0.5rem !important;
-    margin-left: -2.5rem !important;
+    margin-left: .5rem !important;
   }
     
   .user-cell.joined-cell {
@@ -3972,10 +3972,13 @@ z-index: 1000;
   
   .account-main-content {
     margin-left: 20rem; /* COMMENT: Increased margin-left when sidebar is open */
+    /* Enable horizontal scroll to avoid content overlap */
+    overflow-x: auto;
   }
   
   .account-main-content.sidebar-collapsed {
     margin-left: 6rem; /* COMMENT: Reduced margin-left when sidebar is collapsed - ADJUST THIS VALUE */
+    overflow-x: auto;
   }
   
   /* Add small margin-left when sidebar is closed to prevent sticking to left edge */
@@ -3985,24 +3988,24 @@ z-index: 1000;
   }
   
   .account-container {
-    height: 32rem;
+    height: 32rem; /* keep same visual size */
+    max-height: 32rem;
     padding: 1.8rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* contain inner vertical scrolling */
+    /* Prevent columns from compressing; allow horizontal scroll */
+    min-width: 1200px;
+    width: 1200px;
+    box-sizing: border-box;
   }
-  
-  .add-user-button {
-    padding: 14px 18px;
-    font-size: 14px;
-  }
-  
-  .bulk-delete-button {
-    padding: 14px 18px;
-    font-size: 14px;
-  }
-  
-  .filter-button {
-    padding: 16px 45px;
-    font-size: 14px;
-  }
+
+  /* Make the rows area scroll vertically; header sticks, overall can scroll horizontally */
+  .user-grid-container { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .table-header { position: sticky; top: 0; z-index: 10; }
+
+  /* Prevent cells/rows from wrapping when space is tight */
+  .header-row, .user-row { min-width: 1200px; }
 }
 
 /* ======================================== */
@@ -4495,7 +4498,7 @@ Mobile Responsiveness
 ============================= */
 
 /* up to 360px (Small phones) */
-@media (max-width: 360px) {
+@media (max-width: 360px) and (max-width: 885px) {
   /* Layout */
   html, body { 
     height: 100%; 
@@ -4721,7 +4724,7 @@ Mobile Responsiveness
 }
 
   /* 361px to 480px (Standard phones) - Mobile-first responsive design */
-@media (min-width: 360px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) and (max-width: 885px) {
   /* Layout */
   html, body { 
     height: 100%; 
@@ -5369,7 +5372,7 @@ Mobile Buttons Styling (Add User / Filter)
 ============================= */
 
 /* up to 360px (Small phones) */
-@media (max-width: 360px) {
+@media (max-width: 360px) and (max-width: 885px) {
   /* Buttons container */
   .add-user-button-container {
     flex-direction: column;
@@ -5741,7 +5744,7 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
   }
 }
 
-@media (min-width: 360px) and (max-width: 480px) {
+@media (min-width: 360px) and (max-width: 480px) and (max-width: 885px) {
   .add-user-form {
     max-height: 90vh;
     overflow-y: auto;

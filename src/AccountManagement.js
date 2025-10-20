@@ -765,8 +765,8 @@ const AccountManagement = () => {
       (roleDisplay.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
     
-    // Role filter
-    const matchesRole = selectedRole === 'All Roles' || roleDisplay === selectedRole;
+    // Role filter - if current user is assigned to a farm, show all roles
+    const matchesRole = currentUser?.farm ? true : (selectedRole === 'All Roles' || roleDisplay === selectedRole);
     
     // Status filter
     const matchesStatus = selectedStatus === 'All Status' || (String(user.status || '').toLowerCase() === String(selectedStatus || '').toLowerCase());
@@ -2185,15 +2185,17 @@ const handleActivateFishFarmer = async (user) => {
             </div>
             <div className="header-cell role-cell">
               <span>{t('accountManagement.table_headers.role')}</span>
-              <IoMdArrowDropdown 
-                className="dropdown-arrow" 
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
-                  closeAllDropdowns(); // Close all other dropdowns first
-                  setShowRoleDropdown(!showRoleDropdown);
-                }}
-              />
-              {showRoleDropdown && (
+              {!currentUser?.farm && (
+                <IoMdArrowDropdown 
+                  className="dropdown-arrow" 
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
+                    closeAllDropdowns(); // Close all other dropdowns first
+                    setShowRoleDropdown(!showRoleDropdown);
+                  }}
+                />
+              )}
+              {!currentUser?.farm && showRoleDropdown && (
                 <div className="dropdown-menu-role">
                   <div className="dropdown-item" onClick={() => { 
                     setSelectedRole('All Roles'); 
