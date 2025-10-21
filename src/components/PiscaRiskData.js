@@ -376,9 +376,7 @@ const PiscaRiskData = () => {
       } else {
         overallRisk = 'Low'; // Default to Low instead of Normal
       }
-      
-      console.log(`${f.name} - Total preds: ${preds.length}, Unique ponds: ${sorted.length}, High: ${counts.high}, Medium: ${counts.medium}, Low: ${counts.low}`);
-      
+            
       return { 
         key: f.key, 
         name: f.name, 
@@ -441,9 +439,6 @@ const PiscaRiskData = () => {
         
         farmHighRiskCounts[farm.name] = farmHighRisk;
       });
-      
-      console.log('Farm high-risk counts (all instances):', farmHighRiskCounts);
-      console.log('Total high-risk ponds (all instances):', highRiskCount);
       
       return highRiskCount;
     })();
