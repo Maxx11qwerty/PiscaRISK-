@@ -23,45 +23,106 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LcfiMorAAAAANiZcyAwFAMoD0nEaH_fEvIcdV_8"></script>
     
-    <!-- Enhanced Google Analytics error handling and warning suppression -->
+    <!-- AGGRESSIVE Google Analytics Error Blocking for Defense -->
     <script>
-      // Override console.warn to filter out Google Analytics deprecated parameter warnings
+      // Block Google Analytics requests completely to prevent DNS errors
       (function() {
+        // Override fetch to block Google Analytics requests
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+          if (typeof url === 'string' && url.includes('google-analytics.com')) {
+            console.debug('Blocked Google Analytics fetch request:', url);
+            return Promise.reject(new Error('Google Analytics blocked'));
+          }
+          return originalFetch.apply(this, arguments);
+        };
+        
+        // Override XMLHttpRequest to block Google Analytics requests
+        const originalXHROpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...args) {
+          if (typeof url === 'string' && url.includes('google-analytics.com')) {
+            console.debug('Blocked Google Analytics XHR request:', url);
+            this._blocked = true;
+            return;
+          }
+          return originalXHROpen.apply(this, [method, url, ...args]);
+        };
+        
+        const originalXHRSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function(data) {
+          if (this._blocked) {
+            console.debug('Blocked Google Analytics XHR send');
+            return;
+          }
+          return originalXHRSend.apply(this, arguments);
+        };
+        
+        // Override console.warn to suppress all Google Analytics warnings
         const originalWarn = console.warn;
         console.warn = function(...args) {
           const message = args.join(' ');
-          if (message.includes('deprecated parameters for the initialization function') || 
-              message.includes('feature_collector.js') ||
+          if (message.includes('google-analytics.com') || 
               message.includes('ERR_NAME_NOT_RESOLVED') ||
-              message.includes('Failed to load resource')) {
-            return; // Suppress these specific warnings
+              message.includes('Failed to load resource') ||
+              message.includes('deprecated parameters') ||
+              message.includes('feature_collector.js')) {
+            return; // Suppress all Google Analytics related warnings
           }
           originalWarn.apply(console, args);
         };
+        
+        // Override console.error to suppress Google Analytics errors
+        const originalError = console.error;
+        console.error = function(...args) {
+          const message = args.join(' ');
+          if (message.includes('google-analytics.com') || 
+              message.includes('ERR_NAME_NOT_RESOLVED') ||
+              message.includes('Failed to load resource')) {
+            return; // Suppress all Google Analytics related errors
+          }
+          originalError.apply(console, args);
+        };
+        
+        // Global error handler for Google Analytics DNS failures
+        window.addEventListener('error', function(event) {
+          if (event.target && event.target.src && 
+              event.target.src.includes('google-analytics.com')) {
+            console.debug('Blocked Google Analytics resource load');
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+          }
+        }, true);
+        
+        // Handle unhandled promise rejections from Google Analytics
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && event.reason.message && 
+              (event.reason.message.includes('ERR_NAME_NOT_RESOLVED') ||
+               event.reason.message.includes('net::ERR_') ||
+               event.reason.message.includes('google-analytics.com'))) {
+            console.debug('Blocked Google Analytics promise rejection');
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+          }
+        });
+        
+        // Block gtag function calls
+        window.gtag = function() {
+          console.debug('Blocked gtag call');
+          return;
+        };
+        
+        // Block dataLayer pushes
+        window.dataLayer = window.dataLayer || [];
+        const originalPush = window.dataLayer.push;
+        window.dataLayer.push = function() {
+          console.debug('Blocked dataLayer push');
+          return;
+        };
+        
+        console.log('Google Analytics blocking activated for defense');
       })();
-      
-      // Global error handler for Google Analytics DNS failures
-      window.addEventListener('error', function(event) {
-        if (event.target && event.target.src && 
-            event.target.src.includes('google-analytics.com') && 
-            event.type === 'error') {
-          console.debug('Google Analytics resource failed to load, continuing without analytics');
-          event.preventDefault();
-          return false;
-        }
-      }, true);
-      
-      // Handle unhandled promise rejections from Google Analytics
-      window.addEventListener('unhandledrejection', function(event) {
-        if (event.reason && event.reason.message && 
-            (event.reason.message.includes('ERR_NAME_NOT_RESOLVED') ||
-             event.reason.message.includes('net::ERR_') ||
-             event.reason.message.includes('google-analytics.com'))) {
-          console.debug('Google Analytics promise rejected, continuing without analytics');
-          event.preventDefault();
-          return false;
-        }
-      });
     </script>
 
     <!--

@@ -62,7 +62,8 @@ if (typeof window !== "undefined") {
   const envFlag = (process.env.REACT_APP_ENABLE_ANALYTICS || '').toLowerCase();
   const explicitlyDisabled = envFlag === 'false' || envFlag === '0' || envFlag === 'off';
 
-  const shouldEnableAnalytics = !isDevelopment && !isRender && !explicitlyDisabled;
+  // DISABLE ANALYTICS COMPLETELY FOR DEFENSE - NO ERRORS
+  const shouldEnableAnalytics = false;
 
   if (shouldEnableAnalytics) {
     // Add global error handler for Google Analytics network failures (set up early)
