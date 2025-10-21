@@ -65,12 +65,35 @@ if (typeof window !== "undefined") {
   const shouldEnableAnalytics = !isDevelopment && !isRender && !explicitlyDisabled;
 
   if (shouldEnableAnalytics) {
+    // Add global error handler for Google Analytics network failures (set up early)
+    window.addEventListener('error', (event) => {
+      if (event.target && event.target.src && 
+          event.target.src.includes('google-analytics.com') && 
+          event.type === 'error') {
+        console.debug('Google Analytics resource failed to load, continuing without analytics');
+        event.preventDefault();
+        return false;
+      }
+    }, true);
+    
+    // Add global error handler for unhandled promise rejections
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && event.reason.message && 
+          (event.reason.message.includes('ERR_NAME_NOT_RESOLVED') ||
+           event.reason.message.includes('net::ERR_') ||
+           event.reason.message.includes('google-analytics.com'))) {
+        console.debug('Google Analytics promise rejected, continuing without analytics:', event.reason.message);
+        event.preventDefault();
+        return false;
+      }
+    });
+    
     import("firebase/analytics")
       .then(({ getAnalytics, logEvent }) => {
         try {
           analytics = getAnalytics(app);
           
-          // Enhanced Google Analytics error handling
+          // Enhanced Google Analytics error handling with DNS failure protection
           if (window.gtag) {
             const originalGtag = window.gtag;
             window.gtag = function(...args) {
@@ -81,8 +104,10 @@ if (typeof window !== "undefined") {
                 if (error.message && (
                   error.message.includes('deprecated parameters') ||
                   error.message.includes('ERR_NAME_NOT_RESOLVED') ||
-                  error.message.includes('net::ERR_')
+                  error.message.includes('net::ERR_') ||
+                  error.message.includes('Failed to load resource')
                 )) {
+                  console.debug('Google Analytics request failed, continuing without analytics:', error.message);
                   return;
                 }
                 throw error;

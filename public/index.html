@@ -23,7 +23,7 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LcfiMorAAAAANiZcyAwFAMoD0nEaH_fEvIcdV_8"></script>
     
-    <!-- Suppress Google Analytics deprecated parameter warnings -->
+    <!-- Enhanced Google Analytics error handling and warning suppression -->
     <script>
       // Override console.warn to filter out Google Analytics deprecated parameter warnings
       (function() {
@@ -31,12 +31,37 @@
         console.warn = function(...args) {
           const message = args.join(' ');
           if (message.includes('deprecated parameters for the initialization function') || 
-              message.includes('feature_collector.js')) {
+              message.includes('feature_collector.js') ||
+              message.includes('ERR_NAME_NOT_RESOLVED') ||
+              message.includes('Failed to load resource')) {
             return; // Suppress these specific warnings
           }
           originalWarn.apply(console, args);
         };
       })();
+      
+      // Global error handler for Google Analytics DNS failures
+      window.addEventListener('error', function(event) {
+        if (event.target && event.target.src && 
+            event.target.src.includes('google-analytics.com') && 
+            event.type === 'error') {
+          console.debug('Google Analytics resource failed to load, continuing without analytics');
+          event.preventDefault();
+          return false;
+        }
+      }, true);
+      
+      // Handle unhandled promise rejections from Google Analytics
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && event.reason.message && 
+            (event.reason.message.includes('ERR_NAME_NOT_RESOLVED') ||
+             event.reason.message.includes('net::ERR_') ||
+             event.reason.message.includes('google-analytics.com'))) {
+          console.debug('Google Analytics promise rejected, continuing without analytics');
+          event.preventDefault();
+          return false;
+        }
+      });
     </script>
 
     <!--
