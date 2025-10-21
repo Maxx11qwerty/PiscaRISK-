@@ -714,8 +714,9 @@ const handleSendVerificationEmail = async () => {
 
   const handleAccountManagementClick = () => {
     const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
+    const isNewMainTechOfficer = String(currentUser?.role || '').toLowerCase() === 'new_main_tech_officer' || String(currentUser?.role || '').toLowerCase() === 'new main tech officer';
     
-    if (isTemporaryTechOfficer) {
+    if (isTemporaryTechOfficer && !isNewMainTechOfficer) {
       setError('⚠️ Restricted Access: Your current role as a Temporary Tech Officer does not allow access to Account Management. Please contact your Admin for assistance.');
       setTimeout(() => setError(''), 5000);
       return;

@@ -171,6 +171,11 @@ export const getAllLogs = async () => {
         role = 'temp_tech_officer';
       }
       
+      // Map role for display - convert New Main Tech Officer to Tech Officer
+      if (role === 'New Main Tech Officer' || role === 'new_main_tech_officer') {
+        role = 'tech_officer';
+      }
+      
       return {
         ...log,
         username: log.username || 'Unknown User',
@@ -376,9 +381,15 @@ export const getLogsByUsername = async (username) => {
           source = 'Mobile';
         }
         
+        // Determine role and map for display
+        let role = userData ? userData.role : 'Unknown';
+        if (role === 'New Main Tech Officer' || role === 'new_main_tech_officer') {
+          role = 'tech_officer';
+        }
+        
         return {
           ...log,
-          role: userData ? userData.role : 'Unknown',
+          role: role,
           isMobileUser: userData ? userData.isMobileUser : false,
           source: source
         };

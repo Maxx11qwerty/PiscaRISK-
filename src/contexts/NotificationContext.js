@@ -17,11 +17,20 @@ export const NotificationProvider = ({ children }) => {
   const [pendingActivations, setPendingActivations] = useState(0);
   const [toasts, setToasts] = useState([]);
   const { currentUser } = useAuth();
+  const [activationsClearedAt, setActivationsClearedAt] = useState(() => {
+    try {
+      return localStorage.getItem('activationsClearedAt') || null;
+    } catch (_) {
+      return null;
+    }
+  });
 
-  // Check if user is a tech officer (including temporary)
+  // Check if user is a tech officer (including new main tech officer and temporary)
   const isTechOfficer = currentUser && (
     String(currentUser.role || '').toLowerCase() === 'tech_officer' ||
     String(currentUser.role || '').toLowerCase() === 'tech officer' ||
+    String(currentUser.role || '').toLowerCase() === 'new_main_tech_officer' ||
+    String(currentUser.role || '').toLowerCase() === 'new main tech officer' ||
     currentUser.temporaryTechOfficer
   );
 
@@ -47,7 +56,15 @@ export const NotificationProvider = ({ children }) => {
           const createdAt = user.createdAt?.toDate ? user.createdAt.toDate() : new Date(user.createdAt);
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          return createdAt > thirtyDaysAgo;
+          // Respect local clear timestamp so counts reset when requested
+          let clearedCutoff = null;
+          try {
+            clearedCutoff = activationsClearedAt ? new Date(activationsClearedAt) : null;
+          } catch (_) {}
+          const cutoff = (clearedCutoff && !Number.isNaN(clearedCutoff.getTime()) && clearedCutoff > thirtyDaysAgo)
+            ? clearedCutoff
+            : thirtyDaysAgo;
+          return createdAt > cutoff;
         });
 
       const previousCount = pendingActivations;
@@ -76,7 +93,7 @@ export const NotificationProvider = ({ children }) => {
     });
 
     return () => unsubscribe();
-  }, [isTechOfficer, currentUser]);
+  }, [isTechOfficer, currentUser, activationsClearedAt]);
 
   const addToast = (message, type = 'info', duration = 5000) => {
     const id = Date.now() + Math.random();
@@ -102,6 +119,16 @@ export const NotificationProvider = ({ children }) => {
     addToast(message, 'success', 4000);
   };
 
+  // Expose a way to reset the activation counter baseline
+  const clearPendingActivations = () => {
+    const nowIso = new Date().toISOString();
+    try {
+      localStorage.setItem('activationsClearedAt', nowIso);
+    } catch (_) {}
+    setActivationsClearedAt(nowIso);
+    setPendingActivations(0);
+  };
+
   const removeToast = (id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   };
@@ -112,6 +139,7 @@ export const NotificationProvider = ({ children }) => {
     addToast,
     addDeactivationToast,
     addActivationToast,
+    clearPendingActivations,
     removeToast
   };
 

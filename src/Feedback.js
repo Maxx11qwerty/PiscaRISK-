@@ -431,8 +431,8 @@ const Feedback = () => {
       return;
     }
 
-    // If feedback is unread and user is admin/tech officer, mark it as read
-    if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer')) {
+    // If feedback is unread and user is admin/tech officer/new main tech officer, mark it as read
+    if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer' || currentUser?.role === 'New Main Tech Officer')) {
       try {
         const feedbackRef = doc(db, 'PiscaRisk', feedback.id);
         await updateDoc(feedbackRef, sanitizeObjectStrings({
@@ -492,6 +492,7 @@ const Feedback = () => {
       const adminRole = String(currentUser?.role || '').toLowerCase();
       const adminRoleDisplay = adminRole === 'temp_tech_officer' || currentUser?.temporaryTechOfficer ? 'Temporary Tech Officer'
         : adminRole === 'tech_officer' || adminRole === 'tech officer' ? 'Tech Officer'
+        : adminRole === 'new_main_tech_officer' || adminRole === 'new main tech officer' ? 'Tech Officer'
         : adminRole === 'admin' ? 'Admin'
         : (adminRole || 'Admin');
 
@@ -1318,7 +1319,7 @@ const Feedback = () => {
                     <div className="feedback-actions">
                     <span className="feedback-date">{feedback.date}</span>
                     { (() => {
-                      const isPrivileged = currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer';
+                      const isPrivileged = currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer' || currentUser?.role === 'New Main Tech Officer';
                       const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
                       const fId = norm(feedback.userFarm);
                       const fName = norm(feedback.assignedFarmName);

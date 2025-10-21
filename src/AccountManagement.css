@@ -3538,9 +3538,9 @@ z-index: 1000;
   }
 
   .header-cell.name-cell {
-    width: 200px !important;
-    padding: 0.5rem !important;
-    margin-left: -.5rem !important;
+    width: 10px !important;
+    padding: 0rem !important;
+    margin-left: 1.5rem !important;
   }
 
   .user-cell.name-cell {

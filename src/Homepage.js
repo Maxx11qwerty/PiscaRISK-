@@ -330,7 +330,7 @@ const PiscaRiskHome = () => {
   }; 
 
   const handleLogsClick = async () => {
-    if (currentUser?.role === 'Tech Officer') {
+    if (currentUser?.role === 'Tech Officer' && currentUser?.role !== 'New Main Tech Officer') {
       setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
       return;
@@ -339,7 +339,7 @@ const PiscaRiskHome = () => {
   };
 
   const handleAccountManagementClick = async () => {
-    if (currentUser?.role === 'Tech Officer') {
+    if (currentUser?.role === 'Tech Officer' && currentUser?.role !== 'New Main Tech Officer') {
       setErrorMessage(t('common.accessDenied'));
       setTimeout(() => setErrorMessage(''), 3000);
       return;

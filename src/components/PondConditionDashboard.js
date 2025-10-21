@@ -75,11 +75,12 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
   
-  // Check if user can mark reports as reviewed: Tech Officers and Temporary Tech Officers
+  // Check if user can mark reports as reviewed: Tech Officers, New Main Tech Officers, and Temporary Tech Officers
   const canMarkAsReviewed = () => {
     const role = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
     const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || role === 'temp_tech_officer';
-    return role === 'tech_officer' || isTemporaryTechOfficer;
+    const isNewMainTechOfficer = role === 'new_main_tech_officer';
+    return role === 'tech_officer' || isNewMainTechOfficer || isTemporaryTechOfficer;
   };
   
   const [selectedPond, setSelectedPond] = useState(propSelectedPond || 'all');
@@ -735,6 +736,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
         const role = String(currentUser?.role || '').toLowerCase();
         if (currentUser?.temporaryTechOfficer || role === 'temp_tech_officer') return 'Temporary Tech Officer';
         if (role === 'tech_officer' || role === 'tech officer') return 'Tech Officer';
+        if (role === 'new_main_tech_officer' || role === 'new main tech officer') return 'Tech Officer';
         if (role === 'super_admin' || role === 'super admin' || role === 'superadmin') return 'Super Admin';
         if (role === 'admin') return 'Admin';
         return currentUser?.role || 'User';

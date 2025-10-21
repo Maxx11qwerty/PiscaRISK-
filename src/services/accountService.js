@@ -170,9 +170,12 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           pendingActivation: false,
           lastModified: serverTimestamp()
         };
-        // If deactivating, also reset phoneVerified to false
+        // If deactivating, also reset phoneVerified to false and add deactivation tracking
         if (statusLower === 'inactive') {
           updateFields.phoneVerified = false;
+          updateFields.deactivatedBy = 'Status Toggle (Role Unknown)';
+          updateFields.deactivatedAt = new Date().toISOString();
+          updateFields.deactivationReason = 'Status changed via toggle';
         }
         await updateDoc(ref, sanitizeObjectStrings(updateFields));
         // removed verbose dev log

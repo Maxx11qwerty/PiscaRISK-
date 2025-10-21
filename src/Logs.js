@@ -335,11 +335,12 @@ const Logs = () => {
   // Role-based access for row actions
   const roleLower = String(currentUser?.role || '').toLowerCase();
   const isTemporaryTechOfficer = !!(currentUser?.temporaryTechOfficer || roleLower === 'temp_tech_officer');
+  const isNewMainTechOfficer = roleLower === 'new_main_tech_officer' || roleLower === 'new main tech officer';
   const isAdmin = roleLower === 'admin';
   const isSuperAdmin = roleLower === 'super_admin' || (isAdmin && !currentUser?.farm);
   const isFarmAdmin = isAdmin && !!currentUser?.farm;
-  // Visible for super admin (enabled), and visible but disabled for farm admin / tech officer / temp tech officer
-  const shouldShowRowActions = isSuperAdmin || isFarmAdmin || isTemporaryTechOfficer;
+  // Visible for super admin (enabled), and visible but disabled for farm admin / tech officer / new main tech officer / temp tech officer
+  const shouldShowRowActions = isSuperAdmin || isFarmAdmin || isNewMainTechOfficer || isTemporaryTechOfficer;
 
   return (
     <div className="logs">
@@ -663,6 +664,7 @@ const Logs = () => {
                         <div className="user-role">
                           {log.role === 'temp_tech_officer' ? 'Temporary Tech Officer' : 
                            log.role === 'tech_officer' ? 'Tech Officer' :
+                           log.role === 'new_main_tech_officer' ? 'Tech Officer' :
                            log.role === 'super_admin' ? 'Super Admin' :
                            log.role === 'admin' ? 'Admin' :
                            log.role}

@@ -722,7 +722,7 @@ const login = async (emailOrContact, password) => {
       if (!isAdminActivated) {
         return { 
           success: false, 
-          message: "Your account is pending admin approval. Please wait for activation." 
+          message: "Your account is pending tech officer approval. Please wait for activation." 
         };
       }
       
@@ -774,7 +774,7 @@ const login = async (emailOrContact, password) => {
       if (!isAdminActivated) {
         return { 
           success: false, 
-          message: "Your account is pending admin approval. Please wait for activation." 
+          message: "Your account is pending tech officer approval. Please wait for activation." 
         };
       }
       
@@ -839,6 +839,34 @@ const login = async (emailOrContact, password) => {
             lastModified: serverTimestamp()
           });
           userData.status = 'Active';
+        }
+      }
+
+      // When a New Main Tech Officer logs in, deactivate any existing active Tech Officer
+      if (roleLower === 'new_main_tech_officer' || roleLower === 'new main tech officer') {
+        try {
+          const usersRef = collection(db, 'users');
+          // Fetch all active users, then filter client-side for Tech Officer role variants
+          const activeUsersSnap = await getDocs(query(usersRef, where('status', '==', 'Active')));
+          const updates = [];
+          activeUsersSnap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const r = String(data.role || '').toLowerCase();
+            const isTechOfficer = r === 'tech_officer' || r === 'tech officer';
+            const isSameUser = docSnap.id === userCredential.user.uid;
+            if (isTechOfficer && !isSameUser) {
+              updates.push(updateDoc(doc(db, 'users', docSnap.id), {
+                status: 'Inactive',
+                temporarilyInactiveDueToReplacement: true,
+                lastModified: serverTimestamp()
+              }));
+            }
+          });
+          if (updates.length) {
+            await Promise.allSettled(updates);
+          }
+        } catch (_) {
+          // Silently ignore deactivation errors to not block login
         }
       }
 
@@ -907,9 +935,22 @@ const login = async (emailOrContact, password) => {
       // Check if account is deactivated (block inactive accounts) - but only after TTO check
       if (String(userData.status || '').toLowerCase() === 'inactive') {
         await signOut(auth);
+        
+        // Check if this is a Tech Officer who was replaced by a new Tech Officer
+        const roleLower = String(userData.role || '').toLowerCase();
+        const isTechOfficer = roleLower === 'tech_officer' || roleLower === 'tech officer';
+        const wasReplaced = userData.temporarilyInactiveDueToReplacement === true;
+        
+        if (isTechOfficer && wasReplaced) {
+          return {
+            success: false,
+            message: "Your Tech Officer account has been deactivated because a new Tech Officer has been assigned. Please contact the Tech Officer for more information."
+          };
+        }
+        
         return {
           success: false,
-          message: "This account has been deactivated by the Admin. Access is no longer available."
+          message: "This account has been deactivated by the Tech Officer. Access is no longer available."
         };
       }
 

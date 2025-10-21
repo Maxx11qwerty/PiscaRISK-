@@ -37,6 +37,7 @@ const Sidebar = ({
     const r = String(role).toLowerCase();
     const hasFarm = !!(currentUser?.farm && String(currentUser.farm).trim() !== '');
     if (r === 'tech_officer' || r === 'tech officer') return 'Tech Officer';
+    if (r === 'new_main_tech_officer' || r === 'new main tech officer') return 'Tech Officer';
     if (r === 'temp_tech_officer' || r === 'temporary tech officer') return 'Temporary Tech Officer';
     if (r === 'fish_farmer' || r === 'fish farmer') return 'Fish Farmer';
     if (r === 'admin') return hasFarm ? 'Farm Admin' : 'Admin';
@@ -55,10 +56,11 @@ const Sidebar = ({
   // Check if current user is Super Admin (role Admin and no farm assigned)
   const isSuperAdmin = (!currentUser?.farm) && (String(currentUser?.role || '').toLowerCase() === 'admin');
   
-  // Check if current user is Tech Officer or Temporary Tech Officer
+  // Check if current user is Tech Officer, New Main Tech Officer, or Temporary Tech Officer
   const isTechOfficer = String(currentUser?.role || '').toLowerCase() === 'tech_officer' || String(currentUser?.role || '').toLowerCase() === 'tech officer';
+  const isNewMainTechOfficer = String(currentUser?.role || '').toLowerCase() === 'new_main_tech_officer' || String(currentUser?.role || '').toLowerCase() === 'new main tech officer';
   const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-  const canAccessFeedback = isSuperAdmin || isTechOfficer || isTemporaryTechOfficer;
+  const canAccessFeedback = isSuperAdmin || isTechOfficer || isNewMainTechOfficer || isTemporaryTechOfficer;
 
   // Update language when it changes
   useEffect(() => {

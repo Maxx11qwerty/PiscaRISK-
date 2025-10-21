@@ -15,7 +15,7 @@ import UserPopup from './components/UserPopup';
 import { fetchAllUsers, fetchLiveUserStatus as serviceFetchLiveUserStatus, activateTechOfficer as serviceActivateTechOfficer, activateFishFarmer as serviceActivateFishFarmer, deleteUserById as serviceDeleteUserById, checkUserLoginStatus as serviceCheckUserLoginStatus, forceLogoutUser as serviceForceLogoutUser, updateUserStatus as serviceUpdateUserStatus } from './services/accountService';
 import { exportAccountToPDF, prepareAccountCSVData, handleAccountCSVExport } from './utils/exportAccounts';
 import Sidebar from './components/Sidebar';
-import { collection, getDocs, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { logActivity, logMessages } from './utils/logger';
 import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeToE164PH } from './utils/phonePh';
@@ -23,7 +23,7 @@ import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeTo
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
   const { currentUser } = useContext(AuthContext);
-  const { addDeactivationToast, addActivationToast } = useNotifications();
+  const { addDeactivationToast, addActivationToast, clearPendingActivations } = useNotifications();
   const navigate = useNavigate();
   
   // Temporary Tech Officers now have access to Account Management
@@ -87,6 +87,9 @@ const AccountManagement = () => {
   
   // Track TTO creation mode
   const [ttoCreationMode, setTtoCreationMode] = useState(''); // 'reuse' or 'create'
+  
+  // Track New Main Tech Officer creation mode
+  const [newMainTOCreationMode, setNewMainTOCreationMode] = useState(''); // 'reuse' or 'create'
   
   // Farms for assignment when creator has no assigned farm
   const [farms, setFarms] = useState([]); // { id, name }
@@ -419,8 +422,9 @@ const AccountManagement = () => {
   const roleNormalized = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
   const isAdminUser = roleNormalized === 'admin';
   const isTechOfficerRole = roleNormalized === 'tech_officer' || String(currentUser?.role || '').toLowerCase() === 'tech officer';
+  const isNewMainTechOfficer = roleNormalized === 'new_main_tech_officer' || String(currentUser?.role || '').toLowerCase() === 'new main tech officer';
   const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || roleNormalized === 'temp_tech_officer';
-  const canManageUsers = isAdminUser || isTechOfficerRole || isTemporaryTechOfficer;
+  const canManageUsers = isAdminUser || isTechOfficerRole || isNewMainTechOfficer || isTemporaryTechOfficer;
   const isSuperAdminUser = !currentUser?.farm; // Super Admin: no farm assigned
 
   useEffect(() => {
@@ -561,6 +565,7 @@ const AccountManagement = () => {
     const lower = String(role).toLowerCase();
     if (lower === 'tech_officer' || lower === 'tech officer') return 'Tech Officer';
     if (lower === 'temp_tech_officer' || lower === 'temp tech officer') return 'Temporary Tech Officer';
+    if (lower === 'new_main_tech_officer' || lower === 'new main tech officer') return 'Tech Officer';
     if (lower === 'admin') return 'Admin';
     if (lower === 'fish_farmer' || lower === 'fish farmer') return 'Fish Farmer';
     return role;
@@ -644,7 +649,7 @@ const AccountManagement = () => {
   // Manual deactivate function for Temporary Tech Officers
   const handleManualDeactivateTTO = async (user) => {
     if (!canManageUsers) {
-      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can manually deactivate Temporary Tech Officers', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can manually deactivate Temporary Tech Officers', type: 'error' });
       return;
     }
 
@@ -655,11 +660,13 @@ const AccountManagement = () => {
       const { db } = await import('./firebase');
       const now = new Date();
       const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const adminRole = currentUser?.role || 'Unknown';
+      const deactivatedByWithRole = `${adminUser} (${adminRole})`;
       
       await updateDoc(doc(db, 'users', user.id), { 
         status: 'Inactive',
         lastModified: now.toISOString(),
-        deactivatedBy: adminUser,
+        deactivatedBy: deactivatedByWithRole,
         deactivatedAt: now.toISOString(),
         deactivationReason: 'Manually deactivated by Admin/Tech Officer',
         tempTORemarks: user.tempTORemarks || null,
@@ -678,7 +685,7 @@ const AccountManagement = () => {
         u.id === user.id ? { 
           ...u, 
           status: 'inactive',
-          deactivatedBy: adminUser,
+          deactivatedBy: deactivatedByWithRole,
           deactivatedAt: now.toISOString(),
           deactivationReason: 'Manually deactivated by Admin/Tech Officer',
           tempTORemarks: user.tempTORemarks || null,
@@ -896,15 +903,15 @@ const AccountManagement = () => {
 
     // Special handling for role changes
     if (name === 'role') {
-      const newStatus = (value === 'Tech Officer' || value === 'Temporary Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
+      const newStatus = (value === 'Tech Officer' || value === 'Temporary Tech Officer' || value === 'New Main Tech Officer' || value === 'Admin' || value === 'Fish Farmer') ? 'Inactive' : 'Active';
 
-      
-    setNewUser(prev => ({
-      ...prev,
+      setNewUser(prev => ({
+        ...prev,
         [name]: value,
         // Automatically set Tech Officer to inactive, others to active
         status: newStatus
-    }));
+      }));
+      return; // Add missing return statement
     } else {
       setNewUser(prev => ({ ...prev, [name]: value }));
     }
@@ -929,7 +936,8 @@ const AccountManagement = () => {
     effectiveTo: '',
     tempTOReason: '',
     tempTORemarks: '',
-    selectedExistingTTO: ''
+    selectedExistingTTO: '',
+    selectedExistingNewMainTO: ''
   });
 
   // Ensure Temporary Tech Officer is always Inactive until verification
@@ -960,15 +968,17 @@ const AccountManagement = () => {
       effectiveTo: '',
       tempTOReason: '',
       tempTORemarks: '',
-      selectedExistingTTO: ''
+      selectedExistingTTO: '',
+      selectedExistingNewMainTO: ''
     });
     setTtoCreationMode('');
+    setNewMainTOCreationMode('');
   };
 
   const handleAddUser = async () => {
     try {
       if (!canManageUsers) {
-        setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can add new users', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can add new users', type: 'error' });
         return;
       }
       
@@ -977,22 +987,22 @@ const AccountManagement = () => {
         logActivity('account', `User creation attempted for ${newUser.username} (${newUser.role}) in Account Management`, u); 
       } catch (_) {}
       // Skip password validation for reuse mode since we're reusing an existing account
-      if (ttoCreationMode !== 'reuse' && newUser.password.length < 6) {
+      if (ttoCreationMode !== 'reuse' && newMainTOCreationMode !== 'reuse' && newUser.password.length < 6) {
         setMessage({ text: 'Password must be at least 6 characters', type: 'error' });
         return;
       }
       // Skip username and email validation for reuse mode since we're reusing an existing account
-      if (ttoCreationMode !== 'reuse' && (!newUser.username || !newUser.role || !newUser.password || !newUser.email)) {
+      if (ttoCreationMode !== 'reuse' && newMainTOCreationMode !== 'reuse' && (!newUser.username || !newUser.role || !newUser.password || !newUser.email)) {
         setMessage({ text: 'All fields are required', type: 'error' });
         return;
       }
       // Skip email validation for reuse mode since we're reusing an existing account
-      if (ttoCreationMode !== 'reuse' && !/^\S+@\S+\.\S+$/.test(newUser.email)) {
+      if (ttoCreationMode !== 'reuse' && newMainTOCreationMode !== 'reuse' && !/^\S+@\S+\.\S+$/.test(newUser.email)) {
         setMessage({ text: 'Please enter a valid email address', type: 'error' });
         return;
       }
       // Skip password validation for reuse mode since we're reusing an existing account
-      if (ttoCreationMode !== 'reuse' && newUser.password.length < 8) {
+      if (ttoCreationMode !== 'reuse' && newMainTOCreationMode !== 'reuse' && newUser.password.length < 8) {
         setMessage({ text: 'Password must be at least 8 characters', type: 'error' });
         return;
       }
@@ -1052,7 +1062,7 @@ const AccountManagement = () => {
             effectiveTo: newUser.effectiveTo || null,
             tempTOReason: newUser.tempTOReason || null,
             tempTORemarks: newUser.tempTORemarks || null,
-            lastModified: new Date().toISOString(),
+            lastModified: serverTimestamp(),
             // Clear deactivation fields to show activation button instead of deactivation message
             deactivatedBy: null,
             deactivatedAt: null,
@@ -1068,7 +1078,7 @@ const AccountManagement = () => {
                   effectiveTo: newUser.effectiveTo || null,
                   tempTOReason: newUser.tempTOReason || null,
                   tempTORemarks: newUser.tempTORemarks || null,
-                  lastModified: new Date().toISOString(),
+                  lastModified: serverTimestamp(),
                   // Clear deactivation fields to show activation button instead of deactivation message
                   deactivatedBy: null,
                   deactivatedAt: null,
@@ -1078,6 +1088,7 @@ const AccountManagement = () => {
           ));
           
           setMessage({ text: `Temporary Tech Officer account "${selectedTTO.username}" has been updated with new assignment details. The account is now ready for activation.`, type: 'success' });
+          try { clearPendingActivations && clearPendingActivations(); } catch (_) {}
           resetForm();
           setShowAddUserForm(false);
           return;
@@ -1088,8 +1099,69 @@ const AccountManagement = () => {
         }
       }
       
-      // Role permissions: Farm-assigned Admins can only create Fish Farmers; Super Admins (no farm) can create Admins, Tech Officers, and Temporary Tech Officers
-      const allowedRoles = currentUser?.farm ? ['Fish Farmer'] : ['Admin', 'Tech Officer', 'Temporary Tech Officer'];
+      // Handle reuse existing New Main Tech Officer account
+      if (newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') {
+        if (!newUser.selectedExistingNewMainTO) {
+          setMessage({ text: 'Please select an existing New Main Tech Officer account to reuse', type: 'error' });
+          return;
+        }
+        
+        // Find the selected New Main Tech Officer account
+        const selectedNewMainTO = AccountUsers.find(user => user.id === newUser.selectedExistingNewMainTO);
+        if (!selectedNewMainTO) {
+          setMessage({ text: 'Selected New Main Tech Officer account not found', type: 'error' });
+          return;
+        }
+        
+        // Update the existing account to New Main Tech Officer role with new details
+        try {
+          const { updateDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          
+          await updateDoc(doc(db, 'users', selectedNewMainTO.id), {
+            role: 'New Main Tech Officer',
+            lastModified: serverTimestamp(),
+            // Clear deactivation fields to show activation button instead of deactivation message
+            deactivatedBy: null,
+            deactivatedAt: null,
+            deactivationReason: null,
+            // Mark as having been a Temporary Tech Officer
+            hasBeenTempTechOfficer: true,
+            tempTOHistory: 'Former Temporary Tech Officer'
+          });
+          
+          // Update local state to reflect the changes
+          setAccountUsers(prev => prev.map(user => 
+            user.id === selectedNewMainTO.id 
+              ? { 
+                  ...user, 
+                  role: 'New Main Tech Officer',
+                  lastModified: serverTimestamp(),
+                  // Clear deactivation fields to show activation button instead of deactivation message
+                  deactivatedBy: null,
+                  deactivatedAt: null,
+                  deactivationReason: null,
+                  // Mark as having been a Temporary Tech Officer
+                  hasBeenTempTechOfficer: true,
+                  tempTOHistory: 'Former Temporary Tech Officer'
+                }
+              : user
+          ));
+          
+          setMessage({ text: `New Main Tech Officer account "${selectedNewMainTO.username}" has been updated with new assignment details. The account is now ready for activation.`, type: 'success' });
+          try { clearPendingActivations && clearPendingActivations(); } catch (_) {}
+          resetForm();
+          setShowAddUserForm(false);
+          return;
+        } catch (error) {
+          console.error('Error updating New Main Tech Officer account:', error);
+          setMessage({ text: 'Failed to update New Main Tech Officer account', type: 'error' });
+          return;
+        }
+      }
+      
+      // Role permissions: Farm-assigned Admins can only create Fish Farmers; Super Admins (no farm) can create Admins, Tech Officers, Temporary Tech Officers, and New Main Tech Officers
+      const allowedRoles = currentUser?.farm ? ['Fish Farmer'] : ['Admin', 'Tech Officer', 'Temporary Tech Officer', 'New Main Tech Officer'];
       if (!allowedRoles.includes(newUser.role)) {
         setMessage({ text: 'Invalid role selected', type: 'error' });
         return;
@@ -1169,6 +1241,7 @@ const AccountManagement = () => {
 
       if (result.success) {
         setMessage({ text: `${newUser.role} ${newUser.username} created successfully!`, type: 'success' });
+        try { clearPendingActivations && clearPendingActivations(); } catch (_) {}
         try { 
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
           logActivity('account', `User ${newUser.username} (${newUser.role}) created successfully in Account Management`, u); 
@@ -1349,7 +1422,11 @@ const AccountManagement = () => {
       const result = await serviceActivateTechOfficer(user.id);
       if (!result.success) throw new Error(result.error || 'Failed to activate Tech Officer');
       
-      setMessage({ text: `Tech Officer ${user.username} activated. Note: user must verify their email to become Active.`, type: 'success' });
+      const techOfficerActivatorRole = currentUser?.role || 'Unknown';
+      const techOfficerRoleDisplay = techOfficerActivatorRole === 'New Main Tech Officer' ? 'Tech Officer' : 
+                         techOfficerActivatorRole === 'Temporary Tech Officer' ? 'Temporary Tech Officer' :
+                         techOfficerActivatorRole === 'Farm Admin' ? 'Farm Admin' : 'Admin';
+      setMessage({ text: `Tech Officer ${user.username} activated by ${techOfficerRoleDisplay}. Note: user must verify their email to become Active.`, type: 'success' });
       
       // Show activation toast
       addActivationToast(user.username);
@@ -1359,9 +1436,20 @@ const AccountManagement = () => {
         logActivity('account', `Tech Officer ${user.username} activated successfully in Account Management`, u); 
       } catch (_) {}
       
-      // Update local state (optimistic)
+      // Update local state (optimistic) with activation tracking
+      const activatorUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const activatorRole = currentUser?.role || 'Unknown';
+      const activatedByWithRole = `${activatorUser} (${activatorRole})`;
+      
       setAccountUsers(prev => prev.map(u => 
-        u.id === user.id ? { ...u, status: 'active', adminActivated: true, _justActivated: true } : u
+        u.id === user.id ? { 
+          ...u, 
+          status: 'active', 
+          adminActivated: true, 
+          _justActivated: true,
+          activatedBy: activatedByWithRole,
+          activatedAt: new Date().toISOString()
+        } : u
       ));
 
       // Update Firestore to set status to Active
@@ -1371,7 +1459,9 @@ const AccountManagement = () => {
         await updateDoc(doc(db, 'users', user.id), {
           status: 'Active',
           adminActivated: true,
-          lastModified: new Date().toISOString()
+          activatedBy: activatedByWithRole,
+          activatedAt: new Date().toISOString(),
+          lastModified: serverTimestamp()
         });
       } catch (e) {
         console.error("Failed to update Firestore status:", e);
@@ -1450,10 +1540,23 @@ const handleActivateFishFarmer = async (user) => {
     const liveAfter = await serviceFetchLiveUserStatus(user.id);
     
     if (liveAfter && liveAfter.status === 'active') {
+      const activatorUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const activatorRole = currentUser?.role || 'Unknown';
+      const activatedByWithRole = `${activatorUser} (${activatorRole})`;
+      
       setAccountUsers(prev => prev.map(u => 
-        u.id === user.id ? { ...u, status: 'active' } : u
+        u.id === user.id ? { 
+          ...u, 
+          status: 'active',
+          activatedBy: activatedByWithRole,
+          activatedAt: new Date().toISOString()
+        } : u
       ));
-      setMessage({ text: `${user.username} activated successfully!`, type: 'success' });
+      const fishFarmerActivatorRole = currentUser?.role || 'Unknown';
+      const fishFarmerRoleDisplay = fishFarmerActivatorRole === 'New Main Tech Officer' ? 'Tech Officer' : 
+                         fishFarmerActivatorRole === 'Temporary Tech Officer' ? 'Temporary Tech Officer' :
+                         fishFarmerActivatorRole === 'Farm Admin' ? 'Farm Admin' : 'Admin';
+      setMessage({ text: `${user.username} activated by ${fishFarmerRoleDisplay} successfully!`, type: 'success' });
       
       // Show activation toast
       addActivationToast(user.username);
@@ -1487,7 +1590,7 @@ const handleActivateFishFarmer = async (user) => {
     // Tech Officers and Temporary Tech Officers can also activate self-registered Admins
     const isSelfRegistered = String(user.createdBy || '').toLowerCase() === 'self';
     if (isSelfRegistered && !canManageUsers) {
-      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can activate Admins registered via signup', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can activate Admins registered via signup', type: 'error' });
       return;
     }
 
@@ -1498,7 +1601,11 @@ const handleActivateFishFarmer = async (user) => {
       if (!result?.success) {
         throw new Error(result?.message || 'Failed to activate Admin');
       }
-      setMessage({ text: `Admin ${user.username || user.email} activated successfully!`, type: 'success' });
+      const adminActivatorRole = currentUser?.role || 'Unknown';
+      const adminRoleDisplay = adminActivatorRole === 'New Main Tech Officer' ? 'Tech Officer' : 
+                         adminActivatorRole === 'Temporary Tech Officer' ? 'Temporary Tech Officer' :
+                         adminActivatorRole === 'Farm Admin' ? 'Farm Admin' : 'Admin';
+      setMessage({ text: `Admin ${user.username || user.email} activated by ${adminRoleDisplay} successfully!`, type: 'success' });
       
       // Show activation toast
       addActivationToast(user.username || user.email);
@@ -1542,7 +1649,7 @@ const handleActivateFishFarmer = async (user) => {
 
   const handleDeleteUser = async (user) => {
     if (!canManageUsers) {
-      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can delete users', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can delete users', type: 'error' });
       return;
     }
     // Show custom confirmation modal
@@ -1618,7 +1725,7 @@ const handleActivateFishFarmer = async (user) => {
   // Bulk delete selected users
   const handleBulkDelete = async () => {
     if (!canManageUsers) {
-      setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can bulk delete users', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can bulk delete users', type: 'error' });
       return;
     }
     if (selectedUsers.size === 0) {
@@ -1643,7 +1750,7 @@ const handleActivateFishFarmer = async (user) => {
   const handleBulkActivate = async () => {
     try {
       if (!canManageUsers) {
-        setMessage({ text: 'Only Admins, Tech Officers, and Temporary Tech Officers can bulk activate users', type: 'error' });
+        setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can bulk activate users', type: 'error' });
         return;
       }
       if (selectedUsers.size === 0) {
@@ -2345,6 +2452,8 @@ const handleActivateFishFarmer = async (user) => {
                           <strong>{t('accountManagement.add_user_form.tto_create_notice_title')}</strong>
                           <p>{t('accountManagement.add_user_form.tto_create_notice_body1')}</p>
                           <p>{t('accountManagement.add_user_form.tto_create_notice_body2')}</p>
+                          <p>{t('accountManagement.add_user_form.tto_create_notice_body3')}</p>
+                          <p>{t('accountManagement.add_user_form.tto_create_notice_body4')}</p>
                         </>
                       )}
                     </div>
@@ -2354,12 +2463,26 @@ const handleActivateFishFarmer = async (user) => {
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
                     <div className="role-notice-content">
-                      <strong>Fish Farmer account requires admin activation</strong>
-                      <p>After creating this user, an Admin must activate the account before it can log in.</p>
+                      <strong>Fish Farmer account requires tech officer activation</strong>
+                      <p>After creating this user, a Tech Officer must activate the account before it can log in.</p>
                     </div>
                   </div>
                 )}
-              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
+                {newUser.role === 'New Main Tech Officer' && (
+                  <div className="form-role-notice">
+                    <div className="role-notice-icon">⚠️</div>
+                    <div className="role-notice-content">
+                      <strong>{t('accountManagement.add_user_form.new_main_to_notice_title')}</strong>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body1')}</p>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body2')}</p>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body3')}</p>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body4')}</p>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body5')}</p>
+                      <p>{t('accountManagement.add_user_form.new_main_to_notice_body6')}</p>
+                    </div>
+                  </div>
+                )}
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.username_label')}</label>
@@ -2412,6 +2535,7 @@ const handleActivateFishFarmer = async (user) => {
                           {!hasTechOfficer && (
                             <option value="Tech Officer">{t('accountManagement.add_user_form.tech_officer_option')}</option>
                           )}
+                          <option value="New Main Tech Officer">{t('accountManagement.add_user_form.new_main_tech_officer_option')}</option>
                           {hasTechOfficer && (
                             <option 
                               value="Temporary Tech Officer" 
@@ -2443,6 +2567,26 @@ const handleActivateFishFarmer = async (user) => {
                     </select>
                   </div>
                 )}
+                
+                {/* New Main Tech Officer Creation Mode Selection */}
+                {newUser.role === 'New Main Tech Officer' && (
+                  <div className="form-group" style={{ width: '100%' }}>
+                    <label>{t('accountManagement.add_user_form.new_main_to_creation_mode_label')}</label>
+                    <select
+                      name="newMainTOCreationMode"
+                      value={newMainTOCreationMode}
+                      onChange={(e) => setNewMainTOCreationMode(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                      required
+                    >
+                      <option value="">{t('accountManagement.add_user_form.new_main_to_creation_mode_select')}</option>
+                      <option value="reuse">{t('accountManagement.add_user_form.new_main_to_creation_mode_reuse')}</option>
+                      <option value="create">{t('accountManagement.add_user_form.new_main_to_creation_mode_create')}</option>
+                    </select>
+                  </div>
+                )}
+                
                 
                 {/* For Temporary Tech Officer: reason and optional remarks */}
                 {newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'create' && (
@@ -2628,9 +2772,92 @@ const handleActivateFishFarmer = async (user) => {
                   </>
                 )}
                 
+                {/* Reuse Existing New Main Tech Officer Account */}
+                {newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse' && (
+                  <>
+                    <div className="form-group" style={{ width: '100%' }}>
+                      <label>{t('accountManagement.add_user_form.new_main_to_select_existing_label')}</label>
+                      <div style={{ position: 'relative' }}>
+                        <select
+                          name="selectedExistingNewMainTO"
+                          value={newUser.selectedExistingNewMainTO || ''}
+                          onChange={(e) => setNewUser(prev => ({ ...prev, selectedExistingNewMainTO: e.target.value }))}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          required
+                          style={{ 
+                            width: '100%', 
+                            padding: '8px 12px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <option value="">{t('accountManagement.add_user_form.new_main_to_select_existing_placeholder')}</option>
+                          {AccountUsers
+                            .filter(user => 
+                              String(user.status || '').toLowerCase() === 'inactive' &&
+                              (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.hasBeenTempTechOfficer)
+                            )
+                            .map(user => {
+                              const currentRole = user.role || 'Unknown';
+                              const tempTOHistory = user.tempTOHistory || 'Former Temporary Tech Officer';
+                              return (
+                                <option key={user.id} value={user.id}>
+                                  {user.username} — {tempTOHistory} (Current: {currentRole})
+                                </option>
+                              );
+                            })
+                          }
+                        </select>
+                        {/* Display selected account details below the dropdown */}
+                        {newUser.selectedExistingNewMainTO && (() => {
+                          const selectedUser = AccountUsers.find(user => user.id === newUser.selectedExistingNewMainTO);
+                          if (!selectedUser) return null;
+                          
+                          const currentRole = selectedUser.role || 'Unknown';
+                          const tempTOHistory = selectedUser.tempTOHistory || 'Former Temporary Tech Officer';
+                          
+                          return (
+                            <div style={{
+                              marginTop: '8px',
+                              padding: '8px 12px',
+                              backgroundColor: '#f9fafb',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              lineHeight: '1.4'
+                            }}>
+                              <div style={{ fontWeight: '500', color: '#374151' }}>
+                                {selectedUser.username}
+                              </div>
+                              <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                                {tempTOHistory}
+                              </div>
+                              <div style={{ color: '#6b7280', fontSize: '13px' }}>
+                                Current Role: {currentRole}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <div style={{
+                        fontSize: '0.8rem',
+                        color: '#6b7280',
+                        marginTop: '4px',
+                        fontStyle: 'italic'
+                      }}>
+                        {t('accountManagement.add_user_form.new_main_to_reuse_only_inactive_note')}
+                      </div>
+                    </div>
+                    
+                  </>
+                )}
+                
                   <div className="form-group">
                     <label>{t('accountManagement.add_user_form.status_label')}</label>
-                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer' || newUser.role === 'Temporary Tech Officer') ? (
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'Admin' || newUser.role === 'Fish Farmer' || newUser.role === 'Temporary Tech Officer' || newUser.role === 'New Main Tech Officer') ? (
                       <div className="tech-officer-status-display">
                         <div className="status-display-inactive">
                           <span className="status-indicator">
@@ -2654,7 +2881,7 @@ const handleActivateFishFarmer = async (user) => {
                     )}
                   </div>
                 </div>
-              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.email_label')}</label>
@@ -2671,14 +2898,28 @@ const handleActivateFishFarmer = async (user) => {
                 </div>
               </div>
               )}
-              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 {/* Conditional Farm Selector */}
                 {currentUser?.farm ? (
                   <div className="form-group" style={{ width: '100%' }}>
                     <label>Farm</label>
-                    {(newUser.role === 'Tech Officer') ? (
-                      <input type="text" value="No farm (global access)" readOnly />
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'New Main Tech Officer' || newUser.role === 'Temporary Tech Officer') ? (
+                      <input type="text" value="(Global Access)" readOnly />
+                    ) : newUser.role === 'Admin' ? (
+                      <select
+                        name="farm"
+                        value={selectedFarmId}
+                        onChange={(e) => setSelectedFarmId(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="">Select farm</option>
+                        {farms.map(f => (
+                          <option key={f.id || ''} value={f.id || ''}>{f.name || f.id || ''}</option>
+                        ))}
+                      </select>
                     ) : (
                       <select
                         name="farm"
@@ -2690,7 +2931,7 @@ const handleActivateFishFarmer = async (user) => {
                       >
                         <option value="">Select farm</option>
                         {farms.map(f => (
-                          <option key={f.id} value={f.id}>{f.name || f.id}</option>
+                          <option key={f.id || ''} value={f.id || ''}>{f.name || f.id || ''}</option>
                         ))}
                       </select>
                     )}
@@ -2698,7 +2939,25 @@ const handleActivateFishFarmer = async (user) => {
                 ) : (
                   <div className="form-group" style={{ width: '100%' }}>
                     <label>Farm</label>
-                    <input type="text" value={assignedFarmName || currentUser.farm} readOnly />
+                    {(newUser.role === 'Tech Officer' || newUser.role === 'New Main Tech Officer' || newUser.role === 'Temporary Tech Officer') ? (
+                      <input type="text" value="(Global Access)" readOnly />
+                    ) : newUser.role === 'Admin' ? (
+                      <select
+                        name="farm"
+                        value={selectedFarmId}
+                        onChange={(e) => setSelectedFarmId(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        required
+                      >
+                        <option value="">Select farm</option>
+                        {farms.map(f => (
+                          <option key={f.id || ''} value={f.id || ''}>{f.name || f.id || ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="text" value={assignedFarmName || currentUser.farm || ''} readOnly />
+                    )}
                   </div>
                 )}
               </div>
@@ -2729,7 +2988,7 @@ const handleActivateFishFarmer = async (user) => {
                   </div>
                 </div>
               )}
-              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.address_label')}</label>
@@ -2758,7 +3017,7 @@ const handleActivateFishFarmer = async (user) => {
                 </div>
               </div>
               )}
-              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && (
+              {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
                   <label>{t('accountManagement.add_user_form.password_label')}</label>
@@ -2965,16 +3224,47 @@ const handleActivateFishFarmer = async (user) => {
                               try {
                                 // Optimistic UI update
                                 setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
-                                const result = await serviceUpdateUserStatus(
-                                  user.id,
-                                  nextStatus,
-                                  user.role,
-                                  user.collection || undefined,
-                                  user.email || undefined,
-                                  user.username || undefined
-                                );
-                                if (!result?.success) {
-                                  throw new Error(result?.error || 'Failed to update status');
+                                // For deactivation, we need to add deactivation tracking
+                                if (nextStatus === 'Inactive') {
+                                  const { updateDoc, doc } = await import('firebase/firestore');
+                                  const { db } = await import('./firebase');
+                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                  const adminRole = currentUser?.role || 'Unknown';
+                                  const deactivatedByWithRole = `${adminUser} (${adminRole})`;
+                                  
+                                  // Update the user with deactivation tracking
+                                  const userRef = doc(db, user.collection || 'users', user.id);
+                                  await updateDoc(userRef, {
+                                    status: nextStatus,
+                                    deactivatedBy: deactivatedByWithRole,
+                                    deactivatedAt: new Date().toISOString(),
+                                    deactivationReason: 'Status changed via toggle',
+                                    lastModified: new Date().toISOString()
+                                  });
+                                  
+                                  // Update local state with deactivation tracking
+                                  setAccountUsers(prev => prev.map(u => 
+                                    u.id === user.id ? { 
+                                      ...u, 
+                                      status: nextStatus.toLowerCase(),
+                                      deactivatedBy: deactivatedByWithRole,
+                                      deactivatedAt: new Date().toISOString(),
+                                      deactivationReason: 'Status changed via toggle'
+                                    } : u
+                                  ));
+                                } else {
+                                  const result = await serviceUpdateUserStatus(
+                                    user.id,
+                                    nextStatus,
+                                    user.role,
+                                    user.collection || undefined,
+                                    user.email || undefined,
+                                    user.username || undefined
+                                  );
+                                  
+                                  if (!result?.success) {
+                                    throw new Error(result?.error || 'Failed to update status');
+                                  }
                                 }
                                 // Show deactivation toast
                                 addDeactivationToast(user.username || user.email || 'User');
@@ -3029,7 +3319,7 @@ const handleActivateFishFarmer = async (user) => {
                               return (
                                 <TooltipWrapper
                                   showTooltip={!canActivate}
-                                  tooltipText={isSelfRegistered ? 'Only Admins, Tech Officers, and Temporary Tech Officers can activate this account' : 'User must login first to auto-activate'}
+                                  tooltipText={isSelfRegistered ? 'Only Tech Officers, New Main Tech Officers, and Temporary Tech Officers can activate this account' : 'User must login first to auto-activate'}
                                 >
                                   {canActivate ? (
                                     <button className="activate-tech-officer-btn" onClick={(e) => {
@@ -3159,10 +3449,23 @@ const handleActivateFishFarmer = async (user) => {
                                   }
                                   
                                   // Show regular activation message for main Tech Officers
-                                  return (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
+                                  // Determine who activated the account to show appropriate message
+                                  const activatedBy = user.activatedBy || '';
+                                  
+                                  // If activatedBy is not set (legacy accounts), default to Tech Officer since we no longer have Admins
+                                  const isActivatedByTechOfficer = activatedBy.includes('Tech Officer') || activatedBy.includes('New Main Tech Officer') || activatedBy.includes('Temporary Tech Officer') || activatedBy === '';
+                                  const isActivatedByFarmAdmin = activatedBy.includes('Farm Admin') || (activatedBy.includes('Admin') && !activatedBy.includes('Tech Officer'));
+                                  
+                                  const activationMessage = (user.emailVerified === true || String(user.emailVerified).toLowerCase() === 'true')
                                   && (user.phoneVerified === false || String(user.phoneVerified).toLowerCase() === 'false')
-                                  ? t('accountManagement.user_list.activated_by_admin_otp_notice')
-                                    : t('accountManagement.user_list.activated_by_admin_notice');
+                                  ? (isActivatedByTechOfficer ? 'ℹ️ Activated by Tech Officer. User must verify OTP to become Active again.' :
+                                     isActivatedByFarmAdmin ? 'ℹ️ Activated by Farm Admin. User must verify OTP to become Active again.' :
+                                     'ℹ️ Activated by Tech Officer. User must verify OTP to become Active again.')
+                                  : (isActivatedByTechOfficer ? 'ℹ️ Activated by Tech Officer. User must verify email to become Active.' :
+                                     isActivatedByFarmAdmin ? 'ℹ️ Activated by Farm Admin. User must verify email to become Active.' :
+                                     'ℹ️ Activated by Tech Officer. User must verify email to become Active.');
+                                  
+                                  return activationMessage;
                                 })()}
                               </span>
                             </div>
