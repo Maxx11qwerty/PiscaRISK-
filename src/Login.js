@@ -449,6 +449,16 @@ export default function Login() {
                 </span>
               </p>
 
+              <p className="mobile-app-text">
+                <span
+                  className="mobile-app-link"
+                  onClick={() => window.open('https://drive.google.com/drive/folders/your-folder-id', '_blank')}
+                  style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  📱 Get our mobile app
+                </span>
+              </p>
+
             </div>
           </form>
         </div>

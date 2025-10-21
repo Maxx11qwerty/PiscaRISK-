@@ -24,8 +24,9 @@ try {
   const hostname = window.location.hostname;
   const isProduction = hostname === 'www.piscarisk.com';
   
+  // Enhanced persistence configuration for better cross-tab support
   if (isProduction) {
-    // For production domain, use IndexedDB for better cross-tab persistence
+    // For production domain, try IndexedDB first for better cross-tab persistence
     setPersistence(auth, indexedDBLocalPersistence).catch(() => {
       console.warn('Failed to set IndexedDB persistence, falling back to localStorage');
       return setPersistence(auth, browserLocalPersistence);
@@ -33,9 +34,12 @@ try {
       console.warn('Failed to set any persistence, using default');
     });
   } else if (isEdge) {
-    // Edge sometimes has IndexedDB issues, use localStorage for better compatibility
-    setPersistence(auth, browserLocalPersistence).catch(() => {
-      console.warn('Failed to set browser persistence, using default');
+    // Edge: Try IndexedDB first, then localStorage as fallback
+    setPersistence(auth, indexedDBLocalPersistence).catch(() => {
+      console.warn('Edge: Failed to set IndexedDB persistence, trying localStorage');
+      return setPersistence(auth, browserLocalPersistence);
+    }).catch(() => {
+      console.warn('Edge: Failed to set any persistence, using default');
     });
   } else {
     // Development and other environments

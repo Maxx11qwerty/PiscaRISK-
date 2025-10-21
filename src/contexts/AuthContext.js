@@ -97,6 +97,30 @@ export const AuthProvider = ({ children }) => {
     })();
   }, []);
 
+  // Cross-tab authentication synchronization for Edge
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key && e.key.includes('firebase:authUser') && e.newValue) {
+        // Another tab logged in, refresh auth state
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          if (user && !currentUserRef.current) {
+            // Process the login from another tab
+            setCurrentUser(user);
+            setLoading(false);
+          }
+          unsubscribe();
+        });
+      }
+    };
+
+    // Listen for storage changes (cross-tab communication)
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
 
   // Email verification modal state
   const [emailVerificationModal, setEmailVerificationModal] = useState({ 
@@ -458,6 +482,17 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         isLoggingOutRef.current = false;
         // User detected, cleared logout flag
+      }
+      
+      // Enhanced cross-tab authentication detection for Edge
+      const isEdge = /Edg/.test(navigator.userAgent);
+      if (isEdge && user) {
+        // Force reload user data in Edge to ensure proper cross-tab detection
+        try {
+          await user.reload();
+        } catch (error) {
+          console.debug('Edge: Failed to reload user, continuing with existing data');
+        }
       }
       
       // Only process login if we don't already have a current user
