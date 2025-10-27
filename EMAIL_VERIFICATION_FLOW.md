@@ -17,13 +17,13 @@ This document explains the updated authentication system where **ALL users** (re
 - Verification email is sent automatically
 - **User cannot login until email is verified**
 
-### 2. **New Admin Addition (by First Admin)**
-- First admin adds new admin via Account Management
-- New admin account is created with:
+### 2. **New Account Addition (by Tech Officer)**
+- Tech Officer adds new user via Account Management
+- New user account is created with:
   - `status: "inactive"`
   - `emailVerified: false`
-  - `role: "admin"`
-- **New admin cannot login until email is verified**
+  - `role: "admin"` | `"tech_officer"` | `"temp_tech_officer"` | `"fish_farmer"`
+- **New user cannot login until email is verified**
 
 ### 3. **Login Attempts - All Methods Enforce Email Verification**
 
@@ -35,21 +35,14 @@ This document explains the updated authentication system where **ALL users** (re
 5. **Only if email verified AND status active** → Login successful
 6. **Status auto-update**: If email verified but status inactive → Status becomes "active"
 
-#### **B. Google Sign-In**
-1. User clicks Google Sign-In
-2. Google authentication completes
+#### **B. Phone Number Login**
+1. User enters phone number and password
+2. System validates Philippine mobile number format
 3. **Email verification check**: If `emailVerified: false` → **BLOCKED**
 4. **Status check**: If `status: "inactive"` → **BLOCKED**
 5. **Only if email verified AND status active** → Login successful
 6. **Status auto-update**: If email verified but status inactive → Status becomes "active"
-
-#### **C. Facebook Sign-In**
-1. User clicks Facebook Sign-In
-2. Facebook authentication completes
-3. **Email verification check**: If `emailVerified: false` → **BLOCKED**
-4. **Status check**: If `status: "inactive"` → **BLOCKED**
-5. **Only if email verified AND status active** → Login successful
-6. **Status auto-update**: If email verified but status inactive → Status becomes "active"
+7. **OTP Verification**: On first login, phone number verification via OTP required
 
 ## Error Messages
 
@@ -120,11 +113,11 @@ New User/Admin Created
 {
   email: "user@example.com",
   username: "username",
-  role: "tech_officer" | "admin",
+  role: "tech_officer" | "admin" | "temp_tech_officer" | "fish_farmer",
   status: "inactive",           // Must be activated
   emailVerified: false,         // Must be verified
   createdAt: timestamp,
-  createdBy: "admin_uid" | "self"
+  createdBy: "tech_officer_uid" | "admin_uid" | "self"
 }
 ```
 
@@ -158,19 +151,19 @@ New User/Admin Created
 
 ## Security Benefits
 
-1. **No Bypass**: Social login cannot bypass email verification
-2. **Consistent Enforcement**: All login methods follow same rules
-3. **Proper Activation**: Status only becomes "active" after verification
-4. **Dashboard Protection**: Unverified users cannot access dashboard
-5. **Audit Trail**: All status changes are logged with timestamps
+1. **Email Verification Required**: Cannot access dashboard without verified email
+2. **Phone Verification**: Mandatory OTP verification on first login
+3. **Consistent Enforcement**: All login methods (email/phone) follow same rules
+4. **Proper Activation**: Status only becomes "active" after verification
+5. **Dashboard Protection**: Unverified users cannot access dashboard
+6. **Audit Trail**: All status changes and verifications are logged with timestamps
 
 ## Testing Scenarios
 
 ### **Scenario 1: New User with Unverified Email**
 1. User signs up → Status: "inactive", EmailVerified: false
-2. User tries traditional login → **BLOCKED**: "Please verify your email"
-3. User tries Google login → **BLOCKED**: "Please verify your email"
-4. User tries Facebook login → **BLOCKED**: "Please verify your email"
+2. User tries email login → **BLOCKED**: "Please verify your email"
+3. User tries phone login → **BLOCKED**: "Please verify your email"
 
 ### **Scenario 2: User with Verified Email but Inactive Status**
 1. User verifies email → EmailVerified: true, Status: "inactive"
@@ -184,16 +177,18 @@ New User/Admin Created
 
 ## Implementation Details
 
-### **Google Sign-In Enforcement**
-- Checks email existence in Firestore before UID lookup
-- Links Google UID to existing Firestore document
+### **Phone Number Login Enforcement**
+- Validates Philippine mobile number format
+- Normalizes phone number to E.164 format
+- Checks phone number in Firestore
 - Enforces email verification before allowing access
 - Auto-updates status to "active" after verification
 
-### **Facebook Sign-In Enforcement**
-- Same logic as Google Sign-In
-- Prevents bypass of email verification
-- Maintains consistent security rules
+### **Phone Number OTP Verification**
+- Triggered on first successful login
+- Sends OTP via SMS to Philippine mobile number
+- Verifies phone number ownership
+- Required before accessing full dashboard features
 
 ### **Traditional Login Enforcement**
 - Checks email verification status for all users

@@ -198,7 +198,7 @@ const AccountManagement = () => {
             const { db } = await import('./firebase');
             const now = new Date();
             
-            await updateDoc(doc(db, 'users', user.id), { 
+            const updateData = { 
               status: 'Inactive',
               lastModified: now.toISOString(),
               deactivatedBy: 'System (Auto)',
@@ -208,7 +208,18 @@ const AccountManagement = () => {
               temporaryTechOfficer: false,
               adminActivated: false,
               emailVerified: false
-            });
+            };
+            
+            // Update both collections
+            try {
+              await updateDoc(doc(db, 'users', user.id), updateData);
+            } catch (error) {
+            }
+            
+            try {
+              await updateDoc(doc(db, 'mobileUsers', user.id), updateData);
+            } catch (error) {
+            }
             
             // Log the auto-deactivation
             try {
@@ -262,10 +273,8 @@ const AccountManagement = () => {
                 } : u));
               }
             } catch (e) {
-              console.error("Failed to clear temp replacement flag:", e);
             }
           } catch (error) {
-            console.error(`Failed to auto-deactivate ${user.username}:`, error);
           }
         }
       }
@@ -309,7 +318,6 @@ const AccountManagement = () => {
               hasActiveTempReplacement: true
             } : u));
           } catch (e) {
-            console.error("Failed to sync main Tech Officer status:", e);
           }
         }
       }
@@ -540,8 +548,13 @@ const AccountManagement = () => {
   useEffect(() => {
     fetchUsers();
     // Real-time: refresh list when users/mobileUsers change
-    const unsubUsers = onSnapshot(collection(db, 'users'), () => fetchUsers());
-    const unsubMobileUsers = onSnapshot(collection(db, 'mobileUsers'), () => fetchUsers());
+    // Add small delay to prevent race conditions with local updates
+    const unsubUsers = onSnapshot(collection(db, 'users'), () => {
+      setTimeout(() => fetchUsers(), 100);
+    });
+    const unsubMobileUsers = onSnapshot(collection(db, 'mobileUsers'), () => {
+      setTimeout(() => fetchUsers(), 100);
+    });
     return () => {
       unsubUsers && unsubUsers();
       unsubMobileUsers && unsubMobileUsers();
@@ -553,6 +566,7 @@ const AccountManagement = () => {
       const users = await fetchAllUsers();
       if (users.length > 0) {        
       }
+      // Debug: Log when users are fetched to help identify reversion issues
       setAccountUsers(users);
     } catch (error) {
       setMessage({ text: 'Error fetching users', type: 'error' });
@@ -663,7 +677,7 @@ const AccountManagement = () => {
       const adminRole = currentUser?.role || 'Unknown';
       const deactivatedByWithRole = `${adminUser} (${adminRole})`;
       
-      await updateDoc(doc(db, 'users', user.id), { 
+      const updateData = { 
         status: 'Inactive',
         lastModified: now.toISOString(),
         deactivatedBy: deactivatedByWithRole,
@@ -673,7 +687,18 @@ const AccountManagement = () => {
         temporaryTechOfficer: false,
         adminActivated: false,
         emailVerified: false
-      });
+      };
+      
+      // Update both collections
+      try {
+        await updateDoc(doc(db, 'users', user.id), updateData);
+      } catch (error) {
+      }
+      
+      try {
+        await updateDoc(doc(db, 'mobileUsers', user.id), updateData);
+      } catch (error) {
+      }
       
       // Log the manual deactivation
       try {
@@ -726,7 +751,6 @@ const AccountManagement = () => {
           } : u));
         }
       } catch (e) {
-        console.error("Failed to clear temp replacement flag:", e);
       }
       
       // Show deactivation toast
@@ -1093,7 +1117,6 @@ const AccountManagement = () => {
           setShowAddUserForm(false);
           return;
         } catch (error) {
-          console.error('Error updating TTO account:', error);
           setMessage({ text: 'Failed to update Temporary Tech Officer account', type: 'error' });
           return;
         }
@@ -1154,7 +1177,6 @@ const AccountManagement = () => {
           setShowAddUserForm(false);
           return;
         } catch (error) {
-          console.error('Error updating New Main Tech Officer account:', error);
           setMessage({ text: 'Failed to update New Main Tech Officer account', type: 'error' });
           return;
         }
@@ -1464,7 +1486,6 @@ const AccountManagement = () => {
           lastModified: serverTimestamp()
         });
       } catch (e) {
-        console.error("Failed to update Firestore status:", e);
       }
 
       // If this is a Temporary Tech Officer being activated, set main Tech Officer to Inactive
@@ -1500,7 +1521,6 @@ const AccountManagement = () => {
             } : u));
           }
         } catch (e) {
-          console.error("Failed to update main Tech Officer status:", e);
         }
       }
       
@@ -1817,9 +1837,9 @@ const handleActivateFishFarmer = async (user) => {
       if (errorCount === 0) {
         setMessage({ text: `Successfully deleted ${successCount} users!`, type: 'success' });
       } else if (successCount > 0) {
-        setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. Check console for details.`, type: 'warning' });
+        setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. ` });
       } else {
-        setMessage({ text: `Failed to delete any users. Check console for details.`, type: 'error' });
+        setMessage({ text: `Failed to delete any users.` });
       }
       
       // Clear selection
@@ -1835,7 +1855,6 @@ const handleActivateFishFarmer = async (user) => {
       
       // Log errors for debugging
       if (errors.length > 0) {
-        console.error('Bulk delete errors:', errors);
       }
       
     } catch (error) {
@@ -3222,50 +3241,34 @@ const handleActivateFishFarmer = async (user) => {
                               if (current !== 'active') return;
                               const nextStatus = 'Inactive';
                               try {
-                                // Optimistic UI update
-                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: nextStatus.toLowerCase() } : u));
-                                // For deactivation, we need to add deactivation tracking
-                                if (nextStatus === 'Inactive') {
-                                  const { updateDoc, doc } = await import('firebase/firestore');
-                                  const { db } = await import('./firebase');
-                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                                  const adminRole = currentUser?.role || 'Unknown';
-                                  const deactivatedByWithRole = `${adminUser} (${adminRole})`;
-                                  
-                                  // Update the user with deactivation tracking
-                                  const userRef = doc(db, user.collection || 'users', user.id);
-                                  await updateDoc(userRef, {
-                                    status: nextStatus,
+                                // Use service function for consistent handling of both collections
+                                const result = await serviceUpdateUserStatus(
+                                  user.id,
+                                  nextStatus,
+                                  user.role,
+                                  user.collection || undefined,
+                                  user.email || undefined,
+                                  user.username || undefined
+                                );
+                                
+                                if (!result?.success) {
+                                  throw new Error(result?.error || 'Failed to update status');
+                                }
+                                
+                                // Update local state with deactivation tracking
+                                const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                                const adminRole = currentUser?.role || 'Unknown';
+                                const deactivatedByWithRole = `${adminUser} (${adminRole})`;
+                                
+                                setAccountUsers(prev => prev.map(u => 
+                                  u.id === user.id ? { 
+                                    ...u, 
+                                    status: nextStatus.toLowerCase(),
                                     deactivatedBy: deactivatedByWithRole,
                                     deactivatedAt: new Date().toISOString(),
-                                    deactivationReason: 'Status changed via toggle',
-                                    lastModified: new Date().toISOString()
-                                  });
-                                  
-                                  // Update local state with deactivation tracking
-                                  setAccountUsers(prev => prev.map(u => 
-                                    u.id === user.id ? { 
-                                      ...u, 
-                                      status: nextStatus.toLowerCase(),
-                                      deactivatedBy: deactivatedByWithRole,
-                                      deactivatedAt: new Date().toISOString(),
-                                      deactivationReason: 'Status changed via toggle'
-                                    } : u
-                                  ));
-                                } else {
-                                  const result = await serviceUpdateUserStatus(
-                                    user.id,
-                                    nextStatus,
-                                    user.role,
-                                    user.collection || undefined,
-                                    user.email || undefined,
-                                    user.username || undefined
-                                  );
-                                  
-                                  if (!result?.success) {
-                                    throw new Error(result?.error || 'Failed to update status');
-                                  }
-                                }
+                                    deactivationReason: 'Status changed via toggle'
+                                  } : u
+                                ));
                                 // Show deactivation toast
                                 addDeactivationToast(user.username || user.email || 'User');
                                 setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
