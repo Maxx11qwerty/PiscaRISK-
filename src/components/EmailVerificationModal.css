@@ -209,6 +209,53 @@
   transform: none;
 }
 
+.check-verified-button {
+  background: #2C517D;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 22px;
+  box-shadow: 0 4px 16px rgba(44,81,125,0.09);
+  min-width: 130px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.check-verified-button:hover {
+  background: linear-gradient(90deg, #2C517D 0%, #3a68a1 100%);
+  box-shadow: 0 6px 20px rgba(44,81,125,0.15);
+  transform: translateY(-1px) scale(1.03);
+}
+
+.check-verified-button:active {
+  background: #2C517D;
+  transform: translateY(0) scale(1);
+}
+
+.check-message {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.98rem;
+  text-align: center;
+  margin: 10px 0 5px 0;
+  font-weight: 600;
+}
+
+.check-message.error, .check-message:not(.success) {
+  background: #fff0f0;
+  color: #ca1f1f;
+  border: 1px solid #ffabab;
+}
+
+.check-message.success {
+  background: #e7ffea;
+  color: #20711c;
+  border: 1px solid #9be6a7;
+}
+
 /* Responsive design */
 @media (max-width: 480px) {
   .email-verification-modal-overlay {

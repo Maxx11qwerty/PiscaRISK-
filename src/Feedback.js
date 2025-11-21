@@ -159,12 +159,8 @@ const Feedback = () => {
             }));
           }
 
-          // Log feedback submissions
-          if (data.source === 'mobile') {
-            logActivity('feedback', logMessages.feedback.mobileSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
-          } else {
-            logActivity('feedback', logMessages.feedback.webSubmit(data.userName || 'Anonymous', data.concern || 'feedback'), data.userName || 'Anonymous', data.timestamp);
-          }
+          // Note: Feedback logging is handled by Cloud Function logFeedbackOnCreate
+          // to avoid duplicate logs when fetching existing feedbacks
           
           // Process replies if they exist
           const processedReplies = data.replies?.map(reply => ({
@@ -233,7 +229,6 @@ const Feedback = () => {
               }
               // sender farm resolution debug removed
             } catch (error) {
-              console.warn('Could not fetch user farm data for feedback:', error);
             }
           }
 
@@ -266,12 +261,6 @@ const Feedback = () => {
         // processed feedbacks debug removed
         setFeedbacks(fetchedFeedbacks);
       } catch (error) {
-        console.error('Error fetching feedbacks:', error);
-        console.error('Error details:', {
-          code: error.code,
-          message: error.message,
-          stack: error.stack
-        });
         logActivity('error', logMessages.error.database(`Error fetching feedbacks: ${error.message}`), 'System');
         setFeedbacks([]);
       } finally {
@@ -462,7 +451,6 @@ const Feedback = () => {
         if (isNarrow) setInboxOpen(false);
         logActivity('feedback', `Feedback from ${feedback.userName || feedback.user || 'Anonymous'} marked as read by ${currentUser?.username || 'Admin'}`, currentUser?.username);
       } catch (error) {
-        console.error('Error marking feedback as read:', error);
         logActivity('error', `Failed to mark feedback as read: ${error.message}`, currentUser?.username);
         // If marking as read fails, still show the feedback
         setSelectedFeedback(feedback);
@@ -557,7 +545,6 @@ const Feedback = () => {
       setReplyText('');
       logActivity('feedback', `Admin response added to feedback by ${currentUser?.username || 'Admin'}`, currentUser?.username);
     } catch (error) {
-      console.error('Error adding reply:', error);
       logActivity('error', `Failed to add reply: ${error.message}`, currentUser?.username);
     } finally {
       setIsReplying(false);
@@ -607,7 +594,6 @@ const Feedback = () => {
       logActivity('feedback', `Feedback archived by ${currentUser?.username || 'Admin'}`, currentUser?.username);
       setShowActions(null);
     } catch (error) {
-      console.error('Error archiving feedback:', error);
       logActivity('error', `Failed to archive feedback: ${error.message}`, currentUser?.username);
     } finally {
       setIsArchiving(false);
@@ -641,7 +627,6 @@ const Feedback = () => {
       logActivity('feedback', `Feedback unarchived by ${currentUser?.username || 'Admin'}`, currentUser?.username);
       setShowActions(null);
     } catch (error) {
-      console.error('Error unarchiving feedback:', error);
       logActivity('error', `Failed to unarchive feedback: ${error.message}`, currentUser?.username);
     } finally {
       setIsUnarchiving(false);
@@ -674,7 +659,6 @@ const Feedback = () => {
 
       logActivity('feedback', `Feedback marked as read by ${currentUser?.username || 'Admin'}`, currentUser?.username);
     } catch (error) {
-      console.error('Error marking feedback as read:', error);
       logActivity('error', `Failed to mark feedback as read: ${error.message}`, currentUser?.username);
     } finally {
       setIsMarkingRead(false);
@@ -797,7 +781,6 @@ const Feedback = () => {
       logActivity('feedback', `Feedback deleted by ${currentUser?.username || 'Admin'}`, currentUser?.username);
       setShowActions(null);
     } catch (error) {
-      console.error('Error deleting feedback:', error);
       logActivity('error', `Failed to delete feedback: ${error.message}`, currentUser?.username);
     } finally {
       setIsDeleting(false);

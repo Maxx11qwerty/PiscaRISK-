@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext  } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaEnvelope, FaUser, FaLock, FaPhone } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaEnvelope, FaUser, FaLock, FaPhone, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import { logActivity, logMessages } from './utils/logger';
@@ -8,6 +8,39 @@ import { formatUserInputPH, validatePhilippineMobile, normalizeToE164PH, display
 import "./SignupPage.css";
 import "./SignupPage.responsive.css";
 // OTPVerification removed (unused)
+
+const PASSWORD_REQUIREMENTS = [
+  {
+    id: 'uppercase',
+    label: 'At least 1 uppercase letter (A–Z)',
+    errorMessage: 'Password must contain at least one uppercase letter (A–Z).',
+    test: (password) => /[A-Z]/.test(password || '')
+  },
+  {
+    id: 'lowercase',
+    label: 'At least 1 lowercase letter (a–z)',
+    errorMessage: 'Password must contain at least one lowercase letter (a–z).',
+    test: (password) => /[a-z]/.test(password || '')
+  },
+  {
+    id: 'number',
+    label: 'At least 1 number (0–9)',
+    errorMessage: 'Password must contain at least one number (0–9).',
+    test: (password) => /[0-9]/.test(password || '')
+  },
+  {
+    id: 'special',
+    label: 'At least 1 special character (!@#$%^&*)',
+    errorMessage: 'Password must contain at least one special character (!@#$%^&*).',
+    test: (password) => /[!@#$%^&*]/.test(password || '')
+  },
+  {
+    id: 'length',
+    label: 'Minimum 8 characters',
+    errorMessage: 'Password must be at least 8 characters long.',
+    test: (password) => (password || '').length >= 8
+  }
+];
 
 export default function SignupPage() {
   // Custom hook for screen size tracking
@@ -63,6 +96,9 @@ export default function SignupPage() {
   const [contactInvalidMsg, setContactInvalidMsg] = useState("");
   const [farms, setFarms] = useState([]);
   const [loadingFarms, setLoadingFarms] = useState(true);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   // Google signup removed (unused UI)
 
   // Clear localStorage when component mounts (for development only)
@@ -124,6 +160,13 @@ export default function SignupPage() {
     }
   }, [error]);
 
+  const validatePassword = (password) => {
+    if (!password) return [];
+    return PASSWORD_REQUIREMENTS
+      .filter(({ test }) => !test(password))
+      .map(({ errorMessage }) => errorMessage);
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -180,6 +223,16 @@ export default function SignupPage() {
       return;
     }
 
+    if (name === "password") {
+      const errors = validatePassword(value);
+      setPasswordErrors(errors);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -188,6 +241,10 @@ export default function SignupPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+    
     // Check for empty fields
     if (!formData.email.trim() || !formData.username.trim() || !formData.contactNumber.trim() || !formData.farmId || !formData.password.trim() || !formData.confirmPassword.trim()) {
       const errorMsg = "All fields are required";
@@ -211,6 +268,14 @@ export default function SignupPage() {
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
       return;
     }
+    const passwordValidationErrors = validatePassword(formData.password);
+    if (passwordValidationErrors.length > 0) {
+      const errorMsg = passwordValidationErrors[0];
+      setPasswordErrors(passwordValidationErrors);
+      setError(errorMsg);
+      logActivity('error', logMessages.error.validation(errorMsg), formData.username);
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       const errorMsg = "Passwords do not match";
       setError(errorMsg);
@@ -223,6 +288,11 @@ export default function SignupPage() {
       logActivity('error', logMessages.error.validation(errorMsg), formData.username);
       return;
     }
+    
+    setIsSubmitting(true);
+    setError('');
+    setSuccess('');
+    
     try {
       // Always send normalized E.164 (+63) to backend
       const normalizedContact = normalizeToE164PH(formData.contactNumber);
@@ -238,6 +308,7 @@ export default function SignupPage() {
       // Show success message
       setError('');
       setSuccess('Account successfully created. Redirecting to login...');
+      setPasswordErrors([]);
       
       // Navigate to login page after a short delay
       setTimeout(() => {
@@ -247,6 +318,7 @@ export default function SignupPage() {
       setSuccess('');
       setError(err.message);
       logActivity('error', logMessages.error.validation(err.message), formData.username);
+      setIsSubmitting(false);
     }
   };
 
@@ -369,13 +441,16 @@ export default function SignupPage() {
                 placeholder="Password"
                 value={formData.password}
                 onChange={handleChange}
-                className="signup-password-input"
+                onFocus={() => setIsPasswordFocused(true)}
+                onBlur={() => setIsPasswordFocused(false)}
+                className={`signup-password-input${passwordErrors.length ? ' invalid' : ''}`}
                 required
               />
               <button 
                 type="button"
                 className="signup-password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
+                onMouseDown={(e) => e.preventDefault()}
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
@@ -384,6 +459,32 @@ export default function SignupPage() {
                   <FaEye className="signup-eye-icon" />
                 )}
               </button>
+              {isPasswordFocused && (
+                <div className="password-criteria-tooltip" role="status" aria-live="polite">
+                  <div className="password-criteria-arrow" />
+                  <p className="password-criteria-heading">
+                    Password must meet the following requirements:
+                  </p>
+                  <ul className="password-criteria-list">
+                    {PASSWORD_REQUIREMENTS.map((requirement) => {
+                      const meets = requirement.test(formData.password);
+                      return (
+                        <li
+                          key={requirement.id}
+                          className={`password-criteria-item ${meets ? 'valid' : 'invalid'}`}
+                        >
+                          {meets ? (
+                            <FaCheckCircle className="password-criteria-icon valid" />
+                          ) : (
+                            <FaTimesCircle className="password-criteria-icon invalid" />
+                          )}
+                          <span>{requirement.label}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
             </div>{/* end sign-fields */}
 
@@ -431,11 +532,28 @@ export default function SignupPage() {
 
             <div className="create-btn-container">
             <button
-            type="button"
+            type="submit"
             className="create-btn"
-            onClick={handleSubmit} // Changed from navigate("/") to handleSubmit
+            disabled={isSubmitting}
           >
-            Create Account
+            {isSubmitting ? (
+              <>
+                <span className="spinner" style={{ 
+                  display: 'inline-block', 
+                  width: '16px', 
+                  height: '16px', 
+                  border: '2px solid #ffffff', 
+                  borderTop: '2px solid transparent', 
+                  borderRadius: '50%', 
+                  animation: 'spin 0.8s linear infinite',
+                  marginRight: '8px',
+                  verticalAlign: 'middle'
+                }}></span>
+                Creating Account...
+              </>
+            ) : (
+              'Create Account'
+            )}
           </button>
           </div>
           

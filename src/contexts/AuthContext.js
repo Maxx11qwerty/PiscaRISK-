@@ -67,12 +67,10 @@ export const AuthProvider = ({ children }) => {
         
         // If user status is inactive, automatically logout
         if (status === 'inactive') {
-          console.log('User account deactivated, logging out...');
           logout();
         }
       }
     }, (error) => {
-      console.error('Error monitoring user status:', error);
       // Don't logout on network errors - only on actual status changes
       // This prevents false logouts due to temporary network issues
     });
@@ -102,13 +100,36 @@ export const AuthProvider = ({ children }) => {
     const handleStorageChange = (e) => {
       if (e.key && e.key.includes('firebase:authUser') && e.newValue) {
         // Another tab logged in, refresh auth state
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          if (user && !currentUserRef.current) {
-            // Process the login from another tab
-            setCurrentUser(user);
-            setLoading(false);
+        onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            // Fetch Firestore user
+            let data = null;
+            try {
+              let snap = await getDoc(doc(db, 'users', user.uid));
+              if (snap.exists()) data = snap.data();
+            } catch (e) { data = null; }
+            const valid = (
+              data &&
+              String(data.status || '').toLowerCase() === 'active' &&
+              data.phoneVerified === true &&
+              user.emailVerified === true
+            );
+            if (valid) {
+              setCurrentUser({
+                ...data,
+                uid: user.uid,
+                email: user.email,
+                emailVerified: user.emailVerified,
+                phoneVerified: data.phoneVerified,
+                status: data.status,
+              });
+            } else {
+              setCurrentUser(null);
+            }
+          } else {
+            setCurrentUser(null);
           }
-          unsubscribe();
+          setLoading(false);
         });
       }
     };
@@ -207,74 +228,51 @@ export const AuthProvider = ({ children }) => {
   const handlePhoneVerificationSuccess = async (phoneAuthResult) => {
     try {
       const { userId, userData } = phoneVerificationModal;
-      
+
+      if (!userId) {
+        throw new Error('Missing userId for phone verification.');
+      }
       // Check if this is a test user (skip Firestore update for test)
       if (userId === 'test-user-id' || userId === 'real-test-user-id') {
-        
-        // Update current user data
-        setCurrentUser(prev => ({
-          ...prev,
-          phoneVerified: true
-        }));
-
-        // Close the modal
+        setCurrentUser(prev => ({ ...prev, phoneVerified: true }));
         closePhoneVerificationModal();
-
         return { success: true, message: 'Test phone verification successful!' };
       }
-      
-      // Update Firestore with phoneVerified: true for real users
+      // Update Firestore only if userId is present
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         phoneVerified: true,
         lastModified: serverTimestamp()
       });
-
-      // Refresh the complete user data from Firestore to ensure all fields are properly loaded
       const updatedUserDoc = await getDoc(userRef);
       if (updatedUserDoc.exists()) {
         const updatedUserData = updatedUserDoc.data();
-        
-        // Set the complete current user data with all fields
-        // This ensures the user sees their proper name and data after phone verification
         setCurrentUser({
           uid: userId,
-          email: userData.email, // Use the email from userData since auth.currentUser might be null
+          email: userData.email || auth.currentUser?.email,
           username: updatedUserData.username,
           role: updatedUserData.role,
           profileImage: updatedUserData.profileImage || null,
           dateJoined: updatedUserData.dateJoined || new Date().toISOString().split('T')[0],
-          emailVerified: true, // Phone verification implies email is verified
+          emailVerified: true,
           status: updatedUserData.status,
-          phoneVerified: true, // This is the key field we just updated
-          // Add data from main user document
+          phoneVerified: true,
           address: updatedUserData.address || '',
           fullName: updatedUserData.fullName || '',
           contact: updatedUserData.contactNumber || '',
-          // Add farm information
           farm: updatedUserData.farm || null
         });
       } else {
-        // Fallback: just update the phoneVerified field if document doesn't exist
-        setCurrentUser(prev => ({
-          ...prev,
-          phoneVerified: true
-        }));
+        setCurrentUser(prev => ({ ...prev, phoneVerified: true }));
       }
-
-      // Close the modal
       closePhoneVerificationModal();
-
-      // Log the activity
-      await logActivity('phone_verification', `Phone verified for user: ${userData.email}`, userData.email);
-
+      await logActivity('phone_verification', 'Phone verified', userData.email);
       return { success: true };
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
         console.error('Error updating phone verification status:', error);
       }
-      return { success: false, message: 'Failed to update phone verification status' };
+      return { success: false, message: error.message || 'Failed to update phone verification status' };
     }
   };
 
@@ -285,6 +283,22 @@ export const AuthProvider = ({ children }) => {
       if (now < resendVerificationCooldownUntilRef.current) {
         const secondsLeft = Math.ceil((resendVerificationCooldownUntilRef.current - now) / 1000);
         return { success: false, message: `Please wait ${secondsLeft}s before resending verification.` };
+      }
+
+      // If a user is currently signed in (e.g., TTO login was allowed), we can send directly
+      if (auth.currentUser) {
+        try {
+          await auth.currentUser.reload();
+        } catch (_) {}
+        if (auth.currentUser.emailVerified) {
+          return { success: false, message: 'Email is already verified' };
+        }
+        await sendEmailVerification(auth.currentUser, {
+          url: window.location.origin + '/',
+          handleCodeInApp: true
+        });
+        resendVerificationCooldownUntilRef.current = Date.now() + 90_000;
+        return { success: true, message: 'Verification email sent! Please check your inbox (and spam folder).' };
       }
 
       if (!emailVerificationModal.email || !emailVerificationModal.tempPassword) {
@@ -309,7 +323,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         await sendEmailVerification(userCredential.user, {
-          url: window.location.origin + '/login',
+          url: window.location.origin + '/',
           handleCodeInApp: true
         });
 
@@ -491,7 +505,6 @@ export const AuthProvider = ({ children }) => {
         try {
           await user.reload();
         } catch (error) {
-          console.debug('Edge: Failed to reload user, continuing with existing data');
         }
       }
       
@@ -729,6 +742,9 @@ const login = async (emailOrContact, password) => {
       // If adminActivated is true, allow the login to proceed to Firebase Auth
       // We'll check email verification after successful Firebase Auth login
       
+      // When logging in with phone number, use the email from Firestore
+      // But if email was changed, Firebase Auth still has the old email
+      // We'll try the new email first, and if it fails, we'll handle it in the catch block
       email = userData.email;
     } else {
       // If input is an email, we need to check adminActivated before proceeding
@@ -749,13 +765,12 @@ const login = async (emailOrContact, password) => {
         }
       }
       
-      if (querySnapshot.empty) {
-        return { success: false, message: "Invalid email/contact number or password" };
+      // If not found by email, don't block yet; we'll try Firebase Auth and then fetch by UID
+      if (!querySnapshot.empty) {
+        // Get the user data from the document
+        const userDoc = querySnapshot.docs[0];
+        userData = userDoc.data();
       }
-
-      // Get the user data from the document
-      const userDoc = querySnapshot.docs[0];
-      userData = userDoc.data();
       
       // Check if account is suspended (always block suspended accounts)
       if (userData.status === 'suspended') {
@@ -788,9 +803,36 @@ const login = async (emailOrContact, password) => {
     } catch (_) {
       try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
     }
-
-    // Now login with the email
-    const userCredential = await signInWithEmailAndPassword(auth, email, rawPassword);
+    
+    let userCredential;
+    try {
+      userCredential = await signInWithEmailAndPassword(auth, email, rawPassword);
+    } catch (loginError) {
+      
+      // If login fails and we're logging in with phone number, the email might have changed
+      // Firebase Auth still has the old email, so we need to try the old email (previousEmail)
+      if (!rawEmailOrContact.includes('@') && userData && 
+          (loginError.code === 'auth/user-not-found' || loginError.code === 'auth/invalid-credential')) {
+        
+        // Try to login with the old email (previousEmail) if it exists
+        if (userData.previousEmail) {
+          try {
+            userCredential = await signInWithEmailAndPassword(auth, userData.previousEmail, rawPassword);
+            // If successful, update email to use the old email for the rest of the login flow
+            email = userData.previousEmail;
+          } catch (retryError) {
+            // If old email also fails, throw the original error
+            throw loginError;
+          }
+        } else {
+          // No previous email stored, throw the original error
+          // But provide a more helpful error message
+          throw new Error('Your email was recently changed but the old email is not available for login. Please verify your new email address or contact support for assistance.');
+        }
+      } else {
+        throw loginError;
+      }
+    }
     
     // Double check status in case email was used directly
     if (!userData) {
@@ -809,22 +851,91 @@ const login = async (emailOrContact, password) => {
     }
     
     if (userData) {
-      // Ensure Firestore reflects latest emailVerified status on every successful login
-      try {
-        const targetRef = doc(db, collectionName, userCredential.user.uid);
-        await updateDoc(targetRef, {
-          emailVerified: !!userCredential.user.emailVerified,
-          lastModified: serverTimestamp()
-        });
-      } catch (_) {}
-
-      // Check if account is suspended (always block suspended accounts)
-      if (userData.status === 'suspended') {
+      // Check if email in Firestore matches email in Firebase Auth
+      // If they don't match, user changed email but hasn't verified it yet
+      const firestoreEmail = String(userData.email || '').trim().toLowerCase();
+      const authEmail = String(userCredential.user.email || '').trim().toLowerCase();
+      const emailsMatch = firestoreEmail !== '' && firestoreEmail === authEmail;
+    
+      
+      // Step 1: If email is not verified, trigger email verification modal flow
+      // BUT: Skip this check if emails don't match (user changed email - allow login with phone)
+      if (emailsMatch && !userCredential.user.emailVerified) {
         await signOut(auth);
         return {
           success: false,
-          message: "Your account has been suspended. Please contact support for assistance."
+          code: 'show_verification_modal',
+          email: email,
+          password: password,
+          message: ''
         };
+      }
+      
+      // Ensure Firestore reflects latest emailVerified status on every successful login
+      // Only update if emails match (normal case)
+      if (emailsMatch) {
+        try {
+          const targetRef = doc(db, collectionName, userCredential.user.uid);
+          await updateDoc(targetRef, {
+            emailVerified: !!userCredential.user.emailVerified,
+            lastModified: serverTimestamp()
+          });
+        } catch (_) {}
+      }
+
+      // BLOCK LOGIN if not all requirements are met:
+      const statusLowerLoginCheck = String(userData.status || '').toLowerCase();
+      
+      // If emails don't match, user changed email but hasn't verified new one
+      // In this case, allow login with phone number only (ignore email verification requirement)
+      // If emails match, require both email and phone verification (normal case)
+      const emailVerifiedLoginCheck = emailsMatch 
+        ? !!userCredential.user.emailVerified 
+        : true; // Allow login if email was changed (will be verified later)
+      
+      const phoneVerifiedLoginCheck = !!userData.phoneVerified;
+      
+      // If emails don't match (email changed), only require phone verification
+      // If emails match (normal case), require both email and phone verification
+      const loginRequirementsMet = emailsMatch
+        ? (emailVerifiedLoginCheck && phoneVerifiedLoginCheck) // Normal case: both required
+        : phoneVerifiedLoginCheck; // Email changed: only phone required
+    
+      
+      if (statusLowerLoginCheck !== 'active' || !loginRequirementsMet) {
+        // If email is verified but phone is not, trigger OTP modal instead of generic error
+        if (statusLowerLoginCheck === 'active' && emailVerifiedLoginCheck && !phoneVerifiedLoginCheck) {
+          await signOut(auth);
+          // Build normalized +63 phone number for modal
+          let phoneNumber = null;
+          if (userData.contactNumber) {
+            let cleanNumber = userData.contactNumber.replace(/\s/g, '');
+            if (cleanNumber.startsWith('+63')) cleanNumber = cleanNumber.substring(3);
+            if (cleanNumber.length === 10) phoneNumber = `+63${cleanNumber}`;
+            else if (cleanNumber.length === 11 && cleanNumber.startsWith('0')) phoneNumber = `+63${cleanNumber.substring(1)}`;
+            else phoneNumber = `+63${cleanNumber}`;
+          }
+          return {
+            success: false,
+            code: 'show_phone_verification',
+            phoneNumber,
+            userId: userCredential.user.uid,
+            userData,
+            message: 'Please verify your phone number to complete login'
+          };
+        }
+        await signOut(auth);
+        let errorMsg = 'Login failed: ';
+        if (statusLowerLoginCheck !== 'active') errorMsg += 'Your account is not active. ';
+        if (emailsMatch) {
+          // Normal case: both email and phone must be verified
+          if (!emailVerifiedLoginCheck) errorMsg += 'Please verify your email address before logging in. ';
+          if (!phoneVerifiedLoginCheck) errorMsg += 'Please verify your phone number before logging in.';
+        } else {
+          // Email changed: only phone required
+          if (!phoneVerifiedLoginCheck) errorMsg += 'Please verify your phone number before logging in.';
+        }
+        return { success: false, message: errorMsg.trim() };
       }
 
       // Allow Admin accounts to login regardless of status (except suspended)
@@ -1040,6 +1151,18 @@ const login = async (emailOrContact, password) => {
     // Set flag to prevent auth state change handler from running
     isProcessingLoginRef.current = true;
     
+    // Check if email in Firestore matches email in Firebase Auth
+    // If they don't match, use Firestore's emailVerified status (for pending email change)
+    const firestoreEmailForUser = String(userData.email || '').trim().toLowerCase();
+    const authEmailForUser = String(userCredential.user.email || '').trim().toLowerCase();
+    const emailsMatchForUser = firestoreEmailForUser !== '' && firestoreEmailForUser === authEmailForUser;
+    
+    // Use Firestore's emailVerified if emails don't match (pending email change)
+    // Otherwise use Firebase Auth's emailVerified
+    const finalEmailVerified = emailsMatchForUser
+      ? userCredential.user.emailVerified
+      : (userData.emailVerified === true);
+    
     // Build the complete user object with all data
     const completeUserData = {
       uid: userCredential.user.uid,
@@ -1048,7 +1171,7 @@ const login = async (emailOrContact, password) => {
       role: userData.role,
       profileImage: userData.profileImage || null,
       dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
-      emailVerified: userCredential.user.emailVerified,
+      emailVerified: finalEmailVerified,
       status: userData.status,
       address: userData.address || '',
       fullName: userData.fullName || userCredential.user.displayName || '',
@@ -1190,6 +1313,8 @@ const login = async (emailOrContact, password) => {
       
       // 6. Re-enable auth state changes
       suppressAuthUpdatesRef.current = false;
+      // Set loading to false to prevent "Loading session..." from showing after logout
+      setLoading(false);
       // Keep isLoggingOutRef active until we have a real login
       // isLoggingOutRef will be cleared in the auth state listener when login is processed
       
@@ -1221,6 +1346,8 @@ const login = async (emailOrContact, password) => {
       sessionStorage.clear();
       suppressAuthUpdatesRef.current = false;
       isLoggingOutRef.current = false;
+      // Set loading to false even on error to prevent stuck loading screen
+      setLoading(false);
     }
   };
 
@@ -1458,47 +1585,124 @@ const login = async (emailOrContact, password) => {
       }
 
       // Reload user to get latest verification status
-      await auth.currentUser.reload();
-      
-      // Update Firestore with new verification status
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+      // Handle token expiration gracefully
+      let reloadSuccess = false;
+      try {
+        await auth.currentUser.reload();
+        reloadSuccess = true;
+      } catch (reloadError) {
+        console.warn('[EMAIL VERIFICATION] Failed to reload user (token may be expired):', reloadError.code);
+        // If token expired, we'll use Firestore data instead
+        if (reloadError.code === 'auth/user-token-expired') {
+          console.log('[EMAIL VERIFICATION] Token expired, using Firestore data for verification status');
+          // Continue with Firestore data - we'll check if email matches and use Firestore's emailVerified
+        } else {
+          // For other errors, rethrow
+          throw reloadError;
+        }
+      }
+
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      const userData = userDoc.exists() ? (userDoc.data() || {}) : {};
+
+      const firestoreEmail = String(userData.email || '').trim().toLowerCase();
+      const authEmail = String(auth.currentUser.email || '').trim().toLowerCase();
+      const emailsMatch = firestoreEmail !== '' && firestoreEmail === authEmail;
+
+      if (!emailsMatch) {
+        // Emails don't match - this means user changed their email
+        // If token expired, check if there's a previousEmail (indicating email change in progress)
+        if (!reloadSuccess) {
+          // Token expired - check if email change is in progress
+          // If previousEmail exists, it means email was changed but not verified yet
+          if (userData.previousEmail) {
+            console.log('[EMAIL VERIFICATION] Token expired, but previousEmail exists - email change in progress, not verified');
+            setCurrentUser(prev => (prev ? { ...prev, emailVerified: false } : prev));
+            return false;
+          }
+          // No previousEmail - use Firestore's emailVerified status
+          const firestoreVerified = !!userData.emailVerified;
+          console.log('[EMAIL VERIFICATION] Token expired, using Firestore emailVerified status:', firestoreVerified);
+          setCurrentUser(prev => (prev ? { ...prev, emailVerified: firestoreVerified } : prev));
+          return firestoreVerified;
+        }
+        
+        // When emails don't match, it means user changed their email
+        // Firebase Auth still has the old email until the new email is verified
+        // So auth.currentUser.emailVerified is the status of the OLD email, not the new email
+        // We should check if Firebase Auth email matches Firestore email (which means new email is verified)
+        // OR check if auth.currentUser.email matches the Firestore email (which means Firebase Auth was updated)
+        
+        // Check if Firebase Auth has been updated with the new email (which happens after verification)
+        // If authEmail matches firestoreEmail, then the new email is verified
+        // But wait, if emails don't match, authEmail is the old email, so we can't use this
+        
+        // Actually, when verifyBeforeUpdateEmail is used, Firebase Auth doesn't update the email until verified
+        // So if emails don't match, it means the new email is NOT verified yet
+        // We should always return false when emails don't match, unless we can verify otherwise
+        
+        // However, there's a case where Firebase Auth might have the new email but Firestore hasn't synced
+        // In that case, auth.currentUser.email would match firestoreEmail, so emailsMatch would be true
+        // So if we're here (emails don't match), it means Firebase Auth still has the old email
+        // Therefore, the new email is NOT verified yet
+        
+        // Always return false when emails don't match (email change in progress)
+        console.log('[EMAIL VERIFICATION] Emails don\'t match - email change in progress, new email not verified yet');
+        // Make sure Firestore and local state stay unverified
+        if (userDoc.exists() && userData.emailVerified !== false) {
+          try {
+            await updateDoc(userDocRef, {
+              emailVerified: false,
+              lastModified: serverTimestamp()
+            });
+          } catch (_) {}
+        }
+
+        setCurrentUser(prev => (prev ? { ...prev, emailVerified: false } : prev));
+        return false;
+      }
+
+      // Emails match – safe to sync verification status
+      // If token expired, use Firestore's emailVerified status
+      if (!reloadSuccess) {
+        // Token expired - use Firestore's emailVerified status
+        const firestoreVerified = !!userData.emailVerified;
+        console.log('[EMAIL VERIFICATION] Token expired, using Firestore emailVerified status:', firestoreVerified);
+        setCurrentUser(prev => (prev ? { ...prev, emailVerified: firestoreVerified } : prev));
+        return firestoreVerified;
+      }
+
+      // Token is valid - sync verification status from Firebase Auth
+      await updateDoc(userDocRef, {
         emailVerified: auth.currentUser.emailVerified,
         lastModified: serverTimestamp()
       });
 
-      // If email is now verified and status is inactive, update status to active based on role/activation
-      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.status === 'inactive' && auth.currentUser.emailVerified) {
-          const canActivate = (userData.role === 'admin') || (userData.role === 'tech_officer' && userData.adminActivated);
-          if (canActivate) {
+      if (userData.status === 'inactive' && auth.currentUser.emailVerified) {
+        const canActivate = (userData.role === 'admin') || (userData.role === 'tech_officer' && userData.adminActivated);
+        if (canActivate) {
+          await updateDoc(userDocRef, {
+            status: 'active',
+            lastModified: serverTimestamp()
+          });
 
-            await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-              status: 'active',
-              lastModified: serverTimestamp()
-            });
-
-            // Update local state
-            setCurrentUser(prev => ({
-              ...prev,
-              emailVerified: auth.currentUser.emailVerified,
-              status: 'active'
-            }));
-          } else {
-            // Update only emailVerified locally
-            setCurrentUser(prev => ({
-              ...prev,
-              emailVerified: auth.currentUser.emailVerified
-            }));
-          }
+          setCurrentUser(prev => ({
+            ...prev,
+            emailVerified: auth.currentUser.emailVerified,
+            status: 'active'
+          }));
         } else {
-          // Update local state with new verification status
           setCurrentUser(prev => ({
             ...prev,
             emailVerified: auth.currentUser.emailVerified
           }));
         }
+      } else {
+        setCurrentUser(prev => ({
+          ...prev,
+          emailVerified: auth.currentUser.emailVerified
+        }));
       }
 
       return auth.currentUser.emailVerified;
@@ -1677,38 +1881,62 @@ const login = async (emailOrContact, password) => {
         isMobileUser = true;
       }
 
-      await setDoc(doc(db, targetCollection, newUserUid), sanitizeObjectStrings({
-        email: userData.email,
-        username: userData.username,
-        role: canonicalRole,
-        status: canonicalStatus,
-        emailVerified: false,
-        createdAt: serverTimestamp(),
-        createdBy: adminUID,
-        address: userData.address || '',
-        contactNumber: userData.contactNumber || '',
-        dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
-        fullName: userData.fullName || '',
-        profileImage: userData.profileImage || null,
-        isMobileUser,
-        // Add farm assignment if provided
-        farm: userData.farm || null,
-        // Admin activation flag (Firestore does not allow undefined)
-        adminActivated: (requestedRole === 'Admin') ? true : false,
-        // Persist temporary flag for temporary tech officers
-        temporaryTechOfficer: isTempTO,
-        isTemporary: isTempTO,
-        effectiveFrom: userData.effectiveFrom || null,
-        effectiveTo: userData.effectiveTo || null,
-        tempTOReason: userData.tempTOReason || null,
-        tempTORemarks: userData.tempTORemarks || null,
-        // If provided, store the selected farm/admin mapping for temp tech officer (legacy)
-        tempAssignedFarm: userData.tempAssignedFarm || null,
-        tempAssignedFarmName: userData.tempAssignedFarmName || null,
-        tempAssignedAdminId: userData.tempAssignedAdminId || null,
-        tempAssignedAdminName: userData.tempAssignedAdminName || null,
-        tempAssignedAdminEmail: userData.tempAssignedAdminEmail || null
-      }));
+      // Write document matching required field sets per role
+      if (isTempTO) {
+        // Temporary Tech Officer schema
+        await setDoc(doc(db, targetCollection, newUserUid), sanitizeObjectStrings({
+          // Common
+          email: userData.email,
+          username: userData.username,
+          role: canonicalRole,
+          status: canonicalStatus,
+          createdAt: serverTimestamp(),
+          createdBy: adminUID,
+          address: userData.address || '',
+          contactNumber: userData.contactNumber || '',
+          dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+          fullName: userData.fullName || '',
+          profileImage: userData.profileImage || null,
+          isMobileUser,
+          // Activation flags
+          adminActivated: false,
+          emailVerified: false,
+          phoneVerified: false,
+          // Timestamps/last modified
+          lastModified: serverTimestamp(),
+          activatedAt: null,
+          activatedBy: null,
+          deactivatedAt: null,
+          deactivatedBy: null,
+          deactivationReason: null,
+          // TTO specifics
+          temporaryTechOfficer: true,
+          isTemporary: true,
+          effectiveFrom: userData.effectiveFrom || null,
+          effectiveTo: userData.effectiveTo || null,
+          tempTOReason: userData.tempTOReason || null,
+          tempTORemarks: userData.tempTORemarks || null
+        }));
+      } else {
+        // Standard staff schema (Admin, Tech Officer, Fish Farmer)
+        await setDoc(doc(db, targetCollection, newUserUid), sanitizeObjectStrings({
+          address: userData.address || '',
+          adminActivated: (requestedRole === 'Admin') ? true : false,
+          contactNumber: userData.contactNumber || '',
+          createdAt: serverTimestamp(),
+          createdBy: adminUID,
+          dateJoined: userData.dateJoined || new Date().toISOString().split('T')[0],
+          email: userData.email,
+          emailVerified: false,
+          farm: userData.farm || null,
+          fullName: userData.fullName || '',
+          isMobileUser,
+          profileImage: userData.profileImage || null,
+          role: canonicalRole,
+          status: canonicalStatus,
+          username: userData.username
+        }));
+      }
 
       return { success: true };
     } catch (error) {
@@ -1723,9 +1951,49 @@ const login = async (emailOrContact, password) => {
     if (!auth.currentUser) return false;
     
     try {
-      const docRef = doc(db, 'users', auth.currentUser.uid);
-      const docSnap = await getDoc(docRef);
-      return docSnap.exists() && docSnap.data().role === "admin";
+      // Check users collection first
+      let docRef = doc(db, 'users', auth.currentUser.uid);
+      let docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        const role = String(userData.role || '').toLowerCase();
+        const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
+        
+        // Check if user has admin privileges (can manage users)
+        const hasAdminPrivileges = (
+          role === "admin" ||
+          role === "tech_officer" ||
+          role === "new_main_tech_officer" ||
+          role === "temp_tech_officer" ||
+          isTemporaryTechOfficer
+        );
+        
+        return hasAdminPrivileges;
+      }
+      
+      // If not found in users, check mobileUsers collection
+      docRef = doc(db, 'mobileUsers', auth.currentUser.uid);
+      docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        const role = String(userData.role || '').toLowerCase();
+        const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
+        
+        // Check if user has admin privileges (can manage users)
+        const hasAdminPrivileges = (
+          role === "admin" ||
+          role === "tech_officer" ||
+          role === "new_main_tech_officer" ||
+          role === "temp_tech_officer" ||
+          isTemporaryTechOfficer
+        );
+        
+        return hasAdminPrivileges;
+      }
+      
+      return false;
     } catch (error) {
 
       return false;
@@ -2083,6 +2351,7 @@ const resetPassword = async (email) => {
     emailVerificationModal,
     // login processing flag
     isProcessingLoginRef,
+    isLoggingOutRef,
     openEmailVerificationModal,
     resendVerificationEmail,
     closeEmailVerificationModal,

@@ -24,6 +24,9 @@ import Sidebar from './components/Sidebar';
 import RiskReportModal from './components/RiskReportModal';
 import PiscaRiskData from './components/PiscaRiskData';
 import ConditionInsights from './components/ConditionInsights';
+import { useNotifications } from './contexts/NotificationContext';
+import { verifyBeforeUpdateEmail } from 'firebase/auth';
+import { auth } from './firebase';
 
 
 const PiscaRiskHome = () => {
@@ -45,7 +48,7 @@ const PiscaRiskHome = () => {
   // Timer states for Temporary Tech Officers
   const [ttoTimers, setTtoTimers] = useState({}); // { [userId]: { remaining, status } }
   
-  // Track if TTO banner has been shown for this login session
+  // Track if TTO banner is visible
   const [ttoBannerShown, setTtoBannerShown] = useState(false);
   
   // Helper function to format remaining time
@@ -109,26 +112,111 @@ const PiscaRiskHome = () => {
   const [closeNotificationsSignal, setCloseNotificationsSignal] = useState(0);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [selectedPond, setSelectedPond] = useState(1);
-  const { currentUser, handleLogout } = useContext(AuthContext);
+  const { currentUser, handleLogout, sendVerificationEmail } = useContext(AuthContext);
+  const { addToast, removeToast } = useNotifications();
   const [errorMessage, setErrorMessage] = useState('');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
+  // Use global variable to track toast ID across all pages
+  if (typeof window.emailVerificationToastId === 'undefined') {
+    window.emailVerificationToastId = null;
+  }
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
   
-  // Check if TTO banner should be shown (only once per login session)
+  // Email verification toast handler
+  const handleSendVerificationEmail = async () => {
+    try {
+      if (isSendingVerification) {
+        return;
+      }
+      setIsSendingVerification(true);
+      
+      // Check if user has a new email in Firestore (different from Firebase Auth email)
+      const firestoreEmail = currentUser?.email || '';
+      const authEmail = auth.currentUser?.email || '';
+      const hasNewEmail = firestoreEmail && authEmail && firestoreEmail.toLowerCase() !== authEmail.toLowerCase();
+
+      if (hasNewEmail) {
+        // User changed their email - need to resend verification to the new email using verifyBeforeUpdateEmail
+        try {
+          await verifyBeforeUpdateEmail(auth.currentUser, firestoreEmail);
+          // Show success message via toast
+          addToast(t('profileSettings.verificationEmailSentTo', { email: firestoreEmail }), 'success', 5000);
+        } catch (error) {
+          addToast(t('profileSettings.failedToSendVerification'), 'error', 5000);
+        }
+      } else {
+        // Normal case - email matches, use regular sendVerificationEmail
+        const result = await sendVerificationEmail();
+        if (result.success) {
+          // Toast will be shown by the notification system
+        }
+      }
+    } catch (error) {
+      addToast(t('profileSettings.failedToSendVerification'), 'error', 5000);
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
+
+  const showEmailVerificationToast = (removeExisting = true) => {
+    if (currentUser?.emailVerified !== false) {
+      return;
+    }
+    
+    // Remove existing toast if requested (when navigating between pages)
+    if (removeExisting && window.emailVerificationToastId) {
+      removeToast(window.emailVerificationToastId);
+      window.emailVerificationToastId = null;
+    }
+    
+    // Don't show if already showing
+    if (window.emailVerificationToastId) {
+      return;
+    }
+
+    const toastId = addToast(
+      '⚠️ Your new email is not verified. Please verify to enable full account security.',
+      'warning',
+      0,
+      {
+        action: {
+          label: 'Resend Verification Email',
+          onClick: async () => {
+            await handleSendVerificationEmail();
+          },
+          autoClose: false
+        },
+        onClose: () => {
+          window.emailVerificationToastId = null;
+        }
+      }
+    );
+
+    window.emailVerificationToastId = toastId;
+  };
+
+  // Show toast on mount if email is not verified
+  // Remove old toast and show new one when navigating to this page
+  useEffect(() => {
+    if (currentUser?.emailVerified === false) {
+      // Always remove old toast and show new one when component mounts (navigating to this page)
+      showEmailVerificationToast(true);
+    }
+    if (currentUser?.emailVerified === true && window.emailVerificationToastId) {
+      removeToast(window.emailVerificationToastId);
+      window.emailVerificationToastId = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.emailVerified]);
+
+  // Ensure TTO banner is shown on every login and every reload for Temporary Tech Officers
   useEffect(() => {
     if (!currentUser || (!currentUser.temporaryTechOfficer && String(currentUser.role || '').toLowerCase() !== 'temp_tech_officer')) {
       return;
     }
-    
-    // Check if banner was already shown for this login session
-    const bannerKey = `tto_banner_shown_${currentUser.uid}`;
-    const wasShown = sessionStorage.getItem(bannerKey);
-    
-    if (!wasShown) {
-      setTtoBannerShown(true);
-      // Mark as shown for this session
-      sessionStorage.setItem(bannerKey, 'true');
-    }
+    // Always show the banner for temp accounts when landing/reloading
+    setTtoBannerShown(true);
   }, [currentUser]);
 
   // Timer effect for TTO
@@ -791,55 +879,32 @@ const PiscaRiskHome = () => {
                   <div className="tto-floating-message">
                     {(() => {
                       const effectiveTo = currentUser.effectiveTo || currentUser.temporaryEffectiveTo || currentUser.expirationDate;
-                      if (effectiveTo) {
-                        const timer = ttoTimers[currentUser.uid];
-                        if (timer) {
-                          return (
-                            <>This account will expire in <strong style={{ color: getTimerStatusColor(timer.status) }}>
-                              {formatRemainingTime(timer.remaining)}
-                            </strong>.</>
-                          );
-                        } else {
-                          const expirationDate = new Date(effectiveTo);
-                          return (
-                            <>This account will expire on <strong>
-                              {expirationDate.toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
-                            </strong>.</>
-                          );
-                        }
-                      } else {
-                        return <>This is a temporary account. <strong style={{ color: '#f59e0b' }}>Expiration date not configured.</strong></>;
+                      if (!effectiveTo) {
+                        return <>This is a temporary Tech Officer account. <strong style={{ color: '#f59e0b' }}>Expiration date not configured.</strong></>;
                       }
+                      const expirationDate = new Date(effectiveTo);
+                      return (
+                        <>
+                          This is a temporary Tech Officer account.
+                        </>
+                      );
                     })()}
                   </div>
                   <div className="tto-floating-subtitle">
                     {(() => {
                       const effectiveTo = currentUser.effectiveTo || currentUser.temporaryEffectiveTo || currentUser.expirationDate;
-                      if (effectiveTo) {
-                        const timer = ttoTimers[currentUser.uid];
-                        if (timer) {
-                          return (
-                            <>After expiration, access will be automatically restricted. {formatFullExpirationDetails(currentUser, timer)}</>
-                          );
-                        } else {
-                          return <>After this date, access will be automatically restricted.</>;
-                        }
-                      } else {
-                        return (
-                          <>
-                            <strong>Action Required:</strong> The Super Admin needs to set an expiration date for this temporary account. 
-                            Without an expiration date, this account will remain active indefinitely.
-                          </>
-                        );
+                      if (!effectiveTo) {
+                        return null;
                       }
+                      const expirationDate = new Date(effectiveTo);
+                      return (
+                        <>
+                          <div>
+                            <strong>Expiration Date:</strong> {expirationDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}, {expirationDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </div>
+                          <div>This account will automatically deactivate once it reaches the expiration date.</div>
+                        </>
+                      );
                     })()}
                   </div>
                 </div>

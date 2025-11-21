@@ -122,7 +122,7 @@ export const addNewUser = async (userData, currentUser) => {
 };
 
 // Update user status
-export const updateUserStatus = async (userId, status, role, collectionHint, userEmail, userName) => {
+export const updateUserStatus = async (userId, status, role, collectionHint, userEmail, userName, actorName, actorRole, actorFarm) => {
   try {
     // removed verbose dev log
     const roleNormalized = String(role || '').toLowerCase();
@@ -171,9 +171,25 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
           lastModified: serverTimestamp()
         };
         // If deactivating, also reset phoneVerified to false and add deactivation tracking
-        if (statusLower === 'inactive') {
+        if (statusLower === 'inactive' || statusLower === 'deactivated') {
           updateFields.phoneVerified = false;
-          updateFields.deactivatedBy = 'Status Toggle (Role Unknown)';
+          // Set status to 'Deactivated' when deactivating
+          if (statusLower === 'inactive') {
+            updateFields.status = 'Deactivated';
+          }
+          // Build deactivatedBy label using actor and target farm context
+          const targetFarm = (snap.data() && (snap.data().farm || snap.data().farmId)) || null;
+          const actorRoleLower = String(actorRole || '').toLowerCase();
+          const isFarmAdminActor = actorRoleLower === 'admin' && actorFarm;
+          const farmsMatch = isFarmAdminActor && targetFarm && String(actorFarm).trim().toLowerCase() === String(targetFarm).trim().toLowerCase();
+          const roleLabel = farmsMatch ? 'Admin' : (
+            actorRoleLower === 'tech_officer' || actorRoleLower === 'tech officer' ? 'Tech Officer' :
+            actorRoleLower === 'new_main_tech_officer' || actorRoleLower === 'new main tech officer' ? 'Tech Officer' :
+            actorRoleLower === 'temp_tech_officer' || actorRoleLower === 'temporary tech officer' ? 'Temporary Tech Officer' :
+            actorRoleLower === 'admin' ? 'Admin' : 'User'
+          );
+          const actorLabel = String(actorName || userName || userEmail || 'Unknown').trim();
+          updateFields.deactivatedBy = `${roleLabel} (${actorLabel})`;
           updateFields.deactivatedAt = new Date().toISOString();
           updateFields.deactivationReason = 'Status changed via toggle';
         }
@@ -216,12 +232,25 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
     try {
       updated = await tryUpdate(collectionName);
       if (updated) {
+        const actorRoleLowerForMirror = String(actorRole || '').toLowerCase();
+        const roleLabelForMirror = (
+          actorRoleLowerForMirror === 'tech_officer' || actorRoleLowerForMirror === 'tech officer' ? 'Tech Officer' :
+          actorRoleLowerForMirror === 'new_main_tech_officer' || actorRoleLowerForMirror === 'new main tech officer' ? 'Tech Officer' :
+          actorRoleLowerForMirror === 'temp_tech_officer' || actorRoleLowerForMirror === 'temporary tech officer' ? 'Temporary Tech Officer' :
+          actorRoleLowerForMirror === 'admin' ? 'Admin' : 'User'
+        );
+        const actorLabelForMirror = String(actorName || userName || userEmail || 'Unknown').trim();
         const mirrorFields = {
           status: status || 'Active',
           adminActivated: true,
           pendingActivation: false,
           lastModified: serverTimestamp(),
-          ...(statusLower === 'inactive' ? { phoneVerified: false } : {})
+          ...(statusLower === 'inactive' ? {
+            phoneVerified: false,
+            deactivatedBy: `${roleLabelForMirror} (${actorLabelForMirror})`,
+            deactivatedAt: new Date().toISOString(),
+            deactivationReason: 'Status changed via toggle'
+          } : {})
         };
         await updateCounterpartIfExists(collectionName, mirrorFields, userEmail);
       }
@@ -233,12 +262,25 @@ export const updateUserStatus = async (userId, status, role, collectionHint, use
       try {
         updated = await tryUpdate(collectionName);
         if (updated) {
+          const actorRoleLowerForMirror2 = String(actorRole || '').toLowerCase();
+          const roleLabelForMirror2 = (
+            actorRoleLowerForMirror2 === 'tech_officer' || actorRoleLowerForMirror2 === 'tech officer' ? 'Tech Officer' :
+            actorRoleLowerForMirror2 === 'new_main_tech_officer' || actorRoleLowerForMirror2 === 'new main tech officer' ? 'Tech Officer' :
+            actorRoleLowerForMirror2 === 'temp_tech_officer' || actorRoleLowerForMirror2 === 'temporary tech officer' ? 'Temporary Tech Officer' :
+            actorRoleLowerForMirror2 === 'admin' ? 'Admin' : 'User'
+          );
+          const actorLabelForMirror2 = String(actorName || userName || userEmail || 'Unknown').trim();
           const mirrorFields = {
             status: status || 'Active',
             adminActivated: true,
             pendingActivation: false,
             lastModified: serverTimestamp(),
-            ...(statusLower === 'inactive' ? { phoneVerified: false } : {})
+            ...(statusLower === 'inactive' ? {
+              phoneVerified: false,
+              deactivatedBy: `${roleLabelForMirror2} (${actorLabelForMirror2})`,
+              deactivatedAt: new Date().toISOString(),
+              deactivationReason: 'Status changed via toggle'
+            } : {})
           };
           await updateCounterpartIfExists(collectionName, mirrorFields, userEmail);
         }
@@ -524,8 +566,13 @@ export const activateTechOfficer = async (userId) => {
       if (!snap.exists()) throw new Error('User not found in any collection');
       collectionName = 'mobileUsers';
     }
+    // Ensure TTO flags are restored when role is temp_tech_officer
+    const data = snap.data() || {};
+    const roleLower = String(data.role || '').toLowerCase();
+    const isTTO = roleLower === 'temp_tech_officer' || data.temporaryTechOfficer === true || data.isTemporary === true;
     const updateFields = sanitizeObjectStrings({
       adminActivated: true,
+      ...(isTTO ? { temporaryTechOfficer: true, isTemporary: true } : {}),
       lastModified: new Date().toISOString()
     });
     await updateDoc(ref, updateFields);
@@ -543,7 +590,6 @@ export const activateTechOfficer = async (userId) => {
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
-      console.error('Error activating Tech Officer:', error);
     }
     return { success: false, error: error.message };
   }
@@ -626,23 +672,19 @@ export const deleteUserById = async (userId) => {
               }
             }
           } catch (cleanupErr) {
-            console.warn('Local Firestore cleanup failed:', cleanupErr);
           }
         } else {
-          console.warn('No authenticated user found, skipping Firebase Auth deletion');
         }
       }
     } catch (authErr) {
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
-        console.warn('Could not delete from Firebase Auth:', authErr?.message || authErr);
       }
     }
     return { success: true };
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
-      console.error('Firebase delete error:', error);
     }
     return { success: false, error: error.message || 'Failed to delete user from database' };
   }
@@ -658,7 +700,6 @@ export const checkUserLoginStatus = async (userEmail) => {
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
-      console.warn('Could not check user login status:', error);
     }
     return { isLoggedIn: false, error: error.message };
   }
@@ -673,7 +714,6 @@ export const resetUserPassword = async (userEmail, newPassword) => {
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
-      console.warn('adminResetPassword function failed:', error);
     }
     return { success: false, error: error.message };
   }

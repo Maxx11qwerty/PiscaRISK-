@@ -13,12 +13,7 @@ import { formatUserInputPH, validatePhilippineMobile, normalizeToE164PH, stripTo
 
 export default function Login() {
   const { t } = useTranslation(); // Add this hook
-  const devError = (...args) => {
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.error(...args);
-    }
-  };
+  const ts = () => new Date().toISOString();
 
   // Suppress ResizeObserver errors which are common and usually harmless
   useEffect(() => {
@@ -39,6 +34,18 @@ export default function Login() {
     return () => {
       window.onerror = originalError;
     };
+  }, []);
+
+  // Suppress noisy extension message channel errors to avoid interrupting UX
+  useEffect(() => {
+    const handler = (event) => {
+      const msg = String(event?.reason?.message || '');
+      if (msg.includes('A listener indicated an asynchronous response')) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', handler);
+    return () => window.removeEventListener('unhandledrejection', handler);
   }, []);
   // Custom hook for screen size tracking
   const useScreenSize = () => {
@@ -86,7 +93,8 @@ export default function Login() {
     openPhoneVerificationModal,
     closePhoneVerificationModal,
     handlePhoneVerificationSuccess,
-    isProcessingLoginRef
+    isProcessingLoginRef,
+    currentUser
   } = useContext(AuthContext);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -96,6 +104,7 @@ export default function Login() {
   const [resetMessage, setResetMessage] = useState("");
   const [contactError, setContactError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [forceHideOTP, setForceHideOTP] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -105,6 +114,9 @@ export default function Login() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // Reset forceHideOTP on login/identity change
+  useEffect(() => { setForceHideOTP(false); }, [currentUser?.email, currentUser?.phoneVerified, currentUser?.emailVerified]);
 
   // Mobile keyboard focus fix - add class and scroll with error handling
   useEffect(() => {
@@ -129,7 +141,6 @@ export default function Login() {
             });
           } catch (error) {
             // Silently handle scroll errors to prevent ResizeObserver issues
-            console.warn('Scroll error handled:', error);
           }
         }, 100);
       }
@@ -216,7 +227,8 @@ export default function Login() {
   };
   
   const handleLogin = async (e) => {
-    e.preventDefault();
+    try { if (e && typeof e.preventDefault === 'function') e.preventDefault(); } catch (_) {}
+    try { if (e && typeof e.stopPropagation === 'function') e.stopPropagation(); } catch (_) {}
     setError('');
     
     // If input is a phone (no @), validate and normalize to +63
@@ -237,24 +249,20 @@ export default function Login() {
       const result = await login(formData.emailOrContact, formData.password);
       
       if (result.success) {
-        
-        // Log successful login first
-        try {
-          const username = result.username || formData.emailOrContact;
-          await logActivity('login', `User ${username} logged in successfully`, username);
-        } catch (logError) {
-          devError('Failed to log login activity:', logError);
-        }
-        
+        // Login logging is handled in AuthContext.js login function
         // Navigate immediately - processing flag is cleared in AuthContext
         navigate('/Homepage', { replace: true });
       } else {
+        if (result.message && (result.message.toLowerCase().includes('verify your email and phone') || result.message.toLowerCase().includes('verify your email'))) {
+          openEmailVerificationModal(formData.emailOrContact, formData.password);
+          setError('');
+          return;
+        }
         if (result.code === 'show_verification_modal') {
           setError('');
           openEmailVerificationModal(result.email, result.password);
           return;
         }
-        
         if (result.code === 'show_phone_verification') {
           setError('');
           if (result.phoneNumber) {
@@ -264,7 +272,6 @@ export default function Login() {
           }
           return;
         }
-        
         if (result.code === 'auth/account-inactive') {
           setError(result.message);
         } else {
@@ -280,11 +287,9 @@ export default function Login() {
         try {
           await logActivity('login', `Failed login attempt for ${formData.emailOrContact}: ${result.message}`, formData.emailOrContact);
         } catch (logError) {
-          devError('Failed to log activity:', logError);
         }
       }
     } catch (error) {
-      devError('Login error:', error);
       setError(t('login.unexpectedError'));
       
       // Clear input fields on unexpected error
@@ -296,7 +301,6 @@ export default function Login() {
       try {
         await logActivity('error', `Login system error: ${error.message}`, formData.emailOrContact);
       } catch (logError) {
-        devError('Failed to log activity:', logError);
       }
     }
     finally {
@@ -334,7 +338,19 @@ export default function Login() {
         <p className="bottom-text">{t('login.allRightsReserved')}</p>
 
         <div className="form-section">
-          <form onSubmit={handleLogin}>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              e.stopPropagation(); 
+              return false; 
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            }}
+          >
             <div className="login-fields-container">
               {/* Social Login Section*/}
               <div className="social-login-section">
@@ -385,6 +401,7 @@ export default function Login() {
                   placeholder={t('login.emailPhonePlaceholder')}
                   value={formData.emailOrContact}
                   onChange={handleInputChange}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleLogin(e); } }}
                   className="input-field"
                   disabled={isSubmitting}
                   required
@@ -404,6 +421,7 @@ export default function Login() {
                     placeholder={t('login.passwordPlaceholder')}
                     value={formData.password}
                     onChange={handleInputChange}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleLogin(e); } }}
                     className="login-password-input"
                     disabled={isSubmitting}
                     required
@@ -425,7 +443,14 @@ export default function Login() {
               </div>
 
               <div className="login-btn-container">
-                <button type="submit" className="login-btn" disabled={isSubmitting}>
+                <button 
+                  type="button" 
+                  className="login-btn" 
+                  disabled={isSubmitting} 
+                  onClick={handleLogin}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLogin(e); } }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
                   {isSubmitting ? 'Logging in…' : t('login.login')}
                 </button>
               </div>
@@ -464,61 +489,36 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Render email verification modal when needed */}
+      {/* Render email verification modal ONLY when explicitly opened */}
       {emailVerificationModal && emailVerificationModal.open && (
         <EmailVerificationModal
           email={emailVerificationModal.email}
-          onResend={async () => {
-            // Trigger resend in context and return the result so the modal can show feedback
-            const result = await resendVerificationEmail();
-            return result;
-          }}
+          onResend={async () => await resendVerificationEmail()}
           onReturn={() => {
             closeEmailVerificationModal();
-            // Redirect back to login page
             setError('');
           }}
         />
       )}
-
-      {/* Render phone verification modal when needed */}
-      {phoneVerificationModal && phoneVerificationModal.open && (
+      {/* Render phone verification modal when explicitly requested via context */}
+      {phoneVerificationModal && phoneVerificationModal.open && !forceHideOTP && (
         <OTPVerification
-          open={phoneVerificationModal.open}
+          open={true}
           phoneNumber={phoneVerificationModal.phoneNumber}
           onVerify={async (phoneAuthResult) => {
             try {
               const result = await handlePhoneVerificationSuccess(phoneAuthResult);
               if (result.success) {
-                if (result.message && result.message.includes('Test')) {
-                  // Show success message for test
-                  setError('✅ Test phone verification successful! OTP system is working correctly.');
-                  setTimeout(() => {
-                    setError('');
-                    closePhoneVerificationModal();
-                  }, 3000);
-                } else {
-                  // Small delay to ensure state is updated before navigation
-                  // Mark a short grace window to ignore late reCAPTCHA timeouts
-                  try { window.__otpGraceUntil = Date.now() + 60000; } catch (_) {}
-                  // Ensure modal is closed to unmount OTP and cleanup reCAPTCHA
-                  closePhoneVerificationModal();
-                  setTimeout(() => {
-                    navigate('/Homepage');
-                  }, 100);
-                }
+                closePhoneVerificationModal();
+                setTimeout(() => navigate('/Homepage'), 120);
               } else {
                 setError(result.message || 'Phone verification failed');
               }
             } catch (error) {
-              console.error('Phone verification error:', error);
               setError('Phone verification failed. Please try again.');
             }
           }}
-          onClose={() => {
-            closePhoneVerificationModal();
-            setError('');
-          }}
+          onClose={() => { setForceHideOTP(true); closePhoneVerificationModal(); setError(''); }}
         />
       )}
       {isSubmitting && (

@@ -595,6 +595,69 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
 }
 
 /**
+ * Cloud Function to log feedback submissions
+ * Triggers when a new feedback document is created in PiscaRisk collection
+ */
+if (functions.firestore && typeof functions.firestore.document === 'function') {
+  exports.logFeedbackOnCreate = functions.firestore
+    .document('PiscaRisk/{feedbackId}')
+    .onCreate(async (snap, context) => {
+      try {
+        const data = snap.data() || {};
+
+        // Extract fields with safe fallbacks
+        const username = data.userName || data.user || data.user_email || 'Unknown User';
+        const userRole = data.userRole || data.role || data.user_role || 'Unknown';
+        const concern = data.concern || 'feedback';
+        const source = (data.source || 'web').toString().toLowerCase();
+
+        // Normalize timestamp
+        let ts;
+        try {
+          if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+            ts = data.timestamp.toDate();
+          } else if (data.timestamp instanceof Date) {
+            ts = data.timestamp;
+          } else if (typeof data.timestamp === 'string') {
+            const d = new Date(data.timestamp);
+            ts = isNaN(d.getTime()) ? new Date() : d;
+          } else if (data.timestamp && typeof data.timestamp.seconds === 'number') {
+            ts = new Date(data.timestamp.seconds * 1000);
+          } else {
+            ts = new Date();
+          }
+        } catch (_) {
+          ts = new Date();
+        }
+
+        const message = source === 'mobile'
+          ? `Mobile user ${username} submitted new ${concern} feedback`
+          : `User ${username} submitted new ${concern} feedback`;
+
+        // Compose log entry
+        const log = sanitizeObjectStrings({
+          timestamp: ts.toISOString(),
+          category: 'feedback',
+          message,
+          username,
+          userRole,
+          source: source === 'mobile' ? 'mobile' : 'web',
+          feedbackId: context.params.feedbackId,
+          concern: concern || null,
+        });
+
+        await admin.firestore().collection('systemLogs').add(log);
+        return null;
+      } catch (err) {
+        console.error('Failed to log feedback creation:', err);
+        return null;
+      }
+    });
+} else {
+  console.warn('[deploy] Skipping logFeedbackOnCreate: functions.firestore.document is unavailable in this runtime.');
+}
+
+/**
  * Check if user needs to change password after admin reset
  */
 exports.checkPasswordChangeRequired = functions.https.onCall(async (data, context) => {
@@ -654,9 +717,51 @@ exports.checkPasswordChangeRequired = functions.https.onCall(async (data, contex
  */
 async function isAdmin(uid) {
     try {
-      const userDoc = await admin.firestore().collection("users").doc(uid).get();
-      console.log("User doc fetched:", userDoc.exists);
-      return userDoc.exists && userDoc.data().role === "Admin";
+      // Check users collection first
+      let userDoc = await admin.firestore().collection("users").doc(uid).get();
+      console.log("User doc fetched from users:", userDoc.exists);
+      
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        const role = String(userData.role || '').toLowerCase();
+        const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
+        
+        // Check if user has admin privileges (can manage users)
+        const hasAdminPrivileges = (
+          role === "admin" ||
+          role === "tech_officer" ||
+          role === "new_main_tech_officer" ||
+          role === "temp_tech_officer" ||
+          isTemporaryTechOfficer
+        );
+        
+        console.log("User role:", role, "isTemporaryTechOfficer:", isTemporaryTechOfficer, "hasAdminPrivileges:", hasAdminPrivileges);
+        return hasAdminPrivileges;
+      }
+      
+      // If not found in users, check mobileUsers collection
+      userDoc = await admin.firestore().collection("mobileUsers").doc(uid).get();
+      console.log("User doc fetched from mobileUsers:", userDoc.exists);
+      
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        const role = String(userData.role || '').toLowerCase();
+        const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
+        
+        // Check if user has admin privileges (can manage users)
+        const hasAdminPrivileges = (
+          role === "admin" ||
+          role === "tech_officer" ||
+          role === "new_main_tech_officer" ||
+          role === "temp_tech_officer" ||
+          isTemporaryTechOfficer
+        );
+        
+        console.log("Mobile user role:", role, "isTemporaryTechOfficer:", isTemporaryTechOfficer, "hasAdminPrivileges:", hasAdminPrivileges);
+        return hasAdminPrivileges;
+      }
+      
+      return false;
     } catch (err) {
       console.error("Error checking admin role:", err);
       return false;

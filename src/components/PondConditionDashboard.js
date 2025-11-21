@@ -6,7 +6,7 @@ import { collection, query, where, getDocs, getDoc, doc, Timestamp, updateDoc, a
 import { sanitizeObjectStrings } from '../utils/sanitize';
 import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
-import { FormControl, InputLabel, Select, MenuItem, OutlinedInput } from '@mui/material';
+import { FormControl, InputLabel, Select, MenuItem, OutlinedInput, Tooltip } from '@mui/material';
 import AnimatedModal from './AnimatedModal';
 import { FaFileExport } from 'react-icons/fa6';
 import {
@@ -1446,12 +1446,22 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               <Select
                 labelId="pond-select-label"
                 id="pond-select"
-                value={selectedPond}
+                value={selectedPond === 'all' || (typeof selectedPond === 'number' && pondOptions.includes(selectedPond)) ? selectedPond : 'all'}
                 label={t('pondCondition.pond')}
                 input={<OutlinedInput label={t('pondCondition.pond')} />}
                 onOpen={() => setIsPondDropdownOpen(true)}
                 onClose={() => setIsPondDropdownOpen(false)}
-                onChange={(e) => setSelectedPond(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'all') {
+                    setSelectedPond('all');
+                  } else {
+                    const numValue = Number(value);
+                    if (!isNaN(numValue)) {
+                      setSelectedPond(numValue);
+                    }
+                  }
+                }}
                 MenuProps={pondMenuProps}
               >
                 <MenuItem value={'all'}>{t('pondCondition.all_ponds')}</MenuItem>
@@ -1459,9 +1469,14 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                   .filter((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() !== 'inactive')
                   .map((n) => {
                     const hasData = hasDataForPond(n);
-                    const indicator = hasData ? '🟢' : '🔴';
+                    const indicator = hasData ? '🟢' : '⚪';
+                    const tooltipText = hasData ? 'Has Data' : 'No Data Yet';
                     return (
-                      <MenuItem key={n} value={n}>{`${indicator} ${t('pondCondition.pond')} ${n}`}</MenuItem>
+                      <MenuItem key={n} value={n}>
+                        <Tooltip title={tooltipText} arrow placement="right">
+                          <span style={{ width: '100%' }}>{`${indicator} ${t('pondCondition.pond')} ${n}`}</span>
+                        </Tooltip>
+                      </MenuItem>
                     );
                   })}
                 {pondOptions.some((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() === 'inactive') && (
@@ -1469,9 +1484,17 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 )}
                 {pondOptions
                   .filter((n) => String(pondStatusByNumber[n] || 'Active').toLowerCase() === 'inactive')
-                  .map((n) => (
-                    <MenuItem key={`inactive-${n}`} value={n}>{`⚫ ${t('pondCondition.pond')} ${n} (Deactivated)`}</MenuItem>
-                  ))}
+                  .map((n) => {
+                    const hasData = hasDataForPond(n);
+                    const tooltipText = hasData ? 'Has Data' : 'No Data Yet';
+                    return (
+                      <MenuItem key={`inactive-${n}`} value={n}>
+                        <Tooltip title={tooltipText} arrow placement="right">
+                          <span style={{ width: '100%' }}>{`⚫ ${t('pondCondition.pond')} ${n} (Deactivated)`}</span>
+                        </Tooltip>
+                      </MenuItem>
+                    );
+                  })}
               </Select>
             </FormControl>
             
@@ -1592,19 +1615,6 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                 {String(pondStatusByNumber[selectedPond] || 'Active').toLowerCase() === 'inactive' ? 'Activate' : 'Deactivate'}
               </button>
             )}
-          </div>
-          
-          {/* Pond Data Legend */}
-          <div className="pond-legend" style={{ 
-            marginTop: '8px', 
-            fontSize: '0.85rem', 
-            color: '#6b7280',
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'center'
-          }}>
-            <span>🟢 = {t('pondCondition.has_data')}</span>
-            <span>🔴 = {t('pondCondition.no_data_yet')}</span>
           </div>
         </div>
         

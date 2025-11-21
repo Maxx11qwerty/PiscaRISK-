@@ -104,6 +104,11 @@
   font-size: 0.9rem;
   color: #000000;
   font-family: 'customfont2';
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  cursor: default;
 }
 
 .sign-login-link {
@@ -113,6 +118,10 @@
   cursor: pointer;
   transition: color 0.3s ease;
   font-family: 'customfont2';
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .sign-login-link:hover {
@@ -323,12 +332,22 @@ margin-right: 0.5rem;
   font-size: 0.800rem;
   color: black;
   font-family: 'customfont2';
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  cursor: default;
 }
 
 .sign-terms-link {
   text-decoration: underline;
   font-family: 'customfont2';
-  color: #1A4375
+  color: #1A4375;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  cursor: pointer;
 }
 
 
@@ -353,10 +372,16 @@ margin-right: 0.5rem;
   letter-spacing: .1rem;
 }
 
-.create-btn:hover {
+.create-btn:hover:not(:disabled) {
   transform: scale(1.00);
   background: #60a3e6;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.create-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #4a6fa5;
 }
 
 .sign-messages { position: relative; min-height: 60px; width: 100%; }
@@ -443,6 +468,11 @@ transform: translateY(-10px);
   100% { transform: translateX(-50%) translateY(0); }
 }
 
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* OR Divider Styles */
 .or-divider {
   display: flex;
@@ -504,6 +534,99 @@ outline: none;
 border-color: #3B82F6;
 background-color: #FFFFFF;
 box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.signup-password-input.invalid {
+border-color: #EF4444;
+box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.password-criteria-tooltip {
+position: absolute;
+top: calc(100% - 0.5rem);
+left: 50%;
+transform: translateX(-50%);
+width: clamp(240px, 90%, 320px);
+background: #ffffff;
+border-radius: 0.75rem;
+padding: 1rem 1.25rem 1.25rem 1.25rem;
+box-shadow: 0 12px 24px rgba(6, 39, 80, 0.18);
+border: 1px solid rgba(26, 67, 117, 0.15);
+z-index: 20;
+font-family: 'customfont2', Arial, sans-serif;
+}
+
+.password-criteria-arrow {
+position: absolute;
+top: -12px;
+left: 50%;
+transform: translateX(-50%);
+width: 20px;
+height: 12px;
+background: transparent;
+}
+
+.password-criteria-arrow::before {
+content: "";
+position: absolute;
+top: 0;
+left: 50%;
+width: 16px;
+height: 16px;
+background: #ffffff;
+border-left: 1px solid rgba(26, 67, 117, 0.15);
+border-top: 1px solid rgba(26, 67, 117, 0.15);
+transform: translateX(-50%) rotate(45deg);
+box-shadow: -4px -4px 12px rgba(6, 39, 80, 0.05);
+}
+
+.password-criteria-heading {
+margin: 0 0 0.75rem 0;
+font-size: 0.85rem;
+font-weight: 600;
+color: #062750;
+text-align: left;
+}
+
+.password-criteria-list {
+list-style: none;
+margin: 0;
+padding: 0;
+display: grid;
+gap: 0.45rem;
+}
+
+.password-criteria-item {
+display: flex;
+align-items: center;
+gap: 0.5rem;
+font-size: 0.82rem;
+font-weight: 600;
+}
+
+.password-criteria-item span {
+color: #4B5563;
+}
+
+.password-criteria-item.valid span {
+color: #047857;
+}
+
+.password-criteria-item.invalid span {
+color: #B91C1C;
+}
+
+.password-criteria-icon {
+width: 1rem;
+height: 1rem;
+}
+
+.password-criteria-icon.valid {
+color: #22C55E;
+}
+
+.password-criteria-icon.invalid {
+color: #EF4444;
 }
 
 .signup-password-toggle {

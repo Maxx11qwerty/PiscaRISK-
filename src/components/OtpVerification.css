@@ -256,8 +256,9 @@
 }
 
 /* Hidden reCAPTCHA container */
+/* Ensure reCAPTCHA can render; do not use display:none which prevents iframe mount */
 #recaptcha-container {
-  display: none;
+  display: block !important;
 }
 
 /* Ensure reCAPTCHA is contained within the modal */
@@ -268,6 +269,20 @@
 /* Hide reCAPTCHA badge when not in use */
 .grecaptcha-badge {
   visibility: hidden;
+}
+
+.otp-spinner {
+  margin-right: 3px;
+  vertical-align: middle;
+  display: inline-block;
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+  box-sizing: content-box;
+  line-height: 0;
+}
+@keyframes otpSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Responsive design */

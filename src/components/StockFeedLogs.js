@@ -3,10 +3,12 @@ import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../contexts/AuthContext';
 import { GiDoubleFish } from 'react-icons/gi';
-import { FaInfoCircle, FaChartBar } from 'react-icons/fa';
+import { FaInfoCircle, FaChartBar, FaCalendarAlt, FaSpinner } from 'react-icons/fa';
 import { FaFish } from 'react-icons/fa6';
 import { IoWater } from 'react-icons/io5';
 import { RiInfoCardFill } from 'react-icons/ri';
+import { MdOutlineInbox } from 'react-icons/md';
+import './StockFeedLogs.css';
 
 const toDate = (ts) => {
   if (!ts) return null;
@@ -24,20 +26,25 @@ const formatCurrency = (value) => {
   if (value == null || value === '') return null;
   const num = Number(value);
   if (!isFinite(num)) return `₱${value}`;
-  return `₱${num.toFixed(2)}`;
+  return `₱${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const SectionTitle = ({ icon, title }) => (
-  <div style={{ fontWeight: 700, margin: '12px 0 8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-    <span>{icon}</span>
-    <span>{title}</span>
+const DataRow = ({ label, value, highlight = false }) => (
+  <div className={`data-row ${highlight ? 'highlight' : ''}`}>
+    <div className="data-label">{label}</div>
+    <div className="data-value">{value ?? '—'}</div>
   </div>
 );
 
-const Row = ({ label, value }) => (
-  <div className="meta-item">
-    <span className="meta-label">{label}</span>
-    <span className="meta-value">{value ?? '—'}</span>
+const DataSection = ({ title, icon, children, color = '#1A4375' }) => (
+  <div className="data-section">
+    <div className="data-section-header" style={{ borderLeftColor: color }}>
+      <span className="section-icon">{icon}</span>
+      <span className="section-title">{title}</span>
+    </div>
+    <div className="data-section-content">
+      {children}
+    </div>
   </div>
 );
 
@@ -110,8 +117,8 @@ const StockFeedLogs = ({ farmId, farmName }) => {
         const userFarm = currentUser?.farm ? String(currentUser.farm).trim() : '';
         const filteredByRole = withUser.filter(l => {
           if (role === 'super_admin' || role === 'superadmin' || role === 'super admin') return true;
-          if (isTemporaryTechOfficer) return true; // TTOs can see all logs like main Tech Officer
-          if (!userFarm) return true; // fallback: if no farm, show all
+          if (isTemporaryTechOfficer) return true;
+          if (!userFarm) return true;
           const farmIdMatch = l._farm === userFarm || nameToFarmId.get(userFarm.toLowerCase()) === l._farm;
           const farmNameMatch = (String(l._farmName || '').trim().toLowerCase() === userFarm.toLowerCase());
           return farmIdMatch || farmNameMatch;
@@ -122,7 +129,6 @@ const StockFeedLogs = ({ farmId, farmName }) => {
           if (!farmId && !farmName) return true;
           const fId = l._farm || l.farmId || '';
           const fName = l._farmName || l.farm || '';
-          // match by id or by name string if available
           return (farmId && fId === farmId) || (farmName && (String(fName).toLowerCase() === String(farmName).toLowerCase()));
         });
 
@@ -142,7 +148,7 @@ const StockFeedLogs = ({ farmId, farmName }) => {
       }
     };
     load();
-  }, [currentUser?.role, currentUser?.farm]);
+  }, [currentUser?.role, currentUser?.farm, farmId, farmName]);
 
   // Group logs by calendar date (local)
   const groupedByDate = useMemo(() => {
@@ -154,88 +160,156 @@ const StockFeedLogs = ({ farmId, farmName }) => {
       if (!map.has(key)) map.set(key, { key, label, items: [] });
       map.get(key).items.push(l);
     });
-    // Sort groups by date desc using key (ISO of midnight local)
     const groups = Array.from(map.values()).sort((a, b) => (b.key > a.key ? 1 : (b.key < a.key ? -1 : 0)));
-    // Sort items within each group by time desc
     groups.forEach(g => g.items.sort((a, b) => (toDate(b.timestamp)?.getTime() || 0) - (toDate(a.timestamp)?.getTime() || 0)));
     return groups;
   }, [logs]);
 
   const selectedGroup = groupedByDate[selectedIndex] || { items: [] };
+  const totalLogs = logs.length;
+  const totalDays = groupedByDate.length;
 
-  if (loading) return <div>Loading farmer logs...</div>;
-  if (error) return <div style={{ color: '#dc3545' }}>{error}</div>;
-  if (!logs.length) return <div>No farmer logs found.</div>;
+  if (loading) {
+    return (
+      <div className="stock-logs-loading">
+        <FaSpinner className="spinner-icon" />
+        <h3>Loading Stock & Feed Logs</h3>
+        <p>Please wait while we fetch the latest data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="stock-logs-error">
+        <div className="error-icon">⚠️</div>
+        <h3>Error Loading Logs</h3>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  if (!logs.length) {
+    return (
+      <div className="stock-logs-empty">
+        <MdOutlineInbox className="empty-icon" />
+        <h3>No Logs Found</h3>
+        <p>No stock and feed logs are available at this time.</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <strong>Latest Logs</strong>
-        <select value={selectedIndex} onChange={(e) => setSelectedIndex(Number(e.target.value))} className="filter-select">
+    <div className="stock-feed-logs-container">
+      {/* Header */}
+      <div className="stock-logs-header">
+        <div className="header-main">
+          <GiDoubleFish className="header-icon" />
+          <div>
+            <h1>Stock & Feed Logs</h1>
+            {farmName && <p className="header-subtitle">{farmName}</p>}
+          </div>
+        </div>
+        <div className="header-stats">
+          <div className="stat-item">
+            <span className="stat-number">{totalLogs}</span>
+            <span className="stat-text">Total Logs</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-number">{totalDays}</span>
+            <span className="stat-text">Days Recorded</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Date Selector */}
+      <div className="stock-date-selector">
+        <FaCalendarAlt className="date-icon" />
+        <label htmlFor="date-select">Date:</label>
+        <select 
+          id="date-select"
+          value={selectedIndex} 
+          onChange={(e) => setSelectedIndex(Number(e.target.value))} 
+          className="stock-date-select"
+        >
           {groupedByDate.map((g, i) => (
             <option key={g.key} value={i}>
-              {g.label} ({g.items.length})
+              {g.label} ({g.items.length} {g.items.length === 1 ? 'log' : 'logs'})
             </option>
           ))}
         </select>
       </div>
 
-      {selectedGroup.items.map(item => (
-        <div key={item.id} className="report-detail-card" style={{ border: '1px solid #e2e8f0', borderRadius: 8 }}>
-          <div className="report-header" style={{ marginBottom: 8 }}>
-            <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <GiDoubleFish />
-              Farmer Logs - {item.fish_pond || '—'}
-            </h4>
-            <span className="report-date">{formatDateTime(item.timestamp)}</span>
-          </div>
+      {/* Logs List */}
+      <div className="stock-logs-list">
+        {selectedGroup.items.map((item, idx) => (
+          <div key={item.id} className="log-entry">
+            {/* Entry Header */}
+            <div className="log-entry-header">
+              <div className="log-entry-title">
+                <GiDoubleFish className="log-icon" />
+                <div>
+                  <h2>Pond {item.fish_pond || '—'}</h2>
+                  <span className="log-entry-date">{formatDateTime(item.timestamp)}</span>
+                </div>
+              </div>
+              <div className="log-entry-number">#{idx + 1}</div>
+            </div>
 
-          <SectionTitle icon={<FaInfoCircle />} title="Fish Info" />
-          <div className="condition-grid">
-            <Row label="Pond" value={item.fish_pond} />
-            <Row label="Fish Type" value={item.fish_type} />
-            <Row label="Age" value={item.age != null ? `${item.age} days` : null} />
-            <Row label="Size" value={item.size != null ? `${item.size} g` : null} />
-            <Row label="Count" value={item.fish_count != null ? `${item.fish_count}` : null} />
-            <Row label="Pond Size" value={item.pond_size ? `${item.pond_size} m²` : null} />
-          </div>
+            {/* Entry Content */}
+            <div className="log-entry-content">
+              {/* Fish Information */}
+              <DataSection title="Fish Information" icon={<FaInfoCircle />} color="#1A4375">
+                <DataRow label="Pond Number" value={item.fish_pond} />
+                <DataRow label="Fish Type" value={item.fish_type} />
+                <DataRow label="Age" value={item.age != null ? `${item.age} days` : null} />
+                <DataRow label="Size" value={item.size != null ? `${item.size} g` : null} />
+                <DataRow label="Count" value={item.fish_count != null ? item.fish_count.toLocaleString() : null} highlight={item.fish_count != null} />
+                <DataRow label="Pond Size" value={item.pond_size ? `${item.pond_size} m²` : null} />
+              </DataSection>
 
-          <SectionTitle icon={<FaChartBar />} title="Estimates" />
-          <div className="condition-grid">
-            <Row label="Days to Harvest" value={item.estimated_days_to_harvest != null ? `${item.estimated_days_to_harvest} days` : null} />
-            <Row label="Est. Weight" value={item.estimated_harvest_weight != null ? `${item.estimated_harvest_weight} (kg)` : null} />
-            <Row label="Est. Value" value={item.estimated_value != null ? formatCurrency(item.estimated_value) : null} />
-            <Row label="Est. Profit" value={item.estimated_profit != null ? formatCurrency(item.estimated_profit) : null} />
-          </div>
+              {/* Harvest Estimates */}
+              {(item.estimated_days_to_harvest != null || item.estimated_harvest_weight != null || item.estimated_value != null || item.estimated_profit != null) && (
+                <DataSection title="Harvest Estimates" icon={<FaChartBar />} color="#059669">
+                  <DataRow label="Days to Harvest" value={item.estimated_days_to_harvest != null ? `${item.estimated_days_to_harvest} days` : null} />
+                  <DataRow label="Estimated Weight" value={item.estimated_harvest_weight != null ? `${item.estimated_harvest_weight} kg` : null} />
+                  <DataRow label="Estimated Value" value={item.estimated_value != null ? formatCurrency(item.estimated_value) : null} highlight={item.estimated_value != null} />
+                  <DataRow label="Estimated Profit" value={item.estimated_profit != null ? formatCurrency(item.estimated_profit) : null} highlight={item.estimated_profit != null} />
+                </DataSection>
+              )}
 
-          <SectionTitle icon={<FaFish />} title="Feeding Info" />
-          <div className="condition-grid">
-            <Row label="Brand" value={item.feed_brand} />
-            <Row label="Amount" value={item.feed_amount != null ? `${item.feed_amount}` : null} />
-            <Row label="Cost" value={item.feed_cost != null ? formatCurrency(item.feed_cost) : null} />
-            <Row label="Frequency" value={item.frequency != null ? `${item.frequency}` : null} />
-          </div>
+              {/* Feeding Information */}
+              {(item.feed_brand || item.feed_amount != null || item.feed_cost != null || item.frequency != null) && (
+                <DataSection title="Feeding Information" icon={<FaFish />} color="#DC2626">
+                  <DataRow label="Feed Brand" value={item.feed_brand} />
+                  <DataRow label="Amount" value={item.feed_amount != null ? item.feed_amount : null} />
+                  <DataRow label="Cost" value={item.feed_cost != null ? formatCurrency(item.feed_cost) : null} />
+                  <DataRow label="Frequency" value={item.frequency != null ? item.frequency : null} />
+                </DataSection>
+              )}
 
-          <SectionTitle icon={<IoWater />} title="Environment" />
-          <div className="condition-grid">
-            <Row label="pH Level" value={item.ph_level != null ? item.ph_level : 'No Data'} />
-            <Row label="Water Temp" value={item.water_temp != null ? item.water_temp : 'No Data'} />
-          </div>
+              {/* Environment */}
+              {(item.ph_level != null || item.water_temp != null) && (
+                <DataSection title="Environment" icon={<IoWater />} color="#0284C7">
+                  <DataRow label="pH Level" value={item.ph_level != null ? item.ph_level : 'No Data'} />
+                  <DataRow label="Water Temperature" value={item.water_temp != null ? `${item.water_temp}°C` : 'No Data'} />
+                </DataSection>
+              )}
 
-          <SectionTitle icon={<RiInfoCardFill />} title="Submitted Info" />
-          <div className="report-meta">
-            <Row label="Submitted by" value={item.submitted_by || item.username || '—'} />
-            <Row label="Contact" value={item.user_contact || item.contact || '—'} />
-            <Row label="Email" value={item.user_email || item.email || '—'} />
-            <Row label="Farm" value={item._farmName || item._farm || '—'} />
-            <Row label="Date" value={formatDateTime(item.timestamp)} />
+              {/* Submission Details */}
+              <DataSection title="Submission Details" icon={<RiInfoCardFill />} color="#7C3AED">
+                <DataRow label="Submitted By" value={item.submitted_by || item.username || '—'} />
+                <DataRow label="Contact" value={item.user_contact || item.contact || '—'} />
+                <DataRow label="Email" value={item.user_email || item.email || '—'} />
+                <DataRow label="Farm" value={item._farmName || item._farm || '—'} />
+                <DataRow label="Date Submitted" value={formatDateTime(item.timestamp)} />
+              </DataSection>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };
 
 export default StockFeedLogs;
-
-

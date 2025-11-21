@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next'; // Add this import
 import './AccountManagement.css';
+import './AccountManagement-crm.css';
 import logo from './assets/images/PISCARISK_LOGO.png';
-import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck, FaCheckCircle } from 'react-icons/fa';
+import { FaUserCircle,FaUser, FaSignOutAlt, FaUserPlus, FaSearch, FaBars, FaFilter, FaUserCheck, FaCheckCircle, FaEdit, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { IoMdArrowDropdown } from "react-icons/io";
 import { MdOutlineLockReset } from "react-icons/md";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -23,7 +24,7 @@ import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeTo
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
   const { currentUser } = useContext(AuthContext);
-  const { addDeactivationToast, addActivationToast, clearPendingActivations } = useNotifications();
+  const { addDeactivationToast, addActivationToast, addToast, clearPendingActivations, suppressNextActivationIncreaseToast, suppressNextActivationDecreaseToast } = useNotifications();
   const navigate = useNavigate();
   
   // Temporary Tech Officers now have access to Account Management
@@ -91,6 +92,9 @@ const AccountManagement = () => {
   // Track New Main Tech Officer creation mode
   const [newMainTOCreationMode, setNewMainTOCreationMode] = useState(''); // 'reuse' or 'create'
   
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState('active'); // 'active', 'new', 'deactivated'
+  
   // Farms for assignment when creator has no assigned farm
   const [farms, setFarms] = useState([]); // { id, name }
   const [selectedFarmId, setSelectedFarmId] = useState('');
@@ -135,9 +139,12 @@ const AccountManagement = () => {
             user.effectiveFrom && user.effectiveTo && 
             String(user.status || '').toLowerCase() === 'active') {
           const effectiveFrom = new Date(user.effectiveFrom);
+          // Treat the end date as inclusive: set to end of day local time
           const effectiveTo = new Date(user.effectiveTo);
+          effectiveFrom.setHours(0, 0, 0, 0);
+          effectiveTo.setHours(23, 59, 0, 0);
           
-          // Calculate remaining time from effectiveFrom to effectiveTo
+          // Calculate remaining time from effectiveFrom to end-of-day effectiveTo
           const totalDuration = effectiveTo.getTime() - effectiveFrom.getTime();
           const elapsed = now.getTime() - effectiveFrom.getTime();
           const remaining = effectiveTo.getTime() - now.getTime();
@@ -199,7 +206,7 @@ const AccountManagement = () => {
             const now = new Date();
             
             const updateData = { 
-              status: 'Inactive',
+              status: 'Deactivated',
               lastModified: now.toISOString(),
               deactivatedBy: 'System (Auto)',
               deactivatedAt: now.toISOString(),
@@ -231,7 +238,7 @@ const AccountManagement = () => {
             setAccountUsers(prev => prev.map(u => 
               u.id === user.id ? { 
                 ...u, 
-                status: 'inactive',
+                status: 'Deactivated',
                 deactivatedBy: 'System (Auto)',
                 deactivatedAt: now.toISOString(),
                 deactivationReason: 'Temporary assignment expired',
@@ -586,12 +593,17 @@ const AccountManagement = () => {
   };
 
   const isInactive = (status) => {
-    const result = String(status || '').toLowerCase() === 'inactive';
-    return result;
+    const statusLower = String(status || '').toLowerCase();
+    return statusLower === 'inactive' || statusLower === 'deactivated';
   };
-  const getStatusDisplay = (status) => {
+  const getStatusDisplay = (status, user = null) => {
     const s = String(status || '').toLowerCase();
     if (s === 'active') return 'Active';
+    if (s === 'deactivated') return 'Deactivated';
+    // Check if user is deactivated (has deactivation fields) even if status is 'inactive'
+    if (user && (user.deactivatedBy || user.deactivatedAt || user.deactivationReason)) {
+      return 'Deactivated';
+    }
     if (s === 'inactive') return 'Inactive';
     return status || 'Unknown';
   };
@@ -619,6 +631,9 @@ const AccountManagement = () => {
     
     const effectiveFrom = new Date(user.effectiveFrom);
     const effectiveTo = new Date(user.effectiveTo);
+    // Align to display intent: start of day for from, end of day for to
+    effectiveFrom.setHours(0, 0, 0, 0);
+    effectiveTo.setHours(23, 59, 0, 0);
     const now = new Date();
     const isExpired = timer.status === 'expired';
     
@@ -669,16 +684,26 @@ const AccountManagement = () => {
 
     try {
       setMessage({ text: `Deactivating ${user.username}...`, type: 'info' });
+      // Suppress the next generic increase toast ("New user is awaiting activation")
+      try { if (typeof suppressNextActivationIncreaseToast === 'function') suppressNextActivationIncreaseToast(); } catch (_) {}
       
       const { updateDoc, doc } = await import('firebase/firestore');
       const { db } = await import('./firebase');
       const now = new Date();
-      const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-      const adminRole = currentUser?.role || 'Unknown';
-      const deactivatedByWithRole = `${adminUser} (${adminRole})`;
+      const actorName = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const actorRole = currentUser?.role || 'Unknown';
+      const targetFarm = user?.farm || user?.farmId || null;
+      const actorFarm = currentUser?.farm || null;
+      const farmsMatch = actorRole?.toLowerCase() === 'admin' && actorFarm && targetFarm && String(actorFarm).trim().toLowerCase() === String(targetFarm).trim().toLowerCase();
+      const roleLabel = farmsMatch
+        ? 'Admin'
+        : ((String(actorRole||'').toLowerCase() === 'tech_officer' || String(actorRole||'').toLowerCase() === 'tech officer') ? 'Tech Officer'
+          : ((String(actorRole||'').toLowerCase() === 'new_main_tech_officer' || String(actorRole||'').toLowerCase() === 'new main tech officer') ? 'Tech Officer'
+            : ((String(actorRole||'').toLowerCase() === 'temp_tech_officer' || String(actorRole||'').toLowerCase() === 'temporary tech officer') ? 'Temporary Tech Officer' : 'User')));
+      const deactivatedByWithRole = `${roleLabel} (${actorName})`;
       
       const updateData = { 
-        status: 'Inactive',
+        status: 'Deactivated',
         lastModified: now.toISOString(),
         deactivatedBy: deactivatedByWithRole,
         deactivatedAt: now.toISOString(),
@@ -702,14 +727,14 @@ const AccountManagement = () => {
       
       // Log the manual deactivation
       try {
-        logActivity('account', `Temporary Tech Officer ${user.username} manually deactivated by Admin/Tech Officer`, adminUser);
+        logActivity('account', `Temporary Tech Officer ${user.username} manually deactivated by Admin/Tech Officer`, actorName);
       } catch (_) {}
       
       // Update local state
       setAccountUsers(prev => prev.map(u => 
         u.id === user.id ? { 
           ...u, 
-          status: 'inactive',
+          status: 'Deactivated',
           deactivatedBy: deactivatedByWithRole,
           deactivatedAt: now.toISOString(),
           deactivationReason: 'Manually deactivated by Admin/Tech Officer',
@@ -788,6 +813,79 @@ const AccountManagement = () => {
       }
     }
     
+    // Tab-based filtering
+    let matchesTab = true;
+    const userStatus = String(user.status || '').toLowerCase();
+    const userDateJoined = user.dateJoined ? new Date(user.dateJoined) : null;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Helper function to check if user has been deactivated (comprehensive check)
+    const checkIfDeactivated = (u) => {
+      // Check if status is explicitly 'deactivated'
+      if (String(u.status || '').toLowerCase() === 'deactivated') {
+        return true;
+      }
+      
+      // Check explicit deactivation fields (primary indicators)
+      const db = u.deactivatedBy && String(u.deactivatedBy).trim() !== '' && String(u.deactivatedBy).trim() !== 'null';
+      const da = u.deactivatedAt && String(u.deactivatedAt).trim() !== '' && String(u.deactivatedAt).trim() !== 'null';
+      const dr = u.deactivationReason && String(u.deactivationReason).trim() !== '' && String(u.deactivationReason).trim() !== 'null';
+      const tr = u.temporarilyInactiveDueToReplacement === true;
+      
+      // If explicit fields exist, definitely deactivated
+      if (db || da || dr || tr) {
+        return true;
+      }
+      
+      // Check if expired Temporary Tech Officer (even if temporaryTechOfficer flag was cleared after deactivation)
+      // Evidence: has effectiveTo date AND date is expired AND user is inactive or deactivated
+      // This catches auto-deactivated users even if deactivation fields weren't properly saved
+      if (u.effectiveTo) {
+        try {
+          const effectiveToDate = new Date(u.effectiveTo);
+          if (!isNaN(effectiveToDate.getTime())) {
+            const now = new Date();
+            const isExpired = effectiveToDate.getTime() < now.getTime();
+            
+            // If user has expired effectiveTo date and is inactive/deactivated, they were likely auto-deactivated
+            // OR if they have temp tech officer role/flag (even if false now, they had it before)
+            const hasTempTORole = String(u.role || '').toLowerCase() === 'temp_tech_officer';
+            const hadTempTOFlag = u.temporaryTechOfficer === true || u.hasBeenTempTechOfficer === true || u.effectiveFrom;
+            const statusLower = String(u.status || '').toLowerCase();
+            
+            if (isExpired && (statusLower === 'inactive' || statusLower === 'deactivated') && (hasTempTORole || hadTempTOFlag || u.effectiveFrom)) {
+              return true;
+            }
+          }
+        } catch (e) {
+          // Ignore date parsing errors
+        }
+      }
+      
+      return false;
+    };
+
+    const isDeactivated = checkIfDeactivated(user);
+
+    switch (activeTab) {
+      case 'active':
+        matchesTab = userStatus === 'active';
+        break;
+      case 'new':
+        // Show only newly added users (inactive status but not explicitly deactivated)
+        // New users have status 'inactive' but no deactivation tracking fields
+        matchesTab = userStatus === 'inactive' && !isDeactivated;
+        break;
+      case 'deactivated':
+        // Show only users who were explicitly deactivated by admins, tech officers, temp tech officers, or new main tech officers
+        // This includes: manual deactivations, system auto-deactivations, and replacements
+        matchesTab = (userStatus === 'deactivated' || (userStatus === 'inactive' && isDeactivated));
+        break;
+      default:
+        matchesTab = true;
+    }
+    
     // Basic search term filter
     const roleDisplay = formatRoleForDisplay(user.role);
     const matchesSearch = (
@@ -799,8 +897,13 @@ const AccountManagement = () => {
     // Role filter - if current user is assigned to a farm, show all roles
     const matchesRole = currentUser?.farm ? true : (selectedRole === 'All Roles' || roleDisplay === selectedRole);
     
-    // Status filter
-    const matchesStatus = selectedStatus === 'All Status' || (String(user.status || '').toLowerCase() === String(selectedStatus || '').toLowerCase());
+    // Status filter - handle both 'Inactive' and 'Deactivated' for backward compatibility
+    const userStatusForFilter = String(user.status || '').toLowerCase();
+    const selectedStatusLower = String(selectedStatus || '').toLowerCase();
+    const matchesStatus = selectedStatus === 'All Status' || 
+      userStatusForFilter === selectedStatusLower ||
+      (selectedStatusLower === 'inactive' && (userStatusForFilter === 'inactive' || userStatusForFilter === 'deactivated')) ||
+      (selectedStatusLower === 'deactivated' && userStatusForFilter === 'deactivated');
     
     // Custom filter type
     let matchesCustomFilter = true;
@@ -821,7 +924,7 @@ const AccountManagement = () => {
       }
     }
     
-    return matchesSearch && matchesRole && matchesStatus && matchesCustomFilter;
+    return matchesTab && matchesSearch && matchesRole && matchesStatus && matchesCustomFilter;
   });
 
   // Apply sorting to filtered users
@@ -849,13 +952,13 @@ const AccountManagement = () => {
     }
   });
 
-  // Pagination (exactly 5 users per page)
-  const PAGE_SIZE = 5;
+  // Pagination (dynamic page size)
+  const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [showPageNumbers, setShowPageNumbers] = useState(false);
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth > 1600);
   const [selectedUsers, setSelectedUsers] = useState(new Set());
-  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / pageSize));
   // Clamp current page if data changes
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -865,9 +968,9 @@ const AccountManagement = () => {
     }
   }, [totalPages]);
 
-  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const startIndex = (currentPage - 1) * pageSize;
   const paginatedUsers = useMemo(() => {
-    const slice = sortedUsers.slice(startIndex, startIndex + PAGE_SIZE);
+    const slice = sortedUsers.slice(startIndex, startIndex + pageSize);
     return slice;
   }, [sortedUsers, startIndex]);
 
@@ -943,6 +1046,12 @@ const AccountManagement = () => {
     if (name === 'email') {
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       setErrors(prevErrors => ({ ...prevErrors, email: emailPattern.test(value) ? '' : 'Please enter a valid email address.' }));
+    }
+
+    // Password validation/feedback
+    if (name === 'password') {
+      setIsGeneratedPassword(false); // If typing over, switch to manual mode
+      setPasswordError(validatePassword(value));
     }
   };
 
@@ -1325,8 +1434,8 @@ const AccountManagement = () => {
       address: '',
       email: '',
       contactNumber: '',
-      // Default role depends on creator (hide Tech Officer if already exists)
-      role: currentUser?.farm ? 'Fish Farmer' : (hasTechOfficer ? 'Admin' : 'Tech Officer'),
+      // Default to empty so user must explicitly select a job position
+      role: '',
       status: 'Active', // Default status, enforced later per role
       dateJoined: todayDate,
       password: '',
@@ -1426,6 +1535,8 @@ const AccountManagement = () => {
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
         logActivity('account', `Tech Officer activation initiated for user ${user.username} in Account Management`, u); 
       } catch (_) {}
+      // Suppress the generic activation decrease toast once for this manual activation
+      try { if (typeof suppressNextActivationDecreaseToast === 'function') suppressNextActivationDecreaseToast(); } catch (_) {}
       // Reconcile with Firestore first
       const live = await serviceFetchLiveUserStatus(user.id);
       if (live && typeof live.status === 'string') {
@@ -1478,9 +1589,11 @@ const AccountManagement = () => {
       try {
         const { updateDoc, doc } = await import('firebase/firestore');
         const { db } = await import('./firebase');
+        const isTempTO = (String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer === true);
         await updateDoc(doc(db, 'users', user.id), {
           status: 'Active',
           adminActivated: true,
+          ...(isTempTO ? { temporaryTechOfficer: true, isTemporary: true } : {}),
           activatedBy: activatedByWithRole,
           activatedAt: new Date().toISOString(),
           lastModified: serverTimestamp()
@@ -1545,6 +1658,8 @@ const handleActivateFishFarmer = async (user) => {
     logActivity('account', `Fish Farmer activation initiated for ${user.username}`, adminUser);
 
     setMessage({ text: `Activating ${user.username}...`, type: 'info' });
+    // Suppress the generic activation decrease toast once for this manual activation
+    try { if (typeof suppressNextActivationDecreaseToast === 'function') suppressNextActivationDecreaseToast(); } catch (_) {}
 
     // Use the direct update method
     const result = await serviceActivateFishFarmer(user.id, user.email, user._collection, user.username);
@@ -1616,6 +1731,8 @@ const handleActivateFishFarmer = async (user) => {
 
     try {
       setMessage({ text: `Activating Admin ${user.username || user.email}...`, type: 'info' });
+      // Suppress the generic activation decrease toast once for this manual activation
+      try { if (typeof suppressNextActivationDecreaseToast === 'function') suppressNextActivationDecreaseToast(); } catch (_) {}
       // Use AuthContext function
       const result = await activateAdminAccount(user.email);
       if (!result?.success) {
@@ -1667,16 +1784,62 @@ const handleActivateFishFarmer = async (user) => {
   };
 
 
+  // Helper function to check if user is a newly added/pending user that needs activation
+  const isPendingAccount = (u) => {
+    if (!u || typeof u !== 'object') return false;
+    const userStatus = String(u.status || '').toLowerCase();
+    if (userStatus !== 'inactive') return false;
+    
+    // Check if user has been deactivated (if so, not a pending account)
+    const db = u.deactivatedBy && String(u.deactivatedBy).trim() !== '' && String(u.deactivatedBy).trim() !== 'null';
+    const da = u.deactivatedAt && String(u.deactivatedAt).trim() !== '' && String(u.deactivatedAt).trim() !== 'null';
+    const dr = u.deactivationReason && String(u.deactivationReason).trim() !== '' && String(u.deactivationReason).trim() !== 'null';
+    const tr = u.temporarilyInactiveDueToReplacement === true;
+    
+    // If explicit deactivation fields exist, not a pending account
+    if (db || da || dr || tr) {
+      return false;
+    }
+    
+    // Check if expired Temporary Tech Officer
+    if (u.effectiveTo) {
+      try {
+        const effectiveToDate = new Date(u.effectiveTo);
+        if (!isNaN(effectiveToDate.getTime())) {
+          const now = new Date();
+          const isExpired = effectiveToDate.getTime() < now.getTime();
+          const hasTempTORole = String(u.role || '').toLowerCase() === 'temp_tech_officer';
+          const hadTempTOFlag = u.temporaryTechOfficer === true || u.hasBeenTempTechOfficer === true || u.effectiveFrom;
+          
+          if (isExpired && (hasTempTORole || hadTempTOFlag || u.effectiveFrom)) {
+            return false; // Expired TTO, not a pending account
+          }
+        }
+      } catch (e) {
+        // Ignore date parsing errors
+      }
+    }
+    
+    return true; // Inactive but not deactivated = pending account
+  };
+
   const handleDeleteUser = async (user) => {
     if (!canManageUsers) {
         setMessage({ text: 'Only Admins, Tech Officers, New Main Tech Officers, and Temporary Tech Officers can delete users', type: 'error' });
       return;
     }
+    
+    // Check if this is a pending account
+    const isPending = isPendingAccount(user);
+    const message = isPending 
+      ? `Are you sure you want to delete this pending account: "${user.username}"? This action cannot be undone.`
+      : `Are you sure you want to delete user "${user.username}"? This action cannot be undone.`;
+    
     // Show custom confirmation modal
     setDeleteConfirmData({
       type: 'single',
       user: user,
-      message: `Are you sure you want to delete user "${user.username}"? This action cannot be undone.`
+      message: message
     });
     setShowDeleteConfirmModal(true);
   };
@@ -1689,19 +1852,43 @@ const handleActivateFishFarmer = async (user) => {
     
     try {
       setMessage({ text: `Deleting user ${user.username}...`, type: 'info' });
+      const actorLogUsername = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const actorDisplayName = (currentUser?.fullName && String(currentUser.fullName).trim()) || currentUser?.username || currentUser?.email || 'Unknown user';
+      const wasPendingAccount = isPendingAccount(user);
       try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('account', `User deletion initiated for ${user.username} in Account Management`, u); 
+        logActivity('account', `User deletion initiated for ${user.username} in Account Management`, actorLogUsername); 
       } catch (_) {}
 
       // Delete user from Firebase
       const result = await deleteUserFromFirebase(user.id);
       
       if (result.success) {
+        // Suppress activation toast if deleting a pending user (since pending count will decrease)
+        if (wasPendingAccount) {
+          try { 
+            if (typeof suppressNextActivationDecreaseToast === 'function') {
+              suppressNextActivationDecreaseToast();
+            }
+          } catch (_) {}
+        }
+        
         setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
+        
+        // Show deletion toast
+        try {
+          const toastMessage = wasPendingAccount
+            ? `You successfully deleted pending user ${user.username}.`
+            : `You successfully deleted user ${user.username}.`;
+          if (typeof addToast === 'function') {
+            addToast(toastMessage, 'success', 4000);
+          }
+        } catch (_) {}
+        
         try { 
-          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-          logActivity('account', `User ${user.username} deleted successfully in Account Management`, u); 
+          const logMessage = wasPendingAccount
+            ? `${actorDisplayName} deleted pending user "${user.username}" in Account Management.`
+            : `${actorDisplayName} deleted user "${user.username}" in Account Management.`;
+          logActivity('account', logMessage, actorLogUsername); 
         } catch (_) {}
         
         // Remove user from local state
@@ -1753,15 +1940,41 @@ const handleActivateFishFarmer = async (user) => {
       return;
     }
 
-    const selectedUserList = filteredUsers.filter(user => selectedUsers.has(user.id));
-    const userNames = selectedUserList.map(user => user.username).join(', ');
+    const selectedUserList = filteredUsers.filter(user => user && user.id && selectedUsers.has(user.id));
+    if (selectedUserList.length === 0) {
+      setMessage({ text: 'No valid users selected for deletion', type: 'error' });
+      return;
+    }
+    
+    const userNames = selectedUserList.map(user => user?.username || 'Unknown').join(', ');
+    const userCount = selectedUserList.length;
+    
+    // Check if all selected users are pending accounts
+    const allPending = selectedUserList.every(user => user && isPendingAccount(user));
+    const allRegular = selectedUserList.every(user => user && !isPendingAccount(user));
+    
+    let message;
+    if (userCount === 1) {
+      const firstUser = selectedUserList[0];
+      const isPending = firstUser && isPendingAccount(firstUser);
+      message = isPending
+        ? `Are you sure you want to delete this pending account: ${userNames}? This action cannot be undone.`
+        : `Are you sure you want to delete 1 user: ${userNames}? This action cannot be undone.`;
+    } else if (allPending) {
+      message = `Are you sure you want to delete ${userCount} pending accounts: ${userNames}? This action cannot be undone.`;
+    } else if (allRegular) {
+      message = `Are you sure you want to delete ${userCount} users: ${userNames}? This action cannot be undone.`;
+    } else {
+      // Mixed: some pending, some regular
+      message = `Are you sure you want to delete ${userCount} users (including pending accounts): ${userNames}? This action cannot be undone.`;
+    }
     
     // Show custom confirmation modal
     setDeleteConfirmData({
       type: 'bulk',
       userNames: userNames,
-      count: selectedUsers.size,
-      message: `Are you sure you want to delete ${selectedUsers.size} user(s): ${userNames}? This action cannot be undone.`
+      count: userCount,
+      message: message
     });
     setShowDeleteConfirmModal(true);
   };
@@ -1812,11 +2025,29 @@ const handleActivateFishFarmer = async (user) => {
     setShowDeleteConfirmModal(false);
     
     try {
-      setMessage({ text: `Deleting ${selectedUsers.size} users...`, type: 'info' });
+      const userCount = selectedUsers.size;
+      const userText = userCount === 1 ? 'user' : 'users';
+      setMessage({ text: `Deleting ${userCount} ${userText}...`, type: 'info' });
+      const actorLogUsername = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const actorDisplayName = (currentUser?.fullName && String(currentUser.fullName).trim()) || currentUser?.username || currentUser?.email || 'Unknown user';
+      const selectedUserObjects = filteredUsers.filter(user => user && user.id && selectedUsers.has(user.id));
+      const selectedUserMap = new Map(selectedUserObjects.map(user => [user.id, user]));
+      
+      // Check if any pending users are being deleted (to suppress activation toast)
+      const hasPendingUsers = selectedUserObjects.some(user => isPendingAccount(user));
+      if (hasPendingUsers) {
+        try { 
+          if (typeof suppressNextActivationDecreaseToast === 'function') {
+            suppressNextActivationDecreaseToast();
+          }
+        } catch (_) {}
+      }
       
       let successCount = 0;
       let errorCount = 0;
       const errors = [];
+      const deletedPendingUsers = [];
+      const deletedRegularUsers = [];
       
       // Delete users one by one
       for (const userId of selectedUsers) {
@@ -1824,6 +2055,21 @@ const handleActivateFishFarmer = async (user) => {
           const result = await deleteUserFromFirebase(userId);
           if (result.success) {
             successCount++;
+            const targetUser = selectedUserMap.get(userId);
+            if (targetUser) {
+              const wasPendingAccount = isPendingAccount(targetUser);
+              if (wasPendingAccount) {
+                deletedPendingUsers.push(targetUser.username);
+              } else {
+                deletedRegularUsers.push(targetUser.username);
+              }
+              try {
+                const logMessage = wasPendingAccount
+                  ? `${actorDisplayName} deleted pending user "${targetUser.username}" in Account Management.`
+                  : `${actorDisplayName} deleted user "${targetUser.username}" in Account Management.`;
+                logActivity('account', logMessage, actorLogUsername);
+              } catch (_) {}
+            }
           } else {
             errorCount++;
             errors.push(result.error);
@@ -1835,7 +2081,35 @@ const handleActivateFishFarmer = async (user) => {
       }
       
       if (errorCount === 0) {
-        setMessage({ text: `Successfully deleted ${successCount} users!`, type: 'success' });
+        const successText = successCount === 1 ? 'user' : 'users';
+        setMessage({ text: `Successfully deleted ${successCount} ${successText}!`, type: 'success' });
+        
+        // Show deletion toast
+        try {
+          let toastMessage = '';
+          if (deletedPendingUsers.length > 0 && deletedRegularUsers.length === 0) {
+            // All pending users
+            if (deletedPendingUsers.length === 1) {
+              toastMessage = `You successfully deleted pending user ${deletedPendingUsers[0]}.`;
+            } else {
+              toastMessage = `You successfully deleted ${deletedPendingUsers.length} pending users.`;
+            }
+          } else if (deletedRegularUsers.length > 0 && deletedPendingUsers.length === 0) {
+            // All regular users
+            if (deletedRegularUsers.length === 1) {
+              toastMessage = `You successfully deleted user ${deletedRegularUsers[0]}.`;
+            } else {
+              toastMessage = `You successfully deleted ${deletedRegularUsers.length} users.`;
+            }
+          } else {
+            // Mixed
+            toastMessage = `You successfully deleted ${successCount} users (${deletedPendingUsers.length} pending, ${deletedRegularUsers.length} regular).`;
+          }
+          
+          if (toastMessage && typeof addToast === 'function') {
+            addToast(toastMessage, 'success', 4000);
+          }
+        } catch (_) {}
       } else if (successCount > 0) {
         setMessage({ text: `Deleted ${successCount} users, but ${errorCount} failed. ` });
       } else {
@@ -2002,9 +2276,46 @@ const handleActivateFishFarmer = async (user) => {
     }
   };
 
+  // 1. Add states for password mode and visibility
+  const [isGeneratedPassword, setIsGeneratedPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  // 2. Password generation function
+  function generatePasswordFromName(name = '') {
+    // Take first name only, or fallback to empty
+    let base = name.split(' ')[0] || 'User';
+    base = base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+    const randomNum = String(Math.floor(100 + Math.random() * 900));
+    const specials = '!@#$%^&*';
+    const specialChar = specials[Math.floor(Math.random() * specials.length)];
+    // Compose and ensure it meets minimum length and contains all types
+    let pw = `${base}${randomNum}${specialChar}`;
+    // Ensure password >= 8 chars, has uppercase, number, and special
+    if (!/[A-Z]/.test(pw)) pw = 'A' + pw;
+    if (!/[0-9]/.test(pw)) pw += '1';
+    if (!/[!@#$%^&*]/.test(pw)) pw += '!';
+    while (pw.length < 8) pw += Math.floor(Math.random()*10).toString();
+    return pw;
+  }
+
+  // 3. Password validation function
+  function validatePassword(pw) {
+    if (pw.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Z]/.test(pw)) return 'Password must contain an uppercase letter.';
+    if (!/[0-9]/.test(pw)) return 'Password must contain a number.';
+    if (!/[!@#$%^&*]/.test(pw)) return 'Password must contain a special character (!@#$%^&*).';
+    return '';
+  }
+
+  // Calculate if all required fields are filled before showing Generate Password
+  const allRequiredFieldsFilled =
+    newUser.username && newUser.fullName && newUser.address && newUser.email &&
+    newUser.contactNumber && newUser.role && newUser.dateJoined;
+
   return (
     <div className="account-management">
-              {process.env.NODE_ENV === 'development' && ( 
+      {process.env.NODE_ENV === 'development' && ( 
         <div style={{
           position: 'fixed', 
           top: '80px', 
@@ -2106,99 +2417,35 @@ const handleActivateFishFarmer = async (user) => {
         language={language}
         setLanguage={setLanguage}
       />
-                <div className={`add-user-button-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} onClick={closeAllDropdowns}>
 
-        
-        {/* Filter Button */}
-        <button 
-          className="filter-button"
-          onClick={(e) => {
-            e.stopPropagation();
-            const isOpening = !showFilterDropdown;
-            setShowFilterDropdown(!showFilterDropdown);
-          }}
-        >
-          <FaFilter className="filter-icon" />
-          {t('accountManagement.filters.filter_button')}
-        </button>
-            
-            {showFilterDropdown && (
-              <div className="filter-dropdown" onClick={(e) => e.stopPropagation()}>
-                <div className="filter-section">
-                  <label>{t('accountManagement.filters.filter_type_label')}</label>
-                  <select 
-                    value={selectedFilterType} 
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      setSelectedFilterType(e.target.value);
-                    }}
-                  >
-                    <option value="All">{t('accountManagement.filters.all_option')}</option>
-                    <option value="Role">{t('accountManagement.filters.role_option')}</option>
-                    <option value="Status">{t('accountManagement.filters.status_option')}</option>
-                    <option value="Name">{t('accountManagement.filters.name_option')}</option>
-                  </select>
+      {/* Main Content Container */}
+      <div className={`main-content-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        {/* Tab Navigation */}
+        <div className="tab-navigation">
+          <div className="tab-container">
+            <button 
+              className={`tab-button ${activeTab === 'active' ? 'active' : ''}`}
+              onClick={() => setActiveTab('active')}
+            >
+              Active Users
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'new' ? 'active' : ''}`}
+              onClick={() => setActiveTab('new')}
+            >
+              New Users
+            </button>
+            <button 
+              className={`tab-button ${activeTab === 'deactivated' ? 'active' : ''}`}
+              onClick={() => setActiveTab('deactivated')}
+            >
+              Deactivated Users
+            </button>
           </div>
-
-                {selectedFilterType !== 'All' && (
-                  <div className="filter-section">
-                    <label>{t('accountManagement.filters.filter_value_label')}</label>
-                    <input
-                      type="text"
-                      placeholder={t('accountManagement.filters.enter_filter_placeholder', { filterType: selectedFilterType.toLowerCase() })}
-                      value={filterValue}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        setFilterValue(e.target.value);
-                      }}
-                      className="filter-input"
-                    />
-                  </div>
-                )}
-                
-                <div className="filter-actions">
-                  <button 
-                    className="apply-filter-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowFilterDropdown(false);
-                    }}
-                  >
-                    {t('accountManagement.filters.apply_button')}
-                  </button>
-                  <button 
-                    className="clear-filter-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFilterType('All');
-                      setFilterValue('');
-                      setShowFilterDropdown(false);
-                    }}
-                  >
-                    {t('accountManagement.filters.clear_button')}
-          </button>
         </div>
-              </div>
-            )}
-            
-            {canManageUsers ? (
-              <button className="add-user-button" onClick={(e) => {
-                e.stopPropagation(); // Prevent closing dropdowns when clicking add user button
-                closeAllDropdowns(); // Close all other dropdowns first
-                handleOpenAddUserForm();
-              }}>
-                <FaUserPlus className="button-icon" />
-                Add New User
-              </button>
-            ) : (
-              <button className="add-user-button" style={{ visibility: 'hidden' }} aria-hidden="true" tabIndex={-1}>
-                <FaUserPlus className="button-icon" />
-                Add New User
-              </button>
-            )}
-            
-            {canManageUsers && selectedInactiveCount > 1 && (
-              <button className="bulk-activate-button" onClick={(e) => {
+
+        {canManageUsers && selectedInactiveCount > 1 && (
+          <button className="bulk-activate-button" onClick={(e) => {
                 e.stopPropagation();
                 closeAllDropdowns();
                 try {
@@ -2213,225 +2460,148 @@ const handleActivateFishFarmer = async (user) => {
             )}
 
             {canManageUsers && selectedUsers.size > 1 && (
-              <button className="bulk-delete-button" onClick={(e) => {
-                e.stopPropagation(); // Prevent closing dropdowns when clicking bulk delete button
-                closeAllDropdowns(); // Close all other dropdowns first
-                try { 
+              <></>
+            )}
+
+        {/* Filter and Add User Bar */}
+        <div className="search-filter-bar">
+          <div className="filter-container">
+            <select 
+              className="filter-select"
+              value={selectedRole}
+              onChange={(e) => {
+                e.stopPropagation();
+                setSelectedRole(e.target.value);
+              }}
+            >
+              <option value="All Roles">All Roles</option>
+              <option value="Admin">Admin</option>
+              <option value="Tech Officer">Tech Officer</option>
+              <option value="Fish Farmer">Fish Farmer</option>
+            </select>
+          </div>
+          
+          {/* Pagination Controls */}
+          <div className="crm-pagination" style={{ margin: '0 auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div className="pagination-info">
+              <span>Show: </span>
+              <select 
+                className="pagination-select"
+                value={pageSize}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const newPageSize = parseInt(e.target.value);
+                  setPageSize(newPageSize);
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+              </select>
+              <span> per page</span>
+            </div>
+            <div className="pagination-controls">
+              <button
+                className="pagination-btn"
+                disabled={currentPage === 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newPage = Math.max(1, currentPage - 1);
+                  setCurrentPage(newPage);
+                }}
+              >
+                ◀
+              </button>
+              <div className="pagination-pages">
+                {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                  const pageNum = Math.max(1, Math.min(totalPages - 2, currentPage - 1)) + i;
+                  return (
+                    <button
+                      key={pageNum}
+                      className={`pagination-page ${currentPage === pageNum ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentPage(pageNum);
+                      }}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                className="pagination-btn"
+                disabled={currentPage === totalPages}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newPage = Math.min(totalPages, currentPage + 1);
+                  setCurrentPage(newPage);
+                }}
+              >
+                ▶
+              </button>
+            </div>
+          </div>
+          
+          {/* Inline actions: Bulk Delete (if any selected) and Add New User */}
+          <div className="button-group-right">
+            {canManageUsers && selectedUsers.size > 0 ? (
+              <button className="bulk-delete-button-inline" onClick={(e) => {
+                e.stopPropagation();
+                closeAllDropdowns();
+                try {
                   const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                  logActivity('account', `Bulk delete initiated for ${selectedUsers.size} users in Account Management`, u); 
+                  logActivity('account', `Bulk delete initiated for ${selectedUsers.size} user(s) in Account Management`, u);
                 } catch (_) {}
                 handleBulkDelete();
               }}>
                 <RiDeleteBin6Line className="button-icon" />
                 Delete Selected ({selectedUsers.size})
               </button>
-            )}
-          </div>
-      <div className={`manage-wrapper ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <div className="table-header" onClick={closeAllDropdowns}>
-          <div className="header-row">
-            <div className="header-cell checkbox-cell">
-              <input 
-                type="checkbox" 
-                className="select-all-checkbox"
-                checked={isAllSelectedAcrossAllPages}
-                ref={(input) => {
-                  if (input) input.indeterminate = isIndeterminateAcrossAllPages;
-                }}
-                onChange={(e) => {
-                  e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
-                  handleSelectAll(e.target.checked);
-                }}
-              />
-            </div>
-            <div className="header-cell name-cell">
-              <span>NAME</span>
-              <IoMdArrowDropdown 
-                className="dropdown-arrow" 
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
-                  closeAllDropdowns(); // Close all other dropdowns first
-                  setShowNameDropdown(!showNameDropdown);
-                }}
-              />
-              {showNameDropdown && (
-                <div className="dropdown-menu-name">
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedNameSort('A-Z'); 
-                    setShowNameDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Sort changed to A-Z in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    A-Z (Ascending)
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedNameSort('Z-A'); 
-                    setShowNameDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Sort changed to Z-A in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    Z-A (Descending)
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedNameSort('Newest'); 
-                    setShowNameDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Sort changed to Newest in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    Newest First
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedNameSort('Oldest'); 
-                    setShowNameDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Sort changed to Oldest in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    Oldest First
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedNameSort('None'); 
-                    setShowNameDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Sort changed to None in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    No Sorting
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="header-cell role-cell">
-              <span>{t('accountManagement.table_headers.role')}</span>
-              {!currentUser?.farm && (
-                <IoMdArrowDropdown 
-                  className="dropdown-arrow" 
-                  onClick={(e) => {
-                    e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
-                    closeAllDropdowns(); // Close all other dropdowns first
-                    setShowRoleDropdown(!showRoleDropdown);
-                  }}
-                />
-              )}
-              {!currentUser?.farm && showRoleDropdown && (
-                <div className="dropdown-menu-role">
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedRole('All Roles'); 
-                    setShowRoleDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Role filter changed to All Roles in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.all_roles')}
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedRole('Admin'); 
-                    setShowRoleDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Role filter changed to Admin in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.admin')}
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedRole('Tech Officer'); 
-                    setShowRoleDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Role filter changed to Tech Officer in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.tech_officer')}
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedRole('Fish Farmer'); 
-                    setShowRoleDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Role filter changed to Fish Farmer in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.fish_farmer')}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="header-cell farm-cell">
-              <span>{t('accountManagement.table_headers.farm')}</span>
-            </div>
-            <div className="header-cell status-cell">
-              <span>{t('accountManagement.table_headers.status')}</span>
-              <IoMdArrowDropdown 
-                className="dropdown-arrow" 
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent closing dropdowns when clicking dropdown arrow
-                  closeAllDropdowns(); // Close all other dropdowns first
-                  setShowStatusDropdown(!showStatusDropdown);
-                }}
-              />
-              {showStatusDropdown && (
-                <div className="dropdown-menu-status">
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedStatus('All Status'); 
-                    setShowStatusDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Status filter changed to All Status in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.all_status')}
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedStatus('Active'); 
-                    setShowStatusDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Status filter changed to Active in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.active')}
-                  </div>
-                  <div className="dropdown-item" onClick={() => { 
-                    setSelectedStatus('Inactive'); 
-                    setShowStatusDropdown(false); 
-                    try { 
-                      const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('account', `Status filter changed to Inactive in Account Management`, u); 
-                    } catch (_) {}
-                  }}>
-                    {t('accountManagement.dropdown_options.inactive')}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="header-cell contact-cell">
-              <span>{t('accountManagement.table_headers.contact')}</span>
-            </div>
-            <div className="header-cell actions-cell">
-              <span>{t('accountManagement.table_headers.actions')}</span>
-            </div>
-            <div className="header-cell joined-cell">
-              <span>{t('accountManagement.table_headers.joined')}</span>
-            </div>
-            <div className="header-cell delete-cell">
-              <span></span>
-            </div>
+            ) : null}
+
+            {canManageUsers ? (
+              <button className="add-user-button-inline" onClick={(e) => {
+                e.stopPropagation();
+                closeAllDropdowns();
+                handleOpenAddUserForm();
+              }}>
+                <FaUserPlus className="button-icon" />
+                Add New User
+              </button>
+            ) : null}
           </div>
         </div>
-      </div>
-      <div className={`account-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {/* Global toast removed per request */}
-        <div className="account-container">
+
+        {/* CRM Style Table */}
+        <div className="crm-table-container">
+          <div className="crm-table">
+            {/* Table Header */}
+            <div className="crm-table-header">
+              <div className="crm-header-cell checkbox-cell">
+                <input 
+                  type="checkbox" 
+                  className="select-all-checkbox"
+                  checked={isAllSelectedAcrossAllPages}
+                  ref={(input) => {
+                    if (input) input.indeterminate = isIndeterminateAcrossAllPages;
+                  }}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    handleSelectAll(e.target.checked);
+                  }}
+                />
+              </div>
+              <div className="crm-header-cell name-cell">Name</div>
+              <div className="crm-header-cell role-cell">Role</div>
+              <div className="crm-header-cell farm-cell">Farm</div>
+              <div className="crm-header-cell status-cell">Status</div>
+              <div className="crm-header-cell contact-cell">Contact</div>
+              <div className="crm-header-cell joined-cell">Date Joined</div>
+              <div className="crm-header-cell actions-cell">Actions</div>
+            </div>
+        
         {canManageUsers && showAddUserForm && (
             <div className="add-user-form-container" onClick={(e) => e.stopPropagation()}>
               <div className="add-user-form" onClick={(e) => e.stopPropagation()}>
@@ -2482,8 +2652,8 @@ const handleActivateFishFarmer = async (user) => {
                   <div className="form-role-notice">
                     <div className="role-notice-icon">ℹ️</div>
                     <div className="role-notice-content">
-                      <strong>Fish Farmer account requires tech officer activation</strong>
-                      <p>After creating this user, a Tech Officer must activate the account before it can log in.</p>
+                      <strong>Fish Farmer account requires activation</strong>
+                      <p>After creating this user, a Farm Admin or Tech Officer must activate the account before it can log in.</p>
                     </div>
                   </div>
                 )}
@@ -2769,7 +2939,7 @@ const handleActivateFishFarmer = async (user) => {
                         <option value="Sick Leave">{t('accountManagement.add_user_form.tto_reason_sick')}</option>
                         <option value="Training / Seminar">{t('accountManagement.add_user_form.tto_reason_training')}</option>
                         <option value="Personal Emergency">{t('accountManagement.add_user_form.tto_reason_emergency')}</option>
-                        <option value="Other (Specify Below)">{t('accountManagement.add_user_form.tto_reason_other_specify')}</option>
+                        <option value="Other">{t('accountManagement.add_user_form.tto_reason_other')}</option>
                       </select>
                     </div>
                     
@@ -2940,19 +3110,8 @@ const handleActivateFishFarmer = async (user) => {
                         ))}
                       </select>
                     ) : (
-                      <select
-                        name="farm"
-                        value={selectedFarmId}
-                        onChange={(e) => setSelectedFarmId(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onFocus={(e) => e.stopPropagation()}
-                        required
-                      >
-                        <option value="">Select farm</option>
-                        {farms.map(f => (
-                          <option key={f.id || ''} value={f.id || ''}>{f.name || f.id || ''}</option>
-                        ))}
-                      </select>
+                      // Farm Admins cannot change farm; show their assigned farm, read-only
+                      <input type="text" value={assignedFarmName || currentUser.farm || ''} readOnly />
                     )}
                   </div>
                 ) : (
@@ -3038,30 +3197,152 @@ const handleActivateFishFarmer = async (user) => {
               )}
               {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
-                <div className="form-group">
+                <div className="form-group" style={{ flex: 1, position: 'relative' }}>
                   <label>{t('accountManagement.add_user_form.password_label')}</label>
-                  <input 
-                    type="password" 
-                    name="password" 
-                    value={newUser.password} 
-                    onChange={handleInputChange} 
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.stopPropagation()}
-                                          placeholder={t('accountManagement.add_user_form.password_placeholder')}
-                    required 
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={newUser.password}
+                      onChange={handleInputChange}
+                      placeholder={t('accountManagement.add_user_form.password_placeholder')}
+                      required
+                      style={{ width: '100%', paddingRight: '3.6em', position: 'relative', zIndex: 1 }}
+                    />
+                    <span
+                      style={{
+                        position: 'absolute',
+                        right: '0.8em',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        cursor: 'pointer',
+                        zIndex: 3,
+                        color: '#8090a3',
+                        fontSize: '1.1em',
+                        lineHeight: 1,
+                        background: 'transparent'
+                      }}
+                      tabIndex={0}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setShowPassword(v => !v)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setShowPassword(v => !v); }}
+                      aria-label={showPassword ? t('Hide password') : t('Show password')}
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </span>
+                  </div>
+                  {passwordError && (
+                    <div style={{ color: 'red', fontSize: 12, fontWeight: 600 }}>{passwordError}</div>
+                  )}
+                  {!passwordError && newUser.password && (
+                    <div style={{ color: 'green', fontSize: 12 }}>{t('Strong password!')}</div>
+                  )}
                 </div>
+
+                {/* Date Joined field - now not editable */}
                 <div className="form-group">
-                  <label>{t('accountManagement.add_user_form.date_joined_label')}</label>
-                  <input 
-                    type="date" 
-                    name="dateJoined" 
-                    value={newUser.dateJoined} 
-                    onChange={handleInputChange} 
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.stopPropagation()}
+                  <label>{t('accountManagement.add_user_form.date_joined_label')} <span style={{fontWeight: 'normal', fontSize: '11px', color: '#555'}}>(set automatically)</span></label>
+                  <input
+                    type="date"
+                    name="dateJoined"
+                    value={newUser.dateJoined}
+                    disabled
+                    readOnly
+                    style={{ background: '#f5f6f8', color: '#777' }}
+                    onClick={e => e.preventDefault()}
+                    onFocus={e => e.preventDefault()}
                   />
                 </div>
+
+                {/* Only show the Generate Password group if all required fields are filled */}
+                {allRequiredFieldsFilled && (
+                  <div
+                    className="form-group"
+                    style={{
+                      background: '#f8fafd',
+                      border: '1px solid #e3e8f0',
+                      borderRadius: 12,
+                      padding: '14px 14px 10px 14px',
+                      maxWidth: 260,
+                      marginLeft: 12,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                      boxSizing: 'border-box',
+                      alignSelf: 'flex-start',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const generated = generatePasswordFromName(newUser.fullName);
+                        setNewUser(u => ({ ...u, password: generated }));
+                        setIsGeneratedPassword(true);
+                        setPasswordError(validatePassword(generated));
+                      }}
+                      style={{
+                        fontSize: 13,
+                        padding: '8px 10px',
+                        border: 'none',
+                        borderRadius: 7,
+                        background: '#e8f0fe',
+                        color: '#21497a',
+                        cursor: 'pointer',
+                        fontWeight: 500,
+                        transition: 'background 0.15s',
+                        outline: 'none',
+                        width: '100%',
+                      }}
+                      onMouseOver={e => e.target.style.background = '#d2e6fd'}
+                      onMouseOut={e => e.target.style.background = '#e8f0fe'}
+                    >
+                      {t('Generate Password')}
+                    </button>
+                    <label style={{ fontSize: 12.4, display: 'flex', alignItems: 'center', gap: 7, color: '#234' }}>
+                      <input
+                        type="checkbox"
+                        checked={isGeneratedPassword}
+                        style={{ accentColor: '#335a9c', width: 16, height: 16 }}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            const generated = generatePasswordFromName(newUser.fullName);
+                            setNewUser(u => ({ ...u, password: generated }));
+                            setIsGeneratedPassword(true);
+                            setPasswordError(validatePassword(generated));
+                          } else {
+                            setIsGeneratedPassword(false);
+                            setNewUser(u => ({ ...u, password: '' }));
+                          }
+                        }}
+                      />
+                      {t('Use generated password')}
+                    </label>
+                    {isGeneratedPassword && (
+                      <button
+                        type="button"
+                        style={{
+                          marginTop: 0,
+                          fontSize: 13,
+                          padding: '6px 10px',
+                          border: 'none',
+                          borderRadius: 7,
+                          background: '#e8f0fe',
+                          color: '#21497a',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          transition: 'background 0.15s',
+                          outline: 'none',
+                          width: '100%',
+                        }}
+                        onMouseOver={e => e.target.style.background = '#d2e6fd'}
+                        onMouseOut={e => e.target.style.background = '#e8f0fe'}
+                        onClick={() => { navigator.clipboard.writeText(newUser.password); }}
+                      >
+                        {t('Copy Password')}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               )}
               <div className="form-buttons">
@@ -3088,71 +3369,57 @@ const handleActivateFishFarmer = async (user) => {
             </div>
           )}
 
-        <div className="user-grid-container">
-            {AccountUsers.length === 0 ? (
-              <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'Loading user accounts...')}</div>
-            ) : paginatedUsers.length > 0 ? (
-            <>
-                <div className="user-table" key={`table-${currentPage}-${startIndex}`} onClick={closeAllDropdowns}>
-                  {paginatedUsers.slice(0, PAGE_SIZE)
+            {/* Table Body */}
+            <div className="crm-table-body">
+              {AccountUsers.length === 0 ? (
+                <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'Loading user accounts...')}</div>
+              ) : paginatedUsers.length > 0 ? (
+                paginatedUsers.slice(0, pageSize)
                   .filter(user => user && user.username)
-                    .map((user, index) => {
-                      const reactKey = `${user._collection || 'users'}:${user.id || user.email || user.username || index}`;
-                      if (!user.id && !user.email && !user.username) {
-                        
-                      }
-                      return (
-                      <div key={reactKey} className="user-row">
-                        <div className="user-cell checkbox-cell">
-                          {String(user.status || '').toLowerCase() === 'inactive' ? (
-                            <span 
-                              className="deactivated-icon"
-                              style={{
-                                fontSize: '18px',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '20px',
-                                height: '20px',
-                                cursor: 'not-allowed'
-                              }}
-                              title="User is deactivated"
-                            >
-                              🚫
-                            </span>
-                          ) : (
-                            <input 
-                              type="checkbox" 
-                              className="user-checkbox"
-                              checked={selectedUsers.has(user.id)}
-                              onChange={(e) => {
-                                e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
-                                handleUserSelection(user.id, e.target.checked);
-                              }}
-                            />
-                          )}
+                  .map((user, index) => {
+                    const reactKey = `${user._collection || 'users'}:${user.id || user.email || user.username || index}`;
+                    if (!user.id && !user.email && !user.username) {
+                      return null;
+                    }
+                    return (
+                      <div key={reactKey} className="crm-table-row">
+                        {/* Checkbox Cell */}
+                        <div className="crm-cell checkbox-cell">
+                          <input 
+                            type="checkbox" 
+                            className="user-checkbox"
+                            checked={selectedUsers.has(user.id)}
+                            onChange={(e) => {
+                              e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
+                              handleUserSelection(user.id, e.target.checked);
+                            }}
+                            title={(String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated') ? 'Select inactive/deactivated user for deletion' : 'Select user'}
+                          />
                         </div>
-                        <div className="user-cell name-cell" data-label="User">
+                        
+                        {/* Name Cell */}
+                        <div className="crm-cell name-cell">
                           <div className="user-info">
                             {user.profileImage ? (
                               <img src={user.profileImage} alt={`${user.username}'s profile`} className="user-avatar" />
                             ) : (
                               <FaUserCircle className="user-avatar-icon" />
                             )}
-                            <div className="account-management-user-details">
-                              <div className="account-management-username" style={{
-                                color: String(user.status || '').toLowerCase() === 'inactive' ? '#6b7280' : 'inherit'
+                            <div className="user-details">
+                              <div className="username" style={{
+                                color: (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated') ? '#6b7280' : 'inherit'
                               }}>
                                 {user.username}
                               </div>
-                              <div className="account-management-user-email" style={{
-                                color: String(user.status || '').toLowerCase() === 'inactive' ? '#9ca3af' : 'inherit'
+                              <div className="user-email" style={{
+                                color: (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated') ? '#9ca3af' : 'inherit'
                               }}>{user.email || t('accountManagement.user_list.no_email')}</div>
                             </div>
-                      </div>
+                          </div>
                         </div>
-                        <div className="user-cell role-cell" data-label="Role">
+                        
+                        {/* Role Cell */}
+                        <div className="crm-cell role-cell">
                           {(() => {
                             const roleDisplayValue = formatRoleForDisplay(user.role);
                             const roleClassValue = (roleDisplayValue || '')
@@ -3160,18 +3427,17 @@ const handleActivateFishFarmer = async (user) => {
                               .replace(/[^a-z0-9]+/g, '-')
                               .replace(/(^-|-$)/g, '');
                             const isTempTO = String(user.role || '').toLowerCase() === 'temp_tech_officer' || !!user.temporaryTechOfficer;
-                            const isDeactivated = String(user.status || '').toLowerCase() === 'inactive';
                             
                             return (
-                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                                <span className={`role-badge role-${roleClassValue}`} style={isTempTO ? { whiteSpace: 'pre-line', color: '#000' } : undefined}>
-                                  {isTempTO ? (<><span>Temporary</span><br /><span>Tech Officer</span></>) : (roleDisplayValue || t('accountManagement.user_list.no_role'))}
+                              <span className={`role-badge role-${roleClassValue}`} style={isTempTO ? { whiteSpace: 'pre-line', color: '#000' } : undefined}>
+                                {isTempTO ? (<><span>Temporary</span><br /><span>Tech Officer</span></>) : (roleDisplayValue || t('accountManagement.user_list.no_role'))}
                               </span>
-                              </div>
                             );
                           })()}
                         </div>
-                        <div className="user-cell farm-cell" data-label="Farm">
+                        
+                        {/* Farm Cell */}
+                        <div className="crm-cell farm-cell">
                           {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) ? (
                             <div>
                               <div>
@@ -3204,33 +3470,33 @@ const handleActivateFishFarmer = async (user) => {
                             user.farmName || farmIdToName[user.farmId] || farmIdToName[user.farm] || user.farmId || user.farm || 'N/A'
                           )}
                         </div>
-                        <div className="user-cell status-cell" data-label="Status">
-                          <div className="status-cell-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                          <div
-                            className="status-indicator"
-                              title={
-                                (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
-                                  ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
-                                  : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
-                                    ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
-                                    : (canManageUsers && String(user.status || '').toLowerCase() === 'inactive') 
-                                      ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
-                                      : undefined
-                              }
-                              aria-label={
-                                (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
-                                  ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
-                                  : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
-                                    ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
-                                    : (canManageUsers && String(user.status || '').toLowerCase() === 'inactive') 
-                                      ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
-                                      : undefined
-                              }
-                              style={{ 
-                                cursor: (canManageUsers && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
-                                  ? 'pointer' 
-                                  : 'default' 
-                              }}
+                        
+                        {/* Status Cell */}
+                        <div className="crm-cell status-cell">
+                          <div className="status-indicator"
+                            title={
+                              (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
+                                ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
+                                : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
+                                  ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                  : (canManageUsers && (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated')) 
+                                    ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
+                                    : undefined
+                            }
+                            aria-label={
+                              (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
+                                ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
+                                : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
+                                  ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                  : (canManageUsers && (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated')) 
+                                    ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
+                                    : undefined
+                            }
+                            style={{ 
+                              cursor: (canManageUsers && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
+                                ? 'pointer' 
+                                : 'default' 
+                            }}
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (!canManageUsers) return;
@@ -3239,8 +3505,10 @@ const handleActivateFishFarmer = async (user) => {
                               const current = String(user.status || '').toLowerCase();
                               // Only allow deactivation via click. Activation must use the Activate button.
                               if (current !== 'active') return;
-                              const nextStatus = 'Inactive';
+                              const nextStatus = 'Deactivated';
                               try {
+                                // Suppress the next generic increase toast ("New user is awaiting activation")
+                                try { if (typeof suppressNextActivationIncreaseToast === 'function') suppressNextActivationIncreaseToast(); } catch (_) {}
                                 // Use service function for consistent handling of both collections
                                 const result = await serviceUpdateUserStatus(
                                   user.id,
@@ -3248,7 +3516,10 @@ const handleActivateFishFarmer = async (user) => {
                                   user.role,
                                   user.collection || undefined,
                                   user.email || undefined,
-                                  user.username || undefined
+                                  user.username || undefined,
+                                  (currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'),
+                                  (currentUser?.role || 'Unknown'),
+                                  (currentUser?.farm || null)
                                 );
                                 
                                 if (!result?.success) {
@@ -3263,7 +3534,7 @@ const handleActivateFishFarmer = async (user) => {
                                 setAccountUsers(prev => prev.map(u => 
                                   u.id === user.id ? { 
                                     ...u, 
-                                    status: nextStatus.toLowerCase(),
+                                    status: 'Deactivated',
                                     deactivatedBy: deactivatedByWithRole,
                                     deactivatedAt: new Date().toISOString(),
                                     deactivationReason: 'Status changed via toggle'
@@ -3284,14 +3555,39 @@ const handleActivateFishFarmer = async (user) => {
                             }}
                           >
                             <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
-                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status)}</span>
-                            </div>
+                            <span className={`status-text ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>{getStatusDisplay(user.status, user)}</span>
                           </div>
+                          {(String(user.status || '').toLowerCase() === 'deactivated' || (String(user.status || '').toLowerCase() === 'inactive' && (user.deactivatedBy || user.deactivatedAt))) && (
+                            <div
+                              className="status-note"
+                              title={user.deactivationReason ? `Reason: ${user.deactivationReason}` : undefined}
+                              style={{ fontSize: '11px', color: '#6b7280', marginTop: 6, lineHeight: 1.25, display: 'block', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', maxWidth: '100%' }}
+                            >
+                              {(() => {
+                                const raw = String(user.deactivatedBy || '').trim();
+                                const cleaned = raw.replace(/^status\s*toggle/i, 'Admin');
+                                return `${cleaned} deactivated this account`;
+                              })()}
+                            </div>
+                          )}
                         </div>
-                        <div className="user-cell contact-cell" data-label="Contact">
+                        
+                        {/* Contact Cell */}
+                        <div className="crm-cell contact-cell">
                           {user.contactNumber || t('accountManagement.user_list.no_contact')}
                         </div>
-                        <div className="user-cell actions-cell" data-label="Actions">
+                        
+                        {/* Date Joined Cell */}
+                        <div className="crm-cell joined-cell">
+                          {user.dateJoined ? new Date(user.dateJoined).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : t('accountManagement.user_list.unknown_date')}
+                        </div>
+                        
+                        {/* Actions Cell */}
+                        <div className="crm-cell actions-cell">
                           {/* Show activate button for Tech Officers (including Temporary Tech Officers) - hide for deactivated TTOs */}
                           {(formatRoleForDisplay(user.role) === 'Tech Officer' || formatRoleForDisplay(user.role) === 'Temporary Tech Officer') && isInactive(user.status) && !(user.adminActivated || user._justActivated) && !(String(user.role || '').toLowerCase() === 'temp_tech_officer' && (user.deactivatedBy || user.deactivationReason)) ? (
                             <button className="activate-tech-officer-btn" onClick={(e) => {
@@ -3343,51 +3639,80 @@ const handleActivateFishFarmer = async (user) => {
                               );
                             })()
                           )}
-                          {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && String(user.status || '').toLowerCase() === 'active' && isSuperAdminUser && (
-                            <button 
-                              className="deactivate-tto-btn" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                closeAllDropdowns();
-                                handleManualDeactivateTTO(user);
-                              }}
-                              style={{
-                                backgroundColor: '#ef4444',
-                                color: 'white',
-                                border: 'none',
-                                padding: '6px 12px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <RiDeleteBin6Line className="action-icon" />
-                              Deactivate TTO
-                            </button>
-                          )}
-                          {String(user.status || '').toLowerCase() === 'active' && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && !(currentUser && (currentUser.temporaryTechOfficer || String(currentUser.role || '').toLowerCase() === 'temp_tech_officer')) && (
-                            <TooltipWrapper
-                              showTooltip={!canManageUsers}
-                              tooltipText="You don't have permission to do this"
-                              onBlockedClick={() => setMessage({ text: "You don't have permission to reset passwords", type: 'error' })}
-                            >
+                          
+                          {canManageUsers && String(user.status || '').toLowerCase() === 'active' && (
+                            <div className="edit-action-dropdown" style={{ position: 'relative', display: 'inline-block' }}>
                               <button 
-                                className="reset-password-btn" 
+                                className="edit-user-btn" 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (!canManageUsers) return; // Block action for non-managers
-                                  closeAllDropdowns();
-                                  handleResetPassword(user);
+                                  const dropdownId = `edit-dropdown-${user.id}`;
+                                  const existingDropdown = document.getElementById(dropdownId);
+                                  if (existingDropdown) {
+                                    existingDropdown.style.display = existingDropdown.style.display === 'none' ? 'block' : 'none';
+                                  }
                                 }}
-                                disabled={!canManageUsers || resettingPasswordUserId === user.id}
                               >
-                                <MdOutlineLockReset className="action-icon" />
-                                {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
+                                Edit
                               </button>
-                              {resetNotices[user.id]?.text && (
+                              <div 
+                                id={`edit-dropdown-${user.id}`}
+                                className="edit-dropdown-menu"
+                                style={{ 
+                                  display: 'none',
+                                  position: 'absolute',
+                                  right: 0,
+                                  top: '100%',
+                                  marginTop: '4px',
+                                  minWidth: '160px',
+                                  background: 'white',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '6px',
+                                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                                  zIndex: 1000
+                                }}
+                              >
+                                {String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
+                                  <button
+                                    className="edit-dropdown-item"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
+                                      closeAllDropdowns();
+                                      handleResetPassword(user);
+                                    }}
+                                    disabled={resettingPasswordUserId === user.id}
+                                  >
+                                    <MdOutlineLockReset /> {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
+                                  </button>
+                                )}
+                                <button
+                                  className="edit-dropdown-item delete-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
+                                    closeAllDropdowns();
+                                    handleDeleteUser(user);
+                                  }}
+                                >
+                                  <RiDeleteBin6Line /> Delete
+                                </button>
+                                {/* Deactivate TTO button: only for active TTOs */}
+                                {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && String(user.status || '').toLowerCase() === 'active' && (
+                                  <button
+                                    className="edit-dropdown-item"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
+                                      closeAllDropdowns();
+                                      handleManualDeactivateTTO(user);
+                                    }}
+                                  >
+                                    Deactivate TTO
+                                  </button>
+                                )}
+                              </div>
+                              {resetNotices[user.id]?.text && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
                                 <span
                                   style={{
                                     marginLeft: 8,
@@ -3400,7 +3725,7 @@ const handleActivateFishFarmer = async (user) => {
                                   {resetNotices[user.id].text}
                                 </span>
                               )}
-                            </TooltipWrapper>
+                            </div>
                           )}
                           {/* Show deactivation message for Temporary Tech Officers when deactivated */}
         {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && isInactive(user.status) && (user.deactivatedBy || user.deactivationReason) && (
@@ -3474,80 +3799,37 @@ const handleActivateFishFarmer = async (user) => {
                             </div>
                           )}
                         </div>
-                        <div className="user-cell joined-cell" data-label="Joined">
-                          {user.dateJoined ? new Date(user.dateJoined).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          }) : t('accountManagement.user_list.unknown_date')}
-                        </div>
-                        {canManageUsers && (
-                          <div className="user-cell delete-cell" data-label="Delete">
-                            <button className="delete-user-btn" onClick={(e) => {
-                              e.stopPropagation(); // Prevent closing dropdowns when clicking delete button
-                              closeAllDropdowns(); // Close all other dropdowns first
-                              handleDeleteUser(user);
-                            }}>
-                              <RiDeleteBin6Line className="action-icon" />
-                              {t('accountManagement.user_list.delete_button') || 'Delete'}
-                            </button>
-                          </div>
-                        )}
                       </div>
-                    );})}
-                </div>
-                <div className="pagination-bar" onClick={closeAllDropdowns}>
-                  <button
-                    className="pagination-btn"
-                    disabled={currentPage === 1}
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
-                      const newPage = Math.max(1, currentPage - 1);
-                      setCurrentPage(newPage);
-                    }}
-                  >
-                    {t('accountManagement.pagination.prev_button')}
-                  </button>
-                  {currentPage > 1 && (
-                    <div className="pagination-pages">
-                      <span className="pagination-page active">{currentPage}</span>
-                    </div>
+                    );
+                  })
+              ) : (
+                <div className="loading-users-message">
+                  {AccountUsers.length > 0 ? (
+                    activeTab === 'new'
+                      ? 'No newly added user'
+                      : activeTab === 'deactivated'
+                        ? 'No deactivated users'
+                        : t('accountManagement.user_list.no_users_match_filter', 'No users match the current filter')
+                  ) : (
+                    t('accountManagement.user_list.loading_message', 'Loading User Accounts...')
                   )}
-                  <button
-                    className="pagination-btn"
-                    disabled={currentPage === totalPages}
-                    onClick={(e) => {
-                      e.stopPropagation(); // Prevent closing dropdowns when clicking pagination buttons
-                      if (!showPageNumbers) setShowPageNumbers(true);
-                      const newPage = Math.min(totalPages, currentPage + 1);
-                      setCurrentPage(newPage);
-                    }}
-                  >
-                    {t('accountManagement.pagination.next_button')}
-                  </button>
                 </div>
-              {selectedUser && (
-                <UserPopup
-                  user={selectedUser}
-                  onClose={() => setSelectedUser(null)}
-                  onUpdate={(updatedUser) => {
-                    setSelectedUser(updatedUser);
-                      setAccountUsers(prev => prev.map(u => u.username === updatedUser.username ? updatedUser : u));
-                  }}
-                  currentUser={currentUser}
-                />
               )}
-            </>
-          ) : (
-              <div className="loading-users-message">
-                {AccountUsers.length > 0 ? 
-                  t('accountManagement.user_list.no_users_match_filter', 'No users match the current filter') : 
-                  t('accountManagement.user_list.loading_message', 'Loading User Accounts...')
-                }
-              </div>
-          )}
-      </div>
+            </div>
+          </div>
         </div>
+        
+        {selectedUser && (
+          <UserPopup
+            user={selectedUser}
+            onClose={() => setSelectedUser(null)}
+            onUpdate={(updatedUser) => {
+              setSelectedUser(updatedUser);
+              setAccountUsers(prev => prev.map(u => u.username === updatedUser.username ? updatedUser : u));
+            }}
+            currentUser={currentUser}
+          />
+        )}
       </div>
 
       {/* Custom Delete Confirmation Modal */}

@@ -52,6 +52,13 @@
   flex: 1;
 }
 
+.toast-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
 .toast-icon {
   font-size: 18px;
   flex-shrink: 0;
@@ -78,6 +85,30 @@
   font-weight: 500;
   color: #1f2937;
   line-height: 1.4;
+}
+
+.toast-action {
+  align-self: flex-start;
+  background: #1d4ed8;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.toast-action:hover:not(:disabled) {
+  background: #1e40af;
+  transform: translateY(-1px);
+}
+
+.toast-action:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .toast-close {

@@ -1965,3 +1965,391 @@
   border-color: #e9ecef;
   box-shadow: none;
 }
+
+/* Email Confirm Modal (styled similar to delete user prompt) */
+.email-confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  animation: overlayFadeIn 0.2s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.email-confirm-modal {
+  background: #F6F5F5;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px rgba(44, 81, 125, 0.2),
+    0 0 0 1px #D2D9E2;
+  max-width: 420px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  animation: modalSlideIn 0.3s ease-out;
+  border: 1px solid #D2D9E2;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.email-confirm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: #2C517D;
+  border-bottom: 1px solid #D2D9E2;
+  position: relative;
+}
+
+.email-confirm-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #F6F5F5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.email-close-modal-btn {
+  background: rgba(246, 245, 245, 0.2);
+  border: 1px solid rgba(246, 245, 245, 0.3);
+  font-size: 18px;
+  color: #F6F5F5;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.email-close-modal-btn:hover {
+  background: rgba(246, 245, 245, 0.3);
+  border-color: rgba(246, 245, 245, 0.5);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.email-confirm-body {
+  padding: 24px;
+  text-align: center;
+  background: #F6F5F5;
+}
+
+.email-logout-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  animation: overlayFadeIn 0.2s ease-out;
+}
+
+.email-logout-modal {
+  background: #F6F5F5;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 30px rgba(44, 81, 125, 0.2),
+    0 0 0 1px #D2D9E2;
+  max-width: 450px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: hidden;
+  animation: modalSlideIn 0.3s ease-out;
+  border: 1px solid #D2D9E2;
+}
+
+.email-logout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: #2C517D;
+  border-bottom: 1px solid #D2D9E2;
+  position: relative;
+}
+
+.email-logout-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.email-logout-body {
+  padding: 24px;
+  text-align: center;
+  background: #F6F5F5;
+}
+
+.email-logout-body p {
+  margin: 0;
+  color: #1b1b1d;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.email-logout-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 24px 24px 24px;
+  background: #F6F5F5;
+}
+
+.email-logout-actions .send-verification-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'customfont1', system-ui, -apple-system, sans-serif;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.email-logout-actions .send-verification-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-anyway-btn {
+  background: transparent;
+  border: 2px solid #ef4444;
+  color: #ef4444;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 15px;
+  font-family: 'customfont1', system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-anyway-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.email-logout-actions .cancel-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: 'customfont1', system-ui, -apple-system, sans-serif;
+  background: #e5e7eb;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  transition: all 0.2s ease;
+}
+
+.email-logout-actions .cancel-btn:hover {
+  background: #d1d5db;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+
+.email-confirm-body p {
+  margin: 0 0 8px 0;
+  color: #1b1b1d;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-weight: 400;
+}
+
+.email-confirm-password {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.email-confirm-password label {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 0.95rem;
+  color: #1b1b1d;
+  font-weight: 400;
+  margin-bottom: 2px;
+}
+
+.email-confirm-password input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #ccd5e0;
+  background: #ffffff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 0.95rem;
+  height: 36px;
+  line-height: 18px;
+}
+
+/* Hide Edge/IE native password reveal/clear icons to avoid double-eye */
+.email-confirm-password input::-ms-reveal,
+.email-confirm-password input::-ms-clear {
+  display: none;
+}
+
+.email-confirm-password-input-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  display: inline-block;
+}
+
+.email-confirm-password-input-wrapper input {
+  width: 100%;
+  padding-right: 8px; /* room for the toggle icon */
+}
+
+.email-password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  color: #6b7280; /* neutral gray */
+  border: none;
+  border-radius: 4px;
+  font-size: 1.05rem; /* icon size */
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.email-password-toggle:hover {
+  color: #374151;
+  transform: translateY(-50%);
+}
+
+.email-confirm-password input:focus {
+  outline: none;
+  border-color: #1A4375;
+  box-shadow: 0 0 0 3px rgba(26, 67, 117, 0.12);
+}
+
+.email-confirm-error {
+  color: #dc3545;
+  font-size: 0.9rem;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-weight: 400;
+}
+
+.email-confirm-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px 24px 24px;
+  background: #F6F5F5;
+}
+
+.email-confirm-actions .cancel-btn {
+  background: #f3f4f6;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 20px;
+  min-width: 180px;
+  height: 42px;
+  line-height: 1;
+  margin: 0;
+  cursor: pointer;
+  font-family: 'customfont1';
+  font-weight: 600;
+  font-size: 1rem;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: top;
+}
+
+.email-confirm-actions .cancel-btn:hover {
+  background: #e5e7eb;
+}
+
+.confirm-email-btn {
+  background: #1A4375;
+  color: #fff;
+  border: 1px solid transparent; /* ensure same box model as cancel */
+  border-radius: 10px;
+  padding: 10px 20px; /* match cancel */
+  min-width: 180px;
+  height: 42px;
+  line-height: 1;
+  margin: 0;
+  cursor: pointer;
+  font-family: 'customfont1';
+  font-weight: 600;
+  font-size: 1rem;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: top;
+}
+
+.confirm-email-btn:hover {
+  filter: brightness(1.05);
+}
+
+.confirm-email-btn:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}

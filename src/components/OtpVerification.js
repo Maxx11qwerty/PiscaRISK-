@@ -19,28 +19,54 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
   const recaptchaWidgetIdRef = useRef(null);
   const isInitializingRef = useRef(false);
   const countdownIntervalRef = useRef(null);
+  const hasSentRef = useRef(false);
+  const closeStateRef = useRef(0);
+  const [recaptchaWaited, setRecaptchaWaited] = useState(false);
+  const retryCountRef = useRef(0);
 
   useEffect(() => {
-    if (open) {
-      // Initialize only once per open
-      if (!recaptchaVerifierRef.current && !isInitializingRef.current) {
-        initializeRecaptcha();
-      } else if (recaptchaVerifierRef.current && window.grecaptcha && recaptchaWidgetIdRef.current !== null) {
-        try {
-          window.grecaptcha.reset(recaptchaWidgetIdRef.current);
-          setRecaptchaReady(false);
-        } catch (_) {}
-      }
-    } else {
-      // Clean up reCAPTCHA when modal closes
-      cleanupRecaptcha();
+    if (open && recaptchaReady && recaptchaVerifierRef.current && !hasSentRef.current) {
+      hasSentRef.current = true;
+      setError("");
+      setOtp(["", "", "", "", "", ""]);
+      setConfirmationResult(null);
+      sendOTP();
     }
-    
-    return () => {
-      // Clean up on component unmount
+    if (!open) {
+      setOtp(["", "", "", "", "", ""]);
+      setError("");
+      setConfirmationResult(null);
+      setIsSendingOTP(false);
+      hasSentRef.current = false;
       cleanupRecaptcha();
-    };
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      setSecondsLeft(0);
+    }
+  }, [open, recaptchaReady]);
+
+  // Auto-initialize reCAPTCHA when the modal opens
+  useEffect(() => {
+    if (open) {
+      initializeRecaptcha();
+    }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setRecaptchaWaited(false);
+      return;
+    }
+    setRecaptchaWaited(false);
+    let timer = setTimeout(() => setRecaptchaWaited(true), 10000);
+    return () => clearTimeout(timer);
+  }, [open, recaptchaReady]);
+
+  // If after waiting recaptcha still isn't ready, automatically retry init
+  useEffect(() => {
+    if (open && recaptchaWaited && !recaptchaReady && !isInitializingRef.current) {
+      initializeRecaptcha();
+    }
+  }, [open, recaptchaWaited, recaptchaReady]);
 
   // Ensure cleanup also runs when OTP verification succeeds (confirmationResult resolves)
   useEffect(() => {
@@ -77,6 +103,7 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     setRecaptchaReady(false);
     recaptchaWidgetIdRef.current = null;
     isInitializingRef.current = false;
+    retryCountRef.current = 0;
   };
 
   const resetCountdown = () => {
@@ -116,6 +143,35 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     return recaptchaReady;
   };
 
+  const addPreconnects = () => {
+    try {
+      const ensure = (rel, href, cross) => {
+        if (![...document.querySelectorAll(`link[rel='${rel}'][href='${href}']`)].length) {
+          const l = document.createElement('link');
+          l.rel = rel; l.href = href; if (cross) l.crossOrigin = 'anonymous';
+          document.head.appendChild(l);
+        }
+      };
+      ensure('preconnect', 'https://www.google.com', true);
+      ensure('preconnect', 'https://www.gstatic.com', true);
+    } catch (_) {}
+  };
+
+  const ensureRecaptchaScript = async () => {
+    addPreconnects();
+    try {
+      if (![...document.scripts].some(s => (s.src || '').includes('recaptcha__'))) {
+        await new Promise((resolve) => {
+          const s = document.createElement('script');
+          s.src = 'https://www.gstatic.com/recaptcha/releases/cLm1zuaUXPLFw7nzKiQTH1dX/recaptcha__en.js';
+          s.async = true; s.defer = true; s.onload = resolve; s.onerror = resolve;
+          document.head.appendChild(s);
+          setTimeout(resolve, 1500);
+        });
+      }
+    } catch (_) {}
+  };
+
   const initializeRecaptcha = async () => {
     try {
       if (recaptchaVerifierRef.current || isInitializingRef.current) return;
@@ -128,6 +184,7 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       }
 
       // Create reCAPTCHA verifier
+      await ensureRecaptchaScript();
       const recaptchaVerifier = new RecaptchaVerifier(
         auth,
         'recaptcha-container',
@@ -156,18 +213,35 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       // Render reCAPTCHA
       // Add a defensive timeout in case the Google iframe hangs
       const renderPromise = recaptchaVerifier.render();
-      const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('recaptcha-render-timeout')), 4000));
+      const timeoutPromise = new Promise((_, rej) => setTimeout(() => rej(new Error('recaptcha-render-timeout')), 6000));
       const widgetId = await Promise.race([renderPromise, timeoutPromise]);
       recaptchaWidgetIdRef.current = widgetId;
       isInitializingRef.current = false;
       setRecaptchaReady(true);
       
     } catch (error) {
-      // Retry once on render timeout by cleaning up and re-initializing
+      // Retry: if render times out, clean up and re-initialize, then fall back to visible widget on further retries
       if (String(error?.message || '').includes('recaptcha-render-timeout')) {
         cleanupRecaptcha();
         try {
-          await new Promise(r => setTimeout(r, 150));
+          retryCountRef.current += 1;
+          await new Promise(r => setTimeout(r, 300));
+          if (retryCountRef.current >= 2) {
+            const recaptchaVerifier = new RecaptchaVerifier(
+              auth,
+              'recaptcha-container',
+              {
+                'size': 'normal',
+                'callback': () => setRecaptchaReady(true),
+                'expired-callback': () => setRecaptchaReady(false)
+              }
+            );
+            recaptchaVerifierRef.current = recaptchaVerifier;
+            window.recaptchaVerifier = recaptchaVerifier;
+            await recaptchaVerifier.render();
+            setRecaptchaReady(true);
+            return;
+          }
           await initializeRecaptcha();
           return;
         } catch (_) {}
@@ -179,6 +253,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
   };
 
   const sendOTP = async () => {
+    if (!recaptchaVerifierRef.current || !recaptchaReady) {
+      setError("Security check not ready. Please wait a moment and try again.");
+      return;
+    }
     if (!phoneNumber) return setError("Phone number is required");
 
     setIsSendingOTP(true);
@@ -258,7 +336,10 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
     try {
       setIsLoading(true);
       const result = await confirmationResult.confirm(otpString);
-      await onVerify(result);
+      const verifyResult = await onVerify(result);
+      if (verifyResult && verifyResult.success) {
+        window.alert('Phone verified successfully!'); // replace with your toast if you prefer
+      }
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
@@ -329,9 +410,18 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
       <div className="otp-modal">
         <div className="otp-header">
           <h3>Phone Verification</h3>
-          <button className="otp-close" onClick={onClose}>
-            &times;
-          </button>
+          <button className="otp-close" onClick={() => {
+            setOtp(["", "", "", "", "", ""]);
+            setError("");
+            setConfirmationResult(null);
+            setIsSendingOTP(false);
+            hasSentRef.current = false;
+            cleanupRecaptcha();
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            setSecondsLeft(0);
+            closeStateRef.current++;
+            onClose(closeStateRef.current);
+          }}>&times;</button>
         </div>
 
         <div className="otp-content">
@@ -343,6 +433,18 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
           </p>
 
           {error && <div className="otp-error">{error}</div>}
+
+          {!recaptchaReady && open && (
+            <div style={{ margin: '18px 0', textAlign: 'center' }}>
+              <span className="otp-spinner" style={{ width: 20, height: 20, verticalAlign:'middle', border: '2.5px solid #4090e2', borderTop: '2.5px solid #f7fafc', borderRadius: '50%', display: 'inline-block', animation: 'otpSpin .85s linear infinite', marginRight: '7px' }} />
+              <span style={{color:'#2C517D',fontWeight:'bold'}}>Loading security check…</span><br/>
+              {recaptchaWaited && (
+                <span style={{ color:'#ba0101', fontSize: '0.97rem', fontWeight: 600, display:'block', marginTop:7 }}>
+                  If this takes too long, try turning off any ad blockers and refresh the page.
+                </span>
+              )}
+            </div>
+          )}
 
           {!confirmationResult && (
             <>
@@ -356,13 +458,36 @@ const OTPVerification = ({ open, phoneNumber, onVerify, onClose }) => {
                 }}
               ></div>
 
-              <button
-                className="otp-send-btn"
-                onClick={sendOTP}
-                disabled={isSendingOTP}
-              >
-                {isSendingOTP ? "Sending..." : "Send OTP"}
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+                <button
+                  className="otp-send-btn"
+                  onClick={sendOTP}
+                  disabled={isSendingOTP || !recaptchaVerifierRef.current || !recaptchaReady}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', minWidth: 150 }}
+                >
+                  {isSendingOTP ? (
+                    <>
+                      <span
+                        role="status"
+                        aria-label="Sending"
+                        className="otp-spinner"
+                        style={{
+                          width: 16,
+                          height: 16,
+                          border: '2px solid #4090e2',
+                          borderTop: '2px solid transparent',
+                          borderRadius: '50%',
+                          display: 'inline-block',
+                          animation: 'otpSpin .8s linear infinite'
+                        }}
+                      />
+                      <span style={{ paddingLeft: 6 }}>Sending...</span>
+                    </>
+                  ) : (
+                    <>Send OTP</>
+                  )}
+                </button>
+              </div>
             </>
           )}
 

@@ -49,13 +49,16 @@ export const logActivity = async (category, message, username, originalTimestamp
   }
 
   // Create log object with unique ID
+  // Ensure username is always set - use provided username or fallback to 'Unknown User'
+  const logUsername = username && username.trim() ? username.trim() : 'Unknown User';
+  
   const logsUniqueId = createUniqueId(category, timestamp);
   const newLog = sanitizeObjectStrings({
     id: logsUniqueId,
     timestamp,
     category,
     message,
-    username,
+    username: logUsername,
     userRole: userRole || 'Unknown',
     isTemporaryTechOfficer: isTemporaryTechOfficer || false
   });
@@ -99,14 +102,18 @@ export const getAllLogs = async () => {
       console.warn('Could not fetch user data for roles:', userError);
     }
     
-    // Create a map of username to user data for quick lookup
+    // Create a map of username to user data for quick lookup (case-insensitive)
     const userDataMap = new Map();
     users.forEach(user => {
       if (user.username) {
-        userDataMap.set(user.username, {
+        // Normalize username to lowercase for case-insensitive lookup
+        const normalizedUsername = user.username.trim().toLowerCase();
+        // Store both normalized and original for lookup
+        userDataMap.set(normalizedUsername, {
           role: user.user_role || user.role || 'Unknown',
           isMobileUser: user.isMobileUser || false,
-          farm: user.farm || null
+          farm: user.farm || null,
+          originalUsername: user.username // Keep original for reference
         });
       }
     });
@@ -132,7 +139,9 @@ export const getAllLogs = async () => {
     
     // Ensure all logs have proper username field and include role and source information
     const processedLogs = logs.map(log => {
-      const userData = userDataMap.get(log.username);
+      // Normalize username for lookup (case-insensitive, trimmed)
+      const normalizedUsername = (log.username && log.username.trim()) ? log.username.trim().toLowerCase() : '';
+      const userData = normalizedUsername ? userDataMap.get(normalizedUsername) : null;
       const reportSource = reportSourceMap.get(log.username);
       
       // Determine source: check report source first, then user mobile status
@@ -163,22 +172,37 @@ export const getAllLogs = async () => {
       
       // Determine role - prioritize log's userRole, then userData role, then check for temporaryTechOfficer flag
       let role = 'Unknown';
-      if (log.userRole && log.userRole !== 'Unknown') {
-        role = log.userRole;
-      } else if (userData && userData.role) {
-        role = userData.role;
+      if (log.userRole && log.userRole !== 'Unknown' && String(log.userRole).trim()) {
+        role = String(log.userRole).trim();
+      } else if (userData && userData.role && userData.role !== 'Unknown') {
+        role = String(userData.role).trim();
       } else if (log.isTemporaryTechOfficer) {
         role = 'temp_tech_officer';
       }
       
-      // Map role for display - convert New Main Tech Officer to Tech Officer
-      if (role === 'New Main Tech Officer' || role === 'new_main_tech_officer') {
-        role = 'tech_officer';
+      // Normalize role values (case-insensitive matching for all role formats)
+      if (role && role !== 'Unknown') {
+        const roleLower = String(role).toLowerCase().trim();
+        if (roleLower === 'new main tech officer' || roleLower === 'new_main_tech_officer') {
+          role = 'tech_officer';
+        } else if (roleLower === 'fish_farmer' || roleLower === 'fish farmer') {
+          role = 'fish_farmer';
+        } else if (roleLower === 'tech_officer' || roleLower === 'tech officer') {
+          role = 'tech_officer';
+        } else if (roleLower === 'admin') {
+          role = 'admin';
+        } else if (roleLower === 'temp_tech_officer' || roleLower === 'temporary tech officer' || roleLower === 'temporarytechofficer') {
+          role = 'temp_tech_officer';
+        }
+        // Keep other roles as-is
       }
+      
+      // Ensure username is always set - prioritize log.username, fallback to 'Unknown User'
+      const processedUsername = (log.username && log.username.trim()) ? log.username.trim() : 'Unknown User';
       
       return {
         ...log,
-        username: log.username || 'Unknown User',
+        username: processedUsername,
         message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
         category: String(log.category || ''),
         timestamp: validTimestamp, // Use validated timestamp
@@ -217,9 +241,12 @@ export const getAllLogs = async () => {
         }
       }
       
+      // Ensure username is always set
+      const processedUsername = (log.username && log.username.trim()) ? log.username.trim() : 'Unknown User';
+      
       return {
         ...log,
-        username: log.username || 'Unknown User',
+        username: processedUsername,
         message: typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''),
         category: String(log.category || ''),
         timestamp: validTimestamp,
@@ -573,7 +600,7 @@ export const logMessages = {
 }; 
 
 // Function to properly log reports with their correct timestamps
-export const logReportSubmission = async (reportData, username, source = 'web') => {
+export const logReportSubmission = async (reportData, username, source = 'web', userRole = null) => {
   try {
     // Extract the actual submission timestamp from the report data
     let submissionTimestamp = null;
@@ -602,6 +629,9 @@ export const logReportSubmission = async (reportData, username, source = 'web') 
       ? submissionTimestamp 
       : new Date();
     
+    // Get user role from reportData if not provided
+    const role = userRole || reportData.user_role || reportData.role || 'Unknown';
+    
     // Create the appropriate log message based on source
     let logMessage;
     if (source === 'mobile') {
@@ -610,13 +640,14 @@ export const logReportSubmission = async (reportData, username, source = 'web') 
       logMessage = logMessages.report.webSubmit(username, reportData.fish_pond || reportData.pond || 'Unknown Pond');
     }
     
-    // Log the activity with the correct timestamp
-    await logActivity('report', logMessage, username, timestampToUse);
+    // Log the activity with the correct timestamp and user role
+    await logActivity('report', logMessage, username, timestampToUse, role);
     
   } catch (error) {
     console.error('Error logging report submission:', error);
     // Fallback: log with current timestamp if there's an error
-    await logActivity('report', `Report submission by ${username}`, username);
+    const role = userRole || reportData?.user_role || reportData?.role || 'Unknown';
+    await logActivity('report', `Report submission by ${username}`, username, null, role);
   }
 };
 

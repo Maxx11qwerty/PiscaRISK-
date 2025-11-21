@@ -14,6 +14,41 @@ root.render(
   </FarmsProvider>
 );
 
+// Suppress browser tracking prevention warnings for reCAPTCHA resources
+// These are harmless warnings from Edge/Safari blocking third-party storage
+const originalWarn = console.warn;
+const originalError = console.error;
+
+const shouldSuppressTrackingWarning = (message) => {
+  return (
+    message.includes('Tracking Prevention blocked') &&
+    (message.includes('recaptcha') || 
+     message.includes('gstatic.com') || 
+     message.includes('google.com') ||
+     message.includes('grecaptcha'))
+  );
+};
+
+console.warn = (...args) => {
+  const message = args.join(' ');
+  if (shouldSuppressTrackingWarning(message)) {
+    // Silently ignore these benign browser warnings
+    return;
+  }
+  // Allow all other warnings through
+  originalWarn.apply(console, args);
+};
+
+console.error = (...args) => {
+  const message = args.join(' ');
+  if (shouldSuppressTrackingWarning(message)) {
+    // Silently ignore these benign browser warnings
+    return;
+  }
+  // Allow all other errors through
+  originalError.apply(console, args);
+};
+
 // Swallow late reCAPTCHA timeouts that can fire after OTP modal has unmounted
 // to prevent noisy unhandled runtime errors post-login.
 window.addEventListener('unhandledrejection', (event) => {

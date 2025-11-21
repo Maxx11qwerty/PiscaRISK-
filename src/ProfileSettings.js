@@ -2,19 +2,20 @@ import React, { useState, useRef, useContext, useEffect } from "react";
 import logo from "./assets/images/PISCARISK_LOGO.png";
 import "./ProfileSettings.css";
 import { AuthContext } from './contexts/AuthContext';
+import { useNotifications } from './contexts/NotificationContext';
 import { useLanguage } from './contexts/LanguageContext';
 import { useTranslation } from 'react-i18next';
-import { FaCamera, FaUpload, FaTimes, FaCheck,FaUserCircle, FaUser, FaSignOutAlt, FaBars } from "react-icons/fa";
+import { FaCamera, FaUpload, FaTimes, FaCheck,FaUserCircle, FaUser, FaSignOutAlt, FaBars, FaEye, FaEyeSlash } from "react-icons/fa";
 import { LiaEdit } from "react-icons/lia";
 import { useNavigate } from "react-router-dom";
 import { logActivity, logMessages } from './utils/logger';
 import NotificationBox from './components/NotificationBox';
 import Sidebar from './components/Sidebar';
-import { doc, updateDoc,serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { sanitizeObjectStrings } from './utils/sanitize';
 import { db } from './firebase';
 import { auth } from './firebase';
-import { sendPasswordResetEmail, updateEmail as fbUpdateEmail, sendEmailVerification as fbSendEmailVerification } from 'firebase/auth';
+import { sendPasswordResetEmail, verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider, reauthenticateWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 
 export default function AccountSettings() {
@@ -49,8 +50,20 @@ export default function AccountSettings() {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [showEmailVerifyNotice, setShowEmailVerifyNotice] = useState(false);
+  const [showEmailLogoutPrompt, setShowEmailLogoutPrompt] = useState(false);
+  // Email change confirmation modal state
+  const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
+  const [emailConfirmContext, setEmailConfirmContext] = useState(null); // 'direct' | 'save'
+  const [emailConfirmPassword, setEmailConfirmPassword] = useState('');
+  const [emailConfirmError, setEmailConfirmError] = useState('');
+  const [emailConfirmPasswordVisible, setEmailConfirmPasswordVisible] = useState(false);
+  const [pendingEmailChange, setPendingEmailChange] = useState(null); // Store email to change after reauth
   const mountedRef = useRef(true);
   const pendingTimersRef = useRef([]);
+  // Use global variable to track toast ID across all pages
+  if (typeof window.emailVerificationToastId === 'undefined') {
+    window.emailVerificationToastId = null;
+  }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -83,6 +96,7 @@ export default function AccountSettings() {
   const [contactError, setContactError] = useState('');
   
   const {handleLogout, refreshCurrentUser } = useContext(AuthContext);
+  const { addToast, removeToast } = useNotifications();
 
   const { 
     currentUser,
@@ -283,50 +297,9 @@ const uploadImage = (file) => {
       setEmailError('');
       return; // No changes, just close editing mode
     }
-    
-    try {
-      // 1) Update auth user's email
-      await fbUpdateEmail(auth.currentUser, newEmail);
-
-      // 2) Update Firestore: set email and mark emailVerified false until verification
-      const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, sanitizeObjectStrings({
-        email: newEmail,
-        emailVerified: false,
-        lastModified: new Date()
-      }));
-
-      // 3) Send verification email to the new address
-      await fbSendEmailVerification(auth.currentUser);
-
-      // 4) Update UI/local state and prompt user to verify
-      setNewEmail(newEmail);
-      logActivity('profile', `Email updated from "${currentUser.email || 'Not set'}" to "${newEmail}" (verification sent)`, currentUser.username);
-      await refreshCurrentUser();
-      setShowEmailChangeForm(false);
-      setEmailError('');
-      setSuccess(t('profileSettings.verificationEmailSentTo', { email: newEmail }));
-      setShowEmailVerifyNotice(true);
-      
-      // Begin periodic verification checks until verified
-      if (!verificationCheckInterval) {
-        const interval = setInterval(handleVerificationCheck, 5000);
-        setVerificationCheckInterval(interval);
-      }
-      
-      // Avoid hard reload; rely on refreshCurrentUser and reactive state
-    } catch (error) {
-      let msg = t('profileSettings.failedToUpdateEmail');
-      if (error?.code === 'auth/requires-recent-login') {
-        msg = t('profileSettings.requiresRecentLogin');
-      } else if (error?.code === 'auth/invalid-email') {
-        msg = t('profileSettings.emailInvalid');
-      } else if (error?.code === 'auth/email-already-in-use') {
-        msg = t('profileSettings.emailInUse');
-      }
-      setEmailError(msg);
-      setError(msg);
-    }
+    // Open custom confirm modal (direct/email field save)
+    setEmailConfirmContext('direct');
+    setShowEmailConfirmModal(true);
   };
 
   const handleImageUpload = async (e) => {
@@ -607,9 +580,14 @@ const uploadImage = (file) => {
       
       if (isVerified) {
         // Persist emailVerified true in Firestore and refresh
+        // Clear previousEmail since email is now verified and Firebase Auth has the new email
         try {
           const userRef = doc(db, 'users', currentUser.uid);
-          await updateDoc(userRef, { emailVerified: true, lastModified: serverTimestamp() });
+          await updateDoc(userRef, { 
+            emailVerified: true, 
+            previousEmail: null, // Clear old email since new email is now verified
+            lastModified: serverTimestamp() 
+          });
         } catch (_) {}
 
         if (!mountedRef.current) return;
@@ -624,6 +602,12 @@ const uploadImage = (file) => {
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
           logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
         } catch (_) {}
+
+        // Remove toast immediately when verification completes
+        if (window.emailVerificationToastId) {
+          removeToast(window.emailVerificationToastId);
+          window.emailVerificationToastId = null;
+        }
 
         // Clear polling and refresh user state
         if (verificationCheckInterval) {
@@ -644,6 +628,9 @@ const uploadImage = (file) => {
 // Add verification email sending function
 const handleSendVerificationEmail = async () => {
   try {
+    if (isSendingVerification) {
+      return;
+    }
     setIsSendingVerification(true);
     setError('');
     setSuccess('');
@@ -653,28 +640,89 @@ const handleSendVerificationEmail = async () => {
       logActivity('profile', `Verification email sending initiated in Profile Settings`, u); 
     } catch (_) {}
 
+    // Check if user has a new email in Firestore (different from Firebase Auth email)
+    const firestoreEmail = currentUser?.email || '';
+    const authEmail = auth.currentUser?.email || '';
+    const hasNewEmail = firestoreEmail && authEmail && firestoreEmail.toLowerCase() !== authEmail.toLowerCase();
+
+    if (hasNewEmail) {
+      // User changed their email - need to resend verification to the new email using verifyBeforeUpdateEmail
+      try {
+        await verifyBeforeUpdateEmail(auth.currentUser, firestoreEmail);
+        setSuccess(t('profileSettings.verificationEmailSentTo', { email: firestoreEmail }));
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('profile', `Verification email resent to new email in Profile Settings`, u); 
+        } catch (_) {}
+      } catch (error) {
+        setError(t('profileSettings.failedToSendVerification'));
+        return;
+      }
+    } else {
+      // Normal case - email matches, use regular sendVerificationEmail
+      const result = await sendVerificationEmail();
+      if (result.success) {
+        setSuccess(result.message);
+        try { 
+          const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+          logActivity('profile', `Verification email sent successfully in Profile Settings`, u); 
+        } catch (_) {}
+      } else {
+        setError(result.message);
+        return;
+      }
+    }
+
     // Start checking verification status every 5 seconds
     hasShownVerifySuccessRef.current = false; // reset guard for a new verification flow
+    if (verificationCheckInterval) {
+      clearInterval(verificationCheckInterval);
+    }
     const interval = setInterval(handleVerificationCheck, 5000);
     setVerificationCheckInterval(interval);
-  
-    const result = await sendVerificationEmail();
-    
-    if (result.success) {
-      setSuccess(result.message);
-      try { 
-        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-        logActivity('profile', `Verification email sent successfully in Profile Settings`, u); 
-      } catch (_) {}
-    } else {
-      setError(result.message);
-    }
   } catch (error) {
     setError(t('profileSettings.failedToSendVerification'));
   } finally {
     setIsSendingVerification(false);
   }
 };
+
+  const showEmailVerificationToast = (removeExisting = true) => {
+    if (currentUser?.emailVerified !== false) {
+      return;
+    }
+    
+    // Remove existing toast if requested (when navigating between pages)
+    if (removeExisting && window.emailVerificationToastId) {
+      removeToast(window.emailVerificationToastId);
+      window.emailVerificationToastId = null;
+    }
+    
+    // Don't show if already showing
+    if (window.emailVerificationToastId) {
+      return;
+    }
+
+    const toastId = addToast(
+      '⚠️ Your new email is not verified. Please verify to enable full account security.',
+      'warning',
+      0,
+      {
+        action: {
+          label: 'Resend Verification Email',
+          onClick: async () => {
+            await handleSendVerificationEmail();
+          },
+          autoClose: false
+        },
+        onClose: () => {
+          window.emailVerificationToastId = null;
+        }
+      }
+    );
+
+    window.emailVerificationToastId = toastId;
+  };
 
   // Cleanup interval on component unmount
   useEffect(() => {
@@ -707,7 +755,37 @@ const handleSendVerificationEmail = async () => {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    if (currentUser?.emailVerified === true && window.emailVerificationToastId) {
+      removeToast(window.emailVerificationToastId);
+      window.emailVerificationToastId = null;
+    }
+    if (currentUser?.emailVerified === true && showEmailLogoutPrompt) {
+      setShowEmailLogoutPrompt(false);
+    }
+  }, [currentUser?.emailVerified, removeToast, showEmailLogoutPrompt]);
+
+  // Don't show toast in ProfileSettings - only show on other pages
+  // The success message is shown here when email is changed
+
+  // Add beforeunload handler to warn when closing tab with unverified email
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (currentUser?.emailVerified === false) {
+        e.preventDefault();
+        e.returnValue = '⚠️ Your new email is not verified. Please verify it to keep your account secure.';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentUser?.emailVerified]);
+
   // Sidebar navigation handlers
+  // Toast will be shown by each page component on mount
   const handleDashboardClick = () => {
     navigate('/Homepage');
   };
@@ -733,18 +811,47 @@ const handleSendVerificationEmail = async () => {
     navigate('/Feedback');
   };
 
+  const handleLogoutAttempt = () => {
+    setShowMenu(false);
+    if (currentUser?.emailVerified === false) {
+      // Remove toast when showing logout prompt
+      if (window.emailVerificationToastId) {
+        removeToast(window.emailVerificationToastId);
+        window.emailVerificationToastId = null;
+      }
+      setShowEmailLogoutPrompt(true);
+      return;
+    }
+    handleLogout(navigate);
+  };
+
+  const handleCancelLogoutPrompt = () => {
+    setShowEmailLogoutPrompt(false);
+  };
+
+  const handleConfirmLogoutPrompt = () => {
+    setShowEmailLogoutPrompt(false);
+    handleLogout(navigate);
+  };
+
+  const handleResendFromLogoutPrompt = async () => {
+    await handleSendVerificationEmail();
+    showEmailVerificationToast();
+  };
+
   const handleExport = (format) => {
     setShowDownloadOptions(false);
   };
 
   // Function to save all changes when Save Changes button is clicked
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = async (skipEmailConfirm = false, alreadyReauthenticated = false, emailToChange = null, passwordForReauth = null) => {
     try {
       setError('');
       setSuccess('');
       
       const updates = {};
       let hasChanges = false;
+      let emailChangedInThisSave = false;
       
       // Check for username changes
       if (newUsername && newUsername !== currentUser?.username) {
@@ -771,20 +878,150 @@ const handleSendVerificationEmail = async () => {
         hasChanges = true;
       }
       
-      // Check for email changes
-      if (newEmail && newEmail !== currentUser?.email) {
-        updates.email = newEmail;
+      // Check for email changes - use passed email if provided, otherwise use newEmail
+      // Check if newEmail exists and is different from current email (even if edit mode is closed)
+      const emailToUpdate = emailToChange || newEmail;
+      const currentEmail = (currentUser?.email || '').trim();
+      const newEmailTrimmed = emailToUpdate ? emailToUpdate.trim() : '';
+      const emailHasChanged = newEmailTrimmed && 
+                              newEmailTrimmed !== currentEmail &&
+                              newEmailTrimmed.length > 0;
+      
+      
+      if (emailHasChanged) {
+        updates.email = newEmailTrimmed;
         hasChanges = true;
+      }
+      
+      // If email will change and we haven't explicitly skipped confirmation, show the modal first
+      if (updates.email && !skipEmailConfirm) {
+        setEmailConfirmContext('save');
+        setShowEmailConfirmModal(true);
+        return;
+      } else {
       }
       
       if (!hasChanges) {
         setSuccess(t('profileSettings.noChangesToSave'));
         return;
       }
-      
-      // Update in Firestore
-      const userRef = doc(db, 'users', currentUser.uid);
-      await updateDoc(userRef, sanitizeObjectStrings(updates));
+      // If email is changing as part of save flow, perform the full email update flow first
+      if (updates.email) {
+        try {
+          // Re-authenticate right before email update to ensure fresh session
+          // Skip if already re-authenticated in the modal
+          if (!alreadyReauthenticated) {
+            const providers = auth.currentUser?.providerData?.map(p => p.providerId) || [];
+            const isPasswordProvider = providers.includes('password');
+            
+            if (isPasswordProvider) {
+              // For password provider, use passed password or stored password
+              const passwordToUse = passwordForReauth || pendingEmailChange?.password;
+              if (!passwordToUse) {
+                throw new Error('Password required for reauthentication');
+              }
+              const currentEmail = auth.currentUser.email;
+              if (!currentEmail) {
+                throw new Error('No email found for reauthentication');
+              }
+              try {
+                const cred = EmailAuthProvider.credential(currentEmail, passwordToUse);
+                await reauthenticateWithCredential(auth.currentUser, cred);
+              } catch (reauthError) {
+                throw new Error('Reauthentication failed. Please try again.');
+              }
+            } else {
+              // For Google or other providers, use popup
+              const providerId = providers[0] || 'google.com';
+              try {
+                if (providerId === 'google.com') {
+                  await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+                } else {
+                  // Fallback to Google if unknown provider
+                  await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+                }
+              } catch (reauthError) {
+                throw new Error('Reauthentication failed. Please try again.');
+              }
+            }
+            
+            // Verify re-authentication succeeded by checking token
+            // Reload user to ensure we have the latest auth state
+            await auth.currentUser.reload();
+          }
+          
+          // Send verification to the new email; Firebase will update email after user verifies via link
+          await verifyBeforeUpdateEmail(auth.currentUser, updates.email);
+          const userRefEmail = doc(db, 'users', currentUser.uid);
+          // Store the old email (from Firebase Auth) so we can use it for login if needed
+          const oldEmail = auth.currentUser.email;
+          await updateDoc(userRefEmail, sanitizeObjectStrings({
+            email: updates.email,
+            emailVerified: false,
+            previousEmail: oldEmail, // Store old email for login purposes
+            lastModified: new Date()
+          }));
+          
+          // Verify that previousEmail was stored correctly
+          const verifyDoc = await getDoc(userRefEmail);
+          if (verifyDoc.exists()) {
+            const verifyData = verifyDoc.data();
+            if (!verifyData.previousEmail) {
+              // Retry storing previousEmail without sanitization to ensure it's saved
+              await updateDoc(userRefEmail, {
+                previousEmail: oldEmail
+              });
+            }
+          }
+          setNewEmail(updates.email);
+          logActivity('profile', `Email change request for "${updates.email}" (verification sent)`, currentUser.username);
+          await refreshCurrentUser();
+          setShowEmailChangeForm(false);
+          setEmailError('');
+          setSuccess(t('profileSettings.verificationEmailSentTo', { email: updates.email }));
+          setShowEmailVerifyNotice(true);
+          if (!verificationCheckInterval) {
+            const interval = setInterval(handleVerificationCheck, 5000);
+            setVerificationCheckInterval(interval);
+          }
+          emailChangedInThisSave = true;
+        } catch (error) {
+          let msg = t('profileSettings.failedToUpdateEmail');
+          
+          // Handle specific Firebase error codes
+          if (error?.code === 'auth/requires-recent-login') {
+            msg = t('profileSettings.requiresRecentLogin');
+          } else if (error?.code === 'auth/invalid-email') {
+            msg = t('profileSettings.emailInvalid');
+          } else if (error?.code === 'auth/email-already-in-use') {
+            msg = t('profileSettings.emailInUse');
+          } else if (error?.code === 'auth/operation-not-allowed') {
+            // This error usually means re-authentication is required
+            // The confusing Firebase message "verify new email" is misleading
+            // What Firebase actually needs is recent re-authentication
+            msg = t('profileSettings.requiresRecentLogin');
+          } else if (error?.message?.includes('Reauthentication failed')) {
+            msg = error.message;
+          } else if (error?.message?.includes('Password required')) {
+            msg = t('profileSettings.passwordRequired');
+          }
+          
+          setEmailError(msg);
+          setError(msg);
+          setPendingEmailChange(null); // Clear pending change on error
+          return; // abort the rest if email update failed
+        }
+        // Clear pending email change after successful update
+        setPendingEmailChange(null);
+        // Remove email from generic updates to avoid double-writing
+        delete updates.email;
+      }
+
+      // Update remaining fields in Firestore if any
+      if (Object.keys(updates).length > 0) {
+        const userRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userRef, sanitizeObjectStrings(updates));
+      }
       
       // Log activities for each change
       if (updates.username) {
@@ -799,9 +1036,7 @@ const handleSendVerificationEmail = async () => {
       if (updates.contactNumber) {
         logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${updates.contactNumber}"`, currentUser.username);
       }
-      if (updates.email) {
-        logActivity('profile', `Email updated from "${currentUser.email}" to "${updates.email}"`, currentUser.username);
-      }
+      // Email logging already handled above when email was changed
       
       // Refresh current user data
       await refreshCurrentUser();
@@ -818,11 +1053,115 @@ const handleSendVerificationEmail = async () => {
       setShowContactChangeForm(false);
       setShowEmailChangeForm(false);
       
-      setSuccess(t('profileSettings.allChangesSaved'));
+      if (!emailChangedInThisSave) {
+        setSuccess(t('profileSettings.allChangesSaved'));
+      }
       
     } catch (error) {
       setError(t('profileSettings.failedToSaveChanges'));
     }
+  };
+
+  // Confirm action from email change modal
+  const confirmEmailChangeProceed = async () => {
+    setShowEmailConfirmModal(false);
+    // Determine auth provider and reauthenticate accordingly
+    const providers = auth.currentUser?.providerData?.map(p => p.providerId) || [];
+    const isPasswordProvider = providers.includes('password');
+    if (isPasswordProvider) {
+      const pwd = String(emailConfirmPassword || '').trim();
+      if (!pwd) {
+        setEmailConfirmError(t('profileSettings.passwordRequired'));
+        setShowEmailConfirmModal(true);
+        return;
+      }
+      try {
+        const cred = EmailAuthProvider.credential(auth.currentUser.email, pwd);
+        await reauthenticateWithCredential(auth.currentUser, cred);
+      } catch (e) {
+        setEmailConfirmError(t('profileSettings.passwordIncorrect'));
+        setShowEmailConfirmModal(true);
+        return;
+      }
+    } else {
+      try {
+        const providerId = providers[0];
+        if (providerId === 'google.com') {
+          await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+        } else {
+          // Fallback: attempt popup with Google if unknown provider
+          await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+        }
+      } catch (e) {
+        setError(t('profileSettings.failedToUpdateEmail'));
+        return;
+      }
+    }
+    if (emailConfirmContext === 'direct') {
+      // Proceed with the original email change logic
+      try {
+        await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+        const userRef = doc(db, 'users', currentUser.uid);
+        // Store the old email (from Firebase Auth) so we can use it for login if needed
+        const oldEmail = auth.currentUser.email;
+        await updateDoc(userRef, sanitizeObjectStrings({
+          email: newEmail,
+          emailVerified: false,
+          previousEmail: oldEmail, // Store old email for login purposes
+          lastModified: new Date()
+        }));        
+        // Verify that previousEmail was stored correctly
+        const verifyDoc = await getDoc(userRef);
+        if (verifyDoc.exists()) {
+          const verifyData = verifyDoc.data();
+          if (!verifyData.previousEmail) {
+            // Retry storing previousEmail without sanitization to ensure it's saved
+            await updateDoc(userRef, {
+              previousEmail: oldEmail
+            });
+          }
+        }
+        setNewEmail(newEmail);
+        logActivity('profile', `Email change request for "${newEmail}" (verification sent)`, currentUser.username);
+        await refreshCurrentUser();
+        setShowEmailChangeForm(false);
+        setEmailError('');
+        setSuccess(t('profileSettings.verificationEmailSentTo', { email: newEmail }));
+        setShowEmailVerifyNotice(true);
+        if (!verificationCheckInterval) {
+          const interval = setInterval(handleVerificationCheck, 5000);
+          setVerificationCheckInterval(interval);
+        }
+      } catch (error) {
+        let msg = t('profileSettings.failedToUpdateEmail');
+        if (error?.code === 'auth/requires-recent-login') {
+          msg = t('profileSettings.requiresRecentLogin');
+        } else if (error?.code === 'auth/invalid-email') {
+          msg = t('profileSettings.emailInvalid');
+        } else if (error?.code === 'auth/email-already-in-use') {
+          msg = t('profileSettings.emailInUse');
+        }
+        setEmailError(msg);
+        setError(msg);
+      }
+    } else if (emailConfirmContext === 'save') {
+      // Store the password for potential re-authentication in save flow
+      // But we've already re-authenticated above, so we can proceed directly
+      setPendingEmailChange({ email: newEmail, password: emailConfirmPassword });
+      // Re-run save flow but skip confirm this time
+      // Pass a flag to indicate we've already re-authenticated, and pass email/password directly
+      await handleSaveChanges(true, true, newEmail, emailConfirmPassword);
+    }
+    setEmailConfirmContext(null);
+    setEmailConfirmPassword('');
+    setEmailConfirmError('');
+  };
+
+  const cancelEmailChangeProceed = () => {
+    setShowEmailConfirmModal(false);
+    setEmailConfirmContext(null);
+    setEmailConfirmPassword('');
+    setEmailConfirmError('');
   };
 
   return (
@@ -865,7 +1204,7 @@ const handleSendVerificationEmail = async () => {
                     <FaUser className="dropdown-icon" />
                     {t('common.profile')}
                   </button>
-                  <button onClick={() => handleLogout(navigate)}>
+                  <button onClick={handleLogoutAttempt}>
                     <FaSignOutAlt className="dropdown-icon" />
                     {t('sidebar.logout')}
                   </button> 
@@ -1142,8 +1481,8 @@ const handleSendVerificationEmail = async () => {
                       className="edit-icon-inside clickable-edit-icon" 
                       onClick={() => {
                         if (showEmailChangeForm) {
-                          // Save changes
-                          handleEmailChange();
+                          // Just close edit mode - Save Changes button will handle the confirmation modal
+                          setShowEmailChangeForm(false);
                           // Remove focus from the input field
                           const input = document.querySelector('.profile-field:nth-child(5) .field-input');
                           if (input) input.blur();
@@ -1214,7 +1553,7 @@ const handleSendVerificationEmail = async () => {
             {(showUsernameChangeForm || showFullNameChangeForm || showAddressChangeForm || showContactChangeForm || showEmailChangeForm) && (
               <div className="fields-row save-changes-row">
                 <div className="profile-field">
-                  <button className="save-changes-btn" onClick={handleSaveChanges}>{t('profileSettings.saveChanges')}</button>
+                  <button className="save-changes-btn" onClick={() => handleSaveChanges(false)}>{t('profileSettings.saveChanges')}</button>
                 </div>
               </div>
             )}
@@ -1372,6 +1711,92 @@ const handleSendVerificationEmail = async () => {
               }}>
                 {t('profileSettings.close')}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Email Change Confirmation Modal */}
+        {showEmailConfirmModal && (
+          <div className="email-confirm-modal-overlay" onClick={cancelEmailChangeProceed}>
+            <div className="email-confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="email-confirm-header">
+                <h3>{t('common.confirm')}</h3>
+                <button 
+                  className="email-close-modal-btn" 
+                  onClick={cancelEmailChangeProceed}
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="email-confirm-body">
+                <p>{t('profileSettings.confirmEmailChange', { email: newEmail })}</p>
+                <div className="email-confirm-password">
+                  <label>{t('profileSettings.enterPasswordToConfirm')}</label>
+                  <div className="email-confirm-password-input-wrapper">
+                  <input
+                    type={emailConfirmPasswordVisible ? "text" : "password"}
+                    value={emailConfirmPassword}
+                    onChange={(e) => setEmailConfirmPassword(e.target.value)}
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    className="email-password-toggle"
+                    onClick={() => setEmailConfirmPasswordVisible(v => !v)}
+                    aria-label={emailConfirmPasswordVisible ? 'Hide password' : 'Show password'}
+                    title={emailConfirmPasswordVisible ? 'Hide password' : 'Show password'}
+                  >
+                    {emailConfirmPasswordVisible ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                  </div>
+                  {emailConfirmError && (
+                    <div className="email-confirm-error">{emailConfirmError}</div>
+                  )}
+                </div>
+              </div>
+              <div className="email-confirm-actions">
+                <button className="cancel-btn" onClick={cancelEmailChangeProceed}>
+                  {t('common.cancel')}
+                </button>
+                <button className="confirm-email-btn" onClick={confirmEmailChangeProceed} disabled={!emailConfirmPassword.trim()}>
+                  {t('common.confirm')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEmailLogoutPrompt && (
+          <div className="email-logout-modal-overlay" onClick={handleCancelLogoutPrompt}>
+            <div className="email-logout-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="email-logout-header">
+                <h3>Email Verification Needed</h3>
+                <button 
+                  className="email-close-modal-btn"
+                  onClick={handleCancelLogoutPrompt}
+                  aria-label="Close email verification reminder"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="email-logout-body">
+                <p>⚠️ Your new email is not verified. Please verify it to keep your account secure before logging out.</p>
+              </div>
+              <div className="email-logout-actions">
+                <button 
+                  className="send-verification-btn"
+                  onClick={handleResendFromLogoutPrompt}
+                  disabled={isSendingVerification}
+                >
+                  {isSendingVerification ? t('profileSettings.sending') : 'Resend Verification Email'}
+                </button>
+                <button className="logout-anyway-btn" onClick={handleConfirmLogoutPrompt}>
+                  Log Out Anyway
+                </button>
+                <button className="cancel-btn" onClick={handleCancelLogoutPrompt}>
+                  Stay Signed In
+                </button>
+              </div>
             </div>
           </div>
         )}
