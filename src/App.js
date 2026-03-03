@@ -2,6 +2,9 @@ import React, { useContext, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { Toaster as SileoToaster } from 'sileo';
+import 'sileo/styles.css';
+import './SileoToast.css';
 import SignupPage from "./SignupPage";
 import Login from "./Login";
 import Homepage from "./Homepage";
@@ -137,6 +140,7 @@ function App() {
               theme="light"
             />
             <CustomToastContainer />
+            <SileoToaster position="top-right" />
           </NotificationProvider>
         </Auth.AuthProvider>
       </LanguageProvider>

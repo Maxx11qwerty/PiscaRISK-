@@ -993,7 +993,26 @@ body {
   text-align: center;
   padding: 2rem;
   color: #666;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.loading-logs .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #1A4375;
+  border-radius: 50%;
+  animation: logs-loading-spin 1s linear infinite;
+}
+
+@keyframes logs-loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* RESPONSIVE DESIGN - Different Screen Sizes */
@@ -1464,8 +1483,9 @@ body {
   
   .logs-main-content {
     margin-left: 5%;
-    /* COMMENT: Adjust this value to control the height of logs-main-content on small mobile screens */
-    height: calc(100vh - 300px);
+    /* Ensure content starts below fixed header so search bar is visible */
+    padding-top: 70px;
+    height: auto;
   }
   
   .logs-container {
@@ -1950,6 +1970,8 @@ body {
 @media (max-width: 360px) {
   .logs-main-content {
     margin-left: 2.5%;
+    /* Ensure search bar is not hidden behind fixed header on very small screens */
+    padding-top: 70px;
     margin-top: 0;
   }
   

@@ -92,7 +92,12 @@ function HarvestChart() {
   };
 
   if (loading) {
-    return <div className="loading-reports">Loading harvest data...</div>;
+    return (
+      <div className="loading-reports">
+        <div className="loading-spinner" />
+        <p>Loading harvest data...</p>
+      </div>
+    );
   }
 
   return (

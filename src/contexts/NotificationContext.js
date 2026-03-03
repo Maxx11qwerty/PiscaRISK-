@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { sileo } from 'sileo';
 
 const NotificationContext = createContext();
 
@@ -179,11 +180,30 @@ export const NotificationProvider = ({ children }) => {
           if (suppressNextIncreaseRef.current) {
             suppressNextIncreaseRef.current = false;
           } else {
-          const diff = newCount - previousCount;
-          const message = diff === 1
-            ? 'New user is awaiting activation.'
-            : `${diff} new users are awaiting activation.`;
-          addToast(message, 'success');
+            const diff = newCount - previousCount;
+            sileo.success({
+              title: 'New user',
+              description: (
+                <span className="sileo-toast-description">
+                  {diff === 1
+                    ? '1 new user is awaiting activation.'
+                    : `${diff} new users are awaiting activation.`}
+                </span>
+              ),
+              fill: '#FFFFFF', // white background
+              roundness: 18,
+              styles: {
+                title: 'sileo-toast-title',
+                description: 'sileo-toast-description',
+                badge: 'sileo-toast-badge',
+              },
+              button: {
+                title: 'View user',
+                onClick: () => {
+                  window.location.href = '/AccountManagement?tab=new';
+                },
+              },
+            });
           }
         } else if (newCount < previousCount && previousCount > 0) {
           if (suppressNextDecreaseRef.current) {
@@ -199,10 +219,27 @@ export const NotificationProvider = ({ children }) => {
       } else {
         // On initial load after login: if there are pending users, always announce once
         if (!announcedInitialPending && newCount > 0) {
-          const message = newCount === 1
-            ? '1 user is awaiting activation.'
-            : `${newCount} users are awaiting activation.`;
-          addToast(message, 'info');
+          sileo.info({
+            title: 'New user',
+            description: (
+              <span className="sileo-toast-description">
+                Check the Account Management page to process new users.
+              </span>
+            ),
+            fill: '#FFFFFF', // white background
+            roundness: 18,
+            styles: {
+              title: 'sileo-toast-title',
+              description: 'sileo-toast-description',
+              badge: 'sileo-toast-badge',
+            },
+            button: {
+              title: 'View user',
+              onClick: () => {
+                window.location.href = '/AccountManagement?tab=new';
+              },
+            },
+          });
           setAnnouncedInitialPending(true);
         }
       }
@@ -249,13 +286,39 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const addDeactivationToast = (username) => {
-    const message = `You successfully deactivated ${username}'s account.`;
-    addToast(message, 'success', 4000);
+    sileo.info({
+      title: 'User updated',
+      description: (
+        <span className="sileo-toast-description">
+          You successfully deactivated {username}'s account.
+        </span>
+      ),
+      fill: '#FFFFFF',
+      roundness: 18,
+      styles: {
+        title: 'sileo-toast-title',
+        description: 'sileo-toast-description',
+        badge: 'sileo-toast-badge',
+      },
+    });
   };
 
   const addActivationToast = (username) => {
-    const message = `You successfully activated ${username}'s account.`;
-    addToast(message, 'success', 4000);
+    sileo.success({
+      title: 'User activated',
+      description: (
+        <span className="sileo-toast-description">
+          You successfully activated {username}'s account.
+        </span>
+      ),
+      fill: '#FFFFFF',
+      roundness: 18,
+      styles: {
+        title: 'sileo-toast-title',
+        description: 'sileo-toast-description',
+        badge: 'sileo-toast-badge',
+      },
+    });
   };
 
   // Expose a way to reset the activation counter baseline

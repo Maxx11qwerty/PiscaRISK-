@@ -1224,6 +1224,15 @@ const login = async (emailOrContact, password) => {
     
     return { success: true, user: userCredential.user, username: username };
   } catch (error) {
+    // Map internal/null-status errors to a user‑friendly message
+    if (error && typeof error.message === 'string' &&
+        error.message.includes('Cannot read properties of null') &&
+        error.message.includes('status')) {
+      return {
+        success: false,
+        message: "We had trouble loading your account details. Please try logging in again. If the issue continues, use your phone number or contact tech officer."
+      };
+    }
     
     // Handle specific Firebase Auth errors
     if (error.code === 'auth/invalid-credential') {
@@ -1591,10 +1600,8 @@ const login = async (emailOrContact, password) => {
         await auth.currentUser.reload();
         reloadSuccess = true;
       } catch (reloadError) {
-        console.warn('[EMAIL VERIFICATION] Failed to reload user (token may be expired):', reloadError.code);
         // If token expired, we'll use Firestore data instead
         if (reloadError.code === 'auth/user-token-expired') {
-          console.log('[EMAIL VERIFICATION] Token expired, using Firestore data for verification status');
           // Continue with Firestore data - we'll check if email matches and use Firestore's emailVerified
         } else {
           // For other errors, rethrow
@@ -1617,13 +1624,11 @@ const login = async (emailOrContact, password) => {
           // Token expired - check if email change is in progress
           // If previousEmail exists, it means email was changed but not verified yet
           if (userData.previousEmail) {
-            console.log('[EMAIL VERIFICATION] Token expired, but previousEmail exists - email change in progress, not verified');
             setCurrentUser(prev => (prev ? { ...prev, emailVerified: false } : prev));
             return false;
           }
           // No previousEmail - use Firestore's emailVerified status
           const firestoreVerified = !!userData.emailVerified;
-          console.log('[EMAIL VERIFICATION] Token expired, using Firestore emailVerified status:', firestoreVerified);
           setCurrentUser(prev => (prev ? { ...prev, emailVerified: firestoreVerified } : prev));
           return firestoreVerified;
         }
@@ -1648,7 +1653,6 @@ const login = async (emailOrContact, password) => {
         // Therefore, the new email is NOT verified yet
         
         // Always return false when emails don't match (email change in progress)
-        console.log('[EMAIL VERIFICATION] Emails don\'t match - email change in progress, new email not verified yet');
         // Make sure Firestore and local state stay unverified
         if (userDoc.exists() && userData.emailVerified !== false) {
           try {
@@ -1668,7 +1672,6 @@ const login = async (emailOrContact, password) => {
       if (!reloadSuccess) {
         // Token expired - use Firestore's emailVerified status
         const firestoreVerified = !!userData.emailVerified;
-        console.log('[EMAIL VERIFICATION] Token expired, using Firestore emailVerified status:', firestoreVerified);
         setCurrentUser(prev => (prev ? { ...prev, emailVerified: firestoreVerified } : prev));
         return firestoreVerified;
       }

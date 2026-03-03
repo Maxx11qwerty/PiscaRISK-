@@ -1024,19 +1024,16 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const needScrollRisk = isStdPhone && riskDynamicHeight > chartHeights.risk;
 
   if (loading) {
-    return <div className="loading-reports">{t('pondsAtRiskChart.loadingChartData')}</div>;
+    return (
+      <div className="loading-reports">
+        <div className="loading-spinner" />
+        <p>{t('pondsAtRiskChart.loadingChartData')}</p>
+      </div>
+    );
   }
 
   return (
     <>
-      <style>
-        {`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}
-      </style>
       <div className="bar-chart-container" id="stacked-risk-chart" style={{ 
         background: 'transparent', 
         boxShadow: 'none',

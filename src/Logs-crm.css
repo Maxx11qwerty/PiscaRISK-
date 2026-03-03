@@ -9,9 +9,12 @@
   margin-left: 70px;
 }
 
+/* Ensure main content (including search bar) starts below the fixed header on smaller screens */
 @media (max-width: 1023px) {
   .logs .main-content-wrapper {
     margin-left: 0 !important;
+    padding-top: 70px; /* push content (search bar + table) below header */
+    box-sizing: border-box;
   }
 }
 
@@ -934,10 +937,17 @@
     margin-left: 0 !important;
   }
   
+  /* Keep search bar full width, with refresh + filter aligned side‑by‑side underneath */
   .logs .search-filter-bar {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 0.5rem;
     margin: 0 0.5rem;
+    justify-content: center;
+  }
+  
+  .logs .search-container {
+    flex: 1 1 100%;
   }
   
   .logs .crm-table-container {

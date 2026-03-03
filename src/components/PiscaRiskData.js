@@ -540,7 +540,7 @@ const PiscaRiskData = () => {
     return (
       <div className="risk-report-container modal-view">
         <div className="loading-state">
-          <FaExclamationTriangle className="loading-icon" />
+          <div className="loading-spinner" />
           <h3>{t('riskReportModal.loadingFarmRiskData')}</h3>
           <p>{t('riskReportModal.fetchingLatestFarmSummaries')}</p>
         </div>

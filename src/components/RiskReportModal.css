@@ -1481,16 +1481,19 @@
   color: #64748b;
 }
 
-.loading-icon {
-  font-size: 3rem;
-  color: #dc2626;
-  margin-bottom: 20px;
-  animation: pulse 2s infinite;
+.loading-state .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #1A4375;
+  border-radius: 50%;
+  margin: 0 auto 20px auto;
+  animation: risk-loading-spin 1s linear infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+@keyframes risk-loading-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .loading-state h3 {

@@ -478,10 +478,9 @@ const FarmHealthGauge = () => {
       )}
       <div className="gauge-area" id="health-gauge-chart">
         {loading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', position: 'relative' }}>
-            <div style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.9)' }}>
-              {t('farmHealthGauge.loading', { defaultValue: 'Loading farm health…' })}
-            </div>
+          <div className="loading-reports">
+            <div className="loading-spinner" />
+            <p>{t('farmHealthGauge.loading', { defaultValue: 'Loading farm health…' })}</p>
           </div>
         ) : (
           <>

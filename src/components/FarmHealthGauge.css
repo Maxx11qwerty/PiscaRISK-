@@ -332,4 +332,32 @@
   .health-legend { margin-top: 0; }
 }
 
+/* Loading state */
+.health-gauge-container .loading-reports {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.health-gauge-container .loading-reports .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid rgba(243, 243, 243, 0.4);
+  border-top: 4px solid #7ffcff;
+  border-radius: 50%;
+  animation: farmHealthSpin 1s linear infinite;
+}
+
+@keyframes farmHealthSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 

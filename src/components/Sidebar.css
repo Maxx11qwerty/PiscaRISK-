@@ -298,6 +298,15 @@
   transform: translateX(5px);
 }
 
+.sidebar-nav-item.active {
+  background-color: #f7f3f3;
+  box-shadow: inset 0 0 0 1px #f8f7f7;
+}
+
+.sidebar-nav-item.active:hover {
+  transform: translateX(0);
+}
+
 .sidebar-nav-icon {
   font-size: 1.5rem;
   color: #000000;

@@ -724,8 +724,10 @@
   
   .tab-container {
     padding: 0 0.5rem;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: visible;              /* Remove horizontal scroll */
+    -webkit-overflow-scrolling: auto; /* Default scrolling behavior */
+    flex-wrap: wrap;                  /* Allow tabs to wrap on small screens */
+    justify-content: center;          /* Center the wrapped tabs */
   }
   
   .tab-button {

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   FaUserCircle, 
   FaHome, 
@@ -30,7 +31,23 @@ const Sidebar = ({
   const { t, i18n } = useTranslation();
   const { language, setLanguage } = useLanguage();
   const { pendingActivations } = useNotifications();
+  const location = useLocation();
+  const currentPath = (location.pathname || '').toLowerCase();
 
+  const isDashboardActive =
+    currentPath === '/' ||
+    currentPath === '/homepage';
+
+  const isAccountManagementActive =
+    currentPath === '/accountmanagement';
+
+  const isLogsActive =
+    currentPath === '/logs' ||
+    currentPath.startsWith('/logs/');
+
+  const isFeedbackActive =
+    currentPath === '/feedback' ||
+    currentPath.startsWith('/feedback/');
 
   const formatRole = (role) => {
     if (!role) return 'User';
@@ -117,11 +134,17 @@ const Sidebar = ({
       <aside className="sidebar">
         <div className="sidebar-main-nav">
           <div className="sidebar-buttons">
-            <div className="sidebar-nav-item" onClick={onDashboardClick}>
+            <div
+              className={`sidebar-nav-item ${isDashboardActive ? 'active' : ''}`}
+              onClick={onDashboardClick}
+            >
               <FaHome className="sidebar-nav-icon" />
               <span>{t('sidebar.dashboard')}</span>
             </div>
-            <div className="sidebar-nav-item" onClick={onAccountManagementClick}>
+            <div
+              className={`sidebar-nav-item ${isAccountManagementActive ? 'active' : ''}`}
+              onClick={onAccountManagementClick}
+            >
               <div className="sidebar-nav-icon-container">
                 <MdManageAccounts className="sidebar-nav-icon" />
                 {pendingActivations > 0 && (
@@ -136,13 +159,19 @@ const Sidebar = ({
                 Management
               </span>
             </div>
-            <div className="sidebar-nav-item" onClick={onLogsClick}>
+            <div
+              className={`sidebar-nav-item ${isLogsActive ? 'active' : ''}`}
+              onClick={onLogsClick}
+            >
               <FaClipboardList className="sidebar-nav-icon" />
               <span>{t('sidebar.logs')}</span>
             </div>
             {/* Feedback button - visible to Super Admin, Tech Officer, and Temporary Tech Officer */}
             {canAccessFeedback && (
-              <div className="sidebar-nav-item" onClick={onFeedbackClick}>
+              <div
+                className={`sidebar-nav-item ${isFeedbackActive ? 'active' : ''}`}
+                onClick={onFeedbackClick}
+              >
                 <FaComment className="sidebar-nav-icon" />
                 <span>{t('sidebar.feedback')}</span>
               </div>

@@ -421,7 +421,9 @@ const Feedback = () => {
     }
 
     // If feedback is unread and user is admin/tech officer/new main tech officer, mark it as read
-    if (!feedback.isRead && !feedback.hasResponse && (currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer' || currentUser?.role === 'New Main Tech Officer')) {
+    const roleNorm = (typeof currentUser?.role === 'string' ? currentUser.role.trim().toLowerCase() : '').replace(/\s+/g, '_');
+    const isPrivilegedUser = roleNorm === 'admin' || roleNorm === 'tech_officer' || roleNorm === 'new_main_tech_officer' || currentUser?.temporaryTechOfficer;
+    if (!feedback.isRead && !feedback.hasResponse && isPrivilegedUser) {
       try {
         const feedbackRef = doc(db, 'PiscaRisk', feedback.id);
         await updateDoc(feedbackRef, sanitizeObjectStrings({
@@ -553,9 +555,9 @@ const Feedback = () => {
 
   const closeDetailView = () => {
     setSelectedFeedback(null);
-    // Reopen inbox on mobile when closing detail view
+    // On mobile, also close the inbox list drawer when exiting detail view
     if (isNarrow) {
-      setInboxOpen(true);
+      setInboxOpen(false);
     }
     try { 
       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
@@ -812,9 +814,12 @@ const Feedback = () => {
     // Already on feedback page
   };
 
+  // Close all overlay UI (menus, filters, per‑message action menus) so only one can be open at a time
   const closeAllDropdowns = () => {
     setShowMenu(false);
     setShowDownloadOptions(false);
+    setShowSearchFilters(false);
+    setShowActions(null);
   };
 
   // Function to close sidebar
@@ -914,8 +919,12 @@ const Feedback = () => {
           <NotificationBox externalCloseSignal={notificationCloseSignal} />
           <div className="user-menu">
             <button onClick={() => {
+              // When opening the user menu, ensure every other overlay is closed first
               setNotificationCloseSignal(prev => prev + 1); // Close notification when user menu opens
-              setShowMenu(!showMenu);
+              setShowDownloadOptions(false);
+              setShowSearchFilters(false);
+              setShowActions(null);
+              setShowMenu(prev => !prev);
             }}>
               {currentUser?.profileImage ? (
                 <img 
@@ -1027,6 +1036,10 @@ const Feedback = () => {
             className="feedback-filter-btn"
             onClick={() => {
               const isOpening = !showSearchFilters;
+              // When opening filters, close any other overlays (user menu, action menus, etc.)
+              setShowMenu(false);
+              setShowDownloadOptions(false);
+              setShowActions(null);
               setShowSearchFilters(!showSearchFilters);
               try { 
                 const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
@@ -1042,16 +1055,17 @@ const Feedback = () => {
               <div className="feedback-filter-header">
                 <label>{t('feedback.category')}:</label>
                 <div className="feedback-category-options">
-                  <button
-                    className={`feedback-category-option ${activeCategory === 'All' ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveCategory('All');
-                      try { 
-                        const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('feedback', `Category filter changed to All in Feedback`, u); 
-                      } catch (_) {}
-                    }}
-                  >
+                      <button
+                        className={`feedback-category-option ${activeCategory === 'All' ? 'active' : ''}`}
+                        onClick={() => {
+                          closeAllDropdowns();
+                          setActiveCategory('All');
+                          try { 
+                            const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                            logActivity('feedback', `Category filter changed to All in Feedback`, u); 
+                          } catch (_) {}
+                        }}
+                      >
                     {t('common.all')}
                   </button>
                   {feedbackTypes.map(type => (
@@ -1173,22 +1187,30 @@ const Feedback = () => {
             </div>
           )}
           {isNarrow && (
-            <div className="mobile-filter-container">
-              <button 
-                className="mobile-filter-btn"
-                onClick={() => {
-                  const isOpening = !showSearchFilters;
-                  setShowSearchFilters(!showSearchFilters);
-                  try { 
-                    const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                    logActivity('feedback', `Filter menu ${isOpening ? 'opened' : 'closed'} in Feedback (mobile)`, u); 
-                  } catch (_) {}
-                }}
+          <div className="mobile-filter-container">
+            <button 
+              className="mobile-filter-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                const isOpening = !showSearchFilters;
+                // When opening filters on mobile, close any other overlays
+                setShowMenu(false);
+                setShowDownloadOptions(false);
+                setShowActions(null);
+                setShowSearchFilters(!showSearchFilters);
+                try { 
+                  const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+                  logActivity('feedback', `Filter menu ${isOpening ? 'opened' : 'closed'} in Feedback (mobile)`, u); 
+                } catch (_) {}
+              }}
+            >
+              <FaFilter className="filter-icon" /> {t('common.filter')}
+            </button>
+            {showSearchFilters && (
+              <div 
+                className="mobile-filter-dropdown"
+                onClick={(e) => e.stopPropagation()}
               >
-                <FaFilter className="filter-icon" /> {t('common.filter')}
-              </button>
-              {showSearchFilters && (
-                <div className="mobile-filter-dropdown">
                   <div className="feedback-filter-header">
                     <label>{t('feedback.category')}:</label>
                     <div className="feedback-category-options">
@@ -1302,7 +1324,8 @@ const Feedback = () => {
                     <div className="feedback-actions">
                     <span className="feedback-date">{feedback.date}</span>
                     { (() => {
-                      const isPrivileged = currentUser?.role === 'Admin' || currentUser?.role === 'Tech Officer' || currentUser?.role === 'New Main Tech Officer';
+                      const roleNorm = (typeof currentUser?.role === 'string' ? currentUser.role.trim().toLowerCase() : '').replace(/\s+/g, '_');
+                      const isPrivileged = roleNorm === 'admin' || roleNorm === 'tech_officer' || roleNorm === 'new_main_tech_officer' || currentUser?.temporaryTechOfficer;
                       const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
                       const fId = norm(feedback.userFarm);
                       const fName = norm(feedback.assignedFarmName);
@@ -1343,14 +1366,18 @@ const Feedback = () => {
                           className="action-button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowActions(showActions === feedback.id ? null : feedback.id);
+                          // When opening an action menu, close all other overlays and menus first
+                          setShowMenu(false);
+                          setShowDownloadOptions(false);
+                          setShowSearchFilters(false);
+                          setShowActions(prev => prev === feedback.id ? null : feedback.id);
                           }}
                         >
                           <FaEllipsisV />
                         </button>
                         {showActions === feedback.id && (
                           <div className="action-menu">
-                            {feedback.status === 'archived' ? (
+                            {(feedback.status === 'archived' || feedback.status === 'Archived') ? (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1408,9 +1435,105 @@ const Feedback = () => {
                 )}
                 <div className="detail-header-top">
                   <span className="feedback-date">{selectedFeedback.date}</span>
-                  <button className="close-detail" onClick={closeDetailView}>
-                    <FaTimes />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+                    { (() => {
+                      const roleNorm = (typeof currentUser?.role === 'string' ? currentUser.role.trim().toLowerCase() : '').replace(/\s+/g, '_');
+                      const isPrivileged = roleNorm === 'admin' || roleNorm === 'tech_officer' || roleNorm === 'new_main_tech_officer' || currentUser?.temporaryTechOfficer;
+                      const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : (v || '').toString().trim().toLowerCase());
+                      const fId = norm(selectedFeedback.userFarm);
+                      const fName = norm(selectedFeedback.assignedFarmName);
+                      const uId = norm(currentUser?.farm);
+                      const uName = norm(assignedFarmName);
+                      const sameFarm = (fId && (fId === uId || fId === uName)) || (fName && (fName === uId || fName === uName));
+                      return isPrivileged || sameFarm;
+                    })() && (
+                      <>
+                        {/* Mark as Read/Unread Icons */}
+                        {selectedFeedback.isRead ? (
+                          <button 
+                            className="action-button unread-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsUnread(selectedFeedback.id);
+                            }}
+                            disabled={isMarkingUnread}
+                            title={t('feedback.markAsUnread')}
+                          >
+                            <MdOutlineMarkChatUnread />
+                          </button>
+                        ) : (
+                          <button 
+                            className="action-button read-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsRead(selectedFeedback.id);
+                            }}
+                            disabled={isMarkingRead}
+                            title={t('feedback.markAsRead')}
+                          >
+                            <MdOutlineMarkChatRead />
+                          </button>
+                        )}
+                        
+                        <div style={{ position: 'relative' }}>
+                          <button 
+                            className="action-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                          // When opening detail action menu, close all other overlays and menus first
+                          setShowMenu(false);
+                          setShowDownloadOptions(false);
+                          setShowSearchFilters(false);
+                          setShowActions(prev => prev === selectedFeedback.id ? null : selectedFeedback.id);
+                            }}
+                          >
+                            <FaEllipsisV />
+                          </button>
+                          {showActions === selectedFeedback.id && (
+                            <div className="action-menu">
+                              {(selectedFeedback.status === 'archived' || selectedFeedback.status === 'Archived') ? (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnarchiveFeedback(selectedFeedback.id);
+                                    setShowActions(null);
+                                  }}
+                                  disabled={isUnarchiving}
+                                >
+                                  {isUnarchiving ? t('feedback.unarchiving') : t('feedback.unarchive')}
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiveFeedback(selectedFeedback.id);
+                                    setShowActions(null);
+                                  }}
+                                  disabled={isArchiving}
+                                >
+                                  {isArchiving ? t('feedback.archiving') : t('feedback.archive')}
+                                </button>
+                              )}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteFeedback(selectedFeedback.id);
+                                  setShowActions(null);
+                                }}
+                                disabled={isDeleting}
+                                className="delete-button"
+                              >
+                                {isDeleting ? t('feedback.deleting') : t('feedback.delete')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    <button className="close-detail" onClick={closeDetailView}>
+                      <FaTimes />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="detail-header">

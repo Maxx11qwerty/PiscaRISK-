@@ -1193,7 +1193,10 @@ const Logs = () => {
           <div className="crm-table-body">
             {isLoading ? (
               <div style={{ textAlign: 'center', padding: '2rem', gridColumn: '1 / -1' }}>
-                <div className="loading-logs">{t('logs.loading_message')}</div>
+                <div className="loading-logs">
+                  <div className="loading-spinner" />
+                  <span>{t('logs.loading_message')}</span>
+                </div>
               </div>
             ) : currentLogs.length > 0 ? (
               currentLogs.map((log, index) => (

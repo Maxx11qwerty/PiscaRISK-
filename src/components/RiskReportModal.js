@@ -1379,7 +1379,9 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
 
   // Calculate confidence trend from previous day/week
   const calculateConfidenceTrend = (predictions, currentConfidence, farmName = '') => {
-    if (!Array.isArray(predictions) || predictions.length === 0 || !currentConfidence) return null;
+    if (!Array.isArray(predictions) || predictions.length === 0) return null;
+    // Allow trends even if currentConfidence is 0, as long as we have predictions
+    if (currentConfidence === null || currentConfidence === undefined) return null;
     
     const now = new Date();
     const recent = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); // Last 3 days
@@ -1510,6 +1512,80 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           period: 'last month',
           icon: '➡️'
         };
+      }
+    }
+    
+    // Fallback: If we have at least 2 predictions, compare the most recent with the previous one
+    // This ensures trends show even if time periods don't match exactly
+    if (predictions.length >= 2) {
+      const sortedPreds = [...predictions]
+        .filter(p => {
+          const ts = getTimestampMs(p.timestamp);
+          return ts > 0 && isFinite(ts);
+        })
+        .sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
+      
+      if (sortedPreds.length >= 2) {
+        const mostRecent = sortedPreds[0];
+        const previous = sortedPreds[1];
+        const recentConf = typeof mostRecent.confidence === 'number' ? mostRecent.confidence : 
+                          (typeof mostRecent.confidence === 'string' ? parseFloat(mostRecent.confidence) : null);
+        const prevConf = typeof previous.confidence === 'number' ? previous.confidence : 
+                        (typeof previous.confidence === 'string' ? parseFloat(previous.confidence) : null);
+        
+        // Use previous confidence for comparison, or currentConfidence if prevConf is invalid
+        const comparisonConf = (isFinite(prevConf) && prevConf > 0) ? prevConf : currentConfidence;
+        
+        if (isFinite(recentConf) && recentConf > 0 && isFinite(comparisonConf) && comparisonConf > 0) {
+          const change = currentConfidence - comparisonConf;
+          const recentTs = getTimestampMs(mostRecent.timestamp);
+          const prevTs = getTimestampMs(previous.timestamp);
+          const daysDiff = Math.floor((recentTs - prevTs) / (24 * 60 * 60 * 1000));
+          
+          // Fix "0 days ago" issue - if timestamps are same day, use "previous reading" or calculate from now
+          let periodLabel;
+          if (daysDiff === 0) {
+            // If same day, calculate days from now instead
+            const daysFromNow = Math.floor((now.getTime() - prevTs) / (24 * 60 * 60 * 1000));
+            if (daysFromNow === 0) {
+              periodLabel = 'today';
+            } else if (daysFromNow === 1) {
+              periodLabel = 'yesterday';
+            } else if (daysFromNow <= 7) {
+              periodLabel = `${daysFromNow} days ago`;
+            } else if (daysFromNow <= 30) {
+              const weeks = Math.floor(daysFromNow / 7);
+              periodLabel = weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+            } else {
+              const months = Math.floor(daysFromNow / 30);
+              periodLabel = months === 1 ? '1 month ago' : `${months} months ago`;
+            }
+          } else if (daysDiff === 1) {
+            periodLabel = 'yesterday';
+          } else if (daysDiff <= 7) {
+            periodLabel = `${daysDiff} days ago`;
+          } else if (daysDiff <= 30) {
+            const weeks = Math.floor(daysDiff / 7);
+            periodLabel = weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+          } else {
+            const months = Math.floor(daysDiff / 30);
+            periodLabel = months === 1 ? '1 month ago' : `${months} months ago`;
+          }
+          
+          if (Math.abs(change) >= 0.05) {
+            return {
+              change: change.toFixed(1),
+              period: periodLabel,
+              icon: change > 0 ? '🔺' : '🔻'
+            };
+          } else {
+            return {
+              change: '0.0',
+              period: periodLabel,
+              icon: '➡️'
+            };
+          }
+        }
       }
     }
     
@@ -1883,7 +1959,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     return (
       <div className="risk-report-container">
         <div className="loading-state">
-          <FaExclamationTriangle className="loading-icon" />
+          <div className="loading-spinner" />
           <h3>{t('riskReportModal.loadingFarmRiskData')}</h3>
           <p>{t('riskReportModal.fetchingLatestFarmSummaries')}</p>
         </div>
@@ -2137,12 +2213,41 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 })
                                 .filter(v => isFinite(v) && v > 0);
                               displayConfidence = confidences.length ? (confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
-                              // Calculate trend for selected pond
-                              trendData = calculateConfidenceTrend(selectedPondPredictions, displayConfidence, `${farm.farm_name} (${selectedPond})`);
+                              // Calculate trend for selected pond - use all predictions for this pond with valid timestamps
+                              const allPondPredictions = (predictionsToUse_hdr.length > 0 ? predictionsToUse_hdr : (farm.predictions || []))
+                                .filter(pred => {
+                                  if (!pred || !pred.timestamp) return false;
+                                  const formattedPondName = formatPondName(pred.fish_pond);
+                                  return formattedPondName === selectedPond;
+                                })
+                                .filter(p => getTimestampMs(p.timestamp) > 0); // Ensure valid timestamps
+                              if (allPondPredictions.length > 0) {
+                                trendData = calculateConfidenceTrend(allPondPredictions, displayConfidence, `${farm.farm_name} (${selectedPond})`);
+                              }
                             }
                           } else {
-                            // Calculate trend for all ponds using full prediction history
-                            trendData = calculateConfidenceTrend(farm.predictions, displayConfidence, farm.farm_name);
+                            // Calculate average confidence from filtered predictions for all ponds
+                            const allConfidences = latestPerPond_hdr
+                              .map(p => {
+                                const v = typeof p.confidence === 'number' ? p.confidence : (typeof p.confidence === 'string' ? parseFloat(p.confidence) : NaN);
+                                if (!isFinite(v)) return NaN;
+                                if (v < 0) return 0;
+                                if (v > 100) return 100;
+                                return v;
+                              })
+                              .filter(v => isFinite(v) && v > 0);
+                            if (allConfidences.length > 0) {
+                              displayConfidence = allConfidences.reduce((a, b) => a + b, 0) / allConfidences.length;
+                            }
+                            // Calculate trend for all ponds using filtered prediction history with timestamps
+                            // Use predictionsToUse_hdr which has valid timestamps for trend calculation
+                            // Fallback to farm.predictions if predictionsToUse_hdr is empty, but filter for valid timestamps
+                            let predictionsForTrend = predictionsToUse_hdr.length > 0 ? predictionsToUse_hdr : (farm.predictions || []);
+                            // Ensure all predictions have valid timestamps
+                            predictionsForTrend = predictionsForTrend.filter(p => p && p.timestamp && getTimestampMs(p.timestamp) > 0);
+                            if (predictionsForTrend.length > 0) {
+                              trendData = calculateConfidenceTrend(predictionsForTrend, displayConfidence, farm.farm_name);
+                            }
                           }
                           
                           return (
@@ -2681,7 +2786,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           <option value="High">{t('riskReportModal.filters.highOnly')}</option>
                           <option value="Medium">{t('riskReportModal.filters.mediumOnly')}</option>
                           <option value="Low">{t('riskReportModal.filters.lowOnly')}</option>
-                          <option value="Normal">Normal Risk Only</option>
                         </select>
                       </div>
                       

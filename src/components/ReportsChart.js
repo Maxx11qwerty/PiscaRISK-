@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Label, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Label, Cell, ReferenceLine } from 'recharts';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import './ReportsChart.css';
@@ -445,7 +445,8 @@ function ReportsChart() {
               }
             });
 
-            chartData = months;
+            // Ensure we always have 6 months for consistent divider rendering
+            chartData = months.length === 6 ? months : months;
           } else {
             // Apply time filter when viewing by farm for non-daily modes, then aggregate per farm
             let filteredReports = allReports;
@@ -618,7 +619,12 @@ function ReportsChart() {
   }, [timeFilter, viewMode, isAssignedToFarm, currentUser?.farm]);
 
   if (loading) {
-    return <div className="loading-reports">{t('reportsChart.loading')}</div>;
+    return (
+      <div className="loading-reports">
+        <div className="loading-spinner" />
+        <p>{t('reportsChart.loading')}</p>
+      </div>
+    );
   }
 
   // Only show "no data" message for date view mode, not for farm view mode
@@ -811,8 +817,8 @@ function ReportsChart() {
         </div>
       </div>
       <ResponsiveContainer width="100%" height={isStdPhone ? 320 : 240}>
-        <BarChart data={data}>
-          <CartesianGrid vertical={false} />
+        <BarChart data={data} barCategoryGap="10%">
+          <CartesianGrid vertical={viewMode === 'farm' && timeFilter === 'monthly' ? false : false} />
             <XAxis 
               dataKey={(viewMode === 'farm') ? (timeFilter === 'daily' ? 'day' : (timeFilter === 'weekly' ? 'week' : (timeFilter === 'monthly' ? 'month' : 'farm'))) : (timeFilter === 'daily' ? 'day' : timeFilter === 'weekly' ? 'week' : 'month')}
               interval={0}
@@ -939,6 +945,38 @@ function ReportsChart() {
             />
           </YAxis>
           <Tooltip />
+          {/* Add vertical dividers between months for monthly farm view */}
+          {viewMode === 'farm' && timeFilter === 'monthly' && data && data.length > 1 && (
+            <>
+              {data.map((entry, index) => {
+                // Create dividers between all month pairs
+                // Skip the last month (no divider after it)
+                if (index >= data.length - 1) return null;
+                
+                const currentMonth = entry?.month;
+                const nextEntry = data[index + 1];
+                if (!nextEntry) return null;
+                const nextMonth = nextEntry.month;
+                
+                // Ensure we have valid month values
+                if (!currentMonth || !nextMonth) return null;
+                
+                // Position divider between current and next month
+                // Using nextMonth as reference and CSS transform to position it between groups
+                return (
+                  <ReferenceLine
+                    key={`month-divider-${index}-${currentMonth}-to-${nextMonth}`}
+                    x={nextMonth}
+                    stroke="rgba(255, 255, 255, 0.25)"
+                    strokeWidth={1.5}
+                    strokeDasharray="none"
+                    ifOverflow="extendDomain"
+                    className="month-divider"
+                  />
+                );
+              })}
+            </>
+          )}
           {viewMode === 'farm' && (timeFilter === 'daily' || timeFilter === 'weekly' || timeFilter === 'monthly') ? (
             // Four grouped bars per day, one per farm
             KNOWN_FARMS.map((farm) => (

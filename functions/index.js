@@ -38,7 +38,15 @@ if (functions.pubsub && typeof functions.pubsub.schedule === 'function') {
   console.warn('[deploy] Skipping autoDeactivateTempTOs: functions.pubsub.schedule is unavailable in this runtime.');
 }
 
-const cors = require('cors')({ origin: true });
+const cors = require('cors')({
+  origin: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://piscarisk.web.app',
+    'https://piscarisk.firebaseapp.com',
+    'https://www.piscarisk.com',
+  ],
+});
 
 
 
@@ -202,20 +210,20 @@ exports.deleteAuthUser = functions.https.onRequest((req, res) => {
       return;
     }
 
-    // Verify admin status
+    // Verify delete privileges (Tech Officer family or Farm Admin only)
     try {
-      console.log("Checking admin status for UID:", decodedToken.uid);
+      console.log("Checking delete privileges for UID:", decodedToken.uid);
       const isAdminUser = await isAdmin(decodedToken.uid);
-      console.log("Admin check result:", isAdminUser);
+      console.log("Delete privilege check result:", isAdminUser);
       
       if (!isAdminUser) {
-        console.error("FAIL: User is not admin");
-        res.status(403).json({ error: 'Admin privileges required' });
+        console.error("FAIL: User is not allowed to delete accounts");
+        res.status(403).json({ error: 'Delete privileges required' });
         return;
       }
     } catch (err) {
-      console.error("Error during admin check:", err);
-      res.status(500).json({ error: 'Failed to verify admin status' });
+      console.error("Error during delete privilege check:", err);
+      res.status(500).json({ error: 'Failed to verify delete privileges' });
       return;
     }
 
@@ -723,20 +731,26 @@ async function isAdmin(uid) {
       
       if (userDoc.exists) {
         const userData = userDoc.data();
-        const role = String(userData.role || '').toLowerCase();
+        const roleRaw = String(userData.role || '').toLowerCase();
+        const role = roleRaw.replace(/\s+/g, '_'); // normalize "Tech Officer" -> "tech_officer"
         const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
-        
-        // Check if user has admin privileges (can manage users)
-        const hasAdminPrivileges = (
-          role === "admin" ||
+        const hasFarm = !!(userData.farm && String(userData.farm).trim() !== '');
+
+        // Tech Officer family (global delete rights)
+        const isTechOfficerFamily =
           role === "tech_officer" ||
           role === "new_main_tech_officer" ||
           role === "temp_tech_officer" ||
-          isTemporaryTechOfficer
-        );
+          isTemporaryTechOfficer;
+
+        // Farm Admin: Admin role with an assigned farm
+        const isFarmAdmin =
+          role === "admin" && hasFarm;
+
+        const hasDeletePrivileges = isTechOfficerFamily || isFarmAdmin;
         
-        console.log("User role:", role, "isTemporaryTechOfficer:", isTemporaryTechOfficer, "hasAdminPrivileges:", hasAdminPrivileges);
-        return hasAdminPrivileges;
+        console.log("User role:", role, "hasFarm:", hasFarm, "isTechOfficerFamily:", isTechOfficerFamily, "isFarmAdmin:", isFarmAdmin, "hasDeletePrivileges:", hasDeletePrivileges);
+        return hasDeletePrivileges;
       }
       
       // If not found in users, check mobileUsers collection
@@ -745,20 +759,24 @@ async function isAdmin(uid) {
       
       if (userDoc.exists) {
         const userData = userDoc.data();
-        const role = String(userData.role || '').toLowerCase();
+        const roleRaw = String(userData.role || '').toLowerCase();
+        const role = roleRaw.replace(/\s+/g, '_');
         const isTemporaryTechOfficer = userData.temporaryTechOfficer === true;
-        
-        // Check if user has admin privileges (can manage users)
-        const hasAdminPrivileges = (
-          role === "admin" ||
+        const hasFarm = !!(userData.farm && String(userData.farm).trim() !== '');
+
+        const isTechOfficerFamily =
           role === "tech_officer" ||
           role === "new_main_tech_officer" ||
           role === "temp_tech_officer" ||
-          isTemporaryTechOfficer
-        );
+          isTemporaryTechOfficer;
+
+        const isFarmAdmin =
+          role === "admin" && hasFarm;
+
+        const hasDeletePrivileges = isTechOfficerFamily || isFarmAdmin;
         
-        console.log("Mobile user role:", role, "isTemporaryTechOfficer:", isTemporaryTechOfficer, "hasAdminPrivileges:", hasAdminPrivileges);
-        return hasAdminPrivileges;
+        console.log("Mobile user role:", role, "hasFarm:", hasFarm, "isTechOfficerFamily:", isTechOfficerFamily, "isFarmAdmin:", isFarmAdmin, "hasDeletePrivileges:", hasDeletePrivileges);
+        return hasDeletePrivileges;
       }
       
       return false;

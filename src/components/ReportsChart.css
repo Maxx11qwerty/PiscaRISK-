@@ -204,6 +204,23 @@
   stroke: rgba(255, 255, 255, 0.12);
 }
 
+/* Monthly dividers for farm view - vertical lines between months */
+.bar-chart-container .recharts-reference-line.month-divider line {
+  stroke: rgba(255, 255, 255, 0.25) !important;
+  stroke-width: 1.5px !important;
+  opacity: 0.5 !important;
+}
+
+/* Position dividers between month groups, not at tick centers */
+/* For grouped bars with 4 bars per month and barCategoryGap="10%" */
+/* The divider positioned at nextMonth's tick center needs to be moved left */
+/* to sit between the last bar of current month and first bar of next month */
+.bar-chart-container .recharts-reference-line.month-divider line {
+  /* Move divider to the left to position it between month groups */
+  /* Approximately half the width of a month group (with 4 bars) */
+  transform: translateX(calc(-50% - 2.5%));
+}
+
 .bar-chart-container .recharts-cartesian-axis-tick tspan {
   fill: #ffffff;
   font-family: 'customfont1';
@@ -332,11 +349,30 @@
 }
 
 .loading-reports {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 180px;
   color: #ffffff;
   font-family: 'customfont1';
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   text-align: center;
-  margin: 2rem 0;
+}
+
+.loading-reports .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(243, 243, 243, 0.4);
+  border-top: 4px solid #7ffcff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .harvest-label {

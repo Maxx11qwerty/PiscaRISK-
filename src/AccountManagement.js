@@ -8,7 +8,7 @@ import { IoMdArrowDropdown } from "react-icons/io";
 import { MdOutlineLockReset } from "react-icons/md";
 import { RiDeleteBin6Line } from "react-icons/ri";
 // removed export button icon
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from './contexts/AuthContext';
 import { useNotifications } from './contexts/NotificationContext';
 import NotificationBox from './components/NotificationBox';
@@ -20,12 +20,14 @@ import { collection, getDocs, doc, getDoc, onSnapshot, query, where, serverTimes
 import { db } from './firebase';
 import { logActivity, logMessages } from './utils/logger';
 import { formatUserInputPH, stripToDigits, validatePhilippineMobile, normalizeToE164PH } from './utils/phonePh';
+import { sileo } from 'sileo';
 
 const AccountManagement = () => {
   const { t } = useTranslation(); // Add translation hook
   const { currentUser } = useContext(AuthContext);
   const { addDeactivationToast, addActivationToast, addToast, clearPendingActivations, suppressNextActivationIncreaseToast, suppressNextActivationDecreaseToast } = useNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Temporary Tech Officers now have access to Account Management
   
@@ -94,6 +96,19 @@ const AccountManagement = () => {
   
   // Tab navigation state
   const [activeTab, setActiveTab] = useState('active'); // 'active', 'new', 'deactivated'
+
+  // Sync initial tab from URL query (?tab=new)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const tab = params.get('tab');
+      if (tab === 'active' || tab === 'new' || tab === 'deactivated') {
+        setActiveTab(tab);
+      }
+    } catch (_) {
+      // ignore malformed URLs
+    }
+  }, [location.search]);
   
   // Farms for assignment when creator has no assigned farm
   const [farms, setFarms] = useState([]); // { id, name }
@@ -1874,14 +1889,27 @@ const handleActivateFishFarmer = async (user) => {
         
         setMessage({ text: `User ${user.username} deleted successfully!`, type: 'success' });
         
-        // Show deletion toast
-        try {
-          const toastMessage = wasPendingAccount
+        // Show deletion toast via Sileo
+        try { 
+          const baseText = wasPendingAccount
             ? `You successfully deleted pending user ${user.username}.`
             : `You successfully deleted user ${user.username}.`;
-          if (typeof addToast === 'function') {
-            addToast(toastMessage, 'success', 4000);
-          }
+
+          sileo.success({
+            title: 'User deleted',
+            description: (
+              <span className="sileo-toast-description">
+                {baseText}
+              </span>
+            ),
+            fill: '#FFFFFF',
+            roundness: 18,
+            styles: {
+              title: 'sileo-toast-title',
+              description: 'sileo-toast-description',
+              badge: 'sileo-toast-badge',
+            },
+          });
         } catch (_) {}
         
         try { 
@@ -2084,7 +2112,7 @@ const handleActivateFishFarmer = async (user) => {
         const successText = successCount === 1 ? 'user' : 'users';
         setMessage({ text: `Successfully deleted ${successCount} ${successText}!`, type: 'success' });
         
-        // Show deletion toast
+        // Show deletion toast via Sileo
         try {
           let toastMessage = '';
           if (deletedPendingUsers.length > 0 && deletedRegularUsers.length === 0) {
@@ -2106,8 +2134,22 @@ const handleActivateFishFarmer = async (user) => {
             toastMessage = `You successfully deleted ${successCount} users (${deletedPendingUsers.length} pending, ${deletedRegularUsers.length} regular).`;
           }
           
-          if (toastMessage && typeof addToast === 'function') {
-            addToast(toastMessage, 'success', 4000);
+          if (toastMessage) {
+            sileo.success({
+              title: 'Users deleted',
+              description: (
+                <span className="sileo-toast-description">
+                  {toastMessage}
+                </span>
+              ),
+              fill: '#FFFFFF',
+              roundness: 18,
+              styles: {
+                title: 'sileo-toast-title',
+                description: 'sileo-toast-description',
+                badge: 'sileo-toast-badge',
+              },
+            });
           }
         } catch (_) {}
       } else if (successCount > 0) {
@@ -3372,7 +3414,10 @@ const handleActivateFishFarmer = async (user) => {
             {/* Table Body */}
             <div className="crm-table-body">
               {AccountUsers.length === 0 ? (
-                <div className="loading-users-message">{t('accountManagement.user_list.no_users_message', 'Loading user accounts...')}</div>
+                <div className="loading-users-message">
+                  <div className="loading-spinner" />
+                  <span>{t('accountManagement.user_list.no_users_message', 'Loading user accounts...')}</span>
+                </div>
               ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.slice(0, pageSize)
                   .filter(user => user && user.username)
@@ -3385,16 +3430,16 @@ const handleActivateFishFarmer = async (user) => {
                       <div key={reactKey} className="crm-table-row">
                         {/* Checkbox Cell */}
                         <div className="crm-cell checkbox-cell">
-                          <input 
-                            type="checkbox" 
-                            className="user-checkbox"
-                            checked={selectedUsers.has(user.id)}
-                            onChange={(e) => {
-                              e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
-                              handleUserSelection(user.id, e.target.checked);
-                            }}
+                            <input 
+                              type="checkbox" 
+                              className="user-checkbox"
+                              checked={selectedUsers.has(user.id)}
+                              onChange={(e) => {
+                                e.stopPropagation(); // Prevent closing dropdowns when clicking checkbox
+                                handleUserSelection(user.id, e.target.checked);
+                              }}
                             title={(String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated') ? 'Select inactive/deactivated user for deletion' : 'Select user'}
-                          />
+                            />
                         </div>
                         
                         {/* Name Cell */}
@@ -3805,13 +3850,20 @@ const handleActivateFishFarmer = async (user) => {
               ) : (
                 <div className="loading-users-message">
                   {AccountUsers.length > 0 ? (
-                    activeTab === 'new'
-                      ? 'No newly added user'
-                      : activeTab === 'deactivated'
-                        ? 'No deactivated users'
-                        : t('accountManagement.user_list.no_users_match_filter', 'No users match the current filter')
+                    <>
+                      <span>
+                        {activeTab === 'new'
+                          ? 'No newly added user'
+                          : activeTab === 'deactivated'
+                            ? 'No deactivated users'
+                            : t('accountManagement.user_list.no_users_match_filter', 'No users match the current filter')}
+                      </span>
+                    </>
                   ) : (
-                    t('accountManagement.user_list.loading_message', 'Loading User Accounts...')
+                    <>
+                      <div className="loading-spinner" />
+                      <span>{t('accountManagement.user_list.loading_message', 'Loading User Accounts...')}</span>
+                    </>
                   )}
                 </div>
               )}

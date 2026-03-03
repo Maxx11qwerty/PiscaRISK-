@@ -1273,7 +1273,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     return (
       <div className="pond-condition-container">
         <div className="loading-state">
-          <FaExclamationTriangle className="loading-icon" />
+          <div className="loading-spinner" />
           <h3>{isProcessingNotification ? 'Processing notification...' : t('pondCondition.loading_reports')}</h3>
           <p>{isProcessingNotification ? 'Setting up farm and pond filters...' : t('pondCondition.fetching_latest_data')}</p>
         </div>

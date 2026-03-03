@@ -1,0 +1,25 @@
+/* Custom styles for Sileo toast notifications to match PiscaRISK branding */
+
+.sileo-toast-title {
+  font-family: 'ReadexPro-Medium', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #16a34a; /* green title */
+  text-transform: none !important; /* keep exact casing: 'New user' */
+}
+
+.sileo-toast-description {
+  font-family: 'ReadexPro-Regular', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.85rem;
+  color: #15803d; /* slightly darker green */
+}
+
+.sileo-toast-badge {
+  background-color: rgba(22, 163, 74, 0.12); /* soft green tint */
+}
+
+/* Push the Sileo viewport down so it doesn't hug the very top edge */
+[data-sileo-viewport][data-position="top-right"] {
+  top: 72px; /* roughly header height + small gap */
+}
+
