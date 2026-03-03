@@ -20,6 +20,7 @@
 
 /* Push the Sileo viewport down so it doesn't hug the very top edge */
 [data-sileo-viewport][data-position="top-right"] {
-  top: 72px; /* roughly header height + small gap */
+  top: 72px !important;   /* roughly header height + small gap */
+  right: 12px !important; /* keep it aligned to the right edge */
 }
 
