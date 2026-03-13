@@ -411,6 +411,13 @@
   overflow-x: hidden;
 }
 
+/* Taller logs table body for large 1920px+ desktops */
+@media (min-width: 1920px) {
+  .logs .crm-table-body {
+    height: 600px;
+  }
+}
+
 /* Log Table Row */
 .logs .crm-table-row {
   display: grid;

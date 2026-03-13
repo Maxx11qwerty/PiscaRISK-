@@ -477,7 +477,7 @@ export default function Login() {
               <p className="mobile-app-text">
                 <span
                   className="mobile-app-link"
-                  onClick={() => window.open('https://drive.google.com/file/d/1GeUbxiGlWqYiQ5kh5NafZgpn2Tu24IFv/view?fbclid=IwY2xjawQT2cxleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEetdJg8p-pH3-v77ClVWIWI3cl2fYLcUjt6A3aQ5kRG0HPW5OLEU3tIh_sI1Y_aem_6vYcBez2STz7LllMENOCFw', '_blank')}
+                  onClick={() => window.open('https://drive.google.com/file/d/1D4tMIptTS1-r5q9RDY_A1JXpDFmdWsfF/view?usp=sharing', '_blank')}
                   style={{ cursor: 'pointer', textDecoration: 'underline' }}
                 >
                   📱 Get our mobile app

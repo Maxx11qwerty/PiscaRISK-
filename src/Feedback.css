@@ -64,11 +64,21 @@
 }
 
 @media (min-width: 1920px) {
-.header-hamburger-icon {
-  font-size: 0.8rem !important;
-  min-width: 30px;
-  min-height: 30px;
-}
+  .feedback-header-bar {
+    padding: 1rem 4rem;
+    height: 80px;
+  }
+
+  .header-hamburger-icon {
+    font-size: 0.8rem !important;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  /* Align sidebar top edge with Feedback header bar on ultra-wide screens */
+  .feedback .sidebar-wrapper {
+    top: 80px !important;
+  }
 }
 
 @media (max-width: 1023px) {

@@ -2,15 +2,32 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 50px);
-  width: 18%;
-  position: absolute;
-  left: 0;
-  top: 78px;
   transition: all 0.3s ease;
   overflow: auto;
   /* Hide scrollbar for Chrome, Safari and Opera */
   scrollbar-width: none !important; /* Firefox */
   -ms-overflow-style: none !important; /* Internet Explorer 10+ */
+}
+
+/* Desktop sidebar: fixed width so content offsets can match it */
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+    --sidebar-collapsed-width: 80px;
+  }
+
+  .sidebar-wrapper {
+    width: var(--sidebar-width);
+    position: fixed;
+    left: 0;
+    top: 78px;
+    z-index: 1000;
+  }
+
+  /* When collapsed on desktop, actually shrink the sidebar width */
+  .sidebar-wrapper.collapsed {
+    width: var(--sidebar-collapsed-width);
+  }
 }
 
 .sidebar-wrapper::-webkit-scrollbar {
@@ -66,7 +83,6 @@
 }
 
 .sidebar-wrapper.collapsed {
-  width: 80px;
   overflow: hidden;
 }
 

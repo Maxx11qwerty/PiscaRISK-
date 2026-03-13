@@ -1511,7 +1511,13 @@
 /* 1920px and up (Large desktops/1080p+) */
 @media (min-width: 1920px) {
   .profile-header-bar {
-    padding: .5rem 6rem;
+    padding: 1rem 4rem;
+    height: 80px;
+  }
+  
+  /* Align sidebar top edge with the taller 80px header on large desktops */
+  .sidebar-wrapper {
+    top: 80px !important;
   }
   .account-wrapper {
     max-width: 76.2%;

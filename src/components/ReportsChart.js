@@ -25,8 +25,21 @@ function ReportsChart() {
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
 
+  // Role helpers
+  const roleLower = String(currentUser?.role || '').toLowerCase();
+  const isTemporaryTechOfficer =
+    currentUser?.temporaryTechOfficer ||
+    roleLower === 'temp_tech_officer' ||
+    roleLower === 'temporary tech officer';
+
+  const isTechOfficer =
+    roleLower === 'tech_officer' ||
+    roleLower === 'tech officer' ||
+    roleLower === 'new_main_tech_officer' ||
+    roleLower === 'new main tech officer' ||
+    isTemporaryTechOfficer;
+
   // Check if user is assigned to a farm (but not TTOs - they should see all farms)
-  const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
   const isAssignedToFarm = Boolean(currentUser?.farm) && !isTemporaryTechOfficer;
 
   // Track viewport width for responsive behavior
@@ -55,13 +68,13 @@ function ReportsChart() {
     };
   }, [mobileExportOpen]);
 
-  // Initialize viewMode and timeFilter for assigned users
+  // Initialize viewMode and timeFilter for assigned non-Tech Officer users
   useEffect(() => {
-    if (isAssignedToFarm) {
+    if (isAssignedToFarm && !isTechOfficer) {
       setViewMode('date');
       setTimeFilter('daily');
     }
-  }, [isAssignedToFarm]);
+  }, [isAssignedToFarm, isTechOfficer]);
 
   const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
 
@@ -96,8 +109,12 @@ function ReportsChart() {
     : (isAssignedToFarm ? `Reports Submitted Over Time - ${assignedFarmName || currentUser.farm}` : 'Reports Submitted Over Time');
 
   const chartSubtitle = viewMode === 'farm'
-    ? (isAssignedToFarm ? `Shows the total number of reports submitted from your assigned farm within the selected period.` : `Shows the total number of reports submitted from each farm within the selected period.`)
-    : (isAssignedToFarm ? `Shows reporting activity trends for your assigned farm throughout the selected time period.` : `Shows reporting activity trends throughout the selected time period.`);
+    ? (isAssignedToFarm
+        ? `Each bar shows how many reports were submitted from your assigned farm during the selected time period.`
+        : `Each bar (or bar group) shows how many reports were submitted from each farm during the selected time period.`)
+    : (isAssignedToFarm
+        ? `Each bar shows how many reports were submitted from your assigned farm for each ${timeFilter === 'daily' ? 'day of the current week' : timeFilter === 'weekly' ? 'week of the current month' : timeFilter === 'monthly' ? 'month of the current year' : 'period'}.`
+        : `Each bar shows how many reports were submitted (all farms combined) for each ${timeFilter === 'daily' ? 'day of the current week' : timeFilter === 'weekly' ? 'week of the current month' : timeFilter === 'monthly' ? 'month of the current year' : 'period'}.`);
 
   // Farm colors matching the stacked bar chart (View by Risk mode)
   const farmColorMap = useMemo(() => {
@@ -147,23 +164,63 @@ function ReportsChart() {
   // Generate summary insights
   const generateSummary = () => {
     if (!data || data.length === 0) return 'No reports submitted in the selected period.';
-    
+
+    const periodLabel =
+      timeFilter === 'all' ? 'all time' :
+      timeFilter === 'daily' ? 'this week' :
+      timeFilter === 'weekly' ? 'this month' :
+      timeFilter === 'monthly' ? 'this year' :
+      'the selected period';
+
+    // In farm view with daily/weekly/monthly, chart rows look like:
+    // { day|week|month, "Aquino Fish Farm": n, ... }
+    const isGroupedFarmView =
+      viewMode === 'farm' &&
+      (timeFilter === 'daily' || timeFilter === 'weekly' || timeFilter === 'monthly') &&
+      data.some(row => row && typeof row === 'object' && KNOWN_FARMS.some(f => typeof row[f] === 'number'));
+
+    if (viewMode === 'farm' && isGroupedFarmView) {
+      const totalsByFarm = {};
+      KNOWN_FARMS.forEach(f => { totalsByFarm[f] = 0; });
+
+      for (const row of data) {
+        for (const farm of KNOWN_FARMS) {
+          const v = Number(row?.[farm] || 0);
+          if (!Number.isNaN(v)) totalsByFarm[farm] += v;
+        }
+      }
+
+      const totalReports = Object.values(totalsByFarm).reduce((a, b) => a + b, 0);
+      if (totalReports === 0) {
+        return `No reports submitted across all farms in ${periodLabel}.`;
+      }
+
+      let topFarm = null;
+      let maxReports = -1;
+      for (const farm of KNOWN_FARMS) {
+        if (totalsByFarm[farm] > maxReports) {
+          maxReports = totalsByFarm[farm];
+          topFarm = farm;
+        }
+      }
+
+      return `${topFarm} submitted the most reports (${maxReports}). ${totalReports} reports submitted across all farms in ${periodLabel}.`;
+    }
+
+    // Default shape (e.g. viewMode=farm + all-time OR viewMode=date):
+    // rows look like { farm, reports } OR { day|week|month, reports }
     const totalReports = data.reduce((sum, item) => sum + (item.reports || 0), 0);
     const maxReports = Math.max(...data.map(item => item.reports || 0));
-    const topPerformer = data.find(item => item.reports === maxReports);
-    
+
     if (viewMode === 'farm') {
-      // If no reports were submitted (totalReports === 0), show appropriate message
-      if (totalReports === 0) {
-        return 'No reports submitted across all farms in the selected period.';
-      }
-      
-      return topPerformer 
-        ? `${topPerformer.farm || topPerformer.name} submitted the most reports (${maxReports} total). ${totalReports} reports submitted across all farms.`
-        : `${totalReports} reports submitted across all farms.`;
-    } else {
-      return `${totalReports} reports submitted in the selected period. Reporting activity ${maxReports > 0 ? 'remains steady' : 'is low'}.`;
+      if (totalReports === 0) return `No reports submitted across all farms in ${periodLabel}.`;
+      const topPerformer = data.find(item => (item.reports || 0) === maxReports);
+      const topName = topPerformer?.farm || topPerformer?.name || 'Top farm';
+      return `${topName} submitted the most reports (${maxReports}). ${totalReports} reports submitted across all farms in ${periodLabel}.`;
     }
+
+    if (totalReports === 0) return `No reports submitted in ${periodLabel}.`;
+    return `${totalReports} reports submitted in ${periodLabel}. Reporting activity ${maxReports > 0 ? 'remains steady' : 'is low'}.`;
   };
 
   // Resolve assigned farm name from live Farms map first (fallback to Firestore fetch)
@@ -734,7 +791,7 @@ function ReportsChart() {
           </div>
         )}
         <div className="chart-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {!isAssignedToFarm && (
+          {(isTechOfficer || !isAssignedToFarm) && (
             <div className="toggle-group" role="tablist" aria-label="View by">
               <button
                 type="button"
@@ -746,9 +803,19 @@ function ReportsChart() {
               >
                 View by Farm
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={viewMode === 'date'}
+                className={`toggle-segment ${viewMode === 'date' ? 'active' : ''}`}
+                style={{ fontSize: '12px', padding: '4px 8px' }}
+                onClick={() => setViewMode('date')}
+              >
+                View by Date
+              </button>
             </div>
           )}
-          {isAssignedToFarm && (
+          {!isTechOfficer && isAssignedToFarm && (
             <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.8)', fontWeight: '500' }}>
               View by Date
             </div>
@@ -1180,7 +1247,7 @@ function ReportsChart() {
         backgroundColor: 'rgba(255, 255, 255, 0.05)', 
         borderRadius: '8px',
         fontSize: '14px',
-        color: 'rgba(255, 255, 255, 0.8)',
+        color: 'rgba(255, 255, 255, 0.9)',
         textAlign: 'center'
       }}>
         {generateSummary()}

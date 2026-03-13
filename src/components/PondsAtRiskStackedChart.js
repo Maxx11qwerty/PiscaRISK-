@@ -641,14 +641,37 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     return '';
   }, [timeFilter, t]);
 
-  // Dynamic chart title and subtitle based on view mode
-  const chartTitle = groupMode === 'farm' 
-    ? t('pondsAtRiskChart.chartTitleFarm')
-    : t('pondsAtRiskChart.chartTitleRisk');
+  // Dynamic chart title and subtitle based on view mode and assignment
+  const chartTitle = useMemo(() => {
+    if (groupMode === 'farm') {
+      if (isAssignedToFarm) {
+        const name = assignedFarmName || currentUser?.farm || t('pondsAtRiskChart.unknownFarm');
+        return `${t('pondsAtRiskChart.chartTitleFarm')} – ${name}`;
+      }
+      return t('pondsAtRiskChart.chartTitleFarm');
+    }
+    // groupMode === 'risk'
+    if (isAssignedToFarm) {
+      const name = assignedFarmName || currentUser?.farm || t('pondsAtRiskChart.unknownFarm');
+      return `${t('pondsAtRiskChart.chartTitleRisk')} – ${name}`;
+    }
+    return t('pondsAtRiskChart.chartTitleRisk');
+  }, [groupMode, isAssignedToFarm, assignedFarmName, currentUser?.farm, t]);
   
-  const chartSubtitle = groupMode === 'farm'
-    ? t('pondsAtRiskChart.chartSubtitleFarm')
-    : t('pondsAtRiskChart.chartSubtitleRisk');
+  const chartSubtitle = useMemo(() => {
+    if (!isAssignedToFarm) {
+      return groupMode === 'farm'
+        ? t('pondsAtRiskChart.chartSubtitleFarm')
+        : t('pondsAtRiskChart.chartSubtitleRisk');
+    }
+
+    // Assigned-to-farm users: make it explicit this is *their* farm only
+    if (groupMode === 'farm') {
+      return 'Shows how many ponds in your farm fall under High, Medium, or Low risk based on recent monitoring reports.';
+    }
+    // groupMode === 'risk'
+    return 'Shows, for your farm, how many ponds fall into each risk category (High, Medium, Low) based on recent monitoring reports.';
+  }, [groupMode, isAssignedToFarm, t]);
 
   // Insight summary with context-aware wording
   const insightSummary = useMemo(() => {

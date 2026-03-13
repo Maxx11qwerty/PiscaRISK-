@@ -82,6 +82,18 @@ body {
   margin-bottom: 2rem;
   height: 50%;
   box-sizing: border-box;
+  position: relative;
+  /* Keep header clickable above mobile backdrop/sidebar */
+  z-index: 1102;
+}
+
+/* Ensure Account Management uses a fixed-width sidebar on desktop
+   so the table never sits underneath it, even if other pages define
+   .sidebar-wrapper differently. */
+@media (min-width: 1024px) {
+  .account-management .sidebar-wrapper {
+    width: 240px;
+  }
 }
 
 /* Mobile header blur + backdrop activation to mirror Feedback (360px–480px) */
@@ -99,7 +111,8 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
-  z-index: 1099;
+  /* Below sidebar & header, above content */
+  z-index: 1000;
 }
 
 .sidebar-backdrop.active {
@@ -3180,30 +3193,10 @@ z-index: 1000;
     font-size: 2rem;
   }
   
-  .manage-wrapper {
-    max-width: 75.8% !important;
-    margin-bottom: -5rem;
-    margin-left: 26rem !important;
-    transition: all 0.3s ease !important;
-  }
-  
-  .account-main-content {
-    margin-left: 25rem !important;
-    max-width: 100% !important;
-    transition: all 0.3s ease !important;
-  }
-
-  .manage-wrapper.sidebar-collapsed {
-    margin-left: 8rem !important;
-    max-width: 90% !important;
-    transition: all 0.3s ease !important;
-  }
-  
-  .account-main-content.sidebar-collapsed {
-    margin-left: 7rem !important;
-    max-width: 100% !important;
-    width: 95% !important;
-    transition: all 0.3s ease !important;
+  /* For the new CRM layout, keep main content consistently offset from the sidebar */
+  .account-management .main-content-wrapper,
+  .account-management .main-content-wrapper.sidebar-collapsed {
+    margin-left: var(--sidebar-width, 240px) !important;
   }
   
   .account-container {
@@ -3232,6 +3225,19 @@ z-index: 1000;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important; /* Gradient background */
   }
 
+  /* Make Add User form scrollable on very large desktops so long notices
+     (e.g., position notes) don't exceed the viewport height. */
+  .add-user-form-container {
+    align-items: flex-start;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .add-user-form {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
   .filter-section select,
 .filter-section input {
   padding: 12px 2px !important;
@@ -3247,6 +3253,7 @@ z-index: 1000;
   }
   
   .sidebar-wrapper {
+    /* Keep vertical alignment consistent on very wide screens */
     top: 80px !important;
   }
   

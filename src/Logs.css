@@ -47,6 +47,14 @@ body {
   box-sizing: border-box;
 }
 
+/* Ensure Logs uses a fixed-width sidebar on desktop so the table
+   never sits underneath a wider 18% sidebar from other pages. */
+@media (min-width: 1024px) {
+  .logs .sidebar-wrapper {
+    width: 240px !important;
+  }
+}
+
 /* Mobile header blur and backdrop behavior (360px–480px) to match Feedback */
 @media (min-width: 360px) and (max-width: 480px) {
 .logs-header-bar.blurred {
@@ -1032,31 +1040,33 @@ body {
     font-size: 2rem;
   }
   
+  /* Align Logs layout with Account Management on ultra-wide screens:
+     fixed 240px sidebar, table/content starts to the right of it. */
   .logs-manage-wrapper {
     max-width: 76.5% !important;
-    margin: 9rem 0 0 20% !important;
-    margin-left: 25rem !important;
+    margin: 9rem 0 0 240px !important;
     margin-bottom: -2rem !important;
   }
   
   .logs-main-content {
-    margin-left: 20% !important;
+    margin-left: 240px !important;
     height: calc(100vh - 320px) !important;
     width: 77.4% !important;
   }
   
   .logs-main-content.sidebar-collapsed {
-    margin-left: 7rem !important;
+    /* Keep content fixed; only sidebar shrinks */
+    margin-left: 240px !important;
     max-width: 120% !important;
     width: 91.6% !important;
   }
   
   .add-user-button-container.sidebar-collapsed {
-    margin-left: 8rem !important;
+    margin-left: 240px !important;
   }
   
   .logs-manage-wrapper.sidebar-collapsed {
-    margin-left: 8rem !important;
+    margin-left: 240px !important;
     max-width: 90.8% !important;
   }
   
