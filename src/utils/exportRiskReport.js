@@ -54,8 +54,59 @@ const normalizeRisk = (level) => {
   return 'Normal';
 };
 
+const normalizePondKey = (pond) => {
+  return String(pond || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+};
+
+const pondsMatch = (a, b) => normalizePondKey(a) === normalizePondKey(b);
+
+const buildPondOverview = (prediction) => {
+  const summary = String(prediction?.conditions_summary || '').trim();
+  if (summary) return summary;
+
+  const fish = prediction?.fish_condition ? `${prediction.fish_condition} fish` : '';
+  const water = prediction?.water_condition ? `${prediction.water_condition} water` : '';
+  const weather = prediction?.weather ? `weather: ${prediction.weather}` : '';
+  const parts = [fish, water, weather].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : 'N/A';
+};
+
+const buildChecklistCompletionForPond = (checklist, pondName) => {
+  const source = checklist || {};
+  const checklistPond = source?.location_info?.fish_pond;
+  if (!checklistPond || !pondsMatch(checklistPond, pondName)) return 'N/A';
+
+  const metrics = source?.completion_metrics || {};
+  const completed = Number(metrics.completed_tasks || 0);
+  const total = Number(metrics.total_tasks || 0);
+  const rate = Number(metrics.completion_rate || 0);
+  if (total <= 0) return 'Started';
+  return `${completed}/${total} (${rate}%)`;
+};
+
+const buildInsightsForPond = (checklist, pondName) => {
+  const source = checklist || {};
+  const checklistPond = source?.location_info?.fish_pond;
+  if (!checklistPond || !pondsMatch(checklistPond, pondName)) return 'N/A';
+
+  const predictive = source?.predictive_analytics || {};
+  const assessment = predictive?.overall_assessment || '';
+  const focus = Array.isArray(predictive?.recommended_focus) && predictive.recommended_focus.length > 0
+    ? `Focus: ${predictive.recommended_focus.join('; ')}`
+    : '';
+  const next = Array.isArray(predictive?.next_recommendations) && predictive.next_recommendations.length > 0
+    ? `Next: ${predictive.next_recommendations.slice(0, 2).join('; ')}`
+    : '';
+
+  const parts = [assessment, focus, next].filter(Boolean);
+  return parts.length > 0 ? parts.join(' | ') : 'N/A';
+};
+
 export const exportRiskOverviewCSV = (farms, filename = 'risk_overview.csv') => {
-  const header = ['Farm', 'Overall Risk', 'Ponds', 'Avg Confidence', 'Critical Alerts', 'Ready Count', 'Main Issue', 'Last Update'];
+  const header = ['Farm', 'Overall Risk', 'Ponds', 'Avg Confidence', 'Critical Alerts', 'Main Issue', 'Last Update'];
   const rows = farms.map(f => {
     // Get latest predictions per pond for accurate counts
     const latestPerPond = getLatestPerPond(f);
@@ -75,7 +126,6 @@ export const exportRiskOverviewCSV = (farms, filename = 'risk_overview.csv') => 
       pondCount.toString(),
       avgConfidence > 0 ? `${avgConfidence.toFixed(1)}%` : '',
       (f.summary?.critical_alerts ?? 0).toString(),
-      (f.summary?.ready_count ?? 0).toString(),
       f.summary?.main_issue || '',
       f.summary?.last_update ? (typeof f.summary.last_update.toDate === 'function' ? f.summary.last_update.toDate().toLocaleString() : new Date(f.summary.last_update).toLocaleString()) : ''
     ];
@@ -123,7 +173,7 @@ export const exportRiskOverviewCSV = (farms, filename = 'risk_overview.csv') => 
 
 export const exportRiskOverviewPDF = (farms, filename = 'risk_overview.pdf') => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-  const head = ['Farm', 'Overall Risk', 'Ponds', 'Avg Confidence', 'Critical Alerts', 'Ready Count', 'Main Issue', 'Last Update'];
+  const head = ['Farm', 'Overall Risk', 'Ponds', 'Avg Confidence', 'Critical Alerts', 'Main Issue', 'Last Update'];
   const body = farms.map(f => {
     // Get latest predictions per pond for accurate counts
     const latestPerPond = getLatestPerPond(f);
@@ -143,7 +193,6 @@ export const exportRiskOverviewPDF = (farms, filename = 'risk_overview.pdf') => 
       pondCount,
       avgConfidence > 0 ? `${avgConfidence.toFixed(1)}%` : '',
       f.summary?.critical_alerts ?? 0,
-      f.summary?.ready_count ?? 0,
       f.summary?.main_issue || '',
       f.summary?.last_update ? (typeof f.summary.last_update.toDate === 'function' ? f.summary.last_update.toDate().toLocaleString() : new Date(f.summary.last_update).toLocaleString()) : ''
     ];
@@ -235,9 +284,10 @@ export const exportFarmPondPDF = (farmName, rows, filename) => {
 };
 
 // Export individual farm details with all pond risk reports, checklist, and insights
-export const exportFarmDetailsCSV = (farm, filename) => {
+export const exportFarmDetailsCSV = (farm, filename, options = {}) => {
   const farmName = farm.farm_name || 'Unknown Farm';
   const latestPerPond = getLatestPerPond(farm);
+  const checklistSource = options.checklistData || farm.checklist || {};
   
   // Farm overview section
   const farmOverview = [
@@ -247,7 +297,6 @@ export const exportFarmDetailsCSV = (farm, filename) => {
     ['Total Ponds', latestPerPond.length.toString()],
     ['Average Confidence', farm.avg_confidence ? `${farm.avg_confidence.toFixed(1)}%` : 'N/A'],
     ['Critical Alerts', farm.summary?.critical_alerts || 0],
-    ['Ready Count', farm.summary?.ready_count || 0],
     ['Main Issue', farm.summary?.main_issue || 'N/A'],
     ['Last Updated', farm.summary?.last_update ? 
       (typeof farm.summary.last_update.toDate === 'function' ? 
@@ -259,11 +308,14 @@ export const exportFarmDetailsCSV = (farm, filename) => {
   // Pond risk reports section
   const pondReports = [
     ['Pond Risk Reports'],
-    ['Pond Name', 'Risk Level', 'Confidence', 'Fish Condition', 'Water Condition', 'Weather', 'Timestamp'],
+    ['Pond Name', 'Risk Level', 'Confidence', 'Overview', 'Checklist Completion', 'Insights', 'Fish Condition', 'Water Condition', 'Weather', 'Timestamp'],
     ...latestPerPond.map(p => [
       p.fish_pond || '—',
       p.risk_level || 'Normal',
       typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : 'N/A',
+      buildPondOverview(p),
+      buildChecklistCompletionForPond(checklistSource, p.fish_pond),
+      buildInsightsForPond(checklistSource, p.fish_pond),
       p.fish_condition || 'N/A',
       p.water_condition || 'N/A',
       p.weather || 'N/A',
@@ -273,7 +325,7 @@ export const exportFarmDetailsCSV = (farm, filename) => {
   ];
 
   // Checklist section (if available)
-  const checklistData = farm.checklist || {};
+  const checklistData = checklistSource;
   const checklistSection = [
     ['Checklist Completion'],
     ['Location', checklistData.location_info?.fish_pond || 'N/A'],
@@ -286,7 +338,7 @@ export const exportFarmDetailsCSV = (farm, filename) => {
   ];
 
   // AI Insights section (if available)
-  const insightsData = farm.insights || {};
+  const insightsData = checklistSource?.predictive_analytics || farm.insights || {};
   const insightsSection = [
     ['AI Insights'],
     ['Risk Assessment', insightsData.risk_assessment || 'N/A'],
@@ -322,9 +374,10 @@ export const exportFarmDetailsCSV = (farm, filename) => {
   URL.revokeObjectURL(url);
 };
 
-export const exportFarmDetailsPDF = (farm, filename) => {
+export const exportFarmDetailsPDF = (farm, filename, options = {}) => {
   const farmName = farm.farm_name || 'Unknown Farm';
   const latestPerPond = getLatestPerPond(farm);
+  const checklistSource = options.checklistData || farm.checklist || {};
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
 
   // Farm Overview Page
@@ -340,7 +393,6 @@ export const exportFarmDetailsPDF = (farm, filename) => {
     ['Total Ponds', latestPerPond.length.toString()],
     ['Average Confidence', farm.avg_confidence ? `${farm.avg_confidence.toFixed(1)}%` : 'N/A'],
     ['Critical Alerts', farm.summary?.critical_alerts || 0],
-    ['Ready Count', farm.summary?.ready_count || 0],
     ['Main Issue', farm.summary?.main_issue || 'N/A'],
     ['Last Updated', farm.summary?.last_update ? 
       (typeof farm.summary.last_update.toDate === 'function' ? 
@@ -356,81 +408,47 @@ export const exportFarmDetailsPDF = (farm, filename) => {
     margin: { left: 40, right: 40 }
   });
 
-  // Pond Risk Reports Page
+  // Pond Risk Reports Page (per-pond detail layout to avoid overly wide columns)
   doc.addPage();
   doc.setFontSize(14);
   doc.text('Pond Risk Reports', 40, 40);
 
-  const pondData = latestPerPond.map(p => [
-    p.fish_pond || '—',
-    p.risk_level || 'Normal',
-    typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : 'N/A',
-    p.fish_condition || 'N/A',
-    p.water_condition || 'N/A',
-    p.weather || 'N/A',
-    p.timestamp ? new Date(getTimestampMs(p.timestamp)).toLocaleString() : 'N/A'
-  ]);
+  let currentY = 60;
+  latestPerPond.forEach((p, index) => {
+    const rows = [
+      ['Pond Name', p.fish_pond || '—'],
+      ['Risk Level', p.risk_level || 'Normal'],
+      ['Confidence', typeof p.confidence === 'number' ? `${Number(p.confidence).toFixed(1)}%` : 'N/A'],
+      ['Overview', buildPondOverview(p)],
+      ['Checklist Completion', buildChecklistCompletionForPond(checklistSource, p.fish_pond)],
+      ['Insights', buildInsightsForPond(checklistSource, p.fish_pond)],
+      ['Fish Condition', p.fish_condition || 'N/A'],
+      ['Water Condition', p.water_condition || 'N/A'],
+      ['Weather', p.weather || 'N/A'],
+      ['Timestamp', p.timestamp ? new Date(getTimestampMs(p.timestamp)).toLocaleString() : 'N/A']
+    ];
 
-  autoTable(doc, {
-    head: [['Pond Name', 'Risk Level', 'Confidence', 'Fish Condition', 'Water Condition', 'Weather', 'Timestamp']],
-    body: pondData,
-    startY: 60,
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [26, 67, 117], halign: 'center' },
-    columnStyles: { 
-      0: { halign: 'left' }, 
-      2: { halign: 'right' },
-      6: { halign: 'left' }
-    },
-    margin: { left: 40, right: 40 }
+    autoTable(doc, {
+      body: rows,
+      startY: currentY,
+      styles: { fontSize: 9, overflow: 'linebreak', cellPadding: 4, valign: 'top' },
+      columnStyles: {
+        0: { halign: 'left', fontStyle: 'bold', cellWidth: 160 },
+        1: { halign: 'left', cellWidth: 355 }
+      },
+      margin: { left: 40, right: 40 },
+      didDrawPage: (data) => {
+        doc.setFontSize(14);
+        doc.text('Pond Risk Reports', 40, 40);
+      }
+    });
+
+    currentY = (doc.lastAutoTable?.finalY || currentY) + 12;
+    if (index < latestPerPond.length - 1 && currentY > 700) {
+      doc.addPage();
+      currentY = 60;
+    }
   });
-
-  // Checklist Page (if available)
-  const checklistData = farm.checklist || {};
-  if (checklistData && Object.keys(checklistData).length > 0) {
-    doc.addPage();
-    doc.setFontSize(14);
-    doc.text('Checklist Completion', 40, 40);
-
-    const checklistTableData = [
-      ['Location', checklistData.location_info?.fish_pond || 'N/A'],
-      ['Completion Date', checklistData.timestamp ? 
-        (typeof checklistData.timestamp.toDate === 'function' ? 
-          checklistData.timestamp.toDate().toLocaleString() : 
-          new Date(checklistData.timestamp).toLocaleString()) : 'N/A'],
-      ['Overall Score', checklistData.overall_score ? `${checklistData.overall_score}%` : 'N/A']
-    ];
-
-    autoTable(doc, {
-      body: checklistTableData,
-      startY: 60,
-      styles: { fontSize: 10 },
-      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' }, 1: { halign: 'left' } },
-      margin: { left: 40, right: 40 }
-    });
-  }
-
-  // AI Insights Page (if available)
-  const insightsData = farm.insights || {};
-  if (insightsData && Object.keys(insightsData).length > 0) {
-    doc.addPage();
-    doc.setFontSize(14);
-    doc.text('AI Insights', 40, 40);
-
-    const insightsTableData = [
-      ['Risk Assessment', insightsData.risk_assessment || 'N/A'],
-      ['Recommendations', insightsData.recommendations || 'N/A'],
-      ['Confidence Boost', insightsData.confidence_boost ? `+${insightsData.confidence_boost}%` : 'N/A']
-    ];
-
-    autoTable(doc, {
-      body: insightsTableData,
-      startY: 60,
-      styles: { fontSize: 10 },
-      columnStyles: { 0: { halign: 'left', fontStyle: 'bold' }, 1: { halign: 'left' } },
-      margin: { left: 40, right: 40 }
-    });
-  }
 
   doc.save(filename);
 };

@@ -12,7 +12,8 @@ export const exportBoxData = async ({
   lastUpdated,
   setShowDownloadOptions,
   currentUser,
-  allFarmsRiskData = []
+  allFarmsRiskData = [],
+  onlyBoxIds = null
 }) => {
   
   // Check if user is assigned to a farm
@@ -26,11 +27,23 @@ export const exportBoxData = async ({
     return farmName.toString().toLowerCase().replace(/\s+/g, '-').trim();
   };
   
-  setShowDownloadOptions(false);
+  if (typeof setShowDownloadOptions === 'function') {
+    setShowDownloadOptions(false);
+  }
+
+  const selectedBoxes =
+    Array.isArray(onlyBoxIds) && onlyBoxIds.length > 0
+      ? boxData.filter((box) => onlyBoxIds.includes(box.id))
+      : boxData;
+  const weatherOnlyExport =
+    Array.isArray(onlyBoxIds) && onlyBoxIds.length === 1 && onlyBoxIds[0] === 1;
+  const exportContextLabel = weatherOnlyExport ? 'weather data' : 'dashboard data';
+  const exportTitle = weatherOnlyExport ? 'Weather Export' : 'PiscaRisk Export';
+  const exportFilePrefix = weatherOnlyExport ? 'weather_condition_export' : 'piscarisk_export';
 
   // Log export start
   try {
-    logActivity('export', logMessages.export.exportStart(currentUser?.username || 'Unknown', 'dashboard'), currentUser?.username || 'Unknown');
+    logActivity('export', logMessages.export.exportStart(currentUser?.username || 'Unknown', weatherOnlyExport ? 'weather' : 'dashboard'), currentUser?.username || 'Unknown');
   } catch (logError) {
     console.error('Error logging export start:', logError);
   }
@@ -133,10 +146,15 @@ export const exportBoxData = async ({
     const getWeatherContent = (weatherData) => {
       if (!weatherData || !weatherData.weather) return ["No weather data available"];
 
+      const exportedAt = new Date();
+      const locationName = weatherData.locationName || weatherData.name || 'Unknown Location';
       return [
         "WEATHER OVERVIEW",
         "----------------",
-        "Location: San Pablo City, Laguna",
+        `Location: ${locationName}`,
+        `Current Date: ${exportedAt.toLocaleDateString()}`,
+        `Current Time: ${exportedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        `Weather: ${weatherData.weather[0].main || 'N/A'}`,
         `Condition: ${weatherData.weather[0].description}`,
         `Temperature: ${Math.round(weatherData.main.temp)}°C`,
         `Feels like: ${Math.round(weatherData.main.feels_like)}°C`,
@@ -321,7 +339,12 @@ export const exportBoxData = async ({
     const getWeatherCSVData = (weatherData) => {
       if (!weatherData) return "Weather Data,No data available";
 
-      return `"Location","San Pablo City, Laguna"
+      const exportedAt = new Date();
+      const locationName = weatherData.locationName || weatherData.name || 'Unknown Location';
+      return `"Location","${locationName}"
+"Current Date","${exportedAt.toLocaleDateString()}"
+"Current Time","${exportedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"
+"Weather","${weatherData.weather[0].main || 'N/A'}"
 "Weather Condition","${weatherData.weather[0].description}"
 "Temperature (C)","${Math.round(weatherData.main.temp)}"
 "Feels Like (C)","${Math.round(weatherData.main.feels_like)}"
@@ -333,7 +356,7 @@ export const exportBoxData = async ({
 "Last Updated","${lastUpdated ? lastUpdated.toLocaleString() : 'N/A'}"`;
     };
 
-    const exportData = await Promise.all(boxData.map(async box => {
+    const exportData = await Promise.all(selectedBoxes.map(async box => {
       let contentArray = [];
       let csvContent = '';
   
@@ -837,10 +860,10 @@ ${riskReportsData.map(farm => {
   
     if (format === 'csv') {
       const timestamp = new Date().toISOString().split('T')[0];
-      const fileName = `piscarisk_export_${timestamp}.csv`;
+      const fileName = `${exportFilePrefix}_${timestamp}.csv`;
       
       // Create combined CSV content
-      let combinedCSV = `PiscaRisk Export\nGenerated on: ${new Date().toLocaleString()}\n\n`;
+      let combinedCSV = `${exportTitle}\nGenerated on: ${new Date().toLocaleString()}\n\n`;
       
       // Add each box's data with clear section headers
       exportData.forEach((box, index) => {
@@ -866,7 +889,7 @@ ${riskReportsData.map(farm => {
 
       // Log successful CSV export
       try {
-        logActivity('export', logMessages.export.csvDownload(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+        logActivity('export', logMessages.export.csvDownload(currentUser?.username || 'Unknown', exportContextLabel), currentUser?.username || 'Unknown');
       } catch (logError) {
         console.error('Error logging CSV export:', logError);
       }
@@ -1034,12 +1057,12 @@ ${riskReportsData.map(farm => {
 
       // Save the PDF
       const timestamp = new Date().toISOString().split('T')[0];
-      const fileName = `piscarisk_export_${timestamp}.pdf`;
+      const fileName = `${exportFilePrefix}_${timestamp}.pdf`;
       doc.save(fileName);
 
       // Log successful PDF export
       try {
-        logActivity('export', logMessages.export.pdfDownload(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+        logActivity('export', logMessages.export.pdfDownload(currentUser?.username || 'Unknown', exportContextLabel), currentUser?.username || 'Unknown');
       } catch (logError) {
         console.error('Error logging PDF export:', logError);
       }
@@ -1047,7 +1070,7 @@ ${riskReportsData.map(farm => {
 
     // Log export completion
     try {
-      logActivity('export', logMessages.export.exportComplete(currentUser?.username || 'Unknown', 'dashboard data'), currentUser?.username || 'Unknown');
+      logActivity('export', logMessages.export.exportComplete(currentUser?.username || 'Unknown', exportContextLabel), currentUser?.username || 'Unknown');
     } catch (logError) {
       console.error('Error logging export completion:', logError);
     }

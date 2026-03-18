@@ -291,6 +291,18 @@ export const exportLogs = async (logs, format, currentUser) => {
       };
 
       // First page header
+      const generatedAt = new Date();
+      const generatedDate = generatedAt.toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric'
+      });
+      const generatedTime = generatedAt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+
       doc.setFontSize(styles.title.size);
       doc.setFont('helvetica', styles.title.style);
       doc.setTextColor(styles.title.color);
@@ -300,8 +312,10 @@ export const exportLogs = async (logs, format, currentUser) => {
       doc.setFontSize(styles.subtitle.size);
       doc.setFont('helvetica', styles.subtitle.style);
       doc.setTextColor(styles.subtitle.color);
-      doc.text(`Generated: ${new Date().toLocaleString()} | Total Logs: ${logs.length}`, margin, yPos);
-      yPos += 10;
+      doc.text(`Generated on: ${generatedDate} ${generatedTime}`, margin, yPos);
+      yPos += 5;
+      doc.text(`Total Logs: ${logs.length.toLocaleString()}`, margin, yPos);
+      yPos += 8;
 
       // Add table header
       yPos = addTableHeader(doc, yPos);

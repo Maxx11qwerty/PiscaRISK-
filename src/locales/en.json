@@ -21,9 +21,10 @@
     "continueWithGmail": "Continue with Gmail",
     "or": "or",
     "continueWithExistingAccount": "Continue with an existing email account",
-    "emailPhonePlaceholder": "Email/Phone Number",
+    "emailPhonePlaceholder": "Email or Phone Number",
     "passwordPlaceholder": "Password",
     "login": "Login",
+    "adminProvidedAccounts": "Accounts are provided by your administrator.",
     "forgotPassword": "Forgot Password?",
     "dontHaveAccount": "Don't have an account?",
     "register": "Register",
@@ -96,7 +97,7 @@
     "inactivePonds": "Inactive Ponds",
     "weatherCondition": "Weather Condition",
     "fishPondCondition": "Fish Pond Condition",
-    "piscaRiskData": "PiscaRISK Data",
+    "piscaRiskData": "PiscaRISK Reports",
     "riskReports": "Risk Reports",
     "comingSoon": "Coming Soon",
     "realTimeDataDescription": "Real-time data weather and pond condition will appear here.",
@@ -379,7 +380,7 @@
     "monitor_fish_health": "Monitor fish health and behavior"
   },
   "riskReportModal": {
-    "loadingFarmRiskData": "Loading farm risk data...",
+    "loadingFarmRiskData": "Loading farm risk reports...",
     "fetchingLatestFarmSummaries": "Fetching latest farm-level summaries",
     "farmRiskOverview": "Farm Risk Overview",
     "aggregatedRiskByFarm": "Aggregated daily risk per farm with confidence scores and pond counts",
@@ -742,7 +743,7 @@
     }
   },
   "piscaRiskData": {
-    "loading": "Loading PiscaRISK data…",
+    "loading": "Loading PiscaRISK reports…",
     "allFarms": "All Farms",
     "lastUpdated": "Last Updated",
     "latestValidSummary": "This report summarizes the latest valid prediction per pond. Duplicate or outdated entries are excluded automatically.",

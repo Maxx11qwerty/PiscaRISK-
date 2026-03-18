@@ -120,9 +120,9 @@
 }
 
 .rounded-line {
-  height: 5px;
+  height: 2px;
   width: 89%;
-  background-color: #2C517D;
+  background-color: #cfd9e8;
   border-radius: 9999px;
   margin: 0 auto;
   margin-bottom: 3rem;
@@ -156,9 +156,10 @@ margin: -4.5rem auto 1rem auto;
 border-radius: 1rem;
 outline: none;
 border: 0.2rem solid #2C517D;
-background-color: #ffffff;
+background-color: #f8fbff;
 display: block;
-transition: border-color 0.3s ease;
+box-shadow: 0 2px 8px rgba(26, 67, 117, 0.10);
+transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
 } 
 
 .input-field:focus {
@@ -201,17 +202,49 @@ justify-content: center;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
+.login-admin-note {
+  margin: 0.75rem auto 0.35rem;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #667085;
+  font-family: 'customfont2';
+  letter-spacing: 0.01em;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 .login-text {
   margin-top: 7rem;
   text-align: center;
   font-size: .9rem;
   font-family: 'customfont2';
-  color: black;
+  color: #4b5563;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   cursor: default;
+  line-height: 1.25;
+}
+
+.login-text-welcome {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #5b6473;
+  letter-spacing: 0.01em;
+}
+
+.login-text-action {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #1f3f63;
+  letter-spacing: 0.005em;
 }
 
 .belowlogin-text{
@@ -344,9 +377,11 @@ margin: 0 auto 0.75rem auto;
 border-radius: 1rem;
 outline: none;
 border: none;
-background-color: #ffffff;
+background-color: #f8fbff;
 border: 0.2rem solid #1A4375;
 display: block;
+box-shadow: 0 2px 8px rgba(26, 67, 117, 0.10);
+transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .login-password-input:focus {
@@ -528,14 +563,14 @@ display: flex;
 justify-content: center;
 text-align: center;
 margin: 1rem 0;
-font-weight: 500;
-font-size: 0.9rem;
-color: #666;
+font-weight: 450;
+font-size: 0.82rem;
+color: #7b8698;
 font-family: 'customfont2';
 }
 
 .forgot-password-link {
-color: #1A4375;
+color: #48678b;
 text-decoration: none;
 margin-left: 0.3rem;
 cursor: pointer;

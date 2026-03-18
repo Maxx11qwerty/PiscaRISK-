@@ -10,9 +10,10 @@ import {
 } from 'react-icons/fa';
 import './WeatherBox.css';
 
-const WeatherBox = ({isModal = false, weatherData, lastUpdated, refreshWeather }) => {
+const WeatherBox = ({isModal = false, weatherData, lastUpdated, refreshWeather, onExport }) => {
   const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -35,13 +36,49 @@ const WeatherBox = ({isModal = false, weatherData, lastUpdated, refreshWeather }
       <div className="weather-header">
         <h1 className="weather-title">{t('weather.weatherDetails')}</h1>
         <div className="weather-time">
+          <div className="weather-export-wrapper">
+            <button
+              type="button"
+              className="weather-export-text-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowExportOptions((prev) => !prev);
+              }}
+            >
+              Export Weather Data
+            </button>
+            {showExportOptions && (
+              <div className="weather-export-dropdown">
+                <button
+                  type="button"
+                  className="weather-export-option"
+                  onClick={() => {
+                    if (typeof onExport === 'function') onExport('pdf');
+                    setShowExportOptions(false);
+                  }}
+                >
+                  Export as PDF
+                </button>
+                <button
+                  type="button"
+                  className="weather-export-option"
+                  onClick={() => {
+                    if (typeof onExport === 'function') onExport('csv');
+                    setShowExportOptions(false);
+                  }}
+                >
+                  Export as CSV
+                </button>
+              </div>
+            )}
+          </div>
           <span className="time-updating">
             {currentTime.toLocaleTimeString([], { 
               hour: '2-digit', 
               minute: '2-digit' 
             })}
           </span>
-          <button onClick={refreshWeather} className="refresh-btn">
+          <button onClick={refreshWeather} className="refresh-btn" type="button">
             <FaSyncAlt />
           </button>
         </div>

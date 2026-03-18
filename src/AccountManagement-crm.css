@@ -123,6 +123,62 @@
   font-size: 14px;
 }
 
+/* Inline export users button and dropdown */
+.export-users-inline-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.export-users-button-inline {
+  background: #ffffff;
+  color: #1B4577;
+  border: 1px solid #d1d5db;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: 'ReadexPro-Regular', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.export-users-button-inline:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.export-users-dropdown {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  min-width: 180px;
+  padding: 6px 0;
+}
+
+.export-users-option {
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: 13px;
+  font-family: 'ReadexPro-Regular', sans-serif;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.export-users-option:hover {
+  background: #f3f4f6;
+}
+
 /* Inline Bulk Delete button styled as danger */
 .bulk-delete-button-inline {
   background: #dc2626; /* red-600 */

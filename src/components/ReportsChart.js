@@ -10,7 +10,7 @@ import { useFarms } from '../contexts/FarmsContext';
 import { logActivity, logMessages, logTemporaryTechOfficerActivity } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 
-function ReportsChart() {
+function ReportsChart({ dropdownCoordinator, onDropdownOpen }) {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const { farmsById, farms } = useFarms();
@@ -67,6 +67,14 @@ function ReportsChart() {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [mobileExportOpen]);
+
+  useEffect(() => {
+    if (!dropdownCoordinator?.signal) return;
+    if (dropdownCoordinator.source !== 'homepageReportsExport') {
+      setExportOpen(false);
+      setMobileExportOpen(false);
+    }
+  }, [dropdownCoordinator]);
 
   // Initialize viewMode and timeFilter for assigned non-Tech Officer users
   useEffect(() => {
@@ -735,6 +743,10 @@ function ReportsChart() {
             onClick={() => {
               const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
               if (!isTemporaryTechOfficer) {
+                const isOpening = !mobileExportOpen;
+                if (isOpening && typeof onDropdownOpen === 'function') {
+                  onDropdownOpen('homepageReportsExport');
+                }
                 setMobileExportOpen(v => !v);
               }
             }}
@@ -846,6 +858,10 @@ function ReportsChart() {
         <div style={{ marginLeft: 'auto', position: 'relative' }}>
           <button
             onClick={() => {
+              const isOpening = !exportOpen;
+              if (isOpening && typeof onDropdownOpen === 'function') {
+                onDropdownOpen('homepageReportsExport');
+              }
               setExportOpen(v => !v);
             }}
             style={{ 

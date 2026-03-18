@@ -48,7 +48,8 @@ const AccountManagement = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
-  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false); // Sidebar export dropdown
+  const [showInlineExportOptions, setShowInlineExportOptions] = useState(false); // Inline "Export User Accounts" dropdown
 
   // Table filter states
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -77,6 +78,7 @@ const AccountManagement = () => {
   // Name sorting dropdown states
   const [showNameDropdown, setShowNameDropdown] = useState(false);
   const [selectedNameSort, setSelectedNameSort] = useState('None');
+  const [openEditDropdownId, setOpenEditDropdownId] = useState(null);
 
   // Password reset states
   const [resettingPasswordUserId, setResettingPasswordUserId] = useState(null);
@@ -499,6 +501,9 @@ const AccountManagement = () => {
     setShowStatusDropdown(false);
     setShowNameDropdown(false);
     setShowFilterDropdown(false);
+    setShowDownloadOptions(false);
+    setShowInlineExportOptions(false);
+    setOpenEditDropdownId(null);
     // Note: add user form and admin password modal are NOT closed here to prevent interference
 
     setShowMenu(false);
@@ -511,17 +516,19 @@ const AccountManagement = () => {
       if (event.target.closest('.admin-password-modal') || event.target.closest('.add-user-form-container')) {
         return;
       }
-      
-      if (!event.target.closest('.role-cell') && !event.target.closest('.status-cell') && !event.target.closest('.name-cell')) {
-        setShowRoleDropdown(false);
-        setShowStatusDropdown(false);
-        setShowNameDropdown(false);
+
+      const clickedInsideManagedDropdown =
+        event.target.closest('.role-cell') ||
+        event.target.closest('.status-cell') ||
+        event.target.closest('.name-cell') ||
+        event.target.closest('.edit-action-dropdown') ||
+        event.target.closest('.export-users-inline-wrapper') ||
+        event.target.closest('.sidebar-export-container') ||
+        event.target.closest('.user-menu');
+
+      if (!clickedInsideManagedDropdown) {
+        closeAllDropdowns();
       }
-      // export dropdown removed
-      // Temporarily disabled to debug filter dropdown
-      // if (!event.target.closest('.add-user-button-container')) {
-      //   setShowFilterDropdown(false);
-      // }
     };
 
     // Function to handle Escape key press
@@ -1010,8 +1017,49 @@ const AccountManagement = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const normalizeUsernameBase = (fullName = '') => {
+    return String(fullName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, '')
+      .slice(0, 24);
+  };
+
+  const generateUniqueUsernameFromFullName = (fullName = '') => {
+    const base = normalizeUsernameBase(fullName);
+    if (!base) return '';
+
+    const existingUsernames = new Set(
+      (AccountUsers || [])
+        .map((u) => String(u?.username || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    if (!existingUsernames.has(base)) return base;
+
+    let suffix = 2;
+    let candidate = `${base}${suffix}`;
+    while (existingUsernames.has(candidate)) {
+      suffix += 1;
+      candidate = `${base}${suffix}`;
+    }
+    return candidate;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === 'fullName') {
+      const autoUsername = generateUniqueUsernameFromFullName(value);
+      setShowGeneratedUsername(false);
+      setNewUser((prev) => ({
+        ...prev,
+        fullName: value,
+        username: autoUsername
+      }));
+      return;
+    }
     
     // Enforce PH mobile 09 prefix for add user form
     if (name === 'contactNumber') {
@@ -1087,6 +1135,12 @@ const AccountManagement = () => {
     selectedExistingTTO: '',
     selectedExistingNewMainTO: ''
   });
+  const [showGeneratedUsername, setShowGeneratedUsername] = useState(false);
+
+  const handleFullNameBlur = () => {
+    const hasFullName = String(newUser.fullName || '').trim().length > 0;
+    setShowGeneratedUsername(hasFullName);
+  };
 
   // Ensure Temporary Tech Officer is always Inactive until verification
   useEffect(() => {
@@ -1119,6 +1173,7 @@ const AccountManagement = () => {
       selectedExistingTTO: '',
       selectedExistingNewMainTO: ''
     });
+    setShowGeneratedUsername(false);
     setTtoCreationMode('');
     setNewMainTOCreationMode('');
   };
@@ -1422,6 +1477,7 @@ const AccountManagement = () => {
       dateJoined: getTodayDate(), 
       password: ''
     });
+    setShowGeneratedUsername(false);
     setMessage({ text: '', type: '' });
   };
 
@@ -1948,7 +2004,12 @@ const handleActivateFishFarmer = async (user) => {
 
   // Function to delete user from Firebase
   const deleteUserFromFirebase = async (userId) => {
-    return serviceDeleteUserById(userId);
+    const actorDisplayName =
+      (currentUser?.fullName && String(currentUser.fullName).trim()) ||
+      currentUser?.username ||
+      currentUser?.email ||
+      'Unknown user';
+    return serviceDeleteUserById(userId, actorDisplayName);
   };
 
   // Function to delete user from Firebase Auth via Cloud Function
@@ -2276,22 +2337,28 @@ const handleActivateFishFarmer = async (user) => {
         setMessage({ text: 'No users data available for export', type: 'error' });
         return;
       }
-      
+      // Resolve farm IDs to readable farm names for export
+      const usersForExport = AccountUsers.map(user => ({
+        ...user,
+        farmName: farmIdToName[user.farm] || user.farm || ''
+      }));
+
       try { 
         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
         logActivity('export', logMessages.export[format === 'csv' ? 'csvDownload' : 'pdfDownload'](u, 'account data'), u); 
       } catch (_) {}
       
-      // Ensure CSV export has data
-      localStorage.setItem('currentUsers', JSON.stringify(AccountUsers));
+      // Ensure CSV export has data (with resolved farm names)
+      localStorage.setItem('currentUsers', JSON.stringify(usersForExport));
 
       if (format === 'pdf') {
-        exportAccountToPDF(AccountUsers, currentUser);
+        exportAccountToPDF(usersForExport, currentUser);
       } else if (format === 'csv') {
         handleAccountCSVExport(currentUser);
       }
     } finally {
       setShowDownloadOptions(false);
+      setShowInlineExportOptions(false);
     }
   };
 
@@ -2511,6 +2578,10 @@ const handleActivateFishFarmer = async (user) => {
             <select 
               className="filter-select"
               value={selectedRole}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeAllDropdowns();
+              }}
               onChange={(e) => {
                 e.stopPropagation();
                 setSelectedRole(e.target.value);
@@ -2530,6 +2601,10 @@ const handleActivateFishFarmer = async (user) => {
               <select 
                 className="pagination-select"
                 value={pageSize}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeAllDropdowns();
+                }}
                 onChange={(e) => {
                   e.stopPropagation();
                   const newPageSize = parseInt(e.target.value);
@@ -2586,7 +2661,7 @@ const handleActivateFishFarmer = async (user) => {
             </div>
           </div>
           
-          {/* Inline actions: Bulk Delete (if any selected) and Add New User */}
+          {/* Inline actions: Bulk Delete (if any selected), Export, and Add New User */}
           <div className="button-group-right">
             {canManageUsers && selectedUsers.size > 0 ? (
               <button className="bulk-delete-button-inline" onClick={(e) => {
@@ -2604,14 +2679,50 @@ const handleActivateFishFarmer = async (user) => {
             ) : null}
 
             {canManageUsers ? (
-              <button className="add-user-button-inline" onClick={(e) => {
-                e.stopPropagation();
-                closeAllDropdowns();
-                handleOpenAddUserForm();
-              }}>
-                <FaUserPlus className="button-icon" />
-                Add New User
-              </button>
+              <>
+                <div className="export-users-inline-wrapper">
+                  <button
+                    className="export-users-button-inline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeAllDropdowns();
+                      setShowInlineExportOptions((prev) => !prev);
+                    }}
+                  >
+                    Export User Accounts
+                  </button>
+                  {showInlineExportOptions && (
+                    <div
+                      className="export-users-dropdown"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        className="export-users-option"
+                        onClick={() => handleSidebarExport('pdf')}
+                      >
+                        Export as PDF
+                      </button>
+                      <button
+                        className="export-users-option"
+                        onClick={() => handleSidebarExport('csv')}
+                      >
+                        Export as CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="add-user-button-inline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeAllDropdowns();
+                    handleOpenAddUserForm();
+                  }}
+                >
+                  <FaUserPlus className="button-icon" />
+                  Add New User
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -2716,31 +2827,34 @@ const handleActivateFishFarmer = async (user) => {
               {showManualFields && !(newUser.role === 'Temporary Tech Officer' && ttoCreationMode === 'reuse') && !(newUser.role === 'New Main Tech Officer' && newMainTOCreationMode === 'reuse') && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>{t('accountManagement.add_user_form.username_label')}</label>
-                  <input 
-                    type="text" 
-                    name="username" 
-                    value={newUser.username} 
-                    onChange={handleInputChange} 
-                      onClick={(e) => e.stopPropagation()}
-                      onFocus={(e) => e.stopPropagation()}
-                                          placeholder={t('accountManagement.add_user_form.username_placeholder')}
-                    required 
-                  />
-                </div>
-                <div className="form-group">
                   <label>{t('accountManagement.add_user_form.full_name_label')}</label>
                   <input 
                     type="text" 
                     name="fullName" 
                     value={newUser.fullName} 
                     onChange={handleInputChange} 
+                    onBlur={handleFullNameBlur}
                       onClick={(e) => e.stopPropagation()}
                       onFocus={(e) => e.stopPropagation()}
                                           placeholder={t('accountManagement.add_user_form.full_name_placeholder')}
                     required 
                   />
                 </div>
+                {showGeneratedUsername && String(newUser.fullName || '').trim() && (
+                <div className="form-group">
+                  <label>{t('accountManagement.add_user_form.username_label')}</label>
+                  <input 
+                    type="text" 
+                    name="username" 
+                    value={newUser.username} 
+                    readOnly
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                                          placeholder={t('accountManagement.add_user_form.username_placeholder')}
+                    required 
+                  />
+                </div>
+                )}
               </div>
               )}
               <div className="form-row">
@@ -3691,72 +3805,68 @@ const handleActivateFishFarmer = async (user) => {
                                 className="edit-user-btn" 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  const dropdownId = `edit-dropdown-${user.id}`;
-                                  const existingDropdown = document.getElementById(dropdownId);
-                                  if (existingDropdown) {
-                                    existingDropdown.style.display = existingDropdown.style.display === 'none' ? 'block' : 'none';
-                                  }
+                                  const isOpening = openEditDropdownId !== user.id;
+                                  closeAllDropdowns();
+                                  setOpenEditDropdownId(isOpening ? user.id : null);
                                 }}
                               >
                                 Edit
                               </button>
-                              <div 
-                                id={`edit-dropdown-${user.id}`}
-                                className="edit-dropdown-menu"
-                                style={{ 
-                                  display: 'none',
-                                  position: 'absolute',
-                                  right: 0,
-                                  top: '100%',
-                                  marginTop: '4px',
-                                  minWidth: '160px',
-                                  background: 'white',
-                                  border: '1px solid #e5e7eb',
-                                  borderRadius: '6px',
-                                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                                  zIndex: 1000
-                                }}
-                              >
-                                {String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
-                                  <button
-                                    className="edit-dropdown-item"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
-                                      closeAllDropdowns();
-                                      handleResetPassword(user);
-                                    }}
-                                    disabled={resettingPasswordUserId === user.id}
-                                  >
-                                    <MdOutlineLockReset /> {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
-                                  </button>
-                                )}
-                                <button
-                                  className="edit-dropdown-item delete-item"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
-                                    closeAllDropdowns();
-                                    handleDeleteUser(user);
+                              {openEditDropdownId === user.id && (
+                                <div
+                                  className="edit-dropdown-menu"
+                                  style={{
+                                    display: 'block',
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '100%',
+                                    marginTop: '4px',
+                                    minWidth: '160px',
+                                    background: 'white',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '6px',
+                                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                                    zIndex: 1000
                                   }}
                                 >
-                                  <RiDeleteBin6Line /> Delete
-                                </button>
-                                {/* Deactivate TTO button: only for active TTOs */}
-                                {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && String(user.status || '').toLowerCase() === 'active' && (
+                                  {String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
+                                    <button
+                                      className="edit-dropdown-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        closeAllDropdowns();
+                                        handleResetPassword(user);
+                                      }}
+                                      disabled={resettingPasswordUserId === user.id}
+                                    >
+                                      <MdOutlineLockReset /> {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
+                                    </button>
+                                  )}
                                   <button
-                                    className="edit-dropdown-item"
+                                    className="edit-dropdown-item delete-item"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      document.getElementById(`edit-dropdown-${user.id}`).style.display = 'none';
                                       closeAllDropdowns();
-                                      handleManualDeactivateTTO(user);
+                                      handleDeleteUser(user);
                                     }}
                                   >
-                                    Deactivate TTO
+                                    <RiDeleteBin6Line /> Delete
                                   </button>
-                                )}
-                              </div>
+                                  {/* Deactivate TTO button: only for active TTOs */}
+                                  {(String(user.role || '').toLowerCase() === 'temp_tech_officer' || user.temporaryTechOfficer) && String(user.status || '').toLowerCase() === 'active' && (
+                                    <button
+                                      className="edit-dropdown-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        closeAllDropdowns();
+                                        handleManualDeactivateTTO(user);
+                                      }}
+                                    >
+                                      Deactivate TTO
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                               {resetNotices[user.id]?.text && String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
                                 <span
                                   style={{

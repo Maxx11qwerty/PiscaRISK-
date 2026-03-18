@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { downloadChartAsImage, exportChartDataCSV } from '../utils/exportStackedbarChart';
+import { downloadChartAsImage, exportPondsAtRiskExcelCSV } from '../utils/exportStackedbarChart';
 import { logActivity, logMessages } from '../utils/logger';
 import { GiHamburgerMenu } from 'react-icons/gi';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -25,7 +25,7 @@ const normalizeFarmName = (name) => {
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 };
 
-const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChange }) => {
+const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChange, dropdownCoordinator, onDropdownOpen }) => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { farmsById, farmsNameByKey } = useFarms();
@@ -53,6 +53,13 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       onGroupModeChange(groupMode);
     }
   }, [groupMode, onGroupModeChange]);
+
+  useEffect(() => {
+    if (!dropdownCoordinator?.signal) return;
+    if (dropdownCoordinator.source !== 'homepagePondsRiskExport') {
+      setExportOpen(false);
+    }
+  }, [dropdownCoordinator]);
   const [timeFilter, setTimeFilter] = useState('today'); // today | week | month | custom
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -601,6 +608,50 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     return details; // Map for O(1) lookup
   }, [mergedFarms, rangeStart, rangeEnd]);
 
+  const exportRowsForExcel = useMemo(() => {
+    const rows = [];
+    const riskOrder = ['High', 'Medium', 'Low'];
+
+    const parsePondNumber = (pondName) => {
+      const match = String(pondName || '').match(/\d+/);
+      return match ? Number(match[0]) : '';
+    };
+
+    pondDetailsByFarm.forEach((bucket, farmName) => {
+      riskOrder.forEach((riskLevel) => {
+        const entries = Array.isArray(bucket?.[riskLevel]) ? bucket[riskLevel] : [];
+        entries.forEach((entry) => {
+          const confidence =
+            typeof entry.confidence === 'number' && !Number.isNaN(entry.confidence)
+              ? Number(entry.confidence.toFixed(1))
+              : '';
+
+          rows.push({
+            farm: farmName,
+            pondNumber: parsePondNumber(entry.pond),
+            pond: entry.pond || '',
+            riskLevel: riskLevel,
+            confidencePercent: confidence,
+            reason: entry.reason || '',
+            asOf: entry.date instanceof Date && !Number.isNaN(entry.date.getTime())
+              ? entry.date.toLocaleString()
+              : '',
+          });
+        });
+      });
+    });
+
+    return rows.sort((a, b) => {
+      const farmCmp = String(a.farm).localeCompare(String(b.farm));
+      if (farmCmp !== 0) return farmCmp;
+      const riskCmp = riskOrder.indexOf(a.riskLevel) - riskOrder.indexOf(b.riskLevel);
+      if (riskCmp !== 0) return riskCmp;
+      const aNum = Number.isFinite(a.pondNumber) ? a.pondNumber : Number.MAX_SAFE_INTEGER;
+      const bNum = Number.isFinite(b.pondNumber) ? b.pondNumber : Number.MAX_SAFE_INTEGER;
+      return aNum - bNum;
+    });
+  }, [pondDetailsByFarm]);
+
   // Compute max stacked totals to size the X-axis domain to avoid clipping
   const maxFarmStackTotal = useMemo(() => {
     const totals = byFarmData.map(d => Number(d.__total || 0));
@@ -1069,6 +1120,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               e.stopPropagation(); 
               const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
               if (!isTemporaryTechOfficer) {
+                const isOpening = !exportOpen;
+                if (isOpening && typeof onDropdownOpen === 'function') {
+                  onDropdownOpen('homepagePondsRiskExport');
+                }
                 setExportOpen(v => !v);
               }
             }}
@@ -1121,7 +1176,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
           <div style={{ height: 1, background: '#e5e7eb' }} />
           <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'jpeg', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
           <div style={{ height: 1, background: '#e5e7eb' }} />
-          <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const data = groupMode === 'farm' ? byFarmData : byRiskData; exportChartDataCSV(data, 'ponds_at_risk.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'stacked chart data'), u); } catch (_) {} setExportOpen(false); }}>Export CSV</button>
+          <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { exportPondsAtRiskExcelCSV(exportRowsForExcel, 'ponds_at_risk_excel.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'stacked chart data'), u); } catch (_) {} setExportOpen(false); }}>Export Excel (CSV)</button>
         </div>
       )}
       <div className="chart-controls">
@@ -1191,6 +1246,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <button
               onClick={(e) => { 
                 e.stopPropagation(); 
+                const isOpening = !exportOpen;
+                if (isOpening && typeof onDropdownOpen === 'function') {
+                  onDropdownOpen('homepagePondsRiskExport');
+                }
                 setExportOpen(v => !v);
               }}
               style={{ 
@@ -1213,7 +1272,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <div style={{ height: 1, background: '#e5e7eb' }} />
                 <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { downloadChartAsImage('#stacked-risk-chart', 'jpeg', 'ponds_at_risk'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.dataExport(u, 'stacked chart JPEG'), u); } catch (_) {} setExportOpen(false); }}>Download JPEG</button>
                 <div style={{ height: 1, background: '#e5e7eb' }} />
-                <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { const data = groupMode === 'farm' ? byFarmData : byRiskData; exportChartDataCSV(data, 'ponds_at_risk.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'stacked chart data'), u); } catch (_) {} setExportOpen(false); }}>Export CSV</button>
+                <button style={{ width: '100%', border: 'none', background: 'transparent', padding: '10px 12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => { exportPondsAtRiskExcelCSV(exportRowsForExcel, 'ponds_at_risk_excel.csv'); try { const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'; logActivity('export', logMessages.export.csvDownload(u, 'stacked chart data'), u); } catch (_) {} setExportOpen(false); }}>Export Excel (CSV)</button>
               </div>
             )}
           </div>

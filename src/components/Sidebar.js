@@ -22,6 +22,7 @@ const Sidebar = ({
   currentUser,
   showDownloadOptions,
   setShowDownloadOptions,
+  onDropdownOpen,
   handleExport,
   onDashboardClick,
   onAccountManagementClick,
@@ -160,8 +161,8 @@ const Sidebar = ({
               </span>
             </div>
             <div
-              className={`sidebar-nav-item ${isLogsActive ? 'active' : ''}`}
-              onClick={onLogsClick}
+            className={`sidebar-nav-item ${isLogsActive ? 'active' : ''}`}
+            onClick={onLogsClick}
             >
               <FaClipboardList className="sidebar-nav-icon" />
               <span>{t('sidebar.logs')}</span>
@@ -176,38 +177,6 @@ const Sidebar = ({
                 <span>{t('sidebar.feedback')}</span>
               </div>
             )}
-
-            <div className="sidebar-export-container">
-              <div
-                className="sidebar-nav-item export-nav-item"
-                onClick={() => {
-                  setShowDownloadOptions(!showDownloadOptions);
-                }}
-                title={t('common.export')}
-              >
-                <FaFileExport className="sidebar-nav-icon" />
-                <span>{t('common.export')}</span>
-              </div>
-
-              {showDownloadOptions && (
-                <div className="sidebar-download-options">
-                  <div
-                    className="sidebar-download-option"
-                    onClick={() => handleExport && handleExport('pdf')}
-                  >
-                    <FaFilePdf className="homeDLpdf-icon" />
-                    <span>{t('common.export')} (PDF)</span>
-                  </div>
-                  <div
-                    className="sidebar-download-option"
-                    onClick={() => handleExport && handleExport('csv')}
-                  >
-                    <FaFileCsv className="homeDLcsv-icon" />
-                    <span>{t('common.export')} (CSV)</span>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 

@@ -119,4 +119,41 @@ export const exportChartDataCSV = (data, filename = 'stacked_chart.csv') => {
   URL.revokeObjectURL(url);
 };
 
+export const exportPondsAtRiskExcelCSV = (rows, filename = 'ponds_at_risk.csv') => {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  const headers = [
+    'Farm',
+    'Pond Number',
+    'Pond',
+    'Risk Level',
+    'Confidence (%)',
+    'Reason',
+    'As Of',
+  ];
+
+  const escape = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const csvRows = rows.map((row) => [
+    row.farm,
+    row.pondNumber,
+    row.pond,
+    row.riskLevel,
+    row.confidencePercent,
+    row.reason,
+    row.asOf,
+  ]);
+
+  // Add UTF-8 BOM and CRLF for cleaner opening in Excel.
+  const csv = '\uFEFF' + [headers, ...csvRows].map((r) => r.map(escape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 

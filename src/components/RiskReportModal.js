@@ -2678,7 +2678,17 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                                 logActivity('export', logMessages.export.csvDownload(u, 'farm details data'), u); 
                               } catch (_) {}
-                              exportFarmDetailsCSV(farm, `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.csv`);
+                              const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
+                                ? forcedDateMs
+                                : (showHistoryFilter && selectedTimestamp !== 'latest' ? parseInt(selectedTimestamp, 10) : null);
+                              const exportChecklist = (showHistoryFilter && effectiveSelectedMs)
+                                ? historicalChecklistData[`${detailsFarmKey}_${effectiveSelectedMs}`]
+                                : checklistData[detailsFarmKey];
+                              exportFarmDetailsCSV(
+                                farm,
+                                `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.csv`,
+                                { checklistData: exportChecklist }
+                              );
                               setExportMenuOpen(false);
                             }}
                           >
@@ -2693,7 +2703,17 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                                 logActivity('export', logMessages.export.pdfDownload(u, 'farm details data'), u); 
                               } catch (_) {}
-                              exportFarmDetailsPDF(farm, `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.pdf`);
+                              const effectiveSelectedMs = (typeof forcedDateMs === 'number' && forcedDateMs > 0)
+                                ? forcedDateMs
+                                : (showHistoryFilter && selectedTimestamp !== 'latest' ? parseInt(selectedTimestamp, 10) : null);
+                              const exportChecklist = (showHistoryFilter && effectiveSelectedMs)
+                                ? historicalChecklistData[`${detailsFarmKey}_${effectiveSelectedMs}`]
+                                : checklistData[detailsFarmKey];
+                              exportFarmDetailsPDF(
+                                farm,
+                                `${farm.farm_name.replace(/[^a-zA-Z0-9]/g, '_')}_RiskReportsDetails.pdf`,
+                                { checklistData: exportChecklist }
+                              );
                               setExportMenuOpen(false);
                             }}
                           >

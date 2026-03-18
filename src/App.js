@@ -5,7 +5,6 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Toaster as SileoToaster } from 'sileo';
 import 'sileo/styles.css';
 import './SileoToast.css';
-import SignupPage from "./SignupPage";
 import Login from "./Login";
 import Homepage from "./Homepage";
 import ProfileSettings from "./ProfileSettings";
@@ -37,7 +36,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
   if (!currentUser) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 };
@@ -72,7 +71,9 @@ const AppRoutes = () => {
   // Only show "booting" if Firebase session exists but context not hydrated yet
   // During logout, auth.currentUser might briefly exist, but we should redirect instead
   // Check if we're on the login page - if so, don't show booting message
-  const booting = !!auth.currentUser && !currentUser && window.location.pathname !== '/' && !(isLoggingOutRef && isLoggingOutRef.current);
+  const pathname = window.location.pathname;
+  const isPublicAuthPage = pathname === '/' || pathname === '/login';
+  const booting = !!auth.currentUser && !currentUser && !isPublicAuthPage && !(isLoggingOutRef && isLoggingOutRef.current);
 
   if (booting) {
     return (
@@ -85,14 +86,16 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={isFullyAuthed ? <Navigate to="/Homepage" replace /> : <Login />} />
-      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/signup" element={<Navigate to="/" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/ProfileSettings" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
-      <Route path="/Homepage" element={canNavigate ? <Homepage /> : <Navigate to="/" replace />} />
+      <Route path="/Homepage" element={canNavigate ? <Homepage /> : <Navigate to="/login" replace />} />
       <Route path="/AccountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
       <Route path="/Feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />
       <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
       <Route path="/pond-conditions" element={<ProtectedRoute><PondConditionDashboard /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

@@ -6,6 +6,7 @@ import logo from "./assets/images/PISCARISK_LOGO.png";
 import { AuthContext } from './contexts/AuthContext';
 import EmailVerificationModal from './components/EmailVerificationModal';
 import OTPVerification from './components/OtpVerification';
+import MobileAppLandingModal from './components/MobileAppLandingModal';
 import "./Login.css";
 import "./Login.responsive.css";
 import { logActivity } from './utils/logger';
@@ -105,6 +106,23 @@ export default function Login() {
   const [contactError, setContactError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [forceHideOTP, setForceHideOTP] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(() => {
+    try {
+      // If the user has ever logged in on this browser, don't show the promo again.
+      const hasLoggedInOnce = sessionStorage.getItem('hasLoggedInOnce') === '1';
+      // If the user already dismissed it during this SPA runtime, don't show again
+      // (but it will show again after a hard reload, since window is reset).
+      const dismissedThisRuntime = !!window.__promoLandingDismissed;
+      return !hasLoggedInOnce && !dismissedThisRuntime;
+    } catch (_) {
+      return !window.__promoLandingDismissed;
+    }
+  });
+
+  const handleProceedFromPromo = () => {
+    try { window.__promoLandingDismissed = true; } catch (_) {}
+    setShowPromoModal(false);
+  };
 
   useEffect(() => {
     if (error) {
@@ -249,6 +267,11 @@ export default function Login() {
       const result = await login(formData.emailOrContact, formData.password);
       
       if (result.success) {
+        try {
+          sessionStorage.setItem('hasLoggedInOnce', '1');
+        } catch (_) {}
+        try { window.__promoLandingDismissed = true; } catch (_) {}
+        setShowPromoModal(false);
         // Login logging is handled in AuthContext.js login function
         // Navigate immediately - processing flag is cleared in AuthContext
         navigate('/Homepage', { replace: true });
@@ -314,6 +337,7 @@ export default function Login() {
 
   return (
     <div className="login-container">
+      <MobileAppLandingModal open={showPromoModal} onProceed={handleProceedFromPromo} />
       {/* screen info for development */}
       {process.env.NODE_ENV === 'development' && ( 
         <div style={{
@@ -379,7 +403,8 @@ export default function Login() {
               */}
 
               <p className="login-text">
-                {t('login.continueWithExistingAccount')}
+                <span className="login-text-welcome">Welcome to PiscaRISK</span>
+                <span className="login-text-action">Log in to your account</span>
               </p>
               <div className="rounded-line"></div>
 
@@ -454,6 +479,7 @@ export default function Login() {
                   {isSubmitting ? 'Logging in…' : t('login.login')}
                 </button>
               </div>
+              <p className="login-admin-note">{t('login.adminProvidedAccounts')}</p>
 
               <p className="forgot-password-text">
                 <span
@@ -464,7 +490,7 @@ export default function Login() {
                 </span>
               </p>
 
-              <p className="belowlogin-text">
+              {/*<p className="belowlogin-text">
                 {t('login.dontHaveAccount')}{' '}
                 <span
                   className="register-link"
@@ -472,17 +498,9 @@ export default function Login() {
                 >
                   {t('login.register')}
                 </span>
-              </p>
+              </p>*/}
 
-              <p className="mobile-app-text">
-                <span
-                  className="mobile-app-link"
-                  onClick={() => window.open('https://drive.google.com/file/d/1D4tMIptTS1-r5q9RDY_A1JXpDFmdWsfF/view?usp=sharing', '_blank')}
-                  style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                >
-                  📱 Get our mobile app
-                </span>
-              </p>
+
 
             </div>
           </form>

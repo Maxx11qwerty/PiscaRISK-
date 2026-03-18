@@ -60,10 +60,41 @@ export default function AccountSettings() {
   const [pendingEmailChange, setPendingEmailChange] = useState(null); // Store email to change after reauth
   const mountedRef = useRef(true);
   const pendingTimersRef = useRef([]);
+
+  const closeAllDropdowns = () => {
+    setShowMenu(false);
+    setShowDownloadOptions(false);
+  };
   // Use global variable to track toast ID across all pages
   if (typeof window.emailVerificationToastId === 'undefined') {
     window.emailVerificationToastId = null;
   }
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const clickedInsideManagedDropdown =
+        event.target.closest('.user-menu') ||
+        event.target.closest('.sidebar-export-container');
+
+      if (!clickedInsideManagedDropdown) {
+        closeAllDropdowns();
+      }
+    };
+
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        closeAllDropdowns();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -192,7 +223,7 @@ const uploadImage = (file) => {
       // Update local state
       setNewFullName(newFullName);
       
-      logActivity('profile', `Full name updated from "${currentUser.fullName || 'Not set'}" to "${newFullName}"`, currentUser.username);
+      logActivity('profile', `Full name updated from "${currentUser.fullName || 'Not set'}" to "${newFullName}"`, currentUser.username, null, currentUser?.role);
       
       // Refresh current user data to get updated values
       await refreshCurrentUser();
@@ -230,7 +261,7 @@ const uploadImage = (file) => {
       // Update local state
       setNewAddress(newAddress);
       
-      logActivity('profile', `Address updated from "${currentUser.address || 'Not set'}" to "${newAddress}"`, currentUser.username);
+      logActivity('profile', `Address updated from "${currentUser.address || 'Not set'}" to "${newAddress}"`, currentUser.username, null, currentUser?.role);
       
       // Refresh current user data to get updated values
       await refreshCurrentUser();
@@ -270,7 +301,7 @@ const uploadImage = (file) => {
       // Update local state
       setNewContact(newContact);
       
-      logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${newContact}"`, currentUser.username);
+      logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${newContact}"`, currentUser.username, null, currentUser?.role);
       
       // Refresh current user data to get updated values
       await refreshCurrentUser();
@@ -361,7 +392,7 @@ const uploadImage = (file) => {
       await updateProfileImage(tempProfileImage);
       
       // Log the activity
-      logActivity('profile', logMessages.profile.imageUpdate(currentUser.username), currentUser.username);
+      logActivity('profile', logMessages.profile.imageUpdate(currentUser.username), currentUser.username, null, currentUser?.role);
       
       // Refresh current user data to sync across all components
       await refreshCurrentUser();
@@ -529,7 +560,7 @@ const uploadImage = (file) => {
       setShowRemoveButton(false);
       
       // Log the activity
-      logActivity('profile', `Profile picture removed by ${currentUser.username}`, currentUser.username);
+      logActivity('profile', `Profile picture removed by ${currentUser.username}`, currentUser.username, null, currentUser?.role);
       
       // Refresh current user data to sync across all components
       await refreshCurrentUser();
@@ -554,7 +585,7 @@ const uploadImage = (file) => {
       await sendPasswordResetEmail(auth, currentUser.email);
       
       // Log the activity
-      logActivity('profile', `Password reset email sent to ${currentUser.email}`, currentUser.username);
+      logActivity('profile', `Password reset email sent to ${currentUser.email}`, currentUser.username, null, currentUser?.role);
       
       setSuccess(t('profileSettings.passwordResetEmailSent'));
     } catch (error) {
@@ -600,7 +631,7 @@ const uploadImage = (file) => {
         }
         try { 
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-          logActivity('profile', `Email verification confirmed in Profile Settings`, u); 
+          logActivity('profile', `Email verification confirmed in Profile Settings`, u, null, currentUser?.role); 
         } catch (_) {}
 
         // Remove toast immediately when verification completes
@@ -637,7 +668,7 @@ const handleSendVerificationEmail = async () => {
 
     try { 
       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-      logActivity('profile', `Verification email sending initiated in Profile Settings`, u); 
+      logActivity('profile', `Verification email sending initiated in Profile Settings`, u, null, currentUser?.role); 
     } catch (_) {}
 
     // Check if user has a new email in Firestore (different from Firebase Auth email)
@@ -652,7 +683,7 @@ const handleSendVerificationEmail = async () => {
         setSuccess(t('profileSettings.verificationEmailSentTo', { email: firestoreEmail }));
         try { 
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-          logActivity('profile', `Verification email resent to new email in Profile Settings`, u); 
+          logActivity('profile', `Verification email resent to new email in Profile Settings`, u, null, currentUser?.role); 
         } catch (_) {}
       } catch (error) {
         setError(t('profileSettings.failedToSendVerification'));
@@ -665,7 +696,7 @@ const handleSendVerificationEmail = async () => {
         setSuccess(result.message);
         try { 
           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-          logActivity('profile', `Verification email sent successfully in Profile Settings`, u); 
+          logActivity('profile', `Verification email sent successfully in Profile Settings`, u, null, currentUser?.role); 
         } catch (_) {}
       } else {
         setError(result.message);
@@ -852,6 +883,7 @@ const handleSendVerificationEmail = async () => {
       const updates = {};
       let hasChanges = false;
       let emailChangedInThisSave = false;
+      const originalUsernameForLog = currentUser?.username || 'Unknown User';
       
       // Check for username changes
       if (newUsername && newUsername !== currentUser?.username) {
@@ -974,7 +1006,7 @@ const handleSendVerificationEmail = async () => {
             }
           }
           setNewEmail(updates.email);
-          logActivity('profile', `Email change request for "${updates.email}" (verification sent)`, currentUser.username);
+          logActivity('profile', `Email change request for "${updates.email}" (verification sent)`, currentUser.username, null, currentUser?.role);
           await refreshCurrentUser();
           setShowEmailChangeForm(false);
           setEmailError('');
@@ -1023,18 +1055,35 @@ const handleSendVerificationEmail = async () => {
         await updateDoc(userRef, sanitizeObjectStrings(updates));
       }
       
-      // Log activities for each change
+      // Log activities for each change, using the updated username if it changed
+      const usernameForLog = updates.username || originalUsernameForLog;
       if (updates.username) {
-        logActivity('profile', `Username updated from "${currentUser.username}" to "${updates.username}"`, currentUser.username);
+        logActivity(
+          'profile',
+          `Username updated from "${currentUser.username}" to "${updates.username}"`,
+          usernameForLog
+        );
       }
       if (updates.fullName) {
-        logActivity('profile', `Full name updated from "${currentUser.fullName || 'Not set'}" to "${updates.fullName}"`, currentUser.username);
+        logActivity(
+          'profile',
+          `Full name updated from "${currentUser.fullName || 'Not set'}" to "${updates.fullName}"`,
+          usernameForLog
+        );
       }
       if (updates.address) {
-        logActivity('profile', `Address updated from "${currentUser.address || 'Not set'}" to "${updates.address}"`, currentUser.username);
+        logActivity(
+          'profile',
+          `Address updated from "${currentUser.address || 'Not set'}" to "${updates.address}"`,
+          usernameForLog
+        );
       }
       if (updates.contactNumber) {
-        logActivity('profile', `Contact updated from "${currentUser.contact || 'Not set'}" to "${updates.contactNumber}"`, currentUser.username);
+        logActivity(
+          'profile',
+          `Contact updated from "${currentUser.contact || 'Not set'}" to "${updates.contactNumber}"`,
+          usernameForLog
+        );
       }
       // Email logging already handled above when email was changed
       
@@ -1122,7 +1171,7 @@ const handleSendVerificationEmail = async () => {
           }
         }
         setNewEmail(newEmail);
-        logActivity('profile', `Email change request for "${newEmail}" (verification sent)`, currentUser.username);
+        logActivity('profile', `Email change request for "${newEmail}" (verification sent)`, currentUser.username, null, currentUser?.role);
         await refreshCurrentUser();
         setShowEmailChangeForm(false);
         setEmailError('');
@@ -1185,8 +1234,10 @@ const handleSendVerificationEmail = async () => {
             <NotificationBox externalCloseSignal={notificationCloseSignal} />
             <div className="user-menu">
               <button onClick={() => {
+                const isOpening = !showMenu;
+                closeAllDropdowns();
                 setNotificationCloseSignal(prev => prev + 1); // Close notification when user menu opens
-                setShowMenu(!showMenu);
+                setShowMenu(isOpening);
               }}>
                 {currentUser?.profileImage ? (
                   <img 
@@ -1316,7 +1367,7 @@ const handleSendVerificationEmail = async () => {
                         setShowUsernameChangeForm(true);
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('profile', `Username editing started in Profile Settings`, u); 
+                          logActivity('profile', `Username editing started in Profile Settings`, u, null, currentUser?.role); 
                         } catch (_) {}
                       }
                     }}
@@ -1355,7 +1406,7 @@ const handleSendVerificationEmail = async () => {
                         setShowFullNameChangeForm(true);
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('profile', `Full name editing started in Profile Settings`, u); 
+                          logActivity('profile', `Full name editing started in Profile Settings`, u, null, currentUser?.role); 
                         } catch (_) {}
                       }
                     }}
@@ -1392,7 +1443,7 @@ const handleSendVerificationEmail = async () => {
                         setShowAddressChangeForm(true);
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                          logActivity('profile', `Address editing started in Profile Settings`, u); 
+                          logActivity('profile', `Address editing started in Profile Settings`, u, null, currentUser?.role); 
                         } catch (_) {}
                       }
                     }}
@@ -1428,7 +1479,7 @@ const handleSendVerificationEmail = async () => {
                           setShowContactChangeForm(true);
                           try { 
                             const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                            logActivity('profile', `Contact editing started in Profile Settings`, u); 
+                            logActivity('profile', `Contact editing started in Profile Settings`, u, null, currentUser?.role); 
                           } catch (_) {}
                         }
                       }}
@@ -1492,7 +1543,7 @@ const handleSendVerificationEmail = async () => {
                           setShowEmailChangeForm(true);
                           try { 
                             const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                            logActivity('profile', `Email editing started in Profile Settings`, u); 
+                            logActivity('profile', `Email editing started in Profile Settings`, u, null, currentUser?.role); 
                           } catch (_) {}
                         }
                       }}
@@ -1536,7 +1587,7 @@ const handleSendVerificationEmail = async () => {
                       setShowPasswordChangeForm((prev) => !prev);
                       try { 
                         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('profile', `Password change form opened in Profile Settings`, u); 
+                        logActivity('profile', `Password change form opened in Profile Settings`, u, null, currentUser?.role); 
                       } catch (_) {}
                     }}
                   />
@@ -1609,7 +1660,7 @@ const handleSendVerificationEmail = async () => {
                       fileInputRef.current.click();
                       try { 
                         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('profile', `File upload option selected in Profile Settings`, u); 
+                        logActivity('profile', `File upload option selected in Profile Settings`, u, null, currentUser?.role); 
                       } catch (_) {}
                     }}
                   >
@@ -1628,7 +1679,7 @@ const handleSendVerificationEmail = async () => {
                       setShowImageOptions(false);
                       try { 
                         const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                        logActivity('profile', `Image options cancelled in Profile Settings`, u); 
+                        logActivity('profile', `Image options cancelled in Profile Settings`, u, null, currentUser?.role); 
                       } catch (_) {}
                     }}
                   >
@@ -1672,7 +1723,7 @@ const handleSendVerificationEmail = async () => {
                     setShowImageOptions(true);
                     try { 
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('profile', `Change picture option selected in Profile Settings`, u); 
+                      logActivity('profile', `Change picture option selected in Profile Settings`, u, null, currentUser?.role); 
                     } catch (_) {}
                   }}>
                     <FaUpload /> {t('profileSettings.changePicture')}
@@ -1682,7 +1733,7 @@ const handleSendVerificationEmail = async () => {
                     setShowProfileImageModal(false);
                     try { 
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('profile', `Remove picture option selected in Profile Settings`, u); 
+                      logActivity('profile', `Remove picture option selected in Profile Settings`, u, null, currentUser?.role); 
                     } catch (_) {}
                   }}>
                     <FaTimes /> {t('profileSettings.removePicture')}
@@ -1695,7 +1746,7 @@ const handleSendVerificationEmail = async () => {
                     setShowImageOptions(true);
                     try { 
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                      logActivity('profile', `Add picture option selected in Profile Settings`, u); 
+                      logActivity('profile', `Add picture option selected in Profile Settings`, u, null, currentUser?.role); 
                     } catch (_) {}
                   }}>
                     <FaUpload /> {t('profileSettings.addPicture')}
@@ -1706,7 +1757,7 @@ const handleSendVerificationEmail = async () => {
                 setShowProfileImageModal(false);
                 try { 
                   const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                  logActivity('profile', `Profile image modal closed in Profile Settings`, u); 
+                  logActivity('profile', `Profile image modal closed in Profile Settings`, u, null, currentUser?.role); 
                 } catch (_) {}
               }}>
                 {t('profileSettings.close')}

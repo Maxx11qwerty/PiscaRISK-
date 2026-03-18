@@ -59,6 +59,7 @@ const Logs = () => {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [logsPerPage, setLogsPerPage] = useState(20); // Default to 20 logs per page
+  const [showInlineExportOptions, setShowInlineExportOptions] = useState(false);
   
   // Decode common HTML entities for display-only rendering of sanitized log messages
   const decodeHtml = (str = '') => {
@@ -133,6 +134,7 @@ const Logs = () => {
     setShowDownloadOptions(false);
     setShowFilterDropdown(false);
     setRowActionsOpenId(null);
+    setShowInlineExportOptions(false);
   };
 
   // Close sidebar when window is resized to desktop
@@ -172,6 +174,18 @@ const Logs = () => {
       // Don't close if clicking inside sidebar or hamburger menu
       if (event.target.closest('.sidebar-wrapper') || event.target.closest('.header-hamburger-icon')) {
         return;
+      }
+
+      const clickedInsideManagedDropdown =
+        event.target.closest('.user-menu') ||
+        event.target.closest('.sidebar-export-container') ||
+        event.target.closest('.logs-export-inline-wrapper') ||
+        event.target.closest('.filter-container') ||
+        event.target.closest('.row-actions-button') ||
+        event.target.closest('.row-actions-menu');
+
+      if (!clickedInsideManagedDropdown) {
+        closeAllDropdowns();
       }
       
       // Close sidebar if clicking elsewhere
@@ -234,133 +248,25 @@ const Logs = () => {
       if (showLoading) {
         setIsLoading(true);
       }
-      
-      // Fetch active users from account management (all roles: Tech Officer, Admin, Farm Admin, Fish Farmer, Temporary Tech Officer)
-      let activeUsers = [];
-      try {
-        const webUsers = await getData('users');
-        const mobileUsers = await getData('mobileUsers');
-        const allUsers = [...webUsers, ...mobileUsers];
-        
-        // Filter to only active users (status === 'active', case-insensitive)
-        // Include ALL roles that have active status (Tech Officer, Admin, Farm Admin, Fish Farmer, Temporary Tech Officer, etc.)
-        activeUsers = allUsers.filter(user => {
-          if (!user || !user.username) return false;
-          
-          const status = String(user.status || '').toLowerCase().trim();
-          
-          // Check if user is explicitly deactivated (comprehensive check)
-          const deactivatedBy = user.deactivatedBy && String(user.deactivatedBy).trim() !== '' && String(user.deactivatedBy).trim() !== 'null';
-          const deactivatedAt = user.deactivatedAt && String(user.deactivatedAt).trim() !== '' && String(user.deactivatedAt).trim() !== 'null';
-          const deactivationReason = user.deactivationReason && String(user.deactivationReason).trim() !== '' && String(user.deactivationReason).trim() !== 'null';
-          const temporarilyInactive = user.temporarilyInactiveDueToReplacement === true;
-          
-          // Check if expired Temporary Tech Officer (similar to AccountManagement logic)
-          let isExpiredTempTO = false;
-          if (user.effectiveTo) {
-            try {
-              const effectiveToDate = new Date(user.effectiveTo);
-              if (!isNaN(effectiveToDate.getTime())) {
-                const now = new Date();
-                const isExpired = effectiveToDate.getTime() < now.getTime();
-                const hasTempTORole = String(user.role || '').toLowerCase() === 'temp_tech_officer';
-                const hadTempTOFlag = user.temporaryTechOfficer === true || user.hasBeenTempTechOfficer === true || user.effectiveFrom;
-                
-                if (isExpired && status === 'inactive' && (hasTempTORole || hadTempTOFlag || user.effectiveFrom)) {
-                  isExpiredTempTO = true;
-                }
-              }
-            } catch (e) {
-              // Ignore date parsing errors
-            }
-          }
-          
-          // If explicitly deactivated or expired temp TO, exclude
-          if (deactivatedBy || deactivatedAt || deactivationReason || temporarilyInactive || isExpiredTempTO) {
-            return false;
-          }
-          
-          // Only include users with active status (check for "active" regardless of case)
-          return status === 'active';
-        });
-        
-        // Debug: Log how many active users were found
-        if (allUsers.length > 0) {
-        }
-      } catch (userError) {
-      }
-      
-      // Create a set of active usernames (normalized to lowercase for case-insensitive matching)
-      const activeUsernamesSet = new Set();
-      activeUsers.forEach(user => {
-        if (user.username && user.username.trim()) {
-          const trimmedUsername = user.username.trim();
-          const normalizedUsername = trimmedUsername.toLowerCase();
-          // Add both normalized (lowercase) and original (trimmed) versions
-          activeUsernamesSet.add(normalizedUsername);
-          activeUsernamesSet.add(trimmedUsername);
-          // Also add email as a fallback if email matches username pattern
-          if (user.email && user.email.trim()) {
-            const emailLower = user.email.trim().toLowerCase();
-            const emailWithoutDomain = emailLower.split('@')[0];
-            if (emailWithoutDomain === normalizedUsername || emailWithoutDomain === trimmedUsername.toLowerCase()) {
-              activeUsernamesSet.add(emailLower);
-              activeUsernamesSet.add(emailWithoutDomain);
-            }
-          }
-        }
-      });
-      
-      
-      // Fetch logs from Firebase
+
+      // Fetch all logs from Firebase (already enriched with user/farm info)
       const logs = await getAllLogs();
-      
-      // Filter logs to only show logs from active users
-      const activeUserLogs = logs.filter(log => {
-        if (!log.username || !log.username.trim()) {
-          return false; // Exclude logs without username
-        }
-        const logUsername = log.username.trim();
-        const normalizedLogUsername = logUsername.toLowerCase();
-        
-        // Check if log username matches any active username (case-insensitive)
-        // Try exact matches first
-        if (activeUsernamesSet.has(logUsername) || activeUsernamesSet.has(normalizedLogUsername)) {
-          return true;
-        }
-        
-        // Also check if log username contains any active username (partial match)
-        // This helps catch cases where username format might differ slightly
-        for (const activeUsername of activeUsernamesSet) {
-          if (logUsername.toLowerCase().includes(activeUsername.toLowerCase()) || 
-              activeUsername.toLowerCase().includes(logUsername.toLowerCase())) {
-            return true;
-          }
-        }
-        
-        return false;
-      });
-      
-      // Check for logs with invalid timestamps
-      const logsWithInvalidTimestamps = activeUserLogs.filter(log => !log.timestamp);
-      if (logsWithInvalidTimestamps.length > 0) {
-      }
-      
-      // Extract unique usernames from active user logs
-      const usernames = [...new Set(activeUserLogs.map(log => log.username).filter(Boolean))].sort();
-      
+
+      // Extract unique usernames from logs
+      const usernames = [...new Set(logs.map(log => log.username).filter(Boolean))].sort();
+
       // If current user is a fish farmer, only show their own username
       const roleLower = String(currentUser?.role || '').toLowerCase();
       const isFishFarmer = roleLower === 'fish_farmer' || roleLower === 'fish farmer';
-      
+
       let filteredUsernames = usernames;
       if (isFishFarmer && currentUser?.username) {
         filteredUsernames = [currentUser.username];
       }
-      
+
       setUniqueUsernames(filteredUsernames);
-      setLogs(activeUserLogs);
-      setFilteredLogs(activeUserLogs);
+      setLogs(logs);
+      setFilteredLogs(logs);
     } catch (error) {
       setLogs([]);
       setFilteredLogs([]);
@@ -723,6 +629,7 @@ const Logs = () => {
     if (format === 'pdf') exportLogs(filteredLogs, 'pdf', currentUser);
     if (format === 'csv') exportLogs(filteredLogs, 'csv', currentUser);
     setShowDownloadOptions(false);
+    setShowInlineExportOptions(false);
   };
 
   const getSourceType = (log) => {
@@ -943,7 +850,7 @@ const Logs = () => {
             }}
           />
         </div>
-        
+
         <button
           className="logs-refresh-button"
           onClick={(e) => {
@@ -955,13 +862,15 @@ const Logs = () => {
         >
           <FaSync className={`refresh-icon ${isRefreshing ? 'spinning' : ''}`} />
         </button>
-        
+
         <div className="filter-container" style={{ position: 'relative' }}>
           <button 
             className="logs-filter-button"
             onClick={(e) => {
               e.stopPropagation();
-              setShowFilterDropdown(!showFilterDropdown);
+              const isOpening = !showFilterDropdown;
+              closeAllDropdowns();
+              setShowFilterDropdown(isOpening);
             }}
             title={t('logs.filter_button')}
           >
@@ -1083,6 +992,38 @@ const Logs = () => {
                   Clear All
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="logs-export-inline-wrapper">
+          <button
+            className="logs-export-button-inline"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllDropdowns();
+              setShowInlineExportOptions(prev => !prev);
+            }}
+          >
+            Export Logs
+          </button>
+          {showInlineExportOptions && (
+            <div
+              className="logs-export-dropdown"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="logs-export-option"
+                onClick={() => handleSidebarExport('pdf')}
+              >
+                Export as PDF
+              </button>
+              <button
+                className="logs-export-option"
+                onClick={() => handleSidebarExport('csv')}
+              >
+                Export as CSV
+              </button>
             </div>
           )}
         </div>
@@ -1266,7 +1207,9 @@ const Logs = () => {
                         onClick={(e) => { 
                           e.stopPropagation(); 
                           if (canUseRowActions) {
-                            setRowActionsOpenId(prev => prev === log.id ? null : log.id);
+                            const isOpening = rowActionsOpenId !== log.id;
+                            closeAllDropdowns();
+                            setRowActionsOpenId(isOpening ? log.id : null);
                           }
                         }}
                         disabled={!canUseRowActions}

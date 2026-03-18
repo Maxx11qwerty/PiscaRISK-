@@ -1353,10 +1353,11 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                       logActivity('export', logMessages.export.csvDownload(u, 'fishpond condition data with logs'), u); 
                     } catch (_) {}
+                    const ts = new Date().toISOString().split('T')[0];
                     exportFishConditionWithLogsCSV(
                       filteredReports,
                       { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
-                      'fishpond_combined.csv'
+                      `fishpond_condition_reports_${ts}.csv`
                     );
                     setExportMenuOpen(false);
                   }}
@@ -1379,10 +1380,11 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                       logActivity('export', logMessages.export.pdfDownload(u, 'fishpond condition data with logs'), u); 
                     } catch (_) {}
+                    const ts = new Date().toISOString().split('T')[0];
                     exportFishConditionWithLogsPDF(
                       filteredReports,
                       { farmId: selectedFarmId !== 'all' ? selectedFarmId : null, farmName: getUserAssignedFarmName(), reportFilter, customDate },
-                      'fishpond_combined.pdf'
+                      `fishpond_condition_reports_${ts}.pdf`
                     );
                     setExportMenuOpen(false);
                   }}

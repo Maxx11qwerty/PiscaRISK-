@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { FaUserCircle, FaEdit, FaTrash, FaSave, FaTimes } from 'react-icons/fa';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logActivity } from '../utils/logger';
 import { sanitizeObjectStrings } from '../utils/sanitize';
+import { deleteUserById as serviceDeleteUserById } from '../services/accountService';
 
 const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -83,11 +84,12 @@ const UserPopup = ({ user, onClose, onUpdate, currentUser }) => {
   const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to delete ${user.username}?`)) {
       try {
-        if (user.role === 'Fish Farmer') {
-          await deleteDoc(doc(db, 'mobileUsers', user.id));
-        } else {
-          await deleteDoc(doc(db, 'users', user.id));
-        }
+        const actorDisplayName =
+          (currentUser?.fullName && String(currentUser.fullName).trim()) ||
+          currentUser?.username ||
+          currentUser?.email ||
+          'Unknown user';
+        await serviceDeleteUserById(user.id, actorDisplayName);
         
         logActivity('account', `User ${user.username} deleted`, currentUser.username);
         

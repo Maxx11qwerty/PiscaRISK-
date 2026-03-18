@@ -29,7 +29,7 @@ const getStatus = (pct) => {
   return { label: 'CRITICAL', color: '#e74c3c' };
 };
 
-const FarmHealthGauge = () => {
+const FarmHealthGauge = ({ dropdownCoordinator, onDropdownOpen }) => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { farmsNameByKey } = useFarms();
@@ -50,6 +50,13 @@ const FarmHealthGauge = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (!dropdownCoordinator?.signal) return;
+    if (dropdownCoordinator.source !== 'homepageFarmHealthExport') {
+      setExportOpen(false);
+    }
+  }, [dropdownCoordinator]);
 
   // Resolve assigned farm name
   useEffect(() => {
@@ -376,6 +383,10 @@ const FarmHealthGauge = () => {
               onClick={() => {
                 const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
                 if (!isTemporaryTechOfficer) {
+                  const isOpening = !exportOpen;
+                  if (isOpening && typeof onDropdownOpen === 'function') {
+                    onDropdownOpen('homepageFarmHealthExport');
+                  }
                   setExportOpen(v => !v);
                 }
               }}
@@ -425,6 +436,10 @@ const FarmHealthGauge = () => {
         <div style={{ position: 'relative', display: isStdPhone ? 'none' : 'block' }}>
           <button
             onClick={() => {
+              const isOpening = !exportOpen;
+              if (isOpening && typeof onDropdownOpen === 'function') {
+                onDropdownOpen('homepageFarmHealthExport');
+              }
               setExportOpen(v => !v);
             }}
             style={{ 

@@ -58,22 +58,32 @@ export const AuthProvider = ({ children }) => {
 
     if (!userId) return;
 
-    // Set up listener for user document in Firestore
-    const userDocRef = doc(db, 'users', userId);
-    userStatusListenerRef.current = onSnapshot(userDocRef, (docSnapshot) => {
-      if (docSnapshot.exists()) {
+    // Watch both collections to cover web and mobile users.
+    const unsubs = [];
+    const watchCollection = (collectionName) => {
+      const userDocRef = doc(db, collectionName, userId);
+      const unsub = onSnapshot(userDocRef, (docSnapshot) => {
+        if (!docSnapshot.exists()) return;
         const userData = docSnapshot.data();
         const status = String(userData.status || '').toLowerCase();
-        
-        // If user status is inactive, automatically logout
-        if (status === 'inactive') {
+
+        // If user status is inactive/deleted, automatically logout.
+        if (status === 'inactive' || status === 'deleted') {
           logout();
         }
-      }
-    }, (error) => {
-      // Don't logout on network errors - only on actual status changes
-      // This prevents false logouts due to temporary network issues
-    });
+      }, () => {
+        // Don't logout on network errors - only on actual status changes
+      });
+      unsubs.push(unsub);
+    };
+
+    watchCollection('users');
+    watchCollection('mobileUsers');
+    userStatusListenerRef.current = () => {
+      unsubs.forEach((u) => {
+        try { u(); } catch (_) {}
+      });
+    };
   };
 
   // Function to clean up user status listener
@@ -533,6 +543,19 @@ export const AuthProvider = ({ children }) => {
 
         if (userDoc.exists()) {
           userData = userDoc.data();
+          const statusLower = String(userData.status || '').toLowerCase();
+
+          // Hard guard: deleted accounts are never allowed to keep a session
+          if (statusLower === 'deleted') {
+            try { await signOut(auth); } catch (_) {}
+            setCurrentUser(null);
+            currentUserRef.current = null;
+            setRequiresOTP(false);
+            setOtpSent(false);
+            cleanupUserStatusListener();
+            setLoading(false);
+            return;
+          }
 
           // Update Firestore with latest verification status in the correct collection
           try {
@@ -667,6 +690,7 @@ export const AuthProvider = ({ children }) => {
 // Login function
 const login = async (emailOrContact, password) => {
   try {
+    const deletedAccountMessage = 'Account no longer available. Please contact the administrator.';
     // Basic client-side guards to avoid bad auth requests (prevents 400s)
     const rawEmailOrContact = String(emailOrContact || '').trim();
     const rawPassword = String(password || '').trim();
@@ -718,8 +742,15 @@ const login = async (emailOrContact, password) => {
       const userDoc = querySnapshot.docs[0];
       userData = userDoc.data();
       
-      // Check if account is suspended (always block suspended accounts)
-      if (userData.status === 'suspended') {
+      // Check if account is deleted/suspended (always block)
+      const preAuthStatus = String(userData?.status || '').toLowerCase();
+      if (preAuthStatus === 'deleted') {
+        return {
+          success: false,
+          message: deletedAccountMessage
+        };
+      }
+      if (preAuthStatus === 'suspended') {
         return {
           success: false,
           message: "Your account has been suspended. Please contact support for assistance."
@@ -772,8 +803,15 @@ const login = async (emailOrContact, password) => {
         userData = userDoc.data();
       }
       
-      // Check if account is suspended (always block suspended accounts)
-      if (userData.status === 'suspended') {
+      // Check if account is deleted/suspended (always block)
+      const preAuthStatus = String(userData?.status || '').toLowerCase();
+      if (preAuthStatus === 'deleted') {
+        return {
+          success: false,
+          message: deletedAccountMessage
+        };
+      }
+      if (preAuthStatus === 'suspended') {
         return {
           success: false,
           message: "Your account has been suspended. Please contact support for assistance."
@@ -851,6 +889,14 @@ const login = async (emailOrContact, password) => {
     }
     
     if (userData) {
+      if (String(userData.status || '').toLowerCase() === 'deleted') {
+        await signOut(auth);
+        return {
+          success: false,
+          message: deletedAccountMessage
+        };
+      }
+
       // Check if email in Firestore matches email in Firebase Auth
       // If they don't match, user changed email but hasn't verified it yet
       const firestoreEmail = String(userData.email || '').trim().toLowerCase();
@@ -903,6 +949,10 @@ const login = async (emailOrContact, password) => {
     
       
       if (statusLowerLoginCheck !== 'active' || !loginRequirementsMet) {
+        if (statusLowerLoginCheck === 'deleted') {
+          await signOut(auth);
+          return { success: false, message: deletedAccountMessage };
+        }
         // If email is verified but phone is not, trigger OTP modal instead of generic error
         if (statusLowerLoginCheck === 'active' && emailVerifiedLoginCheck && !phoneVerifiedLoginCheck) {
           await signOut(auth);
@@ -1800,6 +1850,26 @@ const login = async (emailOrContact, password) => {
         if (!currentAdmin) throw new Error('No admin logged in');
       }
 
+      const normalizedUsername = String(userData?.username || '').trim();
+      if (!normalizedUsername) {
+        throw new Error('Username is required');
+      }
+
+      // Block duplicate usernames across both collections (case-insensitive).
+      // This keeps username identity unique even when roles/collections differ.
+      const usernameLower = normalizedUsername.toLowerCase();
+      const [usersSnap, mobileUsersSnap] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'mobileUsers'))
+      ]);
+      const usernameTaken = [...usersSnap.docs, ...mobileUsersSnap.docs].some((userDoc) => {
+        const existing = String(userDoc.data()?.username || '').trim().toLowerCase();
+        return existing && existing === usernameLower;
+      });
+      if (usernameTaken) {
+        throw new Error('Username already exists in system');
+      }
+
 
 
       const adminUID = currentAdmin.uid;
@@ -1890,7 +1960,7 @@ const login = async (emailOrContact, password) => {
         await setDoc(doc(db, targetCollection, newUserUid), sanitizeObjectStrings({
           // Common
           email: userData.email,
-          username: userData.username,
+          username: normalizedUsername,
           role: canonicalRole,
           status: canonicalStatus,
           createdAt: serverTimestamp(),
@@ -1937,7 +2007,7 @@ const login = async (emailOrContact, password) => {
           profileImage: userData.profileImage || null,
           role: canonicalRole,
           status: canonicalStatus,
-          username: userData.username
+          username: normalizedUsername
         }));
       }
 

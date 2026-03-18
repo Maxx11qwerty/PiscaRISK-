@@ -863,6 +863,21 @@ const Feedback = () => {
       if (event.target.closest('.sidebar-wrapper') || event.target.closest('.header-hamburger-icon')) {
         return;
       }
+
+      const clickedInsideManagedDropdown =
+        event.target.closest('.user-menu') ||
+        event.target.closest('.sidebar-export-container') ||
+        event.target.closest('.feedback-filter-container') ||
+        event.target.closest('.mobile-filter-container') ||
+        event.target.closest('.feedback-filter-dropdown') ||
+        event.target.closest('.mobile-filter-dropdown') ||
+        event.target.closest('.feedback-actions') ||
+        event.target.closest('.action-button') ||
+        event.target.closest('.action-menu');
+
+      if (!clickedInsideManagedDropdown) {
+        closeAllDropdowns();
+      }
       
       // Close sidebar if clicking elsewhere
       if (sidebarOpen) {

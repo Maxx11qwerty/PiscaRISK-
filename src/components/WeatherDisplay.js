@@ -4,7 +4,7 @@ import { fetchWeatherData } from '../services/weatherService';
 import { getTimeOfDay, getWeatherImage, getWeatherIcon } from '../utils/weatherUtils';
 import './WeatherDisplay.css';
 
-const WeatherDisplay = ({ }) => {
+const WeatherDisplay = () => {
   const { t } = useTranslation();
   const [weatherData, setWeatherData] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());

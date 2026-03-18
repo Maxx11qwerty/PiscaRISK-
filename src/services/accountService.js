@@ -1,7 +1,6 @@
-import { collection, getDocs, setDoc, doc, updateDoc, deleteDoc, getDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, updateDoc, getDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { sanitizeObjectStrings } from '../utils/sanitize';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
 import { logActivity, logMessages } from '../utils/logger';
 
@@ -66,7 +65,8 @@ export const fetchAllUsers = async () => {
       }
     });
     
-    const uniqueUsers = Array.from(userMap.values());
+    const uniqueUsers = Array.from(userMap.values())
+      .filter((user) => String(user.status || '').toLowerCase() !== 'deleted');
     
     // Sort users by date joined (newest first)
     return uniqueUsers.sort((a, b) => {
@@ -488,7 +488,14 @@ export const activateFishFarmer = async (userId, email, collectionHint, username
 export const deleteUser = async (userId, role, username, currentUser) => {
   try {
     const collectionName = role === 'Fish Farmer' ? 'mobileUsers' : 'users';
-    await deleteDoc(doc(db, collectionName, userId));
+    await updateDoc(doc(db, collectionName, userId), sanitizeObjectStrings({
+      status: 'deleted',
+      deletedAt: serverTimestamp(),
+      deletedBy: currentUser?.username || currentUser?.email || 'Unknown',
+      adminActivated: false,
+      pendingActivation: false,
+      lastModified: serverTimestamp()
+    }));
     logActivity('account', `User ${username} deleted`, currentUser.username);
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -596,92 +603,64 @@ export const activateTechOfficer = async (userId) => {
 };
 
 
-// Delete user: resolve collection, delete doc, then try deleting from Auth via Cloud Function
-export const deleteUserById = async (userId) => {
+// Soft-delete user in Firestore (keep account in database)
+export const deleteUserById = async (userId, deletedBy = 'Unknown') => {
   try {
-    // Resolve the user email first (from either collection)
+    // Resolve target by ID in either collection
     let ref = doc(db, 'users', userId);
     let snap = await getDoc(ref);
+    let primaryCollection = 'users';
     if (!snap.exists()) {
       ref = doc(db, 'mobileUsers', userId);
       snap = await getDoc(ref);
       if (!snap.exists()) {
         return { success: false, error: 'User not found in any collection' };
       }
+      primaryCollection = 'mobileUsers';
     }
-    const data = snap.data();
+    const data = snap.data() || {};
+    const deletedByLabel = String(deletedBy || 'Unknown').trim() || 'Unknown';
 
-    // Call Cloud Function once to delete from Auth and Firestore
+    const softDeleteFields = sanitizeObjectStrings({
+      status: 'deleted',
+      deletedAt: serverTimestamp(),
+      deletedBy: deletedByLabel,
+      adminActivated: false,
+      pendingActivation: false,
+      lastModified: serverTimestamp()
+    });
+
+    // Update primary document
+    await updateDoc(ref, softDeleteFields);
+
+    // Best-effort mirror in counterpart by same id and/or email
+    const counterpartCollection = primaryCollection === 'users' ? 'mobileUsers' : 'users';
     try {
-      if (data?.email) {
-        // Get current user's auth token
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          const authToken = await currentUser.getIdToken();
-          
-          // Call the HTTP endpoint with proper CORS
-          const response = await fetch('https://us-central1-piscarisk.cloudfunctions.net/deleteAuthUser', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: data.email,
-              userId: userId,
-              authToken: authToken
-            })
-          });
-          
-          if (!response.ok) {
-            let errorMessage = `HTTP error! status: ${response.status}`;
-            try {
-              const errBody = await response.json();
-              if (errBody && errBody.error) errorMessage = errBody.error;
-            } catch (_) { /* ignore parse error */ }
-            throw new Error(errorMessage);
-          }
-          
-          const result = await response.json();
-
-          // Ensure local Firestore cleanup so UI reflects immediately
-          try {
-            if (userId) {
-              const refUsers = doc(db, 'users', userId);
-              const snapUsers = await getDoc(refUsers);
-              if (snapUsers.exists()) {
-                await deleteDoc(refUsers);
-              }
-              const refMobile = doc(db, 'mobileUsers', userId);
-              const snapMobile = await getDoc(refMobile);
-              if (snapMobile.exists()) {
-                await deleteDoc(refMobile);
-              }
-            }
-            if (data?.email) {
-              // Fallback: query by email and delete any leftover docs
-              const qUsers = query(collection(db, 'users'), where('email', '==', data.email));
-              const qsUsers = await getDocs(qUsers);
-              if (!qsUsers.empty) {
-                for (const d of qsUsers.docs) { await deleteDoc(doc(db, 'users', d.id)); }
-              }
-              const qMobile = query(collection(db, 'mobileUsers'), where('email', '==', data.email));
-              const qsMobile = await getDocs(qMobile);
-              if (!qsMobile.empty) {
-                for (const d of qsMobile.docs) { await deleteDoc(doc(db, 'mobileUsers', d.id)); }
-              }
-            }
-          } catch (cleanupErr) {
-          }
-        } else {
-        }
+      const counterpartRef = doc(db, counterpartCollection, userId);
+      const counterpartSnap = await getDoc(counterpartRef);
+      if (counterpartSnap.exists()) {
+        await updateDoc(counterpartRef, softDeleteFields);
       }
-    } catch (authErr) {
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-      }
+    } catch (_) {
+      // ignore counterpart id update failures
     }
-    return { success: true };
+
+    if (data.email) {
+      try {
+        const usersByEmail = await getDocs(query(collection(db, 'users'), where('email', '==', data.email)));
+        for (const d of usersByEmail.docs) {
+          await updateDoc(doc(db, 'users', d.id), softDeleteFields);
+        }
+      } catch (_) {}
+      try {
+        const mobileByEmail = await getDocs(query(collection(db, 'mobileUsers'), where('email', '==', data.email)));
+        for (const d of mobileByEmail.docs) {
+          await updateDoc(doc(db, 'mobileUsers', d.id), softDeleteFields);
+        }
+      } catch (_) {}
+    }
+
+    return { success: true, collection: primaryCollection };
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console

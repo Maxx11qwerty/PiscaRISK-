@@ -53,15 +53,15 @@ export const exportPiscaRiskCSV = ({ farms, allPonds, farmReportsCount, farmRevi
       p.timestamp ? new Date(typeof p.timestamp === 'number' ? p.timestamp : (p.timestamp?.seconds ? p.timestamp.seconds * 1000 : Date.parse(p.timestamp) || Date.now())).toLocaleString() : ''
     ]);
     const lines = [
-      ['PiscaRISK Data — Summary'],
+      ['PiscaRISK Reports — Summary'],
       ...summaryRows,
       [],
       ...(weatherRows.length ? [['Weather Snapshot'], ...weatherRows, []] : []),
-      ['PiscaRISK Data — Farms'],
+      ['PiscaRISK Reports — Farms'],
       farmHeaders,
       ...farmRows,
       [],
-      ['PiscaRISK Data — Pond Predictions'],
+      ['PiscaRISK Reports — Pond Predictions'],
       pondHeaders,
       ...pondRows,
     ];
@@ -91,7 +91,7 @@ export const exportPiscaRiskPDF = ({ farms, allPonds, farmReportsCount, farmRevi
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     // Summary
     doc.setFontSize(14);
-    doc.text('PiscaRISK Data — Summary', 24, 28);
+    doc.text('PiscaRISK Reports — Summary', 24, 28);
     const now = new Date();
     const totalFarms = summary?.totalFarms ?? farms.length;
     const totalPonds = summary?.totalPonds ?? allPonds.length;
@@ -132,7 +132,7 @@ export const exportPiscaRiskPDF = ({ farms, allPonds, farmReportsCount, farmRevi
     // Farms
     doc.addPage('a4','landscape');
     doc.setFontSize(14);
-    doc.text('PiscaRISK Data — Farms', 24, 28);
+    doc.text('PiscaRISK Reports — Farms', 24, 28);
     const farmBody = farms.map(f => [
       f.name,
       f.key,
@@ -156,7 +156,7 @@ export const exportPiscaRiskPDF = ({ farms, allPonds, farmReportsCount, farmRevi
 
     doc.addPage('a4','landscape');
     doc.setFontSize(14);
-    doc.text('PiscaRISK Data — Pond Predictions', 24, 28);
+    doc.text('PiscaRISK Reports — Pond Predictions', 24, 28);
     const pondBody = allPonds.map(p => [
       p.farm || p.farm_name || '',
       p.fish_pond || '',

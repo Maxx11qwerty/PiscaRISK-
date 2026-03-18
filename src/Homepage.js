@@ -12,6 +12,7 @@ import { fetchWeatherData } from './services/weatherService';
 import WeatherBox from './components/WeatherBox';
 import WeatherDisplay from './components/WeatherDisplay';
 import { exportBoxData } from './utils/exportBoxData';
+import { exportWeatherData } from './utils/exportWeatherData';
 import NotificationBox from './components/NotificationBox';
 import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
@@ -111,12 +112,35 @@ const PiscaRiskHome = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [closeNotificationsSignal, setCloseNotificationsSignal] = useState(0);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [dropdownCoordinator, setDropdownCoordinator] = useState({ signal: 0, source: '' });
   const [selectedPond, setSelectedPond] = useState(1);
   const { currentUser, handleLogout, sendVerificationEmail } = useContext(AuthContext);
   const { addToast, removeToast } = useNotifications();
   const [errorMessage, setErrorMessage] = useState('');
   const [nightMode, setNightMode] = useState(false);
   const [language, setLanguage] = useState('en');
+
+  const closeAllDropdowns = () => {
+    setShowMenu(false);
+    setShowDownloadOptions(false);
+  };
+
+  const notifyDropdownOpen = (source) => {
+    setDropdownCoordinator((prev) => ({
+      signal: prev.signal + 1,
+      source,
+    }));
+  };
+
+  useEffect(() => {
+    if (!dropdownCoordinator.signal) return;
+    if (dropdownCoordinator.source !== 'homepageUserMenu') {
+      setShowMenu(false);
+    }
+    if (dropdownCoordinator.source !== 'homepageSidebarExport') {
+      setShowDownloadOptions(false);
+    }
+  }, [dropdownCoordinator]);
   // Use global variable to track toast ID across all pages
   if (typeof window.emailVerificationToastId === 'undefined') {
     window.emailVerificationToastId = null;
@@ -355,13 +379,18 @@ const PiscaRiskHome = () => {
       if (sidebarOpen && sidebar && !sidebar.contains(event.target) && !hamburger?.contains(event.target)) {
         setSidebarOpen(false);
       }
+
+      const clickedInsideManagedDropdown =
+        event.target.closest('.user-menu') ||
+        event.target.closest('.sidebar-export-container');
+
+      if (!clickedInsideManagedDropdown) {
+        closeAllDropdowns();
+      }
     };
 
-    // Only add listener on mobile devices
-    if (window.innerWidth <= 1023) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -404,7 +433,7 @@ const PiscaRiskHome = () => {
     }
   };
 
-  const handleExport = (format) => {
+  const handleExport = (format, options = {}) => {
     exportBoxData({
       format,
       boxData,
@@ -413,9 +442,19 @@ const PiscaRiskHome = () => {
       lastUpdated,
       setShowDownloadOptions,
       currentUser: currentUser,
-      allFarmsRiskData: allFarmsRiskData
+      allFarmsRiskData: allFarmsRiskData,
+      onlyBoxIds: options.onlyBoxIds || null
     });
   }; 
+
+  const handleWeatherExport = (format) => {
+    exportWeatherData({
+      format,
+      weatherData,
+      lastUpdated,
+      currentUser
+    });
+  };
 
   const handleLogsClick = async () => {
     if (currentUser?.role === 'Tech Officer' && currentUser?.role !== 'New Main Tech Officer') {
@@ -445,11 +484,12 @@ const PiscaRiskHome = () => {
         <WeatherBox 
           weatherData={weatherData} 
           lastUpdated={lastUpdated}
-          onRefresh={refreshWeather}
+          refreshWeather={refreshWeather}
+          onExport={handleWeatherExport}
           loading={loading}
         />
       ),
-      modalContent: <WeatherDisplay isModal />
+      modalContent: <WeatherDisplay />
     },
     {
       id: 2,
@@ -771,7 +811,7 @@ const PiscaRiskHome = () => {
           return null;
       }
     };
-  }, [selectedPond, t, location.state, modalKey, modalFarmName, modalDetailsFarmKey, modalInitialRiskLevel, modalInitialPond, modalInitialPonds]);
+  }, [selectedPond, t, location.state, modalKey, modalFarmName, modalDetailsFarmKey, modalInitialRiskLevel, modalInitialPond, modalInitialPonds, weatherData, lastUpdated, refreshWeather, handleExport, loading]);
 
   return (
     <div className="homepage-container">
@@ -792,7 +832,15 @@ const PiscaRiskHome = () => {
               externalCloseSignal={closeNotificationsSignal}
             />
             <div className="user-menu">
-              <button onClick={() => { setShowMenu(!showMenu); setCloseNotificationsSignal(v => v + 1); }}>
+              <button onClick={() => {
+                const isOpening = !showMenu;
+                closeAllDropdowns();
+                if (isOpening) {
+                  notifyDropdownOpen('homepageUserMenu');
+                }
+                setShowMenu(isOpening);
+                setCloseNotificationsSignal(v => v + 1);
+              }}>
                 {currentUser?.profileImage ? (
                   <img 
                     src={currentUser.profileImage} 
@@ -833,6 +881,7 @@ const PiscaRiskHome = () => {
           currentUser={currentUser}
           showDownloadOptions={showDownloadOptions}
           setShowDownloadOptions={setShowDownloadOptions}
+          onDropdownOpen={notifyDropdownOpen}
           handleExport={handleExport}
           onDashboardClick={() => navigate('/Homepage')}
           onAccountManagementClick={handleAccountManagementClick}
@@ -926,9 +975,18 @@ const PiscaRiskHome = () => {
             <div className="dashboard-top-row">
               <div className="main-box">
                 {chartIndex === 0 ? (
-                  <ReportsChart />
+                  <ReportsChart
+                    dropdownCoordinator={dropdownCoordinator}
+                    onDropdownOpen={notifyDropdownOpen}
+                  />
                 ) : (
-                  <PondsAtRiskStackedChart onDrilldown={openDrilldown} onLoadingChange={setChartLoading} onGroupModeChange={setChartGroupMode} />
+                  <PondsAtRiskStackedChart
+                    onDrilldown={openDrilldown}
+                    onLoadingChange={setChartLoading}
+                    onGroupModeChange={setChartGroupMode}
+                    dropdownCoordinator={dropdownCoordinator}
+                    onDropdownOpen={notifyDropdownOpen}
+                  />
                 )}
                 <button className={`next-chart-btn ${chartLoading ? 'loading' : ''} ${chartGroupMode === 'risk' ? 'risk-view' : ''} ${chartIndex === 0 ? 'reports-chart' : 'ponds-chart'}`} onClick={nextChart} aria-label={chartIndex === 0 ? "Next chart" : "Previous chart"}>
                   {chartIndex === 0 ? "←" : "→"}
@@ -937,7 +995,10 @@ const PiscaRiskHome = () => {
 
               <div className="right-sidebar">
                 <div className="pie-chart-box">
-                <FarmHealthGauge />
+                <FarmHealthGauge
+                  dropdownCoordinator={dropdownCoordinator}
+                  onDropdownOpen={notifyDropdownOpen}
+                />
                 </div>
                 {/* 
                 <div className="calendar-box">
