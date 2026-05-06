@@ -46,6 +46,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
   const [specificPonds, setSpecificPonds] = useState([]); // Ponds to show when filtering by clicked bar
   const appliedInitialFilterRef = React.useRef(false);
   const initialDetailsProcessedRef = React.useRef(false);
+  const skipAutoSelectPondRef = useRef(false);
 
   // Auto-close urgent recommendations when switching tabs
   useEffect(() => {
@@ -975,6 +976,13 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       // Only auto-select if no initial pond was provided
       if (!initialPond) {
         setSelectedPond(null);
+
+        // When opening "View Details" from the farm card, we want Overview to show
+        // ALL ponds with reports (selectedPond should remain null).
+        if (skipAutoSelectPondRef.current) {
+          skipAutoSelectPondRef.current = false;
+          return;
+        }
         
         // Auto-select the pond with the latest risk data
         const farm = farms.find(f => f.farm_key === detailsFarmKey);
@@ -1979,7 +1987,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
       </div>
 
       {/* Average Confidence Indicator for Assigned Farm */}
-      {assignedFarmConfidence !== null && (() => {
+      {!detailsFarmKey && assignedFarmConfidence !== null && (() => {
         // Calculate trend for assigned farm
         const assignedFarm = farms.find(farm => {
           const farmKey = farm.farm_key;
@@ -2072,6 +2080,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         );
       })()}
 
+      {!detailsFarmKey && (
       <div className="farm-overview-section">
         <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
           <button
@@ -2445,8 +2454,21 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         e.stopPropagation();
                         if (detailsFarmKey === farm.farm_key) return; // prevent re-opening same modal
                         if (detailsFarmKey) return; // another details modal already open
+                        // Prevent the "auto-select latest pond" effect from collapsing
+                        // Overview into only one pond. We want Overview to show ALL ponds.
+                        skipAutoSelectPondRef.current = true;
                         setDetailsFarmKey(farm.farm_key);
                         setActiveTab('overview'); // Reset to overview tab when opening
+                        // Reset filters so Overview shows ALL ponds with reports
+                        setSelectedPond(null);
+                        setSpecificPonds([]);
+                        setSelectedRiskLevel('all');
+                        setPondSearchTerm('');
+                        setShowPondDropdown(false);
+                        setShowHistoryFilter(false);
+                        setSelectedTimestamp('latest');
+                        setForcedDateMs(null);
+                        setExpandedCardId(null);
                         try { 
                           const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                           logActivity('report', `View Details opened for farm ${farm.farm_name} in Risk Reports`, u); 
@@ -2480,6 +2502,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           </div>
                         )}
                     </div>
+      )}
 
       {/* Details Modal */}
       {detailsFarmKey && (() => {
@@ -2623,7 +2646,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
         })();
         
         return (
-          <div className="farm-details-modal-overlay">
+          <div className={`farm-details-modal-overlay ${isModal ? 'farm-details-modal-overlay-inplace' : ''}`}>
             <div className="farm-details-modal">
               <div className="farm-details-header">
                 <div className="header-content">
@@ -2730,6 +2753,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                     setSelectedTimestamp('latest');
                     setShowHistoryFilter(false);
                     setActiveTab('overview');
+                    setExpandedCardId(null);
                     try { 
                       const u = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
                       logActivity('report', `Details modal closed in Risk Reports`, u); 
@@ -2920,28 +2944,11 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   isUserActionRef.current = true;
                         setShowHistoryFilter(false);
                         setSelectedTimestamp('latest');
-                        // Restore latest pond selection when exiting history mode
-                        const farm = farms.find(f => f.farm_key === detailsFarmKey);
-                        if (farm && farm.predictions && Array.isArray(farm.predictions)) {
-                          const latestPonds = getLatestRiskPerPond(farm);
-                          if (latestPonds.length > 0) {
-                            // Find the pond with the most recent timestamp
-                            let latestPond = null;
-                            let latestTimestamp = 0;
-                            
-                            latestPonds.forEach(pred => {
-                              const timestamp = getTimestampMs(pred.timestamp);
-                              if (timestamp > latestTimestamp) {
-                                latestTimestamp = timestamp;
-                                latestPond = formatPondName(pred.fish_pond);
-                              }
-                            });
-                            
-                            if (latestPond) {
-                              setSelectedPond(latestPond);
-                            }
-                          }
-                        }
+                        // Return to "all ponds" when exiting history mode.
+                        // Do not auto-select a single pond.
+                        setSelectedPond(null);
+                        setPondSearchTerm('');
+                        setExpandedCardId(null);
                       }}
                       className="back-to-latest-button"
                     >
@@ -3012,17 +3019,15 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                     // Check if selected pond matches the current risk level filter
                     const selectedPondMatchesFilter = selectedPond && filteredPonds.some(pond => pond.name === selectedPond);
                     
-                    // Show no pond message if no pond selected OR selected pond doesn't match risk filter
-                    // BUT only when not viewing history (when viewing history, show all reports for the selected date)
-                    if (!showHistoryFilter && (!selectedPond || !selectedPondMatchesFilter)) {
+                    // When not viewing history:
+                    // - If selectedPond is null => treat it as "show all ponds", so don't show a "select a pond" block.
+                    // - If selectedPond exists but doesn't match the risk filter => show the no-pond message.
+                    if (!showHistoryFilter && selectedPond && !selectedPondMatchesFilter) {
                       return (
                         <div className="no-pond-selected">
                           <div className="no-pond-message">
                             <h4>
-                              {!selectedPond 
-                                ? "💬 Please select a pond to continue." 
-                                : `🔍 No ponds found with ${selectedRiskLevel === 'all' ? 'any' : selectedRiskLevel} risk level. Please select a different risk level or choose another pond.`
-                              }
+                              {`🔍 No ponds found with ${selectedRiskLevel === 'all' ? 'any' : selectedRiskLevel} risk level. Please select a different risk level or choose another pond.`}
                             </h4>
                           </div>
                         </div>
@@ -3140,19 +3145,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                               
                               return (
                                 <div key={pondName} className="pond-group-cards">
-                                  {/* Pond divider */}
-                                  {pondIndex > 0 && (
-                                    <div className="pond-divider" style={{ 
-                                      textAlign: 'center', 
-                                      margin: '20px 0',
-                                      color: '#6b7280',
-                                      fontSize: '0.875rem',
-                                      fontWeight: '600'
-                                    }}>
-                                      ──── Different Pond ────
-                                    </div>
-                                  )}
-                                  
+                                  {/* Different pond divider removed for cleaner UI */}
                                   {/* Cards for each report in this pond */}
                                   {pondReports.map((p, reportIndex) => {
                                     const risk = normalizeRisk(p.risk_level);
@@ -3190,6 +3183,18 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                           <div>
                                             <div style={{ fontWeight: '600', fontSize: '1rem', color: '#1f2937' }}>
+                                              <span
+                                                style={{
+                                                  display: 'inline-block',
+                                                  marginRight: 8,
+                                                  fontSize: '0.85rem',
+                                                  color: '#1A4375',
+                                                  fontWeight: 700
+                                                }}
+                                                aria-hidden="true"
+                                              >
+                                                {expandedCardId === (p.id || `${pondName}-${reportIndex}`) ? '▼' : '▶'}
+                                              </span>
                                               {pondName}
                                               {isMultipleReports && (
                                                 <span style={{ 
@@ -3298,6 +3303,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                       </thead>
                           <tbody>
                               {displayPredictions.length > 0 ? (() => {
+                                const shouldCollapseRows = displayPredictions.length > 3;
                                 
                                 // Group predictions by pond
                                 const pondGroups = {};
@@ -3318,27 +3324,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   
                                   return (
                                     <React.Fragment key={pondName}>
-                                      {/* Add divider if this is not the first pond */}
-                                      {pondIndex > 0 && (
-                                        <tr className="pond-divider-row">
-                                          <td colSpan="3" style={{ 
-                                            padding: '15px 0', 
-                                            borderTop: '3px solid #d1d5db',
-                                            background: '#f8fafc'
-                                          }}>
-                                            <div style={{ 
-                                              textAlign: 'center', 
-                                              color: '#6b7280', 
-                                              fontSize: '0.875rem',
-                                              fontWeight: '600',
-                                              letterSpacing: '0.5px'
-                                            }}>
-                                              ──── Different Pond ────
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                      
+                                      {/* Different pond divider removed for cleaner UI */}
                                       {pondReports.map((p, reportIndex) => {
                               const risk = normalizeRisk(p.risk_level);
                               const emoji = risk === 'High' ? '🔴' : risk === 'Medium' ? '🟠' : risk === 'Low' ? '🟢' : '🟢';
@@ -3347,12 +3333,35 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           const submittedDate = submittedMs ? new Date(submittedMs).toLocaleDateString() : '—';
                           const generatedDate = generatedMs ? new Date(generatedMs).toLocaleDateString() : '—';
                                         const reportTime = generatedMs ? new Date(generatedMs).toLocaleTimeString() : '—';
+                                        const detailKey = p.id || `${pondName}-${reportIndex}`;
+                                        const isExpanded = !shouldCollapseRows || expandedCardId === detailKey;
                               
                               return (
-                                          <React.Fragment key={p.id || `${pondName}-${reportIndex}`}>
+                                          <React.Fragment key={detailKey}>
                                 {/* Main pond row */}
-                                <tr className="pond-table-row">
+                                <tr
+                                  className="pond-table-row"
+                                  style={{ cursor: shouldCollapseRows ? 'pointer' : 'default' }}
+                                  onClick={() => {
+                                    if (!shouldCollapseRows) return;
+                                    setExpandedCardId(prev => (prev === detailKey ? null : detailKey));
+                                  }}
+                                >
                                               <td className="pond-name" style={{ whiteSpace: 'nowrap', width: '40%' }}>
+                                                {shouldCollapseRows && (
+                                                  <span
+                                                    style={{
+                                                      display: 'inline-block',
+                                                      marginRight: 8,
+                                                      fontSize: '0.85rem',
+                                                      color: '#1A4375',
+                                                      fontWeight: 700
+                                                    }}
+                                                    aria-hidden="true"
+                                                  >
+                                                    {isExpanded ? '▼' : '▶'}
+                                                  </span>
+                                                )}
                                                 {pondName}
                                                 {isMultipleReports && (
                                                   <div style={{ 
@@ -3386,38 +3395,40 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   </td>
                                 </tr>
                                 {/* Details row */}
-                                <tr className="pond-details-row">
-                                  <td colSpan="3" className="pond-details-cell">
-                                    <div className="pond-reason-details">
-                                      {(() => {
-                                        const reasonText = buildPondReason(p);
-                                        const recommendedActions = extractRecommendedActions(reasonText);
-                                        const cleanReason = cleanReasonText(reasonText);
-                                        
-                                        return (
-                                          <>
-                                            <div className="reason-summary">
-                                              <strong>Reason:</strong> {cleanReason}
-                                            </div>
-                                            {recommendedActions && (
-                                              <div className="recommended-actions">
-                                                <strong>Actions:</strong> {recommendedActions}
+                                {isExpanded && (
+                                  <tr className="pond-details-row">
+                                    <td colSpan="3" className="pond-details-cell">
+                                      <div className="pond-reason-details">
+                                        {(() => {
+                                          const reasonText = buildPondReason(p);
+                                          const recommendedActions = extractRecommendedActions(reasonText);
+                                          const cleanReason = cleanReasonText(reasonText);
+                                          
+                                          return (
+                                            <>
+                                              <div className="reason-summary">
+                                                <strong>Reason:</strong> {cleanReason}
                                               </div>
-                                            )}
-                                          </>
-                                        );
-                                      })()}
-                                      <div className="timestamps-info">
-                                        <span className="timestamp-item">
-                                          <strong>Data submitted:</strong> {submittedDate}
-                                        </span>
-                                        <span className="timestamp-item">
-                                          <strong>Prediction generated:</strong> {generatedDate}
-                                        </span>
+                                              {recommendedActions && (
+                                                <div className="recommended-actions">
+                                                  <strong>Actions:</strong> {recommendedActions}
+                                                </div>
+                                              )}
+                                            </>
+                                          );
+                                        })()}
+                                        <div className="timestamps-info">
+                                          <span className="timestamp-item">
+                                            <strong>Data submitted:</strong> {submittedDate}
+                                          </span>
+                                          <span className="timestamp-item">
+                                            <strong>Prediction generated:</strong> {generatedDate}
+                                          </span>
+                                        </div>
                                       </div>
-                                    </div>
-                                  </td>
-                                </tr>
+                                    </td>
+                                  </tr>
+                                )}
                               </React.Fragment>
                               );
                                       })}
@@ -3790,6 +3801,10 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                   textAlign: 'center'
                                 } : {}}>
                                   <h4 style={{ margin: showHistoryFilter ? '0 0 8px 0' : '0', color: showHistoryFilter ? '#1f2937' : 'inherit' }}>🎯 Insights</h4>
+                                  <div style={{ margin: showHistoryFilter ? '0 0 8px 0' : '8px 0', fontSize: '0.88rem', color: '#4b5563' }}>
+                                    <strong>Farm:</strong> {farm?.farm_name || t('riskReportModal.unknownFarm')} |{' '}
+                                    <strong>Pond:</strong> {selectedPond || checklist?.location_info?.fish_pond || 'All ponds'}
+                                  </div>
                                   <p style={{ margin: '0', color: showHistoryFilter ? '#6b7280' : 'inherit' }}>No completed tasks detected. Insights will be available once progress is made.</p>
                                 </div>
                               </div>
@@ -3865,6 +3880,10 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           return (
                             <>
                               <h4>🎯 Insights</h4>
+                              <div style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#4b5563' }}>
+                                <strong>Farm:</strong> {farm?.farm_name || t('riskReportModal.unknownFarm')} |{' '}
+                                <strong>Pond:</strong> {selectedPond || formattedChecklistPond || 'All ponds'}
+                              </div>
                               
                               {/* Conditional info text based on risk level */}
                               <div

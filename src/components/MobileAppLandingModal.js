@@ -22,7 +22,7 @@ const slides = [
   },
   {
     title: 'Stay Aware, Stay Protected',
-    description: 'Get real-time weather alerts and identify potential risks before they affect your farm.',
+    description: 'Stay updated on weather conditions and identify potential risks to protect your farm.',
     image: mobWeather,
     highlights: ['Weather insights', 'Risk assessment', 'Preparedness'],
     longText:
@@ -175,6 +175,13 @@ export default function MobileAppLandingModal({ open, onProceed }) {
                       <div className="promo-download-center" aria-label="Download PiscaRISK Mobile App">
                         <button
                           type="button"
+                          className="promo-apk-link"
+                          onClick={() => window.open(APK_DRIVE_URL, '_blank', 'noopener,noreferrer')}
+                        >
+                          Get the Mobile App
+                        </button>
+                        <button
+                          type="button"
                           className="promo-qr-btn"
                           onClick={() => window.open(APK_DRIVE_URL, '_blank', 'noopener,noreferrer')}
                           title="Scan QR code to download the mobile app"
@@ -184,13 +191,6 @@ export default function MobileAppLandingModal({ open, onProceed }) {
                           onBlur={() => setIsPaused(false)}
                         >
                           <img className="promo-qr" src={mobileAppQr} alt="PiscaRISK Mobile App QR" />
-                        </button>
-                        <button
-                          type="button"
-                          className="promo-apk-link"
-                          onClick={() => window.open(APK_DRIVE_URL, '_blank', 'noopener,noreferrer')}
-                        >
-                          Get the Mobile App
                         </button>
                       </div>
                     </div>

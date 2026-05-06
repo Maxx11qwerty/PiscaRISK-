@@ -36,6 +36,31 @@
   animation: fadeInScale 0.3s ease;
 }
 
+/* When Stock & Feed Logs replaces the Fish Pond Condition view inside the same modal */
+.pond-logs-inline-close {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(31, 63, 99, 0.10);
+  color: #1f3f63;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  z-index: 2;
+}
+
+.pond-logs-inline-close:hover {
+  background: rgba(31, 63, 99, 0.16);
+}
+
 @keyframes fadeInScale {
   from {
     opacity: 0;

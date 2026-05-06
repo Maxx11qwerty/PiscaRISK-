@@ -360,14 +360,16 @@
   font-family: 'customfont3', 'customfont2', 'customfont', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* Centered download area under long text */
+/* Centered download area: CTA above QR */
 .promo-download-center {
   margin-top: 14px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 14px;
+  text-align: center;
+  width: 100%;
 }
 
 .promo-qr-btn {
@@ -382,8 +384,8 @@
 }
 
 .promo-qr {
-  width: 64px;
-  height: 64px;
+  width: 92px;
+  height: 92px;
   object-fit: contain;
   display: block;
   transition: transform 180ms ease;
@@ -406,6 +408,8 @@
   cursor: pointer;
   font-family: 'customfont2', 'customfont', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   box-shadow: 0 10px 18px rgba(44, 81, 125, 0.08);
+  align-self: center;
+  text-align: center;
 }
 
 .promo-apk-link:hover,
@@ -507,7 +511,16 @@
   }
 
   .promo-download-center {
-    gap: 10px;
+    gap: 12px;
+  }
+
+  .promo-qr {
+    width: 104px;
+    height: 104px;
+  }
+
+  .promo-qr-btn {
+    padding: 8px;
   }
 
   .promo-controls {

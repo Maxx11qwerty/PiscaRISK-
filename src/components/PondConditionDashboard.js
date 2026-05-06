@@ -1281,6 +1281,24 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     );
   }
 
+  // When Stock & Feed Logs is opened, replace the Fish Pond Condition UI
+  // so it doesn't overlay, and keep the same outer modal size.
+  if (openLogsModal) {
+    return (
+      <div className={`pond-condition-container ${isModal ? 'modal-view' : ''}`} style={{ position: 'relative' }}>
+        <button
+          type="button"
+          className="pond-logs-inline-close"
+          onClick={() => setOpenLogsModal(null)}
+          aria-label="Close Stock & Feed Logs and go back to Fish Pond Condition"
+        >
+          &times;
+        </button>
+        <StockFeedLogs farmId={openLogsModal.farmId} farmName={openLogsModal.farmName} />
+      </div>
+    );
+  }
+
   return (
     <div className={`pond-condition-container ${isModal ? 'modal-view' : ''}`}>
       <div className="pond-report-header">

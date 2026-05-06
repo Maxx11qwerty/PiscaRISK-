@@ -74,6 +74,8 @@ const AccountManagement = () => {
   // Delete confirmation modal state
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [deleteConfirmData, setDeleteConfirmData] = useState(null);
+  const [showDeactivateConfirmModal, setShowDeactivateConfirmModal] = useState(false);
+  const [deactivateConfirmUser, setDeactivateConfirmUser] = useState(null);
 
   // Name sorting dropdown states
   const [showNameDropdown, setShowNameDropdown] = useState(false);
@@ -806,6 +808,79 @@ const AccountManagement = () => {
     } catch (error) {
       setMessage({ text: `Error deactivating ${user.username}: ${error.message}`, type: 'error' });
     }
+  };
+
+  const executeDeactivateAccount = async (user) => {
+    if (!canManageUsers) return;
+    if (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer') return;
+
+    const current = String(user.status || '').toLowerCase();
+    if (current !== 'active') return;
+
+    const nextStatus = 'Deactivated';
+    try {
+      // Suppress the next generic increase toast ("New user is awaiting activation")
+      try { if (typeof suppressNextActivationIncreaseToast === 'function') suppressNextActivationIncreaseToast(); } catch (_) {}
+
+      // Use service function for consistent handling of both collections
+      const result = await serviceUpdateUserStatus(
+        user.id,
+        nextStatus,
+        user.role,
+        user.collection || undefined,
+        user.email || undefined,
+        user.username || undefined,
+        (currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'),
+        (currentUser?.role || 'Unknown'),
+        (currentUser?.farm || null)
+      );
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to update status');
+      }
+
+      // Update local state with deactivation tracking
+      const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+      const adminRole = currentUser?.role || 'Unknown';
+      const deactivatedByWithRole = `${adminUser} (${adminRole})`;
+
+      setAccountUsers(prev => prev.map(u =>
+        u.id === user.id ? {
+          ...u,
+          status: 'Deactivated',
+          deactivatedBy: deactivatedByWithRole,
+          deactivatedAt: new Date().toISOString(),
+          deactivationReason: 'Status changed via toggle'
+        } : u
+      ));
+      addDeactivationToast(user.username || user.email || 'User');
+      setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
+      try {
+        const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
+        logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
+      } catch (_) {}
+    } catch (error) {
+      setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
+      setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
+    }
+  };
+
+  const handleDeactivateAccount = (user) => {
+    if (!canManageUsers) return;
+    if (!user) return;
+    if (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer') return;
+    const current = String(user.status || '').toLowerCase();
+    if (current !== 'active') return;
+    setDeactivateConfirmUser(user);
+    setShowDeactivateConfirmModal(true);
+  };
+
+  const confirmDeactivateAccount = async () => {
+    if (!deactivateConfirmUser) return;
+    const user = deactivateConfirmUser;
+    setShowDeactivateConfirmModal(false);
+    setDeactivateConfirmUser(null);
+    await executeDeactivateAccount(user);
   };
 
   const filteredUsers = AccountUsers.filter(user => {
@@ -3637,7 +3712,7 @@ const handleActivateFishFarmer = async (user) => {
                               (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                 ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
                                 : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
-                                  ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                  ? `Use Edit to deactivate this account (${user.username || user.email || 'User'})` 
                                   : (canManageUsers && (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated')) 
                                     ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
                                     : undefined
@@ -3646,71 +3721,17 @@ const handleActivateFishFarmer = async (user) => {
                               (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer')
                                 ? `Temporary Tech Officer - Use Deactivate TTO button to deactivate`
                                 : (canManageUsers && String(user.status || '').toLowerCase() === 'active') 
-                                  ? `Click to deactivate this account (${user.username || user.email || 'User'})` 
+                                  ? `Use Edit to deactivate this account (${user.username || user.email || 'User'})` 
                                   : (canManageUsers && (String(user.status || '').toLowerCase() === 'inactive' || String(user.status || '').toLowerCase() === 'deactivated')) 
                                     ? `Use the Activate button to activate this account (${user.username || user.email || 'User'})` 
                                     : undefined
                             }
                             style={{ 
-                              cursor: (canManageUsers && String(user.status || '').toLowerCase() === 'active' && !user.temporaryTechOfficer && String(user.role || '').toLowerCase() !== 'temp_tech_officer') 
-                                ? 'pointer' 
-                                : 'default' 
+                              cursor: 'default'
                             }}
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!canManageUsers) return;
-                              // Disable deactivation for Temporary Tech Officer users
-                              if (user.temporaryTechOfficer || String(user.role || '').toLowerCase() === 'temp_tech_officer') return;
-                              const current = String(user.status || '').toLowerCase();
-                              // Only allow deactivation via click. Activation must use the Activate button.
-                              if (current !== 'active') return;
-                              const nextStatus = 'Deactivated';
-                              try {
-                                // Suppress the next generic increase toast ("New user is awaiting activation")
-                                try { if (typeof suppressNextActivationIncreaseToast === 'function') suppressNextActivationIncreaseToast(); } catch (_) {}
-                                // Use service function for consistent handling of both collections
-                                const result = await serviceUpdateUserStatus(
-                                  user.id,
-                                  nextStatus,
-                                  user.role,
-                                  user.collection || undefined,
-                                  user.email || undefined,
-                                  user.username || undefined,
-                                  (currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown'),
-                                  (currentUser?.role || 'Unknown'),
-                                  (currentUser?.farm || null)
-                                );
-                                
-                                if (!result?.success) {
-                                  throw new Error(result?.error || 'Failed to update status');
-                                }
-                                
-                                // Update local state with deactivation tracking
-                                const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                                const adminRole = currentUser?.role || 'Unknown';
-                                const deactivatedByWithRole = `${adminUser} (${adminRole})`;
-                                
-                                setAccountUsers(prev => prev.map(u => 
-                                  u.id === user.id ? { 
-                                    ...u, 
-                                    status: 'Deactivated',
-                                    deactivatedBy: deactivatedByWithRole,
-                                    deactivatedAt: new Date().toISOString(),
-                                    deactivationReason: 'Status changed via toggle'
-                                  } : u
-                                ));
-                                // Show deactivation toast
-                                addDeactivationToast(user.username || user.email || 'User');
-                                setMessage({ text: `${user.username || user.email || 'User'} status updated to ${nextStatus}.`, type: 'success' });
-                                try {
-                                  const adminUser = currentUser?.username || currentUser?.email || currentUser?.uid || 'Unknown';
-                                  logActivity('account', `Status set to ${nextStatus} for ${user.username || user.email || user.id}`, adminUser);
-                                } catch (_) {}
-                              } catch (error) {
-                                // Revert UI on error
-                                setAccountUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: current } : u));
-                                setMessage({ text: `Failed to update status: ${error.message}`, type: 'error' });
-                              }
+                              return;
                             }}
                           >
                             <span className={`status-dot ${user.status?.toLowerCase() === 'active' ? 'active' : 'inactive'}`}></span>
@@ -3840,6 +3861,18 @@ const handleActivateFishFarmer = async (user) => {
                                       disabled={resettingPasswordUserId === user.id}
                                     >
                                       <MdOutlineLockReset /> {resettingPasswordUserId === user.id ? 'Sending...' : t('accountManagement.user_list.reset_password_button')}
+                                    </button>
+                                  )}
+                                  {String(user.role || '').toLowerCase() !== 'temp_tech_officer' && !user.temporaryTechOfficer && (
+                                    <button
+                                      className="edit-dropdown-item delete-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        closeAllDropdowns();
+                                        handleDeactivateAccount(user);
+                                      }}
+                                    >
+                                      Deactivate Account
                                     </button>
                                   )}
                                   <button
@@ -4022,6 +4055,53 @@ const handleActivateFishFarmer = async (user) => {
                 onClick={deleteConfirmData?.type === 'bulk' ? confirmBulkDelete : confirmDeleteUser}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeactivateConfirmModal && (
+        <div
+          className="delete-confirm-modal-overlay"
+          onClick={() => {
+            setShowDeactivateConfirmModal(false);
+            setDeactivateConfirmUser(null);
+          }}
+        >
+          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-confirm-header">
+              <h3>Confirm Deactivation</h3>
+              <button
+                className="close-modal-btn"
+                onClick={() => {
+                  setShowDeactivateConfirmModal(false);
+                  setDeactivateConfirmUser(null);
+                }}
+              >
+                &times;
+              </button>
+            </div>
+            <div className="delete-confirm-body">
+              <p>
+                Are you sure you want to deactivate user "{deactivateConfirmUser?.username || deactivateConfirmUser?.email || 'Unknown'}"?
+              </p>
+            </div>
+            <div className="delete-confirm-actions">
+              <button
+                className="cancel-btn"
+                onClick={() => {
+                  setShowDeactivateConfirmModal(false);
+                  setDeactivateConfirmUser(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="confirm-delete-btn"
+                onClick={confirmDeactivateAccount}
+              >
+                Deactivate
               </button>
             </div>
           </div>

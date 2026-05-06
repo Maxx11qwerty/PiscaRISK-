@@ -1472,6 +1472,7 @@
   padding: 30px;
   border-radius: 15px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
 /* Loading State */
@@ -2937,6 +2938,51 @@
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+}
+
+/* In the Homepage “Risk Reports” modal, we want details to replace content
+   inside the same modal (not open a nested fixed overlay). */
+.farm-details-modal-overlay-inplace {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  background: #ffffff;
+  display: block;
+  padding: 0;
+  z-index: auto;
+}
+
+.farm-details-modal-overlay-inplace .farm-details-modal {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
+  border-radius: 0;
+  border: none;
+}
+
+/* Ensure the details content doesn't stretch the container */
+.farm-details-modal-overlay-inplace .farm-details-content {
+  overflow-y: visible !important;
+  flex: 0 0 auto !important;
+  min-height: auto !important;
+}
+
+/* Avoid double-scroll inside the Homepage Risk Reports modal.
+   Let the outer modal handle scrolling when details are shown in-place. */
+/* Constrain details so the parent modal doesn't become excessively tall.
+   Scroll happens inside the details area (inplace mode), but scrollbar is hidden. */
+.farm-details-modal-overlay-inplace .farm-details-content {
+  overflow-y: visible !important;
+  flex: 0 0 auto !important;
+  min-height: auto !important;
+}
+
+.farm-details-modal-overlay-inplace .farm-details-content::-webkit-scrollbar {
+  display: none;
 }
 
 .farm-details-modal {

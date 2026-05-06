@@ -338,7 +338,7 @@ export default function Login() {
   return (
     <div className="login-container">
       <MobileAppLandingModal open={showPromoModal} onProceed={handleProceedFromPromo} />
-      {/* screen info for development */}
+      {/* screen info for development 
       {process.env.NODE_ENV === 'development' && ( 
         <div style={{
           position: 'fixed', 
@@ -354,6 +354,8 @@ export default function Login() {
           {screen.width}px {screen.isMobile ? '(Mobile)' : screen.isTablet ? '(Tablet)' : '(Desktop)'}
         </div>
       )}
+        */}
+        
       <div className="login-wrapper">
         <div className="logo-section">
           <img src={logo} alt="PiscaRISK Logo" className="logo" />

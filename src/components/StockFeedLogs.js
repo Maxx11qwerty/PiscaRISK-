@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { AuthContext } from '../contexts/AuthContext';
 import { GiDoubleFish } from 'react-icons/gi';
-import { FaInfoCircle, FaChartBar, FaCalendarAlt, FaSpinner } from 'react-icons/fa';
+import { FaInfoCircle, FaChartBar, FaCalendarAlt } from 'react-icons/fa';
 import { FaFish } from 'react-icons/fa6';
 import { IoWater } from 'react-icons/io5';
 import { RiInfoCardFill } from 'react-icons/ri';
@@ -172,7 +172,7 @@ const StockFeedLogs = ({ farmId, farmName }) => {
   if (loading) {
     return (
       <div className="stock-logs-loading">
-        <FaSpinner className="spinner-icon" />
+        <div className="loading-spinner" />
         <h3>Loading Stock & Feed Logs</h3>
         <p>Please wait while we fetch the latest data...</p>
       </div>

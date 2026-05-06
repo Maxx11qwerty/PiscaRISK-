@@ -4706,8 +4706,7 @@ Mobile Responsiveness
   }
 
   /* Add User form: nudge the X close button a bit to the left on small phones */
-  .close-form-button,
-  .close-modal-btn {
+  .close-form-button {
     right: 14px !important; /* was 8px; nudge further left */
     top: 8px !important;
     position: absolute;
@@ -5585,6 +5584,7 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 16px;
   z-index: 1000;
   backdrop-filter: blur(2px);
   animation: overlayFadeIn 0.2s ease-out;
@@ -5667,6 +5667,13 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
   justify-content: center;
 }
 
+/* Keep confirm modal close button stable even if other responsive rules target .close-modal-btn */
+.delete-confirm-header .close-modal-btn {
+  position: static;
+  top: auto;
+  right: auto;
+}
+
 .close-modal-btn:hover {
   background: rgba(246, 245, 245, 0.3);
   border-color: rgba(246, 245, 245, 0.5);
@@ -5689,15 +5696,16 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
 }
 
 .delete-confirm-actions {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
   gap: 12px;
   padding: 20px 24px 24px;
   background: #F6F5F5;
   border-top: 1px solid #D2D9E2;
 }
 
-.cancel-btn {
+.delete-confirm-actions .cancel-btn {
   padding: 10px 20px;
   border: 1px solid #D2D9E2;
   background: #F6F5F5;
@@ -5707,21 +5715,30 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 80px;
+  min-width: 120px;
+  height: 44px;
+  width: 100%;
+  white-space: nowrap;
+  margin: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.cancel-btn:hover {
+.delete-confirm-actions .cancel-btn:hover {
   background: #D2D9E2;
   border-color: #2C517D;
   color: #2C517D;
   transform: translateY(-1px);
 }
 
-.cancel-btn:active {
+.delete-confirm-actions .cancel-btn:active {
   transform: translateY(0);
 }
 
-.confirm-delete-btn {
+.delete-confirm-actions .confirm-delete-btn {
   padding: 10px 20px;
   border: 1px solid #dc3545;
   background: #dc3545;
@@ -5731,18 +5748,27 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 80px;
+  min-width: 120px;
+  height: 44px;
+  width: 100%;
+  white-space: nowrap;
   position: relative;
+  margin: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.confirm-delete-btn:hover {
+.delete-confirm-actions .confirm-delete-btn:hover {
   background: #c82333;
   border-color: #bd2130;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
-.confirm-delete-btn:active {
+.delete-confirm-actions .confirm-delete-btn:active {
   transform: translateY(0);
   box-shadow: 0 2px 6px rgba(220, 53, 69, 0.3);
 }
@@ -5760,13 +5786,16 @@ Mobile: Scrollable user-grid-container + Visible Header Cells
     padding: 16px;
   }
   
-  .delete-confirm-actions {
-    flex-direction: column;
-  }
-  
-  .cancel-btn,
-  .confirm-delete-btn {
+  .delete-confirm-actions .cancel-btn,
+  .delete-confirm-actions .confirm-delete-btn {
     width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .delete-confirm-actions {
+    grid-template-columns: 1fr;
   }
 }
 
