@@ -94,6 +94,10 @@
   100% { transform: rotate(360deg); }
 }
 
+.pond-refresh-spin {
+  animation: pond-loading-spin 1s linear infinite;
+}
+
 .loading-state h3 {
   color: #374151;
   margin: 0 0 10px 0;

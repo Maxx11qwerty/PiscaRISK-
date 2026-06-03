@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUserCircle } from 'react-icons/fa';
+import { FaUserCircle, FaSyncAlt } from 'react-icons/fa';
 import { IoIosNotifications } from "react-icons/io";
 import './NotificationBox.css';
 import { db } from '../firebase';
@@ -8,9 +8,9 @@ import {
   collection, 
   query, 
   where, 
-  getDocs, 
-  orderBy, 
-  onSnapshot,
+  getDocs,
+  orderBy,
+  limit,
   doc,
   setDoc,
   serverTimestamp,
@@ -20,6 +20,8 @@ import { sanitizeObjectStrings } from '../utils/sanitize';
 import { getAuth } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 
 // Helper functions
 const extractPondId = (fishPond) => {
@@ -40,14 +42,29 @@ const generateMessage = (report, pondId) => {
 const generateDetails = (report) => {
   return `Fish: ${report.fish_condition || 'N/A'}, Water: ${report.water_condition || 'N/A'}`;
 };
-// Initialize with Firebase data
-const initializeNotifications = async () => {
+const NOTIFICATION_REPORTS_LIMIT = 40;
+const NOTIFICATION_FEEDBACK_LIMIT = 15;
+const NOTIFICATION_LOGS_LIMIT = 15;
+const BADGE_REPORTS_LIMIT = 25;
+
+// Initialize with Firebase data (bounded queries — not full collection scans)
+const initializeNotifications = async (options = {}) => {
+  const {
+    reportsLimit = NOTIFICATION_REPORTS_LIMIT,
+    feedbackLimit = NOTIFICATION_FEEDBACK_LIMIT,
+    logsLimit = NOTIFICATION_LOGS_LIMIT,
+    includeStockFeed = true,
+  } = options;
   const notifications = [];
 
   try {
     // Fetch reports from Firebase
     const reportsRef = collection(db, 'reports');
-    const reportsQuery = query(reportsRef, orderBy('timestamp', 'desc'));
+    const reportsQuery = query(
+      reportsRef,
+      orderBy('timestamp', 'desc'),
+      limit(Math.max(1, reportsLimit))
+    );
     const reportsSnapshot = await getDocs(reportsQuery);
     
     reportsSnapshot.docs.forEach(doc => {
@@ -105,7 +122,11 @@ const initializeNotifications = async () => {
 
     // Fetch feedback from Firebase and resolve sender's farm
     const feedbackRef = collection(db, 'PiscaRisk');
-    const feedbackQuery = query(feedbackRef, orderBy('timestamp', 'desc'));
+    const feedbackQuery = query(
+      feedbackRef,
+      orderBy('timestamp', 'desc'),
+      limit(Math.max(1, feedbackLimit))
+    );
     const feedbackSnapshot = await getDocs(feedbackQuery);
 
     const feedbackNotifications = await Promise.all(
@@ -186,21 +207,15 @@ const initializeNotifications = async () => {
     notifications.push(...feedbackNotifications);
 
     // Fetch stock/feed logs from Firebase and resolve submitter's farm
+    if (includeStockFeed) {
     try {
       const farmerLogsRef = collection(db, 'farmerLogs');
-      const farmerLogsQuery = query(farmerLogsRef, orderBy('timestamp', 'desc'));
+      const farmerLogsQuery = query(
+        farmerLogsRef,
+        orderBy('timestamp', 'desc'),
+        limit(Math.max(1, logsLimit))
+      );
       const farmerLogsSnapshot = await getDocs(farmerLogsQuery);
-
-      // Preload mobileUsers to help resolve farm by email/uid
-      const mobileUsersRef = collection(db, 'mobileUsers');
-      const mobileUsersSnap = await getDocs(mobileUsersRef);
-      const emailToUser = new Map();
-      const idToUser = new Map();
-      mobileUsersSnap.docs.forEach(u => {
-        const data = u.data();
-        if (data?.email) emailToUser.set(String(data.email).toLowerCase(), { id: u.id, ...data });
-        idToUser.set(u.id, { id: u.id, ...data });
-      });
 
       const stockFeedNotifications = await Promise.all(
         farmerLogsSnapshot.docs.map(async (docSnap) => {
@@ -209,16 +224,28 @@ const initializeNotifications = async () => {
           // Ensure stock/feed has a corresponding systemLogs entry
           try { ensureStockFeedLog(docSnap.id, log); } catch (_) {}
 
-          // Resolve farm from matched user via uid or email
+          // Resolve farm from submitter uid/email (per-log lookup, no full users scan)
           let farmId = null;
           let farmNameResolved = null;
           try {
             const candidateUid = log.uid || log.user_id || null;
             const candidateEmail = (log.user_email || log.email || '').toLowerCase();
-            let matchedUser = null;
-            if (candidateUid && idToUser.has(candidateUid)) matchedUser = idToUser.get(candidateUid);
-            if (!matchedUser && candidateEmail && emailToUser.has(candidateEmail)) matchedUser = emailToUser.get(candidateEmail);
-            farmId = matchedUser?.farm || log.farmId || log.farm || null;
+            if (candidateUid) {
+              const mobileUserDoc = await getDoc(doc(db, 'mobileUsers', candidateUid));
+              if (mobileUserDoc.exists()) {
+                farmId = mobileUserDoc.data().farm || null;
+              } else {
+                const userDoc = await getDoc(doc(db, 'users', candidateUid));
+                if (userDoc.exists()) farmId = userDoc.data().farm || null;
+              }
+            }
+            if (!farmId && candidateEmail) {
+              const usersRef = collection(db, 'mobileUsers');
+              const emailQ = query(usersRef, where('email', '==', candidateEmail), limit(1));
+              const emailSnap = await getDocs(emailQ);
+              if (!emailSnap.empty) farmId = emailSnap.docs[0].data().farm || null;
+            }
+            farmId = farmId || log.farmId || log.farm || null;
           } catch (_) {}
 
           // Try to resolve farm display name
@@ -268,6 +295,7 @@ const initializeNotifications = async () => {
       notifications.push(...stockFeedNotifications);
     } catch (e) {
       console.warn('Failed to fetch stock/feed logs for notifications:', e);
+    }
     }
 
     // Sort by timestamp (newest first)
@@ -406,6 +434,8 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [assignedFarmName, setAssignedFarmName] = useState('');
+  const [refreshingList, setRefreshingList] = useState(false);
+  const { status: refreshMsgStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
   const mountedRef = React.useRef(true);
 
   useEffect(() => {
@@ -556,12 +586,21 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
     }
   };
 
-  const loadNotifications = async () => {
+  const loadNotifications = async ({ badgeOnly = false } = {}) => {
     if (!currentUser) return;
 
     try {
-      // Fetch notifications from Firebase
-      const freshNotifications = await initializeNotifications();
+      if (!badgeOnly) setRefreshingList(true);
+      const freshNotifications = await initializeNotifications(
+        badgeOnly
+          ? {
+              reportsLimit: BADGE_REPORTS_LIMIT,
+              feedbackLimit: 8,
+              logsLimit: 0,
+              includeStockFeed: false,
+            }
+          : undefined
+      );
       
       // Fetch user's read status from Firestore
       const userNotificationsRef = collection(db, 'users', currentUser.uid, 'notifications');
@@ -656,45 +695,43 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
 
       // Update state
       if (!mountedRef.current) return;
-      setNotifications(cleaned);
       const newUnreadCount = cleaned.filter(n => !n.read).length;
       setUnreadCount(newUnreadCount);
+      if (!badgeOnly) {
+        setNotifications(cleaned);
+      }
       
     } catch (error) {
       console.error('Error loading notifications:', error);
+      throw error;
+    } finally {
+      if (!badgeOnly) setRefreshingList(false);
     }
   };
 
   useEffect(() => {
-    if (currentUser) {
-      loadNotifications();
+    if (currentUser && isOpen) {
+      loadNotifications().catch(() => {});
     }
-  }, [currentUser, assignedFarmName]);
+  }, [currentUser, assignedFarmName, isOpen]);
 
-  // Realtime updates: refresh notifications when reports/feedback/stock-feed logs change
+  // Lightweight badge updates (no full collection listeners)
   useEffect(() => {
     if (!currentUser) return;
-    // Debounce rapid snapshot bursts
-    let timeoutId = null;
-    const scheduleRefresh = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        loadNotifications();
-        timeoutId = null;
-      }, 150);
-    };
-
-    const reportsUnsub = onSnapshot(collection(db, 'reports'), scheduleRefresh);
-    const feedbackUnsub = onSnapshot(collection(db, 'PiscaRisk'), scheduleRefresh);
-    const farmerLogsUnsub = onSnapshot(collection(db, 'farmerLogs'), scheduleRefresh);
-
+    loadNotifications({ badgeOnly: true });
+    const intervalId = setInterval(() => {
+      loadNotifications({ badgeOnly: true });
+    }, 45000);
+    const onFocus = () => loadNotifications({ badgeOnly: true });
+    const onLocalUpdate = () => loadNotifications({ badgeOnly: true });
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('notifications-updated', onLocalUpdate);
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      reportsUnsub && reportsUnsub();
-      feedbackUnsub && feedbackUnsub();
-      farmerLogsUnsub && farmerLogsUnsub();
+      clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('notifications-updated', onLocalUpdate);
     };
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, assignedFarmName]);
 
   const toggleNotifications = (event) => {
     event.preventDefault();
@@ -798,17 +835,33 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
         >
           <div className="notification-header">
             <h3>Notifications</h3>
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                clearNotifications();
-              }} 
-              className="clear-notifications"
-            >
-              Clear All
-            </button>
+            <div className="notification-header-actions">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  runRefresh(() => loadNotifications({ badgeOnly: false })).catch(() => {});
+                }}
+                className="refresh-notifications"
+                disabled={isManualRefreshBusy || refreshingList}
+                title="Refresh"
+              >
+                <FaSyncAlt className={(isManualRefreshBusy || refreshingList) ? 'notification-refresh-spin' : ''} />
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  clearNotifications();
+                }} 
+                className="clear-notifications"
+              >
+                Clear All
+              </button>
+            </div>
           </div>
+          <RefreshStatusMessage status={refreshMsgStatus} variant="onHeader" />
           <div className="notification-list">
             {notifications.length > 0 ? (
               notifications.map((notification, index) => (

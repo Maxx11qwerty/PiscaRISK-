@@ -103,6 +103,37 @@
   font-family: 'customfont3';
 }
 
+.notification-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-notifications {
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.refresh-notifications:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.notification-refresh-spin {
+  animation: notification-refresh-spin 1s linear infinite;
+}
+
+@keyframes notification-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .clear-notifications {
   background: none;
   border: none;

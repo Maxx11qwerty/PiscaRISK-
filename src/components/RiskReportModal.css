@@ -2379,6 +2379,15 @@
 }
 
 /* Farm Overview Styles */
+.risk-refresh-spin {
+  animation: risk-refresh-spin 1s linear infinite;
+}
+
+@keyframes risk-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .farm-overview-section {
   margin-bottom: 25px;
 }

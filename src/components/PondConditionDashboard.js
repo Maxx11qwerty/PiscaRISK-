@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { collection, query, where, getDocs, getDoc, doc, Timestamp, updateDoc, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { sanitizeObjectStrings } from '../utils/sanitize';
 import { logActivity, logMessages, isTemporaryTechOfficer, logTemporaryTechOfficerActivity } from '../utils/logger';
-import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
+import { FaWater, FaFish, FaCloud, FaCalendarAlt, FaChevronDown, FaChevronRight, FaExclamationTriangle, FaPlus, FaSyncAlt } from 'react-icons/fa';
 import { FormControl, InputLabel, Select, MenuItem, OutlinedInput, Tooltip } from '@mui/material';
 import AnimatedModal from './AnimatedModal';
 import { FaFileExport } from 'react-icons/fa6';
@@ -15,6 +15,11 @@ import {
 } from '../utils/exportFishCondition';
 import StockFeedLogs from './StockFeedLogs';
 import { AuthContext } from '../contexts/AuthContext';
+import { useFarms } from '../contexts/FarmsContext';
+import { useReportsData } from '../contexts/ReportsDataContext';
+import { useDashboardMeta } from '../contexts/DashboardMetaContext';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 import './PondCondition.css';
 
 // --- Canonicalization helpers (map legacy names/ids to new canonical names) ---
@@ -74,7 +79,34 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser } = useContext(AuthContext);
-  
+  const { farms: liveFarms } = useFarms();
+  const {
+    reports: cachedReports,
+    reportsByFarm: cachedByFarm,
+    loading: reportsLoading,
+    refreshReportsData,
+  } = useReportsData();
+  const { refreshDashboardMeta } = useDashboardMeta();
+  const { status: refreshStatus, runRefresh, isRefreshing: isRefreshFeedbackLoading } = useRefreshFeedback();
+
+  const handleRefreshReports = async (silent = false) => {
+    const task = async () => {
+      await refreshReportsData(silent ? { silent: true } : true);
+      await refreshDashboardMeta();
+    };
+    if (silent) {
+      try {
+        await task();
+      } catch (_) {
+        /* silent background refresh */
+      }
+      return;
+    }
+    await runRefresh(task);
+  };
+
+  const isManualRefreshBusy = isRefreshFeedbackLoading;
+
   // Check if user can mark reports as reviewed: Tech Officers, New Main Tech Officers, and Temporary Tech Officers
   const canMarkAsReviewed = () => {
     const role = String(currentUser?.role || '').toLowerCase().replace(/\s+/g, '_');
@@ -292,275 +324,129 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
   useEffect(() => {
   }, [farms]);
 
-  // Load farms and their reports (grouped by farm)
+  // Load farms and reports from shared cache (single getDocs on reports collection)
   useEffect(() => {
-    const fetchReports = async () => {
+    const applyCachedReports = () => {
       try {
-        setLoading(true);
+        setLoading(reportsLoading);
+        if (reportsLoading) return;
 
-        // Helper: fetch reports for multiple farm aliases from main 'reports' collection
-        const fetchReportsByAliases = async (aliasNames) => {
-          const collected = [];
-          for (const alias of aliasNames) {
-            try {
-              const reportsRef = collection(db, 'reports');
-              const q1 = query(reportsRef, where('farm', '==', alias));
-              const snap1 = await getDocs(q1);
-              snap1.docs.forEach(d => collected.push({ ...d.data(), id: d.id, __collection: 'reports' }));
-            } catch (_) {}
-            try {
-              const reportsRef = collection(db, 'reports');
-              const q2 = query(reportsRef, where('farm_name', '==', alias));
-              const snap2 = await getDocs(q2);
-              snap2.docs.forEach(d => collected.push({ ...d.data(), id: d.id, __collection: 'reports' }));
-            } catch (_) {}
-          }
-          // Deduplicate by id
-          const seen = new Set();
-          const unique = [];
-          for (const r of collected) {
-            if (r.id && !seen.has(r.id)) { seen.add(r.id); unique.push(r); }
-          }
-          return unique;
-        };
+        const isTemporaryTechOfficer =
+          currentUser?.temporaryTechOfficer ||
+          String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
 
-        // Build a strong dedupe key: canonical farm display + pond + precise timestamp ms
-        const buildDedupeKey = (report) => {
-          const farmName = report.farm || '';
-          const pondName = report.pond || '';
-          let ms = 0;
-          const ts = report.originalTimestamp || report.date;
-          try {
-            if (ts && typeof ts.toDate === 'function') ms = ts.toDate().getTime();
-            else if (ts && typeof ts.seconds === 'number') ms = ts.seconds * 1000 + (ts.nanoseconds ? Math.floor(ts.nanoseconds / 1e6) : 0);
-            else if (ts instanceof Date) ms = ts.getTime();
-            else if (typeof ts === 'number') ms = ts;
-            else if (typeof ts === 'string') ms = Date.parse(ts) || 0;
-          } catch (_) { ms = 0; }
-          return `${farmName}::${pondName}::${ms}`;
-        };
-
-        const dedupeReports = (reportsList) => {
-          const seen = new Set();
-          const out = [];
-          for (const r of reportsList) {
-            const k = buildDedupeKey(r);
-            if (!seen.has(k)) { seen.add(k); out.push(r); }
-          }
-          return out;
-        };
-        
-        // Determine which farms to load based on user's farm assignment
         let farmsToLoad = [];
-        
-        // Check if user is a Temporary Tech Officer (should have access to all farms like main Tech Officer)
-        const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || String(currentUser?.role || '').toLowerCase() === 'temp_tech_officer';
-        
         if (currentUser?.farm && !notificationFarmFilter && !isTemporaryTechOfficer) {
-          // User has a specific farm assigned - ONLY load that farm (unless coming from notification or is TTO)
-          // Skip if user is assigned to Rojo Hatchery
           if (currentUser.farm === 'WgS4mBVnPFPMGq7vfSYa') {
             farmsToLoad = [];
             setSelectedFarmId('all');
           } else {
-            const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
-            if (farmDoc.exists()) {
-              const farmData = farmDoc.data();
-              farmsToLoad = [{ id: farmDoc.id, ...farmData }];
-              // Force the selected farm to user's assigned farm
-              setSelectedFarmId(currentUser.farm);
-            } else {
-              // Create a placeholder farm entry so the UI can still render
-              farmsToLoad = [{ id: currentUser.farm, name: currentUser.farm, location: 'Assigned Farm' }];
-              setSelectedFarmId(currentUser.farm);
-            }
+            const farmMeta = liveFarms.find((f) => f.id === currentUser.farm);
+            farmsToLoad = farmMeta
+              ? [farmMeta]
+              : [{ id: currentUser.farm, name: currentUser.farm, location: 'Assigned Farm' }];
+            setSelectedFarmId(currentUser.farm);
           }
         } else {
-          // User has no farm assigned, is admin, is TTO, or coming from notification - load all farms
-          const farmsSnap = await getDocs(collection(db, 'farms'));
-          farmsToLoad = farmsSnap.docs
-            .map(d => ({ id: d.id, ...(d.data() || {}) }))
-            .filter(farm => farm.id !== 'WgS4mBVnPFPMGq7vfSYa') // Exclude Rojo Hatchery
-            .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+          farmsToLoad = [...liveFarms].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         }
-        
-        // Set farms state - this controls what farms are displayed in the UI
+
         setFarms(farmsToLoad);
 
-        // Fetch reports based on farm field in report data
         const nextReportsByFarm = {};
         let totalReports = [];
-        
+
         if (currentUser?.farm && !isTemporaryTechOfficer) {
-          // User has assigned farm - fetch reports by farm field (but not for TTOs)
-          
-          // Try to get the farm name from the farm document
-          const farmDoc = await getDoc(doc(db, 'farms', currentUser.farm));
-          const rawFarmName = farmDoc.exists() ? farmDoc.data().name : currentUser.farm;
-          const canonicalName = toCanonicalDisplay(rawFarmName, currentUser.farm);
-          const aliases = aliasesForCanonical(canonicalName);
-          
-          // Query reports collection for reports with any alias (single source of truth)
-          const reportsFromCollection = await fetchReportsByAliases(aliases);
-          const itemsRaw = reportsFromCollection.map(dataDoc => {
-            const data = dataDoc;
-
-            // Normalize timestamp to Date regardless of Firestore Timestamp or stored string/number
-            let normalizedDate = null;
-            if (data.timestamp?.toDate) {
-              normalizedDate = data.timestamp.toDate();
-            } else if (typeof data.timestamp === 'number') {
-              normalizedDate = new Date(data.timestamp);
-            } else if (typeof data.timestamp === 'string') {
-              const tryDate = new Date(data.timestamp);
-              normalizedDate = isNaN(tryDate.getTime()) ? new Date() : tryDate;
-            } else if (data.timestamp?.seconds) {
-              normalizedDate = new Date(data.timestamp.seconds * 1000);
-            } else {
-              normalizedDate = new Date();
-            }
-            
-
-            return {
-              id: data.id,
-              date: normalizedDate,
-              farm: data.farm || data.farm_name || canonicalName,
-              pond: data.fish_pond,
-              fish: data.fish_condition,
-              water: data.water_condition,
-              weather: data.weather,
-              harvest: data.ready_for_harvest ? 'Ready' : 'Not Ready',
-              notes: data.additional_notes,
-              uid: data.uid,
-              submittedBy: data.submitted_by,
-              userRole: data.user_role,
-              contact: data.user_contact,
-              email: data.user_email,
-              status: data.status,
-                reviewedBy: data.reviewed_by || data.reviewedBy,
-                reviewedByRole: data.reviewed_by_role || data.reviewedByRole,
-              reviewedAt: data.reviewed_at || data.reviewedAt,
-              source: data.source || 'web',
-              originalTimestamp: data.timestamp,
-              __collection: 'reports',
-              __hadFarmField: Object.prototype.hasOwnProperty.call(data, 'farm')
-            };
-          });
-
-          const items = dedupeReports(itemsRaw);
-
-          nextReportsByFarm[currentUser.farm] = { farm: { id: currentUser.farm, name: canonicalName }, reports: items };
-          totalReports = totalReports.concat(items.map(r => ({ ...r, __farmId: currentUser.farm })));
-          
-        } else {
-          // User has no farm assignment - fetch all reports from all farms
-          
-          for (const farm of farmsToLoad) {
-            // Only use reports collection with farm field (single source of truth)
-            let farmReports = [];
-            try {
-              const canonicalName = toCanonicalDisplay(farm.name, farm.id);
-              const aliases = aliasesForCanonical(canonicalName);
-              const reportsFromCollection = await fetchReportsByAliases(aliases);
-              farmReports = reportsFromCollection;
-            } catch (error) {
-            }
-            
-            const itemsRaw = farmReports.map(report => {
-              const data = report;
-
-              // Normalize timestamp to Date regardless of Firestore Timestamp or stored string/number
-              let normalizedDate = null;
-              if (data.timestamp?.toDate) {
-                normalizedDate = data.timestamp.toDate();
-              } else if (typeof data.timestamp === 'number') {
-                normalizedDate = new Date(data.timestamp);
-              } else if (typeof data.timestamp === 'string') {
-                const tryDate = new Date(data.timestamp);
-                normalizedDate = isNaN(tryDate.getTime()) ? new Date() : tryDate;
-              } else if (data.timestamp?.seconds) {
-                normalizedDate = new Date(data.timestamp.seconds * 1000);
-              } else {
-                normalizedDate = new Date();
-              }
-
-              return {
-                id: data.id,
-                date: normalizedDate,
-                farm: toCanonicalDisplay(data.farm || data.farm_name || farm.name, farm.id),
-                pond: data.fish_pond,
-                fish: data.fish_condition,
-                water: data.water_condition,
-                weather: data.weather,
-                harvest: data.ready_for_harvest ? 'Ready' : 'Not Ready',
-                notes: data.additional_notes,
-                uid: data.uid,
-                submittedBy: data.submitted_by,
-                userRole: data.user_role,
-                contact: data.user_contact,
-                email: data.user_email,
-                status: data.status,
-                reviewedBy: data.reviewed_by || data.reviewedBy,
-                reviewedByRole: data.reviewed_by_role || data.reviewedByRole,
-                reviewedAt: data.reviewed_at || data.reviewedAt,
-                source: data.source || 'web',
-                originalTimestamp: data.timestamp,
-                __hadFarmField: Object.prototype.hasOwnProperty.call(data, 'farm')
-              };
+          const entry = cachedByFarm[currentUser.farm];
+          if (entry) {
+            nextReportsByFarm[currentUser.farm] = entry;
+            totalReports = entry.reports.map((r) => ({ ...r, __farmId: currentUser.farm }));
+          } else {
+            const farmMeta = liveFarms.find((f) => f.id === currentUser.farm);
+            const canonicalName = toCanonicalDisplay(farmMeta?.name || currentUser.farm, currentUser.farm);
+            const aliases = new Set(aliasesForCanonical(canonicalName).map((a) => String(a).toLowerCase()));
+            const items = (cachedReports || []).filter((r) => {
+              const farmField = String(r.farm || '').toLowerCase();
+              return aliases.has(farmField) || farmField === canonicalName.toLowerCase();
             });
-
-            const items = dedupeReports(itemsRaw);
-
-            nextReportsByFarm[farm.id] = { farm: { ...farm, name: toCanonicalDisplay(farm.name, farm.id) }, reports: items };
-            totalReports = totalReports.concat(items.map(r => ({ ...r, __farmId: farm.id })));
+            nextReportsByFarm[currentUser.farm] = {
+              farm: { id: currentUser.farm, name: canonicalName },
+              reports: items,
+            };
+            totalReports = items.map((r) => ({ ...r, __farmId: currentUser.farm }));
           }
+        } else {
+          farmsToLoad.forEach((farm) => {
+            const entry = cachedByFarm[farm.id];
+            if (entry) {
+              nextReportsByFarm[farm.id] = {
+                ...entry,
+                farm: { ...entry.farm, name: toCanonicalDisplay(entry.farm?.name || farm.name, farm.id) },
+              };
+              totalReports = totalReports.concat(
+                entry.reports.map((r) => ({ ...r, __farmId: farm.id }))
+              );
+            }
+          });
         }
 
-        // Deduplicate reports across all farms (aliases may create logical duplicates)
-        // Use a strong key: canonical farm name + pond + exact timestamp ms
         const toMillis = (ts) => {
           try {
             if (ts && typeof ts.toDate === 'function') return ts.toDate().getTime();
-            if (ts && typeof ts.seconds === 'number') return ts.seconds * 1000 + (ts.nanoseconds ? Math.floor(ts.nanoseconds / 1e6) : 0);
+            if (ts && typeof ts.seconds === 'number') {
+              return ts.seconds * 1000 + (ts.nanoseconds ? Math.floor(ts.nanoseconds / 1e6) : 0);
+            }
             if (ts instanceof Date) return ts.getTime();
             if (typeof ts === 'number') return ts;
             if (typeof ts === 'string') return Date.parse(ts) || 0;
-          } catch (_) { /* ignore */ }
+          } catch (_) {
+            /* ignore */
+          }
           return 0;
         };
 
         const normalize = (s) => String(s || '').trim().toLowerCase();
         const keyOf = (r) => {
-          // Prefer stable farm id when available; else canonicalized farm name
           let farmKey = r.__farmId || '';
           if (!farmKey) {
             const lower = normalize(r.farm);
-            const match = farms.find(f => normalize(f.name) === lower);
+            const match = farmsToLoad.find((f) => normalize(f.name) === lower);
             farmKey = match ? match.id : lower;
           }
           const pondKey = normalize(r.pond || r.fish_pond);
           const ms = toMillis(r.originalTimestamp || r.date || r.timestamp);
           return `${farmKey}::${pondKey}::${ms}`;
         };
+
         const seenKeys = new Set();
         const uniqueTotalReports = [];
         for (const r of totalReports) {
           const k = keyOf(r);
-          if (!seenKeys.has(k)) { seenKeys.add(k); uniqueTotalReports.push(r); }
+          if (!seenKeys.has(k)) {
+            seenKeys.add(k);
+            uniqueTotalReports.push(r);
+          }
         }
-        
+
         setReportsByFarm(nextReportsByFarm);
-        // Include all unique reports (per-farm filtering manages visibility)
         setReports(uniqueTotalReports);
       } catch (error) {
         logActivity('error', logMessages.error.database(`Error fetching reports: ${error.message}`), 'System');
       } finally {
-        setLoading(false);
+        if (!reportsLoading) setLoading(false);
       }
     };
-  
-    fetchReports();
-  }, [selectedFarmId, currentUser?.farm, notificationFarmFilter]);
+
+    applyCachedReports();
+  }, [
+    selectedFarmId,
+    currentUser?.farm,
+    notificationFarmFilter,
+    cachedReports,
+    cachedByFarm,
+    reportsLoading,
+    liveFarms,
+  ]);
 
   // Get and sort reports
   const allReports = [...reports].sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1269,7 +1155,7 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
     }
   };
 
-  if (loading || isProcessingNotification) {
+  if ((loading && reports.length === 0) || isProcessingNotification) {
     return (
       <div className="pond-condition-container">
         <div className="loading-state">
@@ -1315,6 +1201,30 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
 
         </div>
         
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          type="button"
+          onClick={() => handleRefreshReports(false)}
+          disabled={isManualRefreshBusy || reportsLoading}
+          title={t('common.refresh')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            color: '#1A4375',
+            cursor: isManualRefreshBusy || reportsLoading ? 'wait' : 'pointer',
+            fontSize: '0.95rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            opacity: isManualRefreshBusy || reportsLoading ? 0.6 : 1,
+          }}
+        >
+          <FaSyncAlt className={isManualRefreshBusy ? 'pond-refresh-spin' : ''} />
+          <span style={{ textDecoration: 'underline' }}>{t('common.refresh')}</span>
+        </button>
         {/* Export Button */}
         <div style={{ position: 'relative' }}>
           <button
@@ -1411,6 +1321,9 @@ const PondConditionDashboard = ({ isModal = false, selectedPond: propSelectedPon
               </button>
             </div>
           )}
+        </div>
+        </div>
+        <RefreshStatusMessage status={refreshStatus} variant="default" className="refresh-status-message--inline" />
         </div>
         
         <div className="report-summary">

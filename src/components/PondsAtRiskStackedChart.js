@@ -2,9 +2,12 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadChartAsImage, exportPondsAtRiskExcelCSV } from '../utils/exportStackedbarChart';
 import { logActivity, logMessages } from '../utils/logger';
 import { GiHamburgerMenu } from 'react-icons/gi';
+import { FaSyncAlt } from 'react-icons/fa';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchRiskReportData } from '../services/riskDataService';
+import { useRiskData } from '../contexts/RiskDataContext';
 import { useTranslation } from 'react-i18next';
 import { useFarms } from '../contexts/FarmsContext';
 
@@ -29,8 +32,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { farmsById, farmsNameByKey } = useFarms();
+  const { farms: riskFarms, loading: riskDataLoading, lastFetchedAt, refreshRiskData } = useRiskData();
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { status: refreshStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
   const [groupMode, setGroupMode] = useState('farm'); // 'farm' | 'risk'
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [activeLegendKey, setActiveLegendKey] = useState(null);
@@ -148,34 +153,13 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   };
 
 
-  // Data fetching function
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const data = (await fetchRiskReportData()) || [];
-      // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
-      const filteredData = data.filter(f => 
-        f.farm_key !== 'rojo-hatchery' && 
-        f.name !== 'Rojo Hatchery' &&
-        f.key !== 'rojo-hatchery' &&
-        f.farm_key !== 'freshwater-finfish-farm' &&
-        f.name !== 'Freshwater Finfish Farm' &&
-        f.key !== 'freshwater-finfish-farm' &&
-        !f.name?.toLowerCase().includes('freshwater finfish')
-      );
-      setFarms(filteredData);
-      setLastUpdated(new Date());
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial data fetch
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  // Manual refresh removed (auto-refresh handled by data updates if any)
+    setFarms(Array.isArray(riskFarms) ? riskFarms : []);
+    setLoading(riskDataLoading);
+    if (lastFetchedAt) {
+      setLastUpdated(new Date(lastFetchedAt));
+    }
+  }, [riskFarms, riskDataLoading, lastFetchedAt]);
 
   const isAssignedToFarm = Boolean(currentUser?.farm);
   const assignedFarmName = isAssignedToFarm ? (farmsById[currentUser.farm]?.name || null) : null;
@@ -1536,8 +1520,26 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
           </ResponsiveContainer>
         )
       )}
-            <div className={`reports-last-updated ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
-        {t('pondsAtRiskChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            <div className={`chart-last-updated-wrap ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
+        <div className={`reports-last-updated chart-last-updated-row ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
+        <button
+          type="button"
+          className="chart-refresh-btn"
+          onClick={() => runRefresh(async () => {
+            await refreshRiskData();
+            setLastUpdated(new Date());
+          })}
+          disabled={isManualRefreshBusy || loading || riskDataLoading}
+          title={t('common.refresh')}
+          aria-label={t('common.refresh')}
+        >
+          <FaSyncAlt className={isManualRefreshBusy ? 'chart-refresh-spin' : ''} />
+        </button>
+        <span>
+          {t('pondsAtRiskChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        </span>
+      </div>
+        <RefreshStatusMessage status={refreshStatus} variant="onDark" />
       </div>
     </div>
     </>

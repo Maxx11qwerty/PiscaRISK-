@@ -1,17 +1,20 @@
 import React, { useEffect, useMemo, useState, useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
-import { fetchRiskReportData } from '../services/riskDataService';
+import { useRiskData } from '../contexts/RiskDataContext';
+import { useDashboardMeta } from '../contexts/DashboardMetaContext';
+import { useWeather } from '../contexts/WeatherContext';
 import { db } from '../firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { fetchAllUsers } from '../services/accountService';
-import { fetchWeatherData } from '../services/weatherService';
+import { doc, getDoc } from 'firebase/firestore';
 import { exportPiscaRiskCSV, exportPiscaRiskPDF } from '../utils/exportPiscariskData';
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 import './PiscaRiskData.css';
 import './RiskReportModal.css';
 import { IoFish } from 'react-icons/io5';
-import { FaExclamationTriangle } from 'react-icons/fa';
+import { FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
+import { useReportsData } from '../contexts/ReportsDataContext';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 
 const PAGE_SIZE = 8;
 
@@ -74,12 +77,28 @@ const usePaginated = (items, size = PAGE_SIZE) => {
 const PiscaRiskData = () => {
   const { currentUser } = useContext(AuthContext);
   const { t } = useTranslation();
+  const { farms: riskFarms, loading: riskDataLoading, refreshRiskData } = useRiskData();
+  const {
+    farmUserCount,
+    farmReportsCount,
+    farmReviewedCount,
+    loading: metaLoading,
+    refreshDashboardMeta,
+  } = useDashboardMeta();
+  const { refreshReportsData } = useReportsData();
+  const { weather, loadWeather } = useWeather();
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [farmReportsCount, setFarmReportsCount] = useState({});
-  const [farmReviewedCount, setFarmReviewedCount] = useState({});
-  const [farmUserCount, setFarmUserCount] = useState({});
-  const [weather, setWeather] = useState(null);
+  const { status: refreshStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
+
+  const handleRefreshAll = () => runRefresh(async () => {
+    await Promise.all([
+      refreshRiskData(),
+      refreshReportsData(),
+      refreshDashboardMeta(),
+      loadWeather(true),
+    ]);
+  });
   const [assignedFarmName, setAssignedFarmName] = useState('');
   const [filterFarmKey, setFilterFarmKey] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,87 +127,41 @@ const PiscaRiskData = () => {
   }, [currentUser?.farm]);
 
   useEffect(() => {
+    loadWeather(false).catch(() => {});
+  }, [loadWeather]);
+
+  useEffect(() => {
+    if ((riskDataLoading || metaLoading) && (!riskFarms || riskFarms.length === 0)) {
+      setLoading(true);
+      return;
+    }
+
     (async () => {
       try {
         setLoading(true);
-        const data = await fetchRiskReportData();
-        let baseFarms = Array.isArray(data) ? data : [];
-        
-        // Additional filtering to exclude Rojo Hatchery and Freshwater Finfish Farm
-        baseFarms = baseFarms.filter(f => 
-          f.farm_key !== 'rojo-hatchery' && 
-          f.name !== 'Rojo Hatchery' &&
-          f.farm_key !== 'freshwater-finfish-farm' &&
-          f.name !== 'Freshwater Finfish Farm' &&
-          !f.name?.toLowerCase().includes('freshwater finfish')
-        );
-        // Fetch users and count per farm across users + mobileUsers
+        let baseFarms = Array.isArray(riskFarms) ? [...riskFarms] : [];
+        const counts = farmReportsCount || {};
         try {
-          const users = await fetchAllUsers();
-          const userCounts = {};
-          users.forEach(u => {
-            const farmName = (u.farm || u.farm_name || '').toString().trim();
-            if (!farmName) return;
-            
-            // Skip users assigned to Rojo Hatchery or Freshwater Finfish Farm
-            if (farmName === 'Rojo Hatchery' || 
-                farmName === 'Freshwater Finfish Farm' ||
-                farmName?.toLowerCase().includes('freshwater finfish')) return;
-                
-            const key = normalizeFarmName(farmName);
-            if (key === 'unknown-farm') return;
-            userCounts[key] = (userCounts[key] || 0) + 1;
-          });
-          setFarmUserCount(userCounts);
-        } catch (_) {
-          setFarmUserCount({});
-        }
-        // Count farm reports from 'reports' collection by farm name (canonicalized)
-        const counts = {};
-        try {
-          const reportsRef = collection(db, 'reports');
-          const snap = await getDocs(reportsRef);
-          const reviewed = {};
-          snap.forEach(doc => {
-            const d = doc.data() || {};
-            const farmRaw = (d.farm || '').toString().trim();
-            if (!farmRaw) return; // skip unknown/missing farm
-            
-            // Skip reports from Rojo Hatchery or Freshwater Finfish Farm
-            if (farmRaw === 'Rojo Hatchery' || 
-                farmRaw === 'Freshwater Finfish Farm' ||
-                farmRaw?.toLowerCase().includes('freshwater finfish')) return;
-                
-            const key = toCanonicalKey(farmRaw);
-            if (key === 'unknown-farm') return;
-            counts[key] = (counts[key] || 0) + 1;
-            const status = (d.status || '').toString().toLowerCase();
-            const isReviewed = status === 'Reviewed' || !!d.reviewed_by || !!d.reviewedAt || !!d.reviewed_at;
-            if (isReviewed) {
-              reviewed[key] = (reviewed[key] || 0) + 1;
-            }
-          });
-          setFarmReviewedCount(reviewed);
-
-          // Ensure farms includes any farm appearing only in reports
-          const baseKeys = new Set(baseFarms.map(f => f.key));
+          const baseKeys = new Set(baseFarms.map((f) => f.key));
           const toAdd = [];
-          Object.keys(counts).forEach(k => {
+          Object.keys(counts).forEach((k) => {
             if (!baseKeys.has(k)) {
-              if (k === 'unknown-farm') return; // never add unknown
-              
-              // Skip adding farms that are Rojo Hatchery or Freshwater Finfish Farm
-              if (k === 'rojo-hatchery' || 
-                  k === 'freshwater-finfish-farm' ||
-                  k.includes('freshwater-finfish')) return;
-                  
+              if (k === 'unknown-farm') return;
+              if (
+                k === 'rojo-hatchery' ||
+                k === 'freshwater-finfish-farm' ||
+                k.includes('freshwater-finfish')
+              ) {
+                return;
+              }
               const displayName = toCanonicalDisplay(k.replace(/-/g, ' '));
-              
-              // Additional check for display name
-              if (displayName === 'Rojo Hatchery' || 
-                  displayName === 'Freshwater Finfish Farm' ||
-                  displayName?.toLowerCase().includes('freshwater finfish')) return;
-                  
+              if (
+                displayName === 'Rojo Hatchery' ||
+                displayName === 'Freshwater Finfish Farm' ||
+                displayName?.toLowerCase().includes('freshwater finfish')
+              ) {
+                return;
+              }
               toAdd.push({
                 key: k,
                 name: displayName,
@@ -202,10 +175,11 @@ const PiscaRiskData = () => {
             }
           });
           if (toAdd.length > 0) {
-            baseFarms = [...baseFarms, ...toAdd].sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+            baseFarms = [...baseFarms, ...toAdd].sort((a, b) =>
+              (a.name || '').localeCompare(b.name || '')
+            );
           }
         } catch (_) {}
-        setFarmReportsCount(counts);
         
         // Apply farm filtering if current user is assigned to a farm
         let filteredFarms = baseFarms;
@@ -249,14 +223,20 @@ const PiscaRiskData = () => {
         })();
 
         setFarms(merged);
-        // Weather
-        const w = await fetchWeatherData();
-        setWeather(w);
       } finally {
         setLoading(false);
       }
     })();
-  }, [currentUser?.farm, assignedFarmName]);
+  }, [
+    currentUser?.farm,
+    assignedFarmName,
+    riskFarms,
+    riskDataLoading,
+    metaLoading,
+    farmReportsCount,
+    farmUserCount,
+    farmReviewedCount,
+  ]);
 
   const allPonds = useMemo(() => {
     return farms.flatMap(f => (f.predictions || []).map(p => ({
@@ -551,7 +531,22 @@ const PiscaRiskData = () => {
   return (
     <div className="prd-container">
       <div className="prd-export-bar">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="prd-export-btn"
+            onClick={() => handleRefreshAll()}
+            disabled={isManualRefreshBusy || loading}
+            title={t('common.refresh')}
+            style={{
+              opacity: isManualRefreshBusy || loading ? 0.6 : 1,
+              cursor: isManualRefreshBusy || loading ? 'wait' : 'pointer',
+            }}
+          >
+            <FaSyncAlt className={isManualRefreshBusy ? 'prd-refresh-spin' : ''} style={{ marginRight: 6 }} />
+            {t('common.refresh')}
+          </button>
           <span className="prd-export-label">{t('piscaRiskData.export.label')}</span>
           <div className="prd-export-menu">
           <button 
@@ -604,6 +599,8 @@ const PiscaRiskData = () => {
             }}>{t('piscaRiskData.export.pdf')}</button>
           </div>
           </div>
+        </div>
+        <RefreshStatusMessage status={refreshStatus} variant="default" className="refresh-status-message--inline" />
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginLeft: 'auto' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.04)', border: `1px solid ${updateColor}` }}>

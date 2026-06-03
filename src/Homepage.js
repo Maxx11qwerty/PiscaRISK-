@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import "./Homepage.css";
 import PondConditionDashboard from './components/PondConditionDashboard';
 import { AuthContext } from './contexts/AuthContext';
-import { fetchWeatherData } from './services/weatherService';
+import { useWeather } from './contexts/WeatherContext';
 import WeatherBox from './components/WeatherBox';
 import WeatherDisplay from './components/WeatherDisplay';
 import { exportBoxData } from './utils/exportBoxData';
@@ -17,7 +17,7 @@ import NotificationBox from './components/NotificationBox';
 import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
 import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
-import { fetchRiskReportData } from './services/riskDataService';
+import { useRiskData } from './contexts/RiskDataContext';
 import { logMessages, logTemporaryTechOfficerActivity } from './utils/logger';
 import AnimatedModal from './components/AnimatedModal';
 // PasswordChangeModal removed - using ProfileSettings password reset instead
@@ -41,7 +41,7 @@ const PiscaRiskHome = () => {
     content: "",
     icon: null
   });
-  const [weatherData, setWeatherData] = useState(null);
+  const { weather: weatherData, loading: weatherLoading, loadWeather } = useWeather();
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
   const [chartGroupMode, setChartGroupMode] = useState('farm');
@@ -299,15 +299,22 @@ const PiscaRiskHome = () => {
   
   const refreshWeather = async () => {
     setLoading(true);
-    const data = await fetchWeatherData();
-    setWeatherData(data);
+    await loadWeather(true);
     setLastUpdated(new Date());
     setLoading(false);
   };
 
   useEffect(() => {
-    refreshWeather();
-  }, []);
+    loadWeather(false)
+      .then(() => setLastUpdated(new Date()))
+      .catch(() => {});
+  }, [loadWeather]);
+
+  useEffect(() => {
+    if (!weatherLoading) {
+      setLoading(false);
+    }
+  }, [weatherLoading]);
 
   // Set initial sidebar state based on screen size
   useEffect(() => {
@@ -533,7 +540,7 @@ const PiscaRiskHome = () => {
     });
     setShowModal(true); //automatic refresh the time and can refresh also the weather data
     if (boxId === 1 && (!lastUpdated || (new Date() - lastUpdated) > 60000)) {
-      fetchWeatherData();
+      loadWeather(true).then(() => setLastUpdated(new Date())).catch(() => {});
     }
   };
   const closeModal = () => {
@@ -569,17 +576,7 @@ const PiscaRiskHome = () => {
   const [modalInitialPonds, setModalInitialPonds] = useState([]);
   const [modalRangeStart, setModalRangeStart] = useState(null);
   const [modalRangeEnd, setModalRangeEnd] = useState(null);
-  const [allFarmsRiskData, setAllFarmsRiskData] = useState([]);
-
-  useEffect(() => {
-    // Prefetch farms risk data to power drilldowns
-    (async () => {
-      try {
-        const farms = await fetchRiskReportData();
-        setAllFarmsRiskData(Array.isArray(farms) ? farms : []);
-      } catch (_) {}
-    })();
-  }, [currentUser]);
+  const { farms: allFarmsRiskData } = useRiskData();
 
   const openDrilldown = ({ type, farmKey, risk, farms, clickedFarmName, clickedRiskLevel, clickedPonds, clickDateMs, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];

@@ -1,34 +1,34 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchWeatherData } from '../services/weatherService';
+import { useWeather } from '../contexts/WeatherContext';
 import { getTimeOfDay, getWeatherImage, getWeatherIcon } from '../utils/weatherUtils';
 import './WeatherDisplay.css';
 
 const WeatherDisplay = () => {
   const { t } = useTranslation();
-  const [weatherData, setWeatherData] = useState(null);
+  const { weather: weatherData, loading: weatherLoading, loadWeather } = useWeather();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const data = await fetchWeatherData();
-      setWeatherData(data);
-      setLastUpdated(new Date());
-      setLoading(false);
-    };
-    loadData();
+    loadWeather(false)
+      .then(() => setLastUpdated(new Date()))
+      .catch(() => {});
 
     const timeInterval = setInterval(() => setCurrentTime(new Date()), 1000);
-    const weatherInterval = setInterval(loadData, 30 * 60 * 1000);
+    const weatherInterval = setInterval(() => {
+      loadWeather(true)
+        .then(() => setLastUpdated(new Date()))
+        .catch(() => {});
+    }, 30 * 60 * 1000);
     
     return () => {
       clearInterval(timeInterval);
       clearInterval(weatherInterval);
     };
-  }, []);
+  }, [loadWeather]);
+
+  const loading = weatherLoading && !weatherData;
 
   // Memoize expensive calculations to prevent re-computation on language change
   const weatherDisplayData = useMemo(() => {

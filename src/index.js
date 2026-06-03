@@ -4,13 +4,25 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
 import { FarmsProvider } from './contexts/FarmsContext';
+import { RiskDataProvider } from './contexts/RiskDataContext';
+import { ReportsDataProvider } from './contexts/ReportsDataContext';
+import { DashboardMetaProvider } from './contexts/DashboardMetaContext';
+import { WeatherProvider } from './contexts/WeatherContext';
 import reportWebVitals from './reportWebVitals';
 import './i18n'; // Import i18n configuration
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <FarmsProvider>
-    <App />
+    <RiskDataProvider>
+      <ReportsDataProvider>
+        <DashboardMetaProvider>
+          <WeatherProvider>
+            <App />
+          </WeatherProvider>
+        </DashboardMetaProvider>
+      </ReportsDataProvider>
+    </RiskDataProvider>
   </FarmsProvider>
 );
 

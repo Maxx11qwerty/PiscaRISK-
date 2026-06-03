@@ -4,6 +4,10 @@ import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import './ReportsChart.css';
 import { GiHamburgerMenu } from 'react-icons/gi';
+import { FaSyncAlt } from 'react-icons/fa';
+import { useReportsData } from '../contexts/ReportsDataContext';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 import { downloadReportsChartImage, exportReportsDataCSV } from '../utils/exportReportsChart';
 import { useAuth } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
@@ -14,8 +18,11 @@ function ReportsChart({ dropdownCoordinator, onDropdownOpen }) {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const { farmsById, farms } = useFarms();
+  const { refreshReportsData } = useReportsData();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dataRefreshTick, setDataRefreshTick] = useState(0);
+  const { status: refreshStatus, runRefresh, isRefreshing: refreshingChart } = useRefreshFeedback();
   const [timeFilter, setTimeFilter] = useState('weekly'); // 'all', 'daily', 'weekly', 'monthly'
   const [viewMode, setViewMode] = useState('farm'); // 'farm', 'date'
   const [selectedFarm, setSelectedFarm] = useState('all'); // For consistency with stacked chart
@@ -256,71 +263,42 @@ function ReportsChart({ dropdownCoordinator, onDropdownOpen }) {
       try {
         setLoading(true);
         const reportsRef = collection(db, 'reports');
-        
-        // Build query based on farm assignment
-        let q;
-        if (isAssignedToFarm) {
-          // First try to get all reports to see what farm fields exist
-          const allReportsQuery = query(reportsRef, orderBy('timestamp', 'desc'));
-          const allReportsSnapshot = await getDocs(allReportsQuery);
-          
-          
-          // Try different farm field names and values
-          const farmFields = ['farm', 'farm_name', 'farmId', 'farm_id'];
-          let foundMatchingReports = false;
-          
-          for (const field of farmFields) {
-            try {
-              // Try with the farm ID
-              q = query(
-                reportsRef,
-                where(field, '==', currentUser.farm),
-                orderBy('timestamp', 'desc')
-              );
-              const testSnapshot = await getDocs(q);
-              if (testSnapshot.docs.length > 0) {
-                foundMatchingReports = true;
-                break;
-              }
-            } catch (error) {
-            }
+        let querySnapshot = null;
+
+        const runQuery = async (q) => {
+          try {
+            return await getDocs(q);
+          } catch (_) {
+            return null;
           }
-          
-          // If no matches with farm ID, try with farm name
-          if (!foundMatchingReports && assignedFarmName) {
-            for (const field of farmFields) {
-              try {
-                q = query(
-                  reportsRef,
-                  where(field, '==', assignedFarmName),
-                  orderBy('timestamp', 'desc')
-                );
-                const testSnapshot = await getDocs(q);
-                if (testSnapshot.docs.length > 0) {
-                  foundMatchingReports = true;
-                  break;
-                }
-              } catch (error) {
-              }
-            }
-          }
-          
-          // If still no matches, fall back to all reports
-          if (!foundMatchingReports) {
-            q = query(
-              reportsRef,
-              orderBy('timestamp', 'desc')
+        };
+
+        if (isAssignedToFarm && currentUser?.farm) {
+          const farmId = currentUser.farm;
+          const farmName = assignedFarmName || farmsById[farmId]?.name || '';
+          const attempts = [
+            query(reportsRef, where('farm', '==', farmId), orderBy('timestamp', 'desc')),
+            query(reportsRef, where('farmId', '==', farmId), orderBy('timestamp', 'desc')),
+            query(reportsRef, where('farm_id', '==', farmId), orderBy('timestamp', 'desc')),
+          ];
+          if (farmName) {
+            attempts.push(
+              query(reportsRef, where('farm', '==', farmName), orderBy('timestamp', 'desc')),
+              query(reportsRef, where('farm_name', '==', farmName), orderBy('timestamp', 'desc'))
             );
           }
-        } else {
-          // Get all reports for non-assigned users
-          q = query(
-            reportsRef,
-            orderBy('timestamp', 'desc')
-          );
+          for (const q of attempts) {
+            const snap = await runQuery(q);
+            if (snap && snap.docs.length > 0) {
+              querySnapshot = snap;
+              break;
+            }
+          }
         }
-        
-        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot) {
+          querySnapshot = await getDocs(query(reportsRef, orderBy('timestamp', 'desc')));
+        }
         
         let allReports = querySnapshot.docs
           .map(doc => {
@@ -681,7 +659,13 @@ function ReportsChart({ dropdownCoordinator, onDropdownOpen }) {
     };
 
     fetchReports();
-  }, [timeFilter, viewMode, isAssignedToFarm, currentUser?.farm]);
+  }, [timeFilter, viewMode, isAssignedToFarm, currentUser?.farm, assignedFarmName, farmsById, dataRefreshTick]);
+
+  const handleChartRefresh = () => runRefresh(async () => {
+    await refreshReportsData();
+    setDataRefreshTick((t) => t + 1);
+    setLastUpdated(new Date());
+  });
 
   if (loading) {
     return (
@@ -1268,8 +1252,23 @@ function ReportsChart({ dropdownCoordinator, onDropdownOpen }) {
       }}>
         {generateSummary()}
       </div>
-      <div className="reports-last-updated">
-        {t('reportsChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+      <div className="chart-last-updated-wrap">
+        <div className="reports-last-updated chart-last-updated-row">
+          <button
+            type="button"
+            className="chart-refresh-btn"
+            onClick={handleChartRefresh}
+            disabled={refreshingChart || loading}
+            title={t('common.refresh')}
+            aria-label={t('common.refresh')}
+          >
+            <FaSyncAlt className={refreshingChart ? 'chart-refresh-spin' : ''} />
+          </button>
+          <span>
+            {t('reportsChart.asOf')} {lastUpdated.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </span>
+        </div>
+        <RefreshStatusMessage status={refreshStatus} variant="onDark" />
       </div>
     </div>
   );

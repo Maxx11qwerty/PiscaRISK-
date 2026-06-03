@@ -394,17 +394,65 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.reports-last-updated {
-  color: #ffffff;
-  font-family: 'customfont1';
-  font-size: 0.8rem;
-  text-align: center;
+.chart-last-updated-wrap {
   position: absolute;
   bottom: 5px;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
+  max-width: 100%;
   padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.chart-last-updated-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.chart-refresh-btn {
+  background: transparent;
+  border: none;
+  color: #7ffcff;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.chart-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.chart-refresh-spin {
+  animation: chart-refresh-spin 1s linear infinite;
+}
+
+@keyframes chart-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.reports-last-updated {
+  color: #ffffff;
+  font-family: 'customfont1';
+  font-size: 0.8rem;
+  text-align: center;
+  position: static;
+  bottom: auto;
+  left: auto;
+  transform: none;
+  width: auto;
+  padding: 0;
 }
 
 /* Hamburger menu icon styling for mobile 360-480px */
@@ -419,14 +467,13 @@
     transform: scale(1.1);
   }
   
-  .reports-last-updated {
+  .chart-last-updated-wrap {
     bottom: 10px !important;
   }
-  
-  .reports-last-updated.risk-view {
+
+  .chart-last-updated-wrap.risk-view {
     bottom: 10px !important;
-    margin-bottom: 60px !important; /* Move up using margin-bottom */
-    color: #ffffff !important; /* Red color for testing */
+    margin-bottom: 60px !important;
   }
   
   .recharts-tooltip-wrapper {

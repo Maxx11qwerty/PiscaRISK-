@@ -5,6 +5,7 @@ import { RiAlertFill } from 'react-icons/ri';
 import { PiNoteFill } from 'react-icons/pi';
 import { IoTimeSharp } from 'react-icons/io5';
 import { FaFileExport } from 'react-icons/fa6';
+import { FaSyncAlt } from 'react-icons/fa';
 import { exportRiskOverviewCSV, exportRiskOverviewPDF, exportFarmDetailsCSV, exportFarmDetailsPDF} from '../utils/exportRiskReport';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
@@ -12,12 +13,18 @@ import { sanitizeTimestamp } from '../utils/securityUtils';
 import { logActivity, logMessages } from '../utils/logger';
 import { AuthContext } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
+import { useRiskData } from '../contexts/RiskDataContext';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 import './RiskReportModal.css';
 
 const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimestampMs = null, initialDetailsFarmKey = null, initialRiskLevel = 'all', initialPond = null, initialPonds = [], rangeStart = null, rangeEnd = null }) => {
   const { t } = useTranslation();
   const { currentUser } = useContext(AuthContext);
   const { farms: liveFarms } = useFarms();
+  const { farms: ctxFarms, loading: riskDataLoading, lastFetchedAt, refreshRiskData } = useRiskData();
+  const { status: refreshStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
+  const RISK_CACHE_TTL_MS = 5 * 60 * 1000;
   const [loading, setLoading] = useState(true);
   const [farms, setFarms] = useState([]);
   const mountedRef = React.useRef(true);
@@ -335,8 +342,77 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const cacheValid =
+          !riskDataLoading &&
+          Array.isArray(ctxFarms) &&
+          ctxFarms.length > 0 &&
+          lastFetchedAt &&
+          (Date.now() - lastFetchedAt) < RISK_CACHE_TTL_MS;
+
+        if (riskDataLoading && !cacheValid) {
+          setLoading(true);
+          return;
+        }
+
         setLoading(true);
 
+        // Fetch conditions summary (farm-level) — modal-only enrichment
+        let condSnap = null;
+        try {
+          condSnap = await getDocs(collection(db, 'conditions_summary'));
+        } catch (e) {
+        }
+
+        // Get all unique farms from both collections and map keys to display names
+        const allFarms = new Set();
+        const farmKeyToName = {};
+        const keyToDisplayName = {}; // normalized key -> live display name
+        let unknownFromPred = 0;
+        let unknownFromFb = 0;
+        
+        const predictions = [];
+        const feedbacks = [];
+
+        if (cacheValid) {
+          ctxFarms.forEach((f) => {
+            const farmKey = f.key || normalizeName(f.name);
+            if (!allowedKeys.has(farmKey)) return;
+            const farmName = f.name || farmKeyToName[farmKey];
+            allFarms.add(farmKey);
+            if (farmName && farmName !== t('riskReportModal.unknownFarm')) {
+              farmKeyToName[farmKey] = farmName;
+              keyToDisplayName[farmKey] = farmName;
+            }
+            (f.predictions || []).forEach((p) => {
+              predictions.push({
+                id: p.id,
+                farm: farmName,
+                farm_key: farmKey,
+                fish_pond: p.fish_pond || t('riskReportModal.unknownPond'),
+                risk_level: normalizeRisk(p.risk_level),
+                confidence: parseFloat(p.confidence) || 0,
+                fish_condition: p.fish_condition || 'Unknown',
+                water_condition: p.water_condition || 'Unknown',
+                weather: p.weather || 'Unknown',
+                ready_for_harvest: typeof p.ready_for_harvest === 'boolean' ? p.ready_for_harvest : null,
+                conditions_summary: p.conditions_summary || null,
+                recommended_actions: Array.isArray(p.recommended_actions) ? p.recommended_actions : [],
+                timestamp: p.timestamp,
+                submitted_timestamp: p.submitted_timestamp,
+                generated_timestamp: p.generated_timestamp,
+                source: p.source || 'risk_predictions',
+              });
+            });
+            if (f.feedback) {
+              feedbacks.push({
+                ...f.feedback,
+                farm: farmName,
+                farm_key: farmKey,
+                source: f.feedback.source || 'modal_feedback_aggregate',
+              });
+            }
+          });
+        } else {
         // Fetch risk predictions (pond-level)
         let predsSnap = await getDocs(collection(db, 'risk_predictions'));
         if (predsSnap.empty) {
@@ -355,22 +431,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           }
         }
         
-        // Fetch conditions summary (farm-level)
-        let condSnap = null;
-        try {
-          condSnap = await getDocs(collection(db, 'conditions_summary'));
-        } catch (e) {
-        }
-
-        // Get all unique farms from both collections and map keys to display names
-        const allFarms = new Set();
-        const farmKeyToName = {};
-        const keyToDisplayName = {}; // normalized key -> live display name
-        let unknownFromPred = 0;
-        let unknownFromFb = 0;
-        
-        // Process risk predictions
-        const predictions = [];
         predsSnap.forEach(doc => {
           const data = doc.data();
           const rawName = data.farm_name || data.farm || data.input_data?.farm_name || data.input_data?.farm || t('riskReportModal.unknownFarm');
@@ -422,8 +482,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
           });
         });
         
-        // Process modal feedback
-        const feedbacks = [];
         feedbackSnap.forEach(doc => {
           const data = doc.data();
           if (data.is_aggregate) {
@@ -496,6 +554,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
             });
           }
         });
+        }
         
         // Map conditions summary by farm key
         const summaryByFarm = {};
@@ -900,7 +959,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
     };
 
     fetchData();
-  }, [currentUser?.farm, assignedFarmName, allowedKeys, allowedIdToName]);
+  }, [currentUser?.farm, assignedFarmName, allowedKeys, allowedIdToName, ctxFarms, riskDataLoading, lastFetchedAt, t]);
 
   // Lazy-fetch aggregate feedback per farm if missing from initial load
   useEffect(() => {
@@ -2082,7 +2141,30 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
 
       {!detailsFarmKey && (
       <div className="farm-overview-section">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '8px 0', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, margin: '8px 0', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => runRefresh(() => refreshRiskData())}
+            disabled={isManualRefreshBusy || loading}
+            title={t('common.refresh')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              color: '#1A4375',
+              cursor: isManualRefreshBusy || loading ? 'wait' : 'pointer',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              opacity: isManualRefreshBusy || loading ? 0.6 : 1,
+            }}
+          >
+            <FaSyncAlt className={isManualRefreshBusy ? 'risk-refresh-spin' : ''} />
+            <span style={{ textDecoration: 'underline' }}>{t('common.refresh')}</span>
+          </button>
           <button
             onClick={() => {
               const isOpening = !exportMenuOpen;
@@ -2157,6 +2239,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
             </div>
           )}
         </div>
+        <RefreshStatusMessage status={refreshStatus} variant="default" className="refresh-status-message--inline" />
+        </div>
         {farms.length > 0 ? (
           <div className="farm-cards-grid">
             {farms.filter(farm => {
@@ -2178,17 +2262,9 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           const fb = feedbackCache[farm.farm_key] || farm.feedback;
                           const correctedRaw = fb?.corrected_risk_level || fb?.prediction?.corrected_risk_level;
                           const corrected = correctedRaw ? normalizeRisk(correctedRaw) : null;
-                          // Compute display risk from the SAME dataset as counts to guarantee consistency
-                          const dailyPredictions7_hdr = getLatestPerPondPerDay(farm.predictions, 7);
-                          const predictionsToUse_hdr = dailyPredictions7_hdr.length > 0 ? dailyPredictions7_hdr : getLatestPerPondPerDay(farm.predictions, 30);
-                          const withTs_hdr = predictionsToUse_hdr.filter(p => getTimestampMs(p.timestamp) > 0);
-                          const sorted_hdr = [...withTs_hdr].sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
-                          const pondMap_hdr = new Map();
-                          sorted_hdr.forEach(pred => {
-                            const pondKey = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
-                            if (!pondMap_hdr.has(pondKey)) pondMap_hdr.set(pondKey, pred);
-                          });
-                          const latestPerPond_hdr = Array.from(pondMap_hdr.values());
+                          // Compute display risk from the same "latest batch per pond" dataset
+                          // used by counts/main issues to keep the card internally consistent.
+                          const latestPerPond_hdr = getLatestBatchPerPond(farm);
                           const counts_hdr = { high: 0, medium: 0, low: 0, normal: 0 };
                           latestPerPond_hdr.forEach(pred => {
                             const risk = normalizeRisk(pred.risk_level);
@@ -2223,7 +2299,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                                 .filter(v => isFinite(v) && v > 0);
                               displayConfidence = confidences.length ? (confidences.reduce((a, b) => a + b, 0) / confidences.length) : 0;
                               // Calculate trend for selected pond - use all predictions for this pond with valid timestamps
-                              const allPondPredictions = (predictionsToUse_hdr.length > 0 ? predictionsToUse_hdr : (farm.predictions || []))
+                              const allPondPredictions = (farm.predictions || [])
                                 .filter(pred => {
                                   if (!pred || !pred.timestamp) return false;
                                   const formattedPondName = formatPondName(pred.fish_pond);
@@ -2248,10 +2324,8 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                             if (allConfidences.length > 0) {
                               displayConfidence = allConfidences.reduce((a, b) => a + b, 0) / allConfidences.length;
                             }
-                            // Calculate trend for all ponds using filtered prediction history with timestamps
-                            // Use predictionsToUse_hdr which has valid timestamps for trend calculation
-                            // Fallback to farm.predictions if predictionsToUse_hdr is empty, but filter for valid timestamps
-                            let predictionsForTrend = predictionsToUse_hdr.length > 0 ? predictionsToUse_hdr : (farm.predictions || []);
+                            // Calculate trend for all ponds using valid-timestamp prediction history.
+                            let predictionsForTrend = (farm.predictions || []);
                             // Ensure all predictions have valid timestamps
                             predictionsForTrend = predictionsForTrend.filter(p => p && p.timestamp && getTimestampMs(p.timestamp) > 0);
                             if (predictionsForTrend.length > 0) {
@@ -2263,6 +2337,9 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                             <>
                               {riskBadge(displayRisk)}
                               {corrected && ` (${t('riskReportModal.corrected')})`}
+                              <span style={{ display: 'block', marginTop: '4px', fontSize: '11px', color: '#6b7280' }}>
+                                Based on latest batch per pond
+                              </span>
                               {displayConfidence > 0 && (
                                 <>
                                   <span style={{ padding: '0 6px', color: '#9CA3AF' }}>|</span>
@@ -2323,17 +2400,9 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
 
                     {/* Subtle note about risk calculation */}
                     {farm.has_reports && (() => {
-                      // Calculate the same displayRisk that's shown in the UI
-                      const dailyPredictions7_hdr = getLatestPerPondPerDay(farm.predictions, 7);
-                      const predictionsToUse_hdr = dailyPredictions7_hdr.length > 0 ? dailyPredictions7_hdr : getLatestPerPondPerDay(farm.predictions, 30);
-                      const withTs_hdr = predictionsToUse_hdr.filter(p => getTimestampMs(p.timestamp) > 0);
-                      const sorted_hdr = [...withTs_hdr].sort((a, b) => getTimestampMs(b.timestamp) - getTimestampMs(a.timestamp));
-                      const pondMap_hdr = new Map();
-                      sorted_hdr.forEach(pred => {
-                        const pondKey = (pred.fish_pond || 'Unknown Pond').toString().trim().toLowerCase();
-                        if (!pondMap_hdr.has(pondKey)) pondMap_hdr.set(pondKey, pred);
-                      });
-                      const latestPerPond_hdr = Array.from(pondMap_hdr.values());
+                      // Keep this explanation in sync with the header badge:
+                      // use latest batch per pond for both.
+                      const latestPerPond_hdr = getLatestBatchPerPond(farm);
                       const counts_hdr = { high: 0, medium: 0, low: 0, normal: 0 };
                       latestPerPond_hdr.forEach(pred => {
                         const risk = normalizeRisk(pred.risk_level);
@@ -2343,6 +2412,13 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                         else counts_hdr.normal++;
                       });
                       const displayRisk = majorityFromCounts(counts_hdr);
+                      const totalCount = counts_hdr.high + counts_hdr.medium + counts_hdr.low + counts_hdr.normal;
+                      const compositionText = `Risk composition: High ${counts_hdr.high}, Medium ${counts_hdr.medium}, Low ${counts_hdr.low}, Normal ${counts_hdr.normal}.`;
+                      const interpretationText = counts_hdr.high > 0
+                        ? "Some ponds are still high risk and need urgent attention even when the overall badge is lower."
+                        : counts_hdr.medium > 0
+                        ? "No high-risk ponds currently, but medium-risk ponds still need close monitoring."
+                        : "No high- or medium-risk ponds in the latest batch.";
                       
                       return (
                         <div style={{ 
@@ -2355,14 +2431,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           color: '#4b5563',
                           lineHeight: '1.4'
                         }}>
-                          ℹ️ {displayRisk === 'High' 
-                            ? "The farm's overall risk is determined by the pond with the most serious condition — some ponds show high-risk readings. Average Confidence indicates how confident the system is about these results."
-                            : displayRisk === 'Medium'
-                            ? "The farm's overall risk is determined by the pond with the most serious condition — some ponds show moderate risk levels. Average Confidence indicates how confident the system is about these results."
-                            : displayRisk === 'Low'
-                            ? "The farm's overall risk is determined by the pond with the most serious condition — all ponds in this farm are currently stable. Average Confidence indicates how confident the system is about these results."
-                            : "The farm's overall risk is determined by the pond with the most serious condition. Average Confidence indicates how confident the system is about these results."
-                          }
+                          ℹ️ {`Overall badge: ${displayRisk} (${totalCount} pond${totalCount === 1 ? '' : 's'} in latest batch). ${compositionText} ${interpretationText} Average Confidence indicates how confident the system is about these results.`}
                         </div>
                       );
                     })()}

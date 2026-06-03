@@ -1,10 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { ResponsiveContainer, RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchRiskReportData } from '../services/riskDataService';
+import { useRiskData } from '../contexts/RiskDataContext';
 import { useFarms } from '../contexts/FarmsContext';
 import './FarmHealthGauge.css';
 import { GiHamburgerMenu } from 'react-icons/gi';
+import { FaSyncAlt } from 'react-icons/fa';
+import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
+import RefreshStatusMessage from './RefreshStatusMessage';
 import { downloadGaugeAsImage, exportHealthGaugeCSV } from '../utils/exportHealthGauge';
 import { logActivity, logMessages } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
@@ -33,8 +36,10 @@ const FarmHealthGauge = ({ dropdownCoordinator, onDropdownOpen }) => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
   const { farmsNameByKey } = useFarms();
+  const { farms: riskFarms, loading: riskDataLoading, refreshRiskData } = useRiskData();
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { status: refreshStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [assignedFarmName, setAssignedFarmName] = useState('');
@@ -84,56 +89,39 @@ const FarmHealthGauge = ({ dropdownCoordinator, onDropdownOpen }) => {
   }, [isAssignedToFarm, currentUser?.farm]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await fetchRiskReportData();
-        
-        // Canonicalize farm display names with live map and legacy aliases
-        const legacyMap = {
-          'salmon-hatchery-facility': 'Aquino Fish Farm',
-          'tilapia-production-center': "Vergara's Aqua Farm",
-          'blue-ocean-aquafarm': 'Maningas Fish Farm',
-          'marine-species-cultivation': 'Labay Fish Farm',
-        };
-        const canon = (Array.isArray(data) ? data : [])
-          .filter(f => 
-            f.farm_key !== 'rojo-hatchery' && 
-            f.name !== 'Rojo Hatchery' &&
-            f.farm_key !== 'freshwater-finfish-farm' &&
-            f.name !== 'Freshwater Finfish Farm' &&
-            !f.name?.toLowerCase().includes('freshwater finfish')
-          ) // Additional filtering
-          .map(f => {
-            const live = farmsNameByKey[f.key];
-            const legacy = legacyMap[f.key];
-            const name = live || legacy || f.name;
-            return { ...f, name, key: normalizeFarmName(name) };
-          });
-        // Merge duplicates by name
-        const map = new Map();
-        canon.forEach(f => {
-          const name = f.name || 'Unknown Farm';
-          if (!map.has(name)) map.set(name, { ...f });
-          else {
-            const cur = map.get(name);
-            const preds = [
-              ...(Array.isArray(cur.predictions) ? cur.predictions : []),
-              ...(Array.isArray(f.predictions) ? f.predictions : [])
-            ];
-            map.set(name, { ...cur, predictions: preds });
-          }
-        });
-        const processedFarms = Array.from(map.values());
-        setFarms(processedFarms);
-      } catch (error) {
-        // Silently handle errors
+    if (riskDataLoading && (!riskFarms || riskFarms.length === 0)) {
+      setLoading(true);
+      return;
+    }
+
+    const legacyMap = {
+      'salmon-hatchery-facility': 'Aquino Fish Farm',
+      'tilapia-production-center': "Vergara's Aqua Farm",
+      'blue-ocean-aquafarm': 'Maningas Fish Farm',
+      'marine-species-cultivation': 'Labay Fish Farm',
+    };
+    const canon = (Array.isArray(riskFarms) ? riskFarms : []).map((f) => {
+      const live = farmsNameByKey[f.key];
+      const legacy = legacyMap[f.key];
+      const name = live || legacy || f.name;
+      return { ...f, name, key: normalizeFarmName(name) };
+    });
+    const map = new Map();
+    canon.forEach((f) => {
+      const name = f.name || 'Unknown Farm';
+      if (!map.has(name)) map.set(name, { ...f });
+      else {
+        const cur = map.get(name);
+        const preds = [
+          ...(Array.isArray(cur.predictions) ? cur.predictions : []),
+          ...(Array.isArray(f.predictions) ? f.predictions : []),
+        ];
+        map.set(name, { ...cur, predictions: preds });
       }
-      finally {
-        setLoading(false);
-      }
-    })();
-  }, [farmsNameByKey, isAssignedToFarm, currentUser?.farm, assignedFarmKey, selectedFarm]);
+    });
+    setFarms(Array.from(map.values()));
+    setLoading(false);
+  }, [riskFarms, riskDataLoading, farmsNameByKey, isAssignedToFarm, currentUser?.farm, assignedFarmKey, selectedFarm]);
 
   useEffect(() => {
     if (isAssignedToFarm) {
@@ -586,8 +574,21 @@ const FarmHealthGauge = ({ dropdownCoordinator, onDropdownOpen }) => {
           </>
         )}
       </div>
-      <div style={{ marginTop: 8, fontSize: '0.9rem', color: '#bfc8d4' }}>
-        {t('farmHealthGauge.summaryOverall')}
+      <div className="chart-last-updated-wrap" style={{ marginTop: 8 }}>
+        <div className="chart-last-updated-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className="chart-refresh-btn"
+            onClick={() => runRefresh(() => refreshRiskData())}
+            disabled={isManualRefreshBusy || loading || riskDataLoading}
+            title={t('common.refresh')}
+            aria-label={t('common.refresh')}
+          >
+            <FaSyncAlt className={isManualRefreshBusy ? 'chart-refresh-spin' : ''} />
+          </button>
+          <span style={{ fontSize: '0.9rem', color: '#bfc8d4' }}>{t('farmHealthGauge.summaryOverall')}</span>
+        </div>
+        <RefreshStatusMessage status={refreshStatus} variant="onDark" />
       </div>
         <div style={{ marginTop: 6, fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <span>{t('farmHealthGauge.legendHigh')}</span>

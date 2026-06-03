@@ -1,0 +1,74 @@
+.refresh-status-message {
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.refresh-status-message--default.refresh-status-message--loading {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.refresh-status-message--default.refresh-status-message--success {
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.refresh-status-message--default.refresh-status-message--error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.refresh-status-message--onDark.refresh-status-message--loading {
+  color: #e0f2fe;
+  background: rgba(14, 116, 144, 0.35);
+}
+
+.refresh-status-message--onDark.refresh-status-message--success {
+  color: #bbf7d0;
+  background: rgba(22, 101, 52, 0.4);
+}
+
+.refresh-status-message--onDark.refresh-status-message--error {
+  color: #fecaca;
+  background: rgba(153, 27, 27, 0.45);
+}
+
+.refresh-status-message--onHeader.refresh-status-message--loading {
+  color: #dbeafe;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.refresh-status-message--onHeader.refresh-status-message--success {
+  color: #dcfce7;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.refresh-status-message--onHeader.refresh-status-message--error {
+  color: #fee2e2;
+  background: rgba(127, 29, 29, 0.55);
+}
+
+.refresh-status-message--inline {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.refresh-status-message--inline.refresh-status-message--loading {
+  color: #1d4ed8;
+}
+
+.refresh-status-message--inline.refresh-status-message--success {
+  color: #15803d;
+}
+
+.refresh-status-message--inline.refresh-status-message--error {
+  color: #b91c1c;
+}

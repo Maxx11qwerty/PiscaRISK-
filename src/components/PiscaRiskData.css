@@ -26,6 +26,15 @@
   cursor: pointer;
 }
 
+.prd-refresh-spin {
+  animation: prd-refresh-spin 1s linear infinite;
+}
+
+@keyframes prd-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .prd-export-menu {
   position: relative;
   display: inline-block;
