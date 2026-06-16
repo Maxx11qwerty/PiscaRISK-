@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useContext } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, where, limit, orderBy } from 'firebase/firestore';
 import { AuthContext } from '../contexts/AuthContext';
 import { GiDoubleFish } from 'react-icons/gi';
 import { FaInfoCircle, FaChartBar, FaCalendarAlt } from 'react-icons/fa';
@@ -81,13 +81,21 @@ const StockFeedLogs = ({ farmId, farmName }) => {
       try {
         setLoading(true);
         setError('');
+        
+        // Fetch from ALL locations
         const [logsSnap, usersSnap, farmsSnap] = await Promise.all([
           getDocs(collection(db, 'farmerLogs')),
           getDocs(collection(db, 'mobileUsers')),
           getDocs(collection(db, 'farms'))
         ]);
+        
+        // Fetch nested logs from each farm
         const nestedLogsSnaps = await Promise.all(
-          farmsSnap.docs.map(f => getDocs(collection(db, 'farms', f.id, 'farmerLogs')).then(s => ({ farmId: f.id, snap: s })))
+          farmsSnap.docs.map(f => 
+            getDocs(collection(db, 'farms', f.id, 'farmerLogs'))
+              .then(snap => ({ farmId: f.id, snap }))
+              .catch(() => ({ farmId: f.id, snap: { docs: [] } }))
+          )
         );
 
         const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -96,14 +104,33 @@ const StockFeedLogs = ({ farmId, farmName }) => {
         const farmIdToName = new Map(farms.map(f => [f.id, f.name]));
         const nameToFarmId = new Map(farms.map(f => [String(f.name || '').trim().toLowerCase(), f.id]));
 
-        const rawLogs = [
-          ...logsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          ...nestedLogsSnaps.flatMap(({ farmId, snap }) => snap.docs.map(d => ({ id: d.id, ...d.data(), _farm: farmId })))
-        ].map(l => ({
+        // Combine and deduplicate logs
+        const rawLogsMap = new Map();
+        
+        // Add root farmerLogs
+        logsSnap.docs.forEach(d => {
+          const data = d.data();
+          rawLogsMap.set(d.id, { id: d.id, ...data });
+        });
+        
+        // Add nested logs
+        nestedLogsSnaps.forEach(({ farmId, snap }) => {
+          snap.docs.forEach(d => {
+            const data = d.data();
+            // Don't overwrite if already exists
+            if (!rawLogsMap.has(d.id)) {
+              rawLogsMap.set(d.id, { id: d.id, ...data, _farm: farmId });
+            }
+          });
+        });
+
+        const rawLogs = Array.from(rawLogsMap.values()).map(l => ({
           ...l,
           _farm: l._farm || l.farmId || l.farm,
           _farmName: l._farm ? (farmIdToName.get(l._farm) || l.farmName || l.farm) : (l.farmName || l.farm)
         }));
+
+        // Resolve user for each log
         const withUser = rawLogs.map(l => {
           const matchedUser = findUserForLog(l, idx);
           const inferredFarm = l._farm || (matchedUser?.farm ? (nameToFarmId.get(String(matchedUser.farm).trim().toLowerCase()) || matchedUser.farm) : (l.farmId || l.farm));
@@ -115,16 +142,19 @@ const StockFeedLogs = ({ farmId, farmName }) => {
         const role = String(currentUser?.role || '').toLowerCase();
         const isTemporaryTechOfficer = currentUser?.temporaryTechOfficer || role === 'temp_tech_officer';
         const userFarm = currentUser?.farm ? String(currentUser.farm).trim() : '';
+        
         const filteredByRole = withUser.filter(l => {
           if (role === 'super_admin' || role === 'superadmin' || role === 'super admin') return true;
           if (isTemporaryTechOfficer) return true;
           if (!userFarm) return true;
+          
           const farmIdMatch = l._farm === userFarm || nameToFarmId.get(userFarm.toLowerCase()) === l._farm;
           const farmNameMatch = (String(l._farmName || '').trim().toLowerCase() === userFarm.toLowerCase());
-          return farmIdMatch || farmNameMatch;
+          const farmNameMatch2 = (String(l._farm || '').trim().toLowerCase() === userFarm.toLowerCase());
+          return farmIdMatch || farmNameMatch || farmNameMatch2;
         });
 
-        // Additionally, when a farm panel opens the modal, constrain to that farm
+        // Apply farm filter if provided
         const filtered = filteredByRole.filter(l => {
           if (!farmId && !farmName) return true;
           const fId = l._farm || l.farmId || '';
@@ -142,6 +172,7 @@ const StockFeedLogs = ({ farmId, farmName }) => {
         setLogs(filtered);
         setSelectedIndex(0);
       } catch (e) {
+        console.error('Error loading farmer logs:', e);
         setError('Failed to load farmer logs');
       } finally {
         setLoading(false);
@@ -149,6 +180,9 @@ const StockFeedLogs = ({ farmId, farmName }) => {
     };
     load();
   }, [currentUser?.role, currentUser?.farm, farmId, farmName]);
+
+  // ... rest of the component (groupedByDate, render logic, etc.)
+  // Keep everything else the same as your original file
 
   // Group logs by calendar date (local)
   const groupedByDate = useMemo(() => {

@@ -3,7 +3,7 @@ import { FaUserCircle, FaSyncAlt } from 'react-icons/fa';
 import { IoIosNotifications } from "react-icons/io";
 import './NotificationBox.css';
 import { db } from '../firebase';
-import { ensureReportLog, ensureStockFeedLog } from '../utils/logger';
+import { ensureReportLog, ensureStockFeedLog, ensureFeedbackLog } from '../utils/logger';
 import {
   collection, 
   query, 
@@ -44,7 +44,7 @@ const generateDetails = (report) => {
 };
 const NOTIFICATION_REPORTS_LIMIT = 40;
 const NOTIFICATION_FEEDBACK_LIMIT = 15;
-const NOTIFICATION_LOGS_LIMIT = 15;
+const NOTIFICATION_LOGS_LIMIT = 30; // Increased to ensure we catch new logs
 const BADGE_REPORTS_LIMIT = 25;
 
 // Initialize with Firebase data (bounded queries — not full collection scans)
@@ -71,31 +71,21 @@ const initializeNotifications = async (options = {}) => {
       const report = doc.data();
       const pondId = report.fish_pond ? extractPondId(report.fish_pond) : '';
 
-      // Opportunistically ensure a system log exists for this report (no-op if already logged)
       try { ensureReportLog(doc.id, report); } catch (_) {}
       
-      // Handle timestamp conversion safely
       let timestamp;
       try {
-        // Check if timestamp is a Firestore Timestamp
         if (report.timestamp && typeof report.timestamp.toDate === 'function') {
           timestamp = report.timestamp.toDate().toISOString();
-        } 
-        // Check if it's already a Date object
-        else if (report.timestamp instanceof Date) {
+        } else if (report.timestamp instanceof Date) {
           timestamp = report.timestamp.toISOString();
-        }
-        // Check if it's already an ISO string
-        else if (typeof report.timestamp === 'string') {
-          // Validate it's a proper ISO string
+        } else if (typeof report.timestamp === 'string') {
           if (!isNaN(new Date(report.timestamp).getTime())) {
             timestamp = report.timestamp;
           } else {
             throw new Error('Invalid date string');
           }
-        }
-        // Fallback to current date if no valid timestamp
-        else {
+        } else {
           timestamp = new Date().toISOString();
         }
       } catch (error) {
@@ -109,7 +99,7 @@ const initializeNotifications = async (options = {}) => {
         message: generateMessage(report, pondId),
         details: generateDetails(report),
         username: report.submitted_by || report.user || 'Unknown User',
-        timestamp: timestamp, // Use the processed timestamp
+        timestamp: timestamp,
         read: false,
         iconKey: "pond",
         pondId,
@@ -120,7 +110,7 @@ const initializeNotifications = async (options = {}) => {
       });
     });
 
-    // Fetch feedback from Firebase and resolve sender's farm
+    // Fetch feedback
     const feedbackRef = collection(db, 'PiscaRisk');
     const feedbackQuery = query(
       feedbackRef,
@@ -132,8 +122,9 @@ const initializeNotifications = async (options = {}) => {
     const feedbackNotifications = await Promise.all(
       feedbackSnapshot.docs.map(async (docSnap) => {
         const feedback = docSnap.data();
-
-        // Handle timestamp conversion safely for feedback
+        
+        try { ensureFeedbackLog(docSnap.id, feedback); } catch (_) {}
+        
         let timestamp;
         try {
           if (feedback.timestamp && typeof feedback.timestamp.toDate === 'function') {
@@ -159,11 +150,9 @@ const initializeNotifications = async (options = {}) => {
           timestamp = new Date().toISOString();
         }
 
-        // Resolve sender's farm (ID and name)
         let senderFarmId = null;
         let senderFarmName = null;
         try {
-          // Feedback may store sender as uid or userId; check both
           const senderUid = feedback.uid || feedback.userId || null;
           if (senderUid) {
             const mobileUserDoc = await getDoc(doc(db, 'mobileUsers', senderUid));
@@ -180,9 +169,7 @@ const initializeNotifications = async (options = {}) => {
               senderFarmName = farmDoc.exists() ? (farmDoc.data().name || senderFarmId) : senderFarmId;
             }
           }
-        } catch (_) {
-          // ignore resolution errors; fall back below
-        }
+        } catch (_) {}
 
         return {
           id: docSnap.id,
@@ -196,7 +183,6 @@ const initializeNotifications = async (options = {}) => {
           feedbackData: feedback,
           avatar: feedback.avatar || null,
           source: feedback.source || 'web',
-          // attach farm data for filtering
           farmName: senderFarmName || 'Unknown Farm',
           reportData: { ...(feedback || {}), farm: senderFarmId || null },
           senderUid: feedback.uid || feedback.userId || null
@@ -206,105 +192,259 @@ const initializeNotifications = async (options = {}) => {
 
     notifications.push(...feedbackNotifications);
 
-    // Fetch stock/feed logs from Firebase and resolve submitter's farm
+    // ============================================================
+    // FIXED: Fetch stock/feed logs from BOTH locations
+    // ============================================================
     if (includeStockFeed) {
-    try {
-      const farmerLogsRef = collection(db, 'farmerLogs');
-      const farmerLogsQuery = query(
-        farmerLogsRef,
-        orderBy('timestamp', 'desc'),
-        limit(Math.max(1, logsLimit))
-      );
-      const farmerLogsSnapshot = await getDocs(farmerLogsQuery);
+      try {
+        // 1. Fetch from root farmerLogs collection
+        const farmerLogsRef = collection(db, 'farmerLogs');
+        const farmerLogsQuery = query(
+          farmerLogsRef,
+          orderBy('timestamp', 'desc'),
+          limit(Math.max(1, logsLimit))
+        );
+        const farmerLogsSnapshot = await getDocs(farmerLogsQuery);
+        
+        // 2. Also fetch from farms/{farmId}/farmerLogs (nested)
+        const farmsSnapshot = await getDocs(collection(db, 'farms'));
+        const nestedLogsSnaps = await Promise.all(
+          farmsSnapshot.docs.map(f => 
+            getDocs(collection(db, 'farms', f.id, 'farmerLogs'))
+              .then(snap => ({ farmId: f.id, snap }))
+              .catch(() => ({ farmId: f.id, snap: { docs: [] } }))
+          )
+        );
 
-      const stockFeedNotifications = await Promise.all(
-        farmerLogsSnapshot.docs.map(async (docSnap) => {
-          const log = docSnap.data();
+        // Combine all log documents
+        const allLogDocs = [
+          ...farmerLogsSnapshot.docs,
+          ...nestedLogsSnaps.flatMap(({ farmId, snap }) => 
+            snap.docs.map(d => ({ 
+              ...d, 
+              _farm: farmId,
+              data: () => ({ ...d.data(), farmId: farmId })
+            }))
+          )
+        ];
 
-          // Ensure stock/feed has a corresponding systemLogs entry
-          try { ensureStockFeedLog(docSnap.id, log); } catch (_) {}
+        // Deduplicate by ID
+        const uniqueLogs = new Map();
+        allLogDocs.forEach(doc => {
+          if (!uniqueLogs.has(doc.id)) {
+            uniqueLogs.set(doc.id, doc);
+          }
+        });
 
-          // Resolve farm from submitter uid/email (per-log lookup, no full users scan)
-          let farmId = null;
-          let farmNameResolved = null;
-          try {
-            const candidateUid = log.uid || log.user_id || null;
-            const candidateEmail = (log.user_email || log.email || '').toLowerCase();
-            if (candidateUid) {
-              const mobileUserDoc = await getDoc(doc(db, 'mobileUsers', candidateUid));
-              if (mobileUserDoc.exists()) {
-                farmId = mobileUserDoc.data().farm || null;
-              } else {
-                const userDoc = await getDoc(doc(db, 'users', candidateUid));
-                if (userDoc.exists()) farmId = userDoc.data().farm || null;
+        // Sync unlogged stock/feed logs to systemLogs
+                const syncStockFeedLogsToSystemLogs = async () => {
+                  const { setDoc, doc: fsDoc } = await import('firebase/firestore');
+                  const { sanitizeObjectStrings } = await import('../utils/sanitize');
+          
+                  for (const docSnap of Array.from(uniqueLogs.values())) {
+                    try {
+                      const farmId = docSnap._farm;
+                      const log = { ...docSnap.data(), farmId };
+                      const logId = `stock_${farmId}_${docSnap.id}`;
+              
+                      // Check if already logged
+                      const logDocRef = fsDoc(db, 'systemLogs', logId);
+                      const { getDoc } = await import('firebase/firestore');
+                      const existing = await getDoc(logDocRef);
+                      if (existing.exists()) continue;
+              
+                      // Create systemLogs entry
+                      const username = log.submitted_by || log.user_email || 'Unknown User';
+                      const pond = log.fish_pond || 'Unknown Pond';
+                      const source = (log.source || 'mobile').toString().toLowerCase();
+              
+                      let ts;
+                      try {
+                        if (log.timestamp && typeof log.timestamp.toDate === 'function') {
+                          ts = log.timestamp.toDate();
+                        } else if (log.timestamp instanceof Date) {
+                          ts = log.timestamp;
+                        } else if (typeof log.timestamp === 'string') {
+                          const d = new Date(log.timestamp);
+                          ts = isNaN(d.getTime()) ? new Date() : d;
+                        } else if (log.timestamp && typeof log.timestamp.seconds === 'number') {
+                          ts = new Date(log.timestamp.seconds * 1000);
+                        } else {
+                          ts = new Date();
+                        }
+                      } catch (_) {
+                        ts = new Date();
+                      }
+              
+                      const newLog = sanitizeObjectStrings({
+                        timestamp: ts.toISOString(),
+                        category: 'stock',
+                        message: `Mobile user ${username} submitted a stock/feed log for ${pond}`,
+                        username,
+                        userRole: log.user_role || 'Unknown',
+                        source: source === 'mobile' ? 'mobile' : 'web',
+                        stockLogId: docSnap.id,
+                        farm: farmId || null,
+                        pond: pond
+                      });
+              
+                      await setDoc(logDocRef, newLog, { merge: false });
+                    } catch (e) {
+                      console.error('Sync stock/feed log failed:', e);
+                    }
+                  }
+                };
+        
+                // Run sync once
+                await syncStockFeedLogsToSystemLogs();
+
+                const stockFeedNotifications = await Promise.all(
+                  Array.from(uniqueLogs.values()).map(async (docSnap) => {
+                    let log = docSnap.data();
+                    // Add farmId if from nested collection
+                    if (docSnap._farm) {
+                      log = { ...log, farmId: docSnap._farm };
+                    }
+
+                    try { ensureStockFeedLog(docSnap.id, log); } catch (_) {}
+
+                    // ============================================================
+                    // IMPROVED FARM RESOLUTION
+            // ============================================================
+            let farmId = log.farmId || log.farm || null;
+            let farmNameResolved = log.farmName || log.farm || null;
+
+            // If no farmId but has farmName, try to resolve
+            if (!farmId && farmNameResolved) {
+              try {
+                const farmsRef = collection(db, 'farms');
+                const farmQuery = query(farmsRef, where('name', '==', farmNameResolved), limit(1));
+                const farmSnap = await getDocs(farmQuery);
+                if (!farmSnap.empty) {
+                  farmId = farmSnap.docs[0].id;
+                }
+              } catch (_) {}
+            }
+
+            // Try to resolve from user if still no farm
+            if (!farmId) {
+              try {
+                const candidateUid = log.uid || log.user_id || null;
+                const candidateEmail = (log.user_email || log.email || '').toLowerCase();
+                
+                if (candidateUid) {
+                  const mobileUserDoc = await getDoc(doc(db, 'mobileUsers', candidateUid));
+                  if (mobileUserDoc.exists()) {
+                    farmId = mobileUserDoc.data().farm || null;
+                  } else {
+                    const userDoc = await getDoc(doc(db, 'users', candidateUid));
+                    if (userDoc.exists()) {
+                      farmId = userDoc.data().farm || null;
+                    }
+                  }
+                }
+                
+                if (!farmId && candidateEmail) {
+                  const usersRef = collection(db, 'mobileUsers');
+                  const emailQ = query(usersRef, where('email', '==', candidateEmail), limit(1));
+                  const emailSnap = await getDocs(emailQ);
+                  if (!emailSnap.empty) {
+                    farmId = emailSnap.docs[0].data().farm || null;
+                  }
+                }
+              } catch (_) {}
+            }
+
+            // If farmId is actually a farm name (not an ID), resolve it to an ID
+            if (farmId && !farmId.match(/^[a-zA-Z0-9]+$/i)) {
+              // Looks like it might be a name, try to resolve
+              try {
+                const farmsRef = collection(db, 'farms');
+                const farmQuery = query(farmsRef, where('name', '==', farmId), limit(1));
+                const farmSnap = await getDocs(farmQuery);
+                if (!farmSnap.empty) {
+                  farmId = farmSnap.docs[0].id;
+                }
+              } catch (_) {}
+            }
+
+            // Resolve farm display name
+            if (farmId && !farmNameResolved) {
+              try {
+                const farmDoc = await getDoc(doc(db, 'farms', farmId));
+                if (farmDoc.exists()) {
+                  farmNameResolved = farmDoc.data().name || farmId;
+                } else {
+                  farmNameResolved = farmId;
+                }
+              } catch (_) {
+                farmNameResolved = farmId;
               }
             }
-            if (!farmId && candidateEmail) {
-              const usersRef = collection(db, 'mobileUsers');
-              const emailQ = query(usersRef, where('email', '==', candidateEmail), limit(1));
-              const emailSnap = await getDocs(emailQ);
-              if (!emailSnap.empty) farmId = emailSnap.docs[0].data().farm || null;
-            }
-            farmId = farmId || log.farmId || log.farm || null;
-          } catch (_) {}
 
-          // Try to resolve farm display name
-          if (farmId) {
+            // Final fallback
+            if (!farmNameResolved) {
+              farmNameResolved = log.farmName || log.farm || 'Unknown Farm';
+            }
+
+            // Timestamp normalization
+            let tsIso;
             try {
-              const farmDoc = await getDoc(doc(db, 'farms', farmId));
-              farmNameResolved = farmDoc.exists() ? (farmDoc.data().name || farmId) : farmId;
+              if (log.timestamp && typeof log.timestamp.toDate === 'function') {
+                tsIso = log.timestamp.toDate().toISOString();
+              } else if (log.timestamp instanceof Date) {
+                tsIso = log.timestamp.toISOString();
+              } else if (typeof log.timestamp === 'string' && !isNaN(new Date(log.timestamp).getTime())) {
+                tsIso = new Date(log.timestamp).toISOString();
+              } else {
+                tsIso = new Date().toISOString();
+              }
             } catch (_) {
-              farmNameResolved = farmId;
-            }
-          }
-
-          // Timestamp normalization
-          let tsIso;
-          try {
-            if (log.timestamp && typeof log.timestamp.toDate === 'function') {
-              tsIso = log.timestamp.toDate().toISOString();
-            } else if (log.timestamp instanceof Date) {
-              tsIso = log.timestamp.toISOString();
-            } else if (typeof log.timestamp === 'string' && !isNaN(new Date(log.timestamp).getTime())) {
-              tsIso = new Date(log.timestamp).toISOString();
-            } else {
               tsIso = new Date().toISOString();
             }
-          } catch (_) {
-            tsIso = new Date().toISOString();
-          }
 
-          return {
-            id: docSnap.id,
-            type: 'stock-feed',
-            message: `${log.submitted_by || log.username || log.user_email || 'A user'} submitted a stock/feed log for ${log.fish_pond || 'a pond'} from ${farmNameResolved || 'Unknown Farm'}`,
-            details: `Feed: ${log.feed_brand || 'N/A'} • Amount: ${log.feed_amount ?? 'N/A'} • Cost: ${log.feed_cost ?? 'N/A'}`,
-            username: log.submitted_by || log.username || log.user_email || 'Unknown User',
-            timestamp: tsIso,
-            read: false,
-            iconKey: 'stock',
-            pondId: log.fish_pond || null,
-            farmName: farmNameResolved || 'Unknown Farm',
-            reportData: { ...(log || {}), farm: farmId || null },
-            avatar: log.avatar || null,
-            source: log.source || 'mobile'
-          };
-        })
-      );
+            const pondNumber = log.fish_pond || 'a pond';
+            const submittedBy = log.submitted_by || log.username || log.user_email || 'A user';
 
-      notifications.push(...stockFeedNotifications);
-    } catch (e) {
-      console.warn('Failed to fetch stock/feed logs for notifications:', e);
+            return {
+              id: docSnap.id,
+              type: 'stock-feed',
+              message: `${submittedBy} submitted a stock/feed log for ${pondNumber} from ${farmNameResolved}`,
+              details: `Feed: ${log.feed_brand || 'N/A'} • Amount: ${log.feed_amount ?? 'N/A'} • Cost: ${log.feed_cost ?? 'N/A'}`,
+              username: submittedBy,
+              timestamp: tsIso,
+              read: false,
+              iconKey: 'stock',
+              pondId: log.fish_pond || null,
+              farmName: farmNameResolved,
+              reportData: { 
+                ...log, 
+                farm: farmId || null,
+                farmId: farmId || log.farmId || log.farm,
+                farmName: farmNameResolved
+              },
+              avatar: log.avatar || null,
+              source: log.source || 'mobile'
+            };
+          })
+        );
+
+        notifications.push(...stockFeedNotifications);
+      } catch (e) {
+        console.warn('Failed to fetch stock/feed logs for notifications:', e);
+      }
     }
-    }
 
-    // Sort by timestamp (newest first)
     return notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   } catch (error) {
     console.error('Error initializing notifications:', error);
     return [];
   }
 };
+
+// ... rest of the exports (addFishpondReportNotification, addFeedbackNotification, etc.)
+// Keep everything else the same as your original file
+// The NotificationBox component and its functions remain unchanged
 
 export const addFishpondReportNotification = (pondId, reportData) => {
   const storedNotifications = localStorage.getItem('notifications');
@@ -391,6 +531,51 @@ export const addFeedbackNotification = (feedbackData) => {
     feedbackData: feedbackData,
     avatar: feedbackData.avatar || null,
     source: feedbackData.source || 'web'
+  };
+  
+  notifications.unshift(newNotification);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  window.dispatchEvent(new Event('notifications-updated'));
+};
+
+export const addStockFeedNotification = (pondId, stockFeedData) => {
+  const storedNotifications = localStorage.getItem('notifications');
+  let notifications = storedNotifications ? JSON.parse(storedNotifications) : [];
+  
+  // Create notification message with farm name
+  const farmName = stockFeedData.farmName || stockFeedData.farm || 'Unknown Farm';
+  const pondName = stockFeedData.fish_pond || pondId || 'Unknown Pond';
+  const message = stockFeedData.source === 'mobile'
+    ? `${stockFeedData.submitted_by || stockFeedData.username || 'A user'} submitted a stock/feed log for ${pondName} from ${farmName}`
+    : `${stockFeedData.submitted_by || stockFeedData.username || 'A user'} submitted a stock/feed log for ${pondName} from ${farmName}`;
+  
+  // Format timestamp properly
+  let timestamp;
+  try {
+    if (stockFeedData.timestamp && typeof stockFeedData.timestamp.toDate === 'function') {
+      timestamp = stockFeedData.timestamp.toDate().toISOString();
+    } else if (typeof stockFeedData.timestamp === 'string') {
+      timestamp = new Date(stockFeedData.timestamp).toISOString();
+    } else {
+      timestamp = new Date().toISOString();
+    }
+  } catch (error) {
+    timestamp = new Date().toISOString();
+  }
+  
+  const newNotification = {
+    type: 'stock-feed',
+    message: message,
+    details: `Feed: ${stockFeedData.feed_brand || 'N/A'} • Amount: ${stockFeedData.feed_amount ?? 'N/A'} • Cost: ${stockFeedData.feed_cost ?? 'N/A'}`,
+    username: stockFeedData.submitted_by || stockFeedData.username || 'Unknown User',
+    timestamp: timestamp,
+    read: false,
+    iconKey: "stock",
+    pondId: pondName,
+    farmName: farmName,
+    reportData: stockFeedData,
+    avatar: stockFeedData.avatar || null,
+    source: stockFeedData.source || 'mobile'
   };
   
   notifications.unshift(newNotification);
@@ -572,6 +757,17 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
             }
           });
           break;
+        case 'stock-feed':
+          // Navigate to homepage with stock-feed log data
+          navigate('/Homepage', { 
+            state: { 
+              selectedFarmName: notification.farmName,
+              farmFilter: notification.farmName,
+              fromNotification: true,
+              notificationData: notification
+            }
+          });
+          break;
         default:
           if (process.env.NODE_ENV === 'development') {
             // eslint-disable-next-line no-console
@@ -596,8 +792,8 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
           ? {
               reportsLimit: BADGE_REPORTS_LIMIT,
               feedbackLimit: 8,
-              logsLimit: 0,
-              includeStockFeed: false,
+             logsLimit: 8,
+             includeStockFeed: true,
             }
           : undefined
       );
@@ -632,14 +828,15 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
         }
       } catch (_) {}
 
-      // Apply farm filtering based on the current user's farm (ID or name)
+      // ============================================================
+      // IMPROVED FARM FILTERING - Check all possible farm fields
+      // ============================================================
       let filtered = merged;
       if (currentUser) {
-        // helper to normalize strings safely
         const normalize = (val) => (typeof val === 'string' ? val.trim().toLowerCase() : (val || '').toString().trim().toLowerCase());
 
-        // Get current user's farm (prefer ID from user doc); assignedFarmName is the resolved display name
         let currentUserFarmId = null;
+        let currentUserFarmIdResolved = null;
         try {
           const userDoc = await getDoc(doc(db, 'mobileUsers', currentUser.uid));
           if (userDoc.exists()) {
@@ -650,26 +847,70 @@ const NotificationBox = ({ onOpen, onClose, externalCloseSignal }) => {
               currentUserFarmId = userDoc2.data().farm || null;
             }
           }
+          
+          // If currentUserFarmId looks like a name (contains spaces or special chars), resolve to ID
+          if (currentUserFarmId && currentUserFarmId.match(/[\s\-]/)) {
+            try {
+              const farmsRef = collection(db, 'farms');
+              const farmQuery = query(farmsRef, where('name', '==', currentUserFarmId), limit(1));
+              const farmSnap = await getDocs(farmQuery);
+              if (!farmSnap.empty) {
+                currentUserFarmIdResolved = farmSnap.docs[0].id;
+              }
+            } catch (_) {}
+          } else {
+            currentUserFarmIdResolved = currentUserFarmId;
+          }
         } catch (error) {
           console.warn('Could not fetch current user farm for filtering:', error);
         }
 
         if (currentUserFarmId || assignedFarmName) {
-          const normUserFarmId = normalize(currentUserFarmId);
+          const normUserFarmId = normalize(currentUserFarmIdResolved || currentUserFarmId);
           const normUserFarmName = normalize(assignedFarmName);
+          const normUserFarmIdOriginal = normalize(currentUserFarmId);
 
           filtered = merged.filter(notification => {
+            // Check all possible farm fields in the notification
             const notificationFarmName = normalize(notification.farmName);
             const notificationFarmId = normalize(notification.reportData?.farm);
-
-            // Match if any normalized identity equals: name-to-name, id-to-id, id-to-name (for reports storing either)
+            const notificationFarmId2 = normalize(notification.reportData?.farmId);
+            const notificationFarmFromLog = normalize(notification.reportData?.farmName);
+            
+            // Also check if the log has farm data directly
+            const logFarm = normalize(notification.reportData?.farm || notification.reportData?.farmId || notification.reportData?.farmName);
+            
+            // For stock-feed notifications, check the original log data
+            const originalLogFarm = normalize(notification._originalLog?.farm || notification._originalLog?.farmId || notification._originalLog?.farmName);
+            
+            // Match if any normalized identity equals the user's farm
             return (
-              (normUserFarmName && notificationFarmName === normUserFarmName) ||
-              (normUserFarmId && notificationFarmId === normUserFarmId) ||
-              (normUserFarmId && notificationFarmName === normUserFarmId) ||
-              (normUserFarmName && notificationFarmId === normUserFarmName)
+              (normUserFarmName && (
+                notificationFarmName === normUserFarmName ||
+                notificationFarmId === normUserFarmName ||
+                notificationFarmId2 === normUserFarmName ||
+                notificationFarmFromLog === normUserFarmName ||
+                logFarm === normUserFarmName ||
+                originalLogFarm === normUserFarmName
+              )) ||
+              (normUserFarmId && (
+                notificationFarmName === normUserFarmId ||
+                notificationFarmId === normUserFarmId ||
+                notificationFarmId2 === normUserFarmId ||
+                notificationFarmFromLog === normUserFarmId ||
+                logFarm === normUserFarmId ||
+                originalLogFarm === normUserFarmId
+              )) ||
+              (normUserFarmIdOriginal && (
+                notificationFarmName === normUserFarmIdOriginal ||
+                notificationFarmId === normUserFarmIdOriginal ||
+                notificationFarmId2 === normUserFarmIdOriginal ||
+                notificationFarmFromLog === normUserFarmIdOriginal ||
+                logFarm === normUserFarmIdOriginal ||
+                originalLogFarm === normUserFarmIdOriginal
+              ))
             );
-          });
+            });
         }
       }
 

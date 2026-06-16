@@ -36,7 +36,20 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   const [farms, setFarms] = useState([]);
   const [loading, setLoading] = useState(true);
   const { status: refreshStatus, runRefresh, isRefreshing: isManualRefreshBusy } = useRefreshFeedback();
-  const [groupMode, setGroupMode] = useState('farm'); // 'farm' | 'risk'
+  
+  // ============================================================
+  // VIEW BY RISK - COMMENTED OUT
+  // To re-enable "View by Risk" functionality, uncomment the lines below
+  // and the corresponding UI button in the render section
+  // ============================================================
+  // const [groupMode, setGroupMode] = useState('farm'); // 'farm' | 'risk'
+  // ============================================================
+  // VIEW BY RISK - COMMENTED OUT - END
+  // ============================================================
+  
+  // FORCE FARM MODE ONLY - View by Risk is disabled
+  const groupMode = 'farm'; // Force farm mode only
+  
   const [selectedFarm, setSelectedFarm] = useState('all');
   const [activeLegendKey, setActiveLegendKey] = useState(null);
   const [hoverSeriesKey, setHoverSeriesKey] = useState(null);
@@ -87,16 +100,47 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   }, []);
 
   const isStdPhone = viewportWidth >= 360 && viewportWidth <= 480;
+  
+  // UPDATED: Increased chart heights for better spacing
   const chartHeights = {
-    farm: isStdPhone ? 360 : 300,
+    farm: isStdPhone ? 420 : 380,
     risk: isStdPhone ? 360 : 300,
   };
+  
   // Farm view sizing (phones): balanced between label width and plot
   const yAxisWidthFarm = isStdPhone ? 80 : 120;
-  const barSizePx = isStdPhone ? 32 : 30; // used for farm view and row estimate
+  
+  // ============================================================
+  // DYNAMIC BAR SIZE - START
+  // When a specific farm is selected (not 'all'), bars get bigger
+  // To adjust sizes, modify the values below
+  // ============================================================
+  const getBarSize = () => {
+    const isSingleFarm = selectedFarm !== 'all';
+    if (isStdPhone) {
+      return isSingleFarm ? 28 : 16; // Phone: 28px for single farm, 16px for all farms
+    }
+    return isSingleFarm ? 26 : 13; // Desktop: 26px for single farm, 14px for all farms
+  };
+  
+  const getBarCategoryGap = () => {
+    const isSingleFarm = selectedFarm !== 'all';
+    if (isStdPhone) {
+      return isSingleFarm ? '25%' : '15%'; // More gap for single farm view
+    }
+    return isSingleFarm ? '30%' : '0%';
+  };
+  // ============================================================
+  // DYNAMIC BAR SIZE - END
+  // ============================================================
+  
+  const barSizePx = getBarSize();
+  const barCategoryGap = getBarCategoryGap();
+  
   // Risk view sizing (phones): tighter Y-axis and thicker bars to push plot left and enlarge
   const yAxisWidthRisk = isStdPhone ? 48 : 120;
   const barSizeRiskPx = isStdPhone ? 34 : 28;
+  
   // Margins: use a slightly tighter top margin for risk view on phones to move chart up
   const chartMarginFarm = isStdPhone ? { top: 8, right: 0, left: 0, bottom: 22 } : { top: 12, right: 24, left: -20, bottom: 32 };
   const chartMarginRisk = isStdPhone ? { top: 12, right: 0, left: 0, bottom: 6 } : { top: 10, right: 24, left: -60, bottom: 24 };
@@ -239,7 +283,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   // This ensures they see the High/Medium/Low bars with the correct colors
   useEffect(() => {
     if (isAssignedToFarm && groupMode === 'risk') {
-      setGroupMode('farm');
+      // setGroupMode('farm'); // Commented out since groupMode is forced to 'farm'
     }
   }, [isAssignedToFarm, groupMode]);
 
@@ -335,7 +379,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     if (c >= 70) {
       return { emoji: '🟡', label: 'Likely Accurate', color: '#f59e0b', title: `The system is fairly sure that the risk is ${normalized} Risk.` };
     }
-    return { emoji: '⚠️', label: 'Uncertain', color: '#dc2626', title: `The system is uncertain — please recheck the pond’s actual condition.` };
+    return { emoji: '⚠️', label: 'Uncertain', color: '#dc2626', title: `The system is uncertain — please recheck the pond's actual condition.` };
   };
 
   // Helper function to convert timestamp to milliseconds (consistent with other components)
@@ -676,22 +720,21 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     return '';
   }, [timeFilter, t]);
 
-  // Dynamic chart title and subtitle based on view mode and assignment
+  // ============================================================
+  // CHART TITLE - "Farm Risk Overview"
+  // To change the title, modify the text inside the quotes below
+  // ============================================================
   const chartTitle = useMemo(() => {
-    if (groupMode === 'farm') {
-      if (isAssignedToFarm) {
-        const name = assignedFarmName || currentUser?.farm || t('pondsAtRiskChart.unknownFarm');
-        return `${t('pondsAtRiskChart.chartTitleFarm')} – ${name}`;
-      }
-      return t('pondsAtRiskChart.chartTitleFarm');
-    }
-    // groupMode === 'risk'
+    // FORCE FARM MODE TITLE - "Farm Risk Overview"
     if (isAssignedToFarm) {
       const name = assignedFarmName || currentUser?.farm || t('pondsAtRiskChart.unknownFarm');
-      return `${t('pondsAtRiskChart.chartTitleRisk')} – ${name}`;
+      return `Farm Risk Overview – ${name}`;
     }
-    return t('pondsAtRiskChart.chartTitleRisk');
-  }, [groupMode, isAssignedToFarm, assignedFarmName, currentUser?.farm, t]);
+    return 'Farm Risk Overview';
+  }, [isAssignedToFarm, assignedFarmName, currentUser?.farm, t]);
+  // ============================================================
+  // CHART TITLE - END
+  // ============================================================
   
   const chartSubtitle = useMemo(() => {
     if (!isAssignedToFarm) {
@@ -708,67 +751,142 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
     return 'Shows, for your farm, how many ponds fall into each risk category (High, Medium, Low) based on recent monitoring reports.';
   }, [groupMode, isAssignedToFarm, t]);
 
-  // Insight summary with context-aware wording
-  const insightSummary = useMemo(() => {
-    if (!Array.isArray(byFarmData) || byFarmData.length === 0) return '';
-    const totals = byFarmData.reduce((acc, f) => {
-      acc.high += Number(f.High || 0);
-      acc.medium += Number(f.Medium || 0);
-      acc.low += Number(f.Low || 0);
-      return acc;
-    }, { high: 0, medium: 0, low: 0 });
+// Insight summary with context-aware wording and coverage transparency
+const insightSummary = useMemo(() => {
+  if (!Array.isArray(byFarmData) || byFarmData.length === 0) return '';
+  
+  // Calculate totals from reported ponds only
+  const totals = byFarmData.reduce((acc, f) => {
+    acc.high += Number(f.High || 0);
+    acc.medium += Number(f.Medium || 0);
+    acc.low += Number(f.Low || 0);
+    return acc;
+  }, { high: 0, medium: 0, low: 0 });
 
-    const totalPonds = totals.high + totals.medium + totals.low;
-    const dominantRisk = totalPonds === 0
-      ? 'NONE'
-      : (totals.high > totals.medium && totals.high > totals.low) ? 'HIGH'
-      : (totals.medium > totals.high && totals.medium > totals.low) ? 'MEDIUM'
-      : (totals.low > totals.high && totals.low > totals.medium) ? 'LOW'
-      : 'MIXED';
-
-    // Resolve selected farm name if a specific farm is chosen (or assigned users)
-    const selectedFarmName = (() => {
-      if (isAssignedToFarm) return assignedFarmName || filteredFarms[0]?.name || '';
-      if (selectedFarm && selectedFarm !== 'all') {
-        const match = byFarmData.find(f => f.farmKey === selectedFarm || (f.name && normalizeFarmName(f.name) === selectedFarm));
-        return match?.name || filteredFarms.find(f => f.key === selectedFarm)?.name || '';
-      }
-      return '';
-    })();
-
-    let summaryText = '';
-    if (totalPonds === 0) {
-      summaryText = `${selectedFarmName} has no recent risk reports available.`;
-    } else if (dominantRisk === 'HIGH') {
-      summaryText =
-        groupMode === 'farm'
-          ? (selectedFarmName
-              ? `${selectedFarmName} has several ponds in high risk and requires immediate attention.`
-              : `Most ponds ${periodLabel} are in high risk across farms, requiring attention.`)
-          : `High-risk conditions are most common this ${periodLabel} across multiple farms.`;
-    } else if (dominantRisk === 'MEDIUM') {
-      summaryText =
-        groupMode === 'farm'
-          ? (selectedFarmName
-              ? `${selectedFarmName} shows moderate pond conditions — some early signs of risk.`
-              : `Several ponds ${periodLabel} show moderate conditions; ongoing monitoring is recommended.`)
-          : `Moderate-risk reports are frequent this ${periodLabel}, suggesting developing issues.`;
-    } else if (dominantRisk === 'LOW') {
-      summaryText =
-        groupMode === 'farm'
-          ? (selectedFarmName
-              ? `${selectedFarmName} ponds are currently stable with low-risk conditions.`
-              : `Most ponds ${periodLabel} are stable and show low-risk conditions.`)
-          : `Low-risk conditions dominate this ${periodLabel}, reflecting overall stability across farms.`;
+  const totalPondsWithReports = totals.high + totals.medium + totals.low;
+  
+  // ============================================================
+  // COVERAGE CALCULATION - Determine total ponds per farm
+  // This is a critical transparency metric
+  // ============================================================
+  // Get total ponds count from farm data
+  // We need to calculate this from the available data
+  let totalPonds = 0;
+  
+  if (isAssignedToFarm) {
+    // For assigned farms, get total ponds from the farm data
+    const farm = filteredFarms[0];
+    if (farm && farm.totalPonds) {
+      totalPonds = farm.totalPonds;
     } else {
-      summaryText = groupMode === 'farm'
-        ? `Risk levels are mixed across farms; review individual pond data for details.`
-        : `Risk categories are balanced this ${periodLabel}; no single level dominates.`;
+      // Fallback: use the sum of all risk categories from the data
+      // This may not be accurate if some ponds have no reports
+      totalPonds = totalPondsWithReports;
     }
-    
+  } else if (selectedFarm && selectedFarm !== 'all') {
+    // For a specific farm selection
+    const farm = filteredFarms.find(f => f.key === selectedFarm);
+    if (farm && farm.totalPonds) {
+      totalPonds = farm.totalPonds;
+    } else {
+      totalPonds = totalPondsWithReports;
+    }
+  } else {
+    // For "All Farms", sum total ponds across all farms
+    // This requires access to farms data with totalPonds
+    filteredFarms.forEach(f => {
+      if (f.totalPonds) {
+        totalPonds += f.totalPonds;
+      } else {
+        // Fallback: add the reported ponds from this farm
+        const farmData = byFarmData.find(d => d.name === f.name);
+        if (farmData) {
+          totalPonds += Number(farmData.High || 0) + Number(farmData.Medium || 0) + Number(farmData.Low || 0);
+        }
+      }
+    });
+  }
+  
+  // If we can't determine total ponds, use reported count as fallback
+  if (totalPonds === 0) {
+    totalPonds = totalPondsWithReports;
+  }
+  
+  // ============================================================
+  // COVERAGE STATUS - Build coverage message
+  // ============================================================
+  const hasFullCoverage = totalPondsWithReports === totalPonds;
+  const coverageText = hasFullCoverage
+    ? `All ${totalPonds} ponds have recent reports.`
+    : `${totalPondsWithReports} of ${totalPonds} ponds have recent reports.`;
+  
+  // ============================================================
+  // RISK ANALYSIS - Only analyze reported ponds
+  // ============================================================
+  const dominantRisk = totalPondsWithReports === 0
+    ? 'NONE'
+    : (totals.high > totals.medium && totals.high > totals.low) ? 'HIGH'
+    : (totals.medium > totals.high && totals.medium > totals.low) ? 'MEDIUM'
+    : (totals.low > totals.high && totals.low > totals.medium) ? 'LOW'
+    : 'MIXED';
 
-    return summaryText;
-  }, [byFarmData, periodLabel, isAssignedToFarm, assignedFarmName, filteredFarms, selectedFarm]);
+  // Resolve selected farm name if a specific farm is chosen (or assigned users)
+  const selectedFarmName = (() => {
+    if (isAssignedToFarm) return assignedFarmName || filteredFarms[0]?.name || '';
+    if (selectedFarm && selectedFarm !== 'all') {
+      const match = byFarmData.find(f => f.farmKey === selectedFarm || (f.name && normalizeFarmName(f.name) === selectedFarm));
+      return match?.name || filteredFarms.find(f => f.key === selectedFarm)?.name || '';
+    }
+    return '';
+  })();
+
+  // ============================================================
+  // BUILD SUMMARY TEXT - Separating coverage from risk
+  // ============================================================
+  let summaryText = '';
+  const hasHigh = totals.high > 0;
+  const hasMedium = totals.medium > 0;
+  
+  // Handle no data case
+  if (totalPondsWithReports === 0) {
+    summaryText = `${coverageText} No risk data available for analysis.`;
+  } 
+  // Handle dominant risk patterns
+  else if (dominantRisk === 'HIGH') {
+    summaryText = groupMode === 'farm'
+      ? (selectedFarmName
+          ? `${coverageText} Based on reported ponds, ${selectedFarmName} shows a consistent high-risk pattern, indicating a farm-wide issue requiring immediate action.`
+          : `${coverageText} High-risk conditions consistently dominate across reported farms, indicating a widespread issue that needs coordinated response.`)
+      : `${coverageText} High-risk conditions are consistently dominant across reported farms, indicating elevated system-wide risk.`;
+  } 
+  else if (dominantRisk === 'MEDIUM') {
+    summaryText = groupMode === 'farm'
+      ? (selectedFarmName
+          ? `${coverageText} ${selectedFarmName} shows a consistent moderate-risk pattern across reported ponds, suggesting emerging issues that should be monitored closely.`
+          : `${coverageText} Moderate-risk conditions are consistently observed across reported farms, indicating developing but non-critical issues.`)
+      : `${coverageText} Moderate-risk conditions are the most consistent pattern across reported farms, suggesting early-stage concerns.`;
+  } 
+  else if (dominantRisk === 'LOW') {
+    summaryText = groupMode === 'farm'
+      ? (selectedFarmName
+          ? `${coverageText} ${selectedFarmName} shows stable low-risk conditions across reported ponds, indicating consistent and well-managed pond health.`
+          : `${coverageText} Low-risk conditions remain consistent across reported farms, indicating stable operations.`)
+      : `${coverageText} Low-risk conditions consistently dominate across reported farms, reflecting overall stability.`;
+  } 
+  else {
+    summaryText = groupMode === 'farm'
+      ? (selectedFarmName
+          ? `${coverageText} ${selectedFarmName}: Overall stable conditions, but `
+            + (hasHigh ? `some ponds require immediate attention due to high risk. ` : ``)
+            + (hasMedium ? `some ponds should be monitored closely due to medium risk.` : ``)
+          : `${coverageText} Overall stable conditions across ponds, but `
+            + (hasHigh ? `some ponds require immediate attention due to high risk. ` : ``)
+            + (hasMedium ? `some ponds should be monitored closely due to medium risk.` : ``))
+      : `${coverageText} Overall stable conditions across farms, with some areas requiring attention based on risk levels.`;
+  }
+
+  return summaryText;
+}, [byFarmData, periodLabel, isAssignedToFarm, assignedFarmName, filteredFarms, selectedFarm]);
 
   // Assign distinct colors to farms for risk view
   const farmColorMap = useMemo(() => {
@@ -1186,7 +1304,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               <option value="week">{t('pondsAtRiskChart.thisWeek')}</option>
               <option value="month">{t('pondsAtRiskChart.thisMonth')}</option>
             </select>
-            <div className="toggle-group" role="tablist" aria-label="Group by">
+            {/* ============================================================
+                VIEW BY RISK BUTTON - COMMENTED OUT
+                To re-enable "View by Risk", uncomment the button below
+                ============================================================ */}
+            {/* <div className="toggle-group" role="tablist" aria-label="Group by">
               <button
                 type="button"
                 role="tab"
@@ -1207,7 +1329,10 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
               >
                 {t('pondsAtRiskChart.viewByRisk')}
               </button>
-            </div>
+            </div> */}
+            {/* ============================================================
+                VIEW BY RISK BUTTON - COMMENTED OUT - END
+                ============================================================ */}
           </>
         )}
         {/* Time filter for assigned users */}
@@ -1281,19 +1406,15 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <ResponsiveContainer width="100%" height={farmDynamicHeight}>
               <BarChart
                 layout="vertical"
-                data={(() => {
-                  return byFarmData;
-                })()}
-                barCategoryGap="8%"
+                data={byFarmData}
+                barCategoryGap={barCategoryGap}
                 barSize={barSizePx}
                 onClick={({ activeTooltipIndex }) => { 
-                  // Don't trigger if a specific Bar segment was clicked (handled by individual Bar onClick)
                   if (activeTooltipIndex != null && !barSegmentClickedRef.current) { 
                     handleBarClick(null, activeTooltipIndex); 
-                  } else {
                   }
-                  barSegmentClickedRef.current = false; // Reset the flag
-                  setBarSegmentClicked(false); // Reset the state
+                  barSegmentClickedRef.current = false;
+                  setBarSegmentClicked(false);
                 }}
                 onMouseLeave={() => setHoverSeriesKey(null)}
                 margin={chartMarginFarm}
@@ -1312,7 +1433,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <Bar
                   dataKey="High"
                   name={t('pondsAtRiskChart.high')}
-                  stackId="a"
                   fill={RISK_COLORS.High}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('High')}
@@ -1326,7 +1446,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <Bar
                   dataKey="Medium"
                   name={t('pondsAtRiskChart.medium')}
-                  stackId="a"
                   fill={RISK_COLORS.Medium}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Medium')}
@@ -1340,7 +1459,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
                 <Bar
                   dataKey="Low"
                   name={t('pondsAtRiskChart.low')}
-                  stackId="a"
                   fill={RISK_COLORS.Low}
                   fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
                   onMouseEnter={() => setHoverSeriesKey('Low')}
@@ -1359,16 +1477,14 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
           <BarChart
             layout="vertical"
             data={byFarmData}
-            barCategoryGap="8%"
+            barCategoryGap={barCategoryGap}
             barSize={barSizePx}
             onClick={({ activeTooltipIndex }) => { 
-              // Don't trigger if a specific Bar segment was clicked (handled by individual Bar onClick)
               if (activeTooltipIndex != null && !barSegmentClickedRef.current) { 
                 handleBarClick(null, activeTooltipIndex); 
-              } else {
               }
-              barSegmentClickedRef.current = false; // Reset the flag
-              setBarSegmentClicked(false); // Reset the state
+              barSegmentClickedRef.current = false;
+              setBarSegmentClicked(false);
             }}
             onMouseLeave={() => setHoverSeriesKey(null)}
             margin={chartMarginFarm}
@@ -1387,7 +1503,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <Bar
               dataKey="High"
               name={t('pondsAtRiskChart.high')}
-              stackId="a"
               fill={RISK_COLORS.High}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'High' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('High')}
@@ -1401,7 +1516,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <Bar
               dataKey="Medium"
               name={t('pondsAtRiskChart.medium')}
-              stackId="a"
               fill={RISK_COLORS.Medium}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Medium' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Medium')}
@@ -1415,7 +1529,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             <Bar
               dataKey="Low"
               name={t('pondsAtRiskChart.low')}
-              stackId="a"
               fill={RISK_COLORS.Low}
               fillOpacity={(hoverSeriesKey || activeLegendKey) ? ((hoverSeriesKey || activeLegendKey) === 'Low' ? 1 : 0.5) : 1}
               onMouseEnter={() => setHoverSeriesKey('Low')}
@@ -1430,6 +1543,13 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
           </ResponsiveContainer>
         )
       ) : (
+        // ============================================================
+        // RISK VIEW - COMMENTED OUT
+        // This entire section renders the "View by Risk" chart.
+        // To re-enable, uncomment this section and the corresponding
+        // state variable and UI button above.
+        // ============================================================
+        /*
         needScrollRisk ? (
           <div style={{ maxHeight: chartHeights.risk, overflowY: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
             <ResponsiveContainer width="100%" height={riskDynamicHeight}>
@@ -1519,6 +1639,11 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
             </BarChart>
           </ResponsiveContainer>
         )
+        */
+        // ============================================================
+        // RISK VIEW - COMMENTED OUT - END
+        // ============================================================
+        null
       )}
             <div className={`chart-last-updated-wrap ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
         <div className={`reports-last-updated chart-last-updated-row ${isStdPhone && groupMode === 'risk' ? 'risk-view' : ''}`}>
@@ -1547,5 +1672,3 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
 };
 
 export default PondsAtRiskStackedChart;
-
-

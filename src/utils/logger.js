@@ -767,6 +767,79 @@ export const ensureStockFeedLog = async (farmerLogId, farmerLogData) => {
   }
 };
 
+// Idempotent client-side logger for feedback documents (PiscaRisk collection)
+// Creates a systemLogs entry with a stable ID: feedback_<feedbackId>
+export const ensureFeedbackLog = async (feedbackId, feedbackData) => {
+  try {
+    if (!feedbackId || !feedbackData) return;
+
+    const { doc: fsDoc, getDoc, setDoc } = await import('firebase/firestore');
+    const logDocRef = fsDoc(db, 'systemLogs', `feedback_${feedbackId}`);
+    const existing = await getDoc(logDocRef);
+    if (existing.exists()) return;
+
+    const username = feedbackData.userName || feedbackData.user || feedbackData.user_email || feedbackData.userEmail || 'Unknown User';
+    const userRole = feedbackData.userRole || feedbackData.role || feedbackData.user_role || 'Unknown';
+    const concern = feedbackData.concern || feedbackData.type || 'feedback';
+    const source = (feedbackData.source || 'web').toString().toLowerCase();
+
+    let ts;
+    try {
+      if (feedbackData.timestamp && typeof feedbackData.timestamp.toDate === 'function') {
+        ts = feedbackData.timestamp.toDate();
+      } else if (feedbackData.timestamp instanceof Date) {
+        ts = feedbackData.timestamp;
+      } else if (typeof feedbackData.timestamp === 'string') {
+        const d = new Date(feedbackData.timestamp);
+        ts = isNaN(d.getTime()) ? new Date() : d;
+      } else if (feedbackData.timestamp && typeof feedbackData.timestamp.seconds === 'number') {
+        ts = new Date(feedbackData.timestamp.seconds * 1000);
+      } else {
+        ts = new Date();
+      }
+    } catch (_) {
+      ts = new Date();
+    }
+
+    let farm = feedbackData.farm || feedbackData.farmId || null;
+    try {
+      const senderUid = feedbackData.uid || feedbackData.userId || null;
+      if (!farm && senderUid) {
+        const mobileUserDoc = await getDoc(fsDoc(db, 'mobileUsers', senderUid));
+        if (mobileUserDoc.exists()) {
+          farm = mobileUserDoc.data().farm || null;
+        } else {
+          const userDoc = await getDoc(fsDoc(db, 'users', senderUid));
+          if (userDoc.exists()) {
+            farm = userDoc.data().farm || null;
+          }
+        }
+      }
+    } catch (_) {}
+
+    const message = source === 'mobile'
+      ? `Mobile user ${username} submitted new ${concern} feedback`
+      : `User ${username} submitted new ${concern} feedback`;
+
+    const newLog = sanitizeObjectStrings({
+      timestamp: ts.toISOString(),
+      category: 'feedback',
+      message,
+      username,
+      userRole,
+      source: source === 'mobile' ? 'mobile' : 'web',
+      feedbackId,
+      concern,
+      farm: farm || null,
+      userFarm: farm || null
+    });
+
+    await setDoc(logDocRef, newLog, { merge: false });
+  } catch (error) {
+    console.error('ensureFeedbackLog failed:', error);
+  }
+};
+
 // Function to retroactively log existing reports with correct timestamps
 export const logExistingReports = async (reports) => {
   try {

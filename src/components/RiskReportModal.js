@@ -2431,7 +2431,7 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
                           color: '#4b5563',
                           lineHeight: '1.4'
                         }}>
-                          ℹ️ {`Overall badge: ${displayRisk} (${totalCount} pond${totalCount === 1 ? '' : 's'} in latest batch). ${compositionText} ${interpretationText} Average Confidence indicates how confident the system is about these results.`}
+                          ℹ️ {`Overall badge: ${displayRisk} (${totalCount} pond${totalCount === 1 ? '' : 's'} in latest batch). ${compositionText} ${interpretationText} Prediction Reliability indicates how confident the system is about these results.`}
                         </div>
                       );
                     })()}

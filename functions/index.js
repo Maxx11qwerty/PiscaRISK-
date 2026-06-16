@@ -579,7 +579,7 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
         ? `Mobile user ${username} submitted a new report for Fish Pond ${pond}`
         : `User ${username} submitted a new report for Fish Pond ${pond}`;
 
-      // Compose log entry
+      // Compose log entry with stable ID
       const log = sanitizeObjectStrings({
         timestamp: ts.toISOString(),
         category: 'report',
@@ -591,7 +591,8 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
         farm: farm || null,
       });
 
-        await admin.firestore().collection('systemLogs').add(log);
+        // Use stable ID to prevent duplicate logs
+        await admin.firestore().collection('systemLogs').doc(`report_${context.params.reportId}`).set(log, { merge: false });
         return null;
       } catch (err) {
         console.error('Failed to log report creation:', err);
@@ -642,7 +643,7 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
           ? `Mobile user ${username} submitted new ${concern} feedback`
           : `User ${username} submitted new ${concern} feedback`;
 
-        // Compose log entry
+        // Compose log entry with stable ID
         const log = sanitizeObjectStrings({
           timestamp: ts.toISOString(),
           category: 'feedback',
@@ -654,7 +655,8 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
           concern: concern || null,
         });
 
-        await admin.firestore().collection('systemLogs').add(log);
+        // Use stable ID to prevent duplicate logs
+        await admin.firestore().collection('systemLogs').doc(`feedback_${context.params.feedbackId}`).set(log, { merge: false });
         return null;
       } catch (err) {
         console.error('Failed to log feedback creation:', err);
@@ -663,6 +665,137 @@ if (functions.firestore && typeof functions.firestore.document === 'function') {
     });
 } else {
   console.warn('[deploy] Skipping logFeedbackOnCreate: functions.firestore.document is unavailable in this runtime.');
+}
+
+/**
+ * Cloud Function to log stock/feed logs from root farmerLogs collection
+ * Triggers when a new stock/feed document is created in farmerLogs collection
+ */
+if (functions.firestore && typeof functions.firestore.document === 'function') {
+  exports.logStockFeedOnCreate = functions.firestore
+    .document('farmerLogs/{stockFeedId}')
+    .onCreate(async (snap, context) => {
+      try {
+        const data = snap.data() || {};
+
+        // Extract fields with safe fallbacks
+        const username = data.submitted_by || data.username || data.user_email || 'Unknown User';
+        const userRole = data.user_role || 'Unknown';
+        const pond = data.fish_pond || data.pond || 'Unknown Pond';
+        const source = (data.source || 'mobile').toString().toLowerCase();
+        const farm = data.farm || data.farmId || null;
+
+        // Normalize timestamp
+        let ts;
+        try {
+          if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+            ts = data.timestamp.toDate();
+          } else if (data.timestamp instanceof Date) {
+            ts = data.timestamp;
+          } else if (typeof data.timestamp === 'string') {
+            const d = new Date(data.timestamp);
+            ts = isNaN(d.getTime()) ? new Date() : d;
+          } else if (data.timestamp && typeof data.timestamp.seconds === 'number') {
+            ts = new Date(data.timestamp.seconds * 1000);
+          } else {
+            ts = new Date();
+          }
+        } catch (_) {
+          ts = new Date();
+        }
+
+        const prefix = source === 'mobile' ? 'Mobile user' : 'User';
+        const message = `${prefix} ${username} submitted a stock/feed log for ${pond}`;
+
+        // Compose log entry with stable ID
+        const log = sanitizeObjectStrings({
+          timestamp: ts.toISOString(),
+          category: 'stock',
+          message,
+          username,
+          userRole,
+          source: source === 'mobile' ? 'mobile' : 'web',
+          stockLogId: context.params.stockFeedId,
+          farm: farm || null,
+          pond: pond
+        });
+
+        // Use stable ID to prevent duplicate logs
+        await admin.firestore().collection('systemLogs').doc(`stock_${context.params.stockFeedId}`).set(log, { merge: false });
+        return null;
+      } catch (err) {
+        console.error('Failed to log stock/feed creation:', err);
+        return null;
+      }
+    });
+} else {
+  console.warn('[deploy] Skipping logStockFeedOnCreate: functions.firestore.document is unavailable in this runtime.');
+}
+
+/**
+ * Cloud Function to log stock/feed logs from nested farms/{farmId}/farmerLogs collection
+ * Triggers when a new stock/feed document is created in nested farmerLogs collection
+ */
+if (functions.firestore && typeof functions.firestore.document === 'function') {
+  exports.logStockFeedNestedOnCreate = functions.firestore
+    .document('farms/{farmId}/farmerLogs/{stockFeedId}')
+    .onCreate(async (snap, context) => {
+      try {
+        const data = snap.data() || {};
+        const farmId = context.params.farmId;
+
+        // Extract fields with safe fallbacks
+        const username = data.submitted_by || data.username || data.user_email || 'Unknown User';
+        const userRole = data.user_role || 'Unknown';
+        const pond = data.fish_pond || data.pond || 'Unknown Pond';
+        const source = (data.source || 'mobile').toString().toLowerCase();
+        const farm = farmId || data.farm || data.farmId || null;
+
+        // Normalize timestamp
+        let ts;
+        try {
+          if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+            ts = data.timestamp.toDate();
+          } else if (data.timestamp instanceof Date) {
+            ts = data.timestamp;
+          } else if (typeof data.timestamp === 'string') {
+            const d = new Date(data.timestamp);
+            ts = isNaN(d.getTime()) ? new Date() : d;
+          } else if (data.timestamp && typeof data.timestamp.seconds === 'number') {
+            ts = new Date(data.timestamp.seconds * 1000);
+          } else {
+            ts = new Date();
+          }
+        } catch (_) {
+          ts = new Date();
+        }
+
+        const prefix = source === 'mobile' ? 'Mobile user' : 'User';
+        const message = `${prefix} ${username} submitted a stock/feed log for ${pond}`;
+
+        // Compose log entry with stable ID
+        const log = sanitizeObjectStrings({
+          timestamp: ts.toISOString(),
+          category: 'stock',
+          message,
+          username,
+          userRole,
+          source: source === 'mobile' ? 'mobile' : 'web',
+          stockLogId: context.params.stockFeedId,
+          farm: farm || null,
+          pond: pond
+        });
+
+        // Use stable ID to prevent duplicate logs (include farmId to differentiate nested logs)
+        await admin.firestore().collection('systemLogs').doc(`stock_${farmId}_${context.params.stockFeedId}`).set(log, { merge: false });
+        return null;
+      } catch (err) {
+        console.error('Failed to log nested stock/feed creation:', err);
+        return null;
+      }
+    });
+} else {
+  console.warn('[deploy] Skipping logStockFeedNestedOnCreate: functions.firestore.document is unavailable in this runtime.');
 }
 
 /**
