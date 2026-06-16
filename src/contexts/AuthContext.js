@@ -1421,7 +1421,7 @@ const login = async (emailOrContact, password) => {
       
       // Use React Router navigation - this will trigger the ProtectedRoute redirect
       if (navigate && typeof navigate === 'function') {
-        navigate('/', { replace: true });
+        navigate('/login', { replace: true });
       }
       
     } catch (error) {

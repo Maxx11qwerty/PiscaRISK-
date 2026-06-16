@@ -1,0 +1,138 @@
+/* src/components/landing/PhoneSlider.css */
+.piscarisk-phone-slider {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .piscarisk-phone {
+    position: relative;
+    background: transparent;
+    border-radius: 35px;
+    width: 260px;
+    margin: 0 auto;
+  }
+  
+  /* Simulated phone notch */
+  .piscarisk-phone-notch {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 20px;
+    background: transparent;
+    border-radius: 0 0 16px 16px;
+    z-index: 10;
+  }
+  
+  .piscarisk-phone-screen {
+    background: transparent;
+    border-radius: 28px;
+    overflow: hidden;
+    position: relative;
+    min-height: 480px;
+  }
+  
+  .piscarisk-slide-container {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+  }
+  
+  .piscarisk-slides {
+    display: flex;
+    transition: transform 0.5s ease-in-out;
+  }
+  
+  .piscarisk-slide {
+    min-width: 100%;
+    position: relative;
+  }
+  
+  .piscarisk-slide-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  /* Dots Indicator */
+  .piscarisk-slider-dots {
+    position: absolute;
+    bottom: 0px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 20;
+    background: rgba(0,0,0,0.4);
+    padding: 5px 10px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+  }
+  
+  .piscarisk-slider-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    padding: 0;
+  }
+  
+  .piscarisk-slider-dot.active {
+    width: 18px;
+    border-radius: 3px;
+    background: #2C517D;
+  }
+  
+  .piscarisk-slider-dot:hover {
+    background: #2C517D;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .piscarisk-phone {
+      width: 220px;
+      border-radius: 30px;
+      padding: 10px 8px;
+    }
+    
+    .piscarisk-phone-screen {
+      min-height: 400px;
+      border-radius: 24px;
+    }
+    
+    .piscarisk-phone-notch {
+      width: 80px;
+      height: 16px;
+      top: 5px;
+    }
+    
+    .piscarisk-slider-dots {
+      bottom: 8px;
+      padding: 4px 8px;
+      gap: 5px;
+    }
+    
+    .piscarisk-slider-dot {
+      width: 5px;
+      height: 5px;
+    }
+    
+    .piscarisk-slider-dot.active {
+      width: 14px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .piscarisk-phone {
+      width: 200px;
+    }
+    
+    .piscarisk-phone-screen {
+      min-height: 360px;
+    }
+  }

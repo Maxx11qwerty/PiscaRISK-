@@ -17,7 +17,16 @@
   font-style: normal;
 }
 
+/* Keep login layout isolated from global styles (e.g. landing page resets) */
+.login-container,
+.login-container *,
+.login-container *::before,
+.login-container *::after {
+  box-sizing: content-box;
+}
+
 .login-container {
+  position: relative;
   height: 100vh;
   display: flex;
   align-items: center;
@@ -33,7 +42,8 @@
   max-width: 80rem;
   padding: 1rem;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 2rem;
 }
 
 .logo-section {
@@ -590,6 +600,35 @@ text-decoration: underline;
 /* Login fields container */
 .login-fields-container {
   animation: fadeIn 0.5s ease forwards;
+}
+
+
+/* Learn More Link Styles - Add to Login.css */
+.learn-more-text {
+  text-align: center;
+  margin: 16px 0 12px 0;
+  font-size: 0.85rem;
+}
+
+.learn-more-link {
+  color: #2C517D;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(44, 81, 125, 0.05);
+}
+
+.learn-more-link:hover {
+  color: #4A7A9E;
+  background: rgba(44, 81, 125, 0.1);
+  text-decoration: none;
+  transform: translateX(2px);
 }
 
 @keyframes fadeIn {

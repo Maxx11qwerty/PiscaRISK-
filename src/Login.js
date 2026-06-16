@@ -337,7 +337,7 @@ export default function Login() {
 
   return (
     <div className="login-container">
-      <MobileAppLandingModal open={showPromoModal} onProceed={handleProceedFromPromo} />
+      
       {/* screen info for development 
       {process.env.NODE_ENV === 'development' && ( 
         <div style={{
@@ -482,6 +482,16 @@ export default function Login() {
                 </button>
               </div>
               <p className="login-admin-note">{t('login.adminProvidedAccounts')}</p>
+
+              {/* NEW: Learn more link - goes to landing page */}
+              <p className="learn-more-text">
+                <span
+                  className="learn-more-link"
+                  onClick={() => navigate('/')}
+                >
+                  Learn more about our app →
+                </span>
+              </p>
 
               <p className="forgot-password-text">
                 <span
