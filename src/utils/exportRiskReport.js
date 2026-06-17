@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { normalizeRisk } from './riskUtils';
 
 // Helper function to get latest predictions per pond
 const getLatestPerPond = (farm) => {
@@ -41,17 +42,6 @@ const getTimestampMs = (ts) => {
   else if (ts && typeof ts.toDate === 'function') { try { ms = ts.toDate().getTime(); } catch (_) {} }
   else if (ts && typeof ts.seconds === 'number') { ms = ts.seconds * 1000; }
   return ms;
-};
-
-// Helper function to normalize risk levels
-const normalizeRisk = (level) => {
-  if (!level || typeof level !== 'string') return 'Normal';
-  const s = level.toLowerCase().trim();
-  if (s.includes('high') || s.includes('critical')) return 'High';
-  if (s.includes('medium')) return 'Medium';
-  if (s.includes('low')) return 'Low';
-  if (s.includes('normal')) return 'Normal';
-  return 'Normal';
 };
 
 const normalizePondKey = (pond) => {

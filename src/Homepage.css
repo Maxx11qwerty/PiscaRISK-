@@ -1190,118 +1190,60 @@
   100% { opacity: 0; transform: translate(-50%, -20px); }
 }
 
-.next-chart-btn {
+.chart-nav-arrows {
   position: absolute;
-  right: 3rem;
+  right: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  background: transparent;
-  border: 2px solid #7ffcff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 15;
+}
+
+.chart-nav-arrows.loading {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.chart-nav-btn {
+  background: rgba(17, 39, 68, 0.85);
+  border: 1px solid rgba(127, 252, 255, 0.55);
   color: #7ffcff;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
-  z-index: 10;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  transition: background 0.2s ease, transform 0.2s ease;
+  padding: 0;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
-.next-chart-btn:hover {
-  background: rgba(127, 252, 255, 0.1);
-  transform: translateY(-50%) scale(1.1);
+.chart-nav-btn:hover:not(:disabled) {
+  background: rgba(127, 252, 255, 0.12);
+  transform: scale(1.06);
 }
 
-/* Mobile 360-480px: Consolidated pagination button styles */
-@media (min-width: 360px) and (max-width: 480px) {
-  .next-chart-btn {
-    position: absolute;
-    right: 50%;
-    top: auto;
-    bottom: 90px;
-    transform: translateX(50%);
-    background: rgba(26, 67, 117, 0.9);
-    border: 1px solid rgba(127, 252, 255, 0.6);
-    border-radius: 20px;
-    padding: 8px 16px;
-    font-size: 0.9rem;
-    transition: none !important;
-    animation: none !important;
-  }
-  
-  .next-chart-btn:hover {
-    background: rgba(127, 252, 255, 0.1) !important;
-    transform: translateX(50%) scale(1.05) !important;
-  }
-  
-  .next-chart-btn.loading {
-    display: none !important;
-  }
-  
+.chart-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-/* Risk view specific positioning - must come after general mobile styles */
-@media (min-width: 360px) and (max-width: 480px) {
-  /* Move next button up a little bit when in risk view to position above "As of" date */
-  .next-chart-btn.risk-view {
-    bottom: 120px !important;
+@media (max-width: 480px) {
+  .chart-nav-arrows {
+    right: 0.5rem;
+    gap: 6px;
   }
-  
-  /* Additional specificity to ensure risk-view positioning works */
-  .main-box .next-chart-btn.risk-view {
-    bottom: 120px !important;
-  }
-  
-  /* Maximum specificity for risk-view pagination button */
-  .dashboard .main-box .next-chart-btn.risk-view {
-    bottom: 160px !important;
-    position: absolute !important;
-    background: transparent !important; /* Red background for testing */
-  }
-  
-  /* Move pagination button down specifically for Reports Chart - must come after risk-view rules */
-  .next-chart-btn.reports-chart {
-    bottom: 30px !important;
-  }
-  
-  /* Additional specificity for Reports Chart pagination button */
-  .main-box .next-chart-btn.reports-chart {
-    bottom: 30px !important;
-  }
-  
-  /* Maximum specificity for Reports Chart pagination button */
-  .dashboard .main-box .next-chart-btn.reports-chart {
-    bottom: 30px !important;
-    position: absolute !important;
-  }
-  
-  /* Move "As of" date up when in risk view mode - override ReportsChart.css */
-  .bar-chart-container .reports-last-updated.risk-view {
-    bottom: 20px !important;
-    position: absolute !important;
-  }
-  
-  /* Even higher specificity for stacked chart */
-  .dashboard .main-box .bar-chart-container .reports-last-updated.risk-view {
-    bottom: 20px !important;
-    position: absolute !important;
-  }
-  
-  /* Maximum specificity to override all other rules */
-  .dashboard .main-box .bar-chart-container#stacked-risk-chart .reports-last-updated.risk-view {
-    bottom: 20px !important;
-    position: absolute !important;
-  }
-}
 
-.next-chart-btn svg {
-  font-size: 1.2rem;
+  .chart-nav-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+  }
 }
 
 .harvest-label {
@@ -1653,27 +1595,7 @@
     margin-top: 1rem !important;
   }
 
-  /* Fix pagination button layout to prevent chart overlap */
-  .next-chart-btn {
-    position: absolute !important;
-    right: 1rem !important;
-    top: 50% !important;
-    bottom: auto !important;
-    transform: translateY(-50%) !important;
-    background: rgba(26, 67, 117, 0.9) !important;
-    border: 1px solid rgba(127, 252, 255, 0.6) !important;
-    border-radius: 20px !important;
-    padding: 6px 12px !important;
-    font-size: 0.8rem !important;
-    width: auto !important;
-    height: auto !important;
-    z-index: 15 !important;
-  }
-  
-  .next-chart-btn:hover {
-    background: rgba(127, 252, 255, 0.1) !important;
-    transform: translateY(-50%) scale(1.05) !important;
-  }
+  /* Chart carousel pagination stays centered at bottom of main-box */
 
   /* Chart text visibility fixes for 1024-1199px */
   .main-box {
@@ -1879,27 +1801,7 @@
     margin-top: 1rem !important;
   }
 
-  /* Fix pagination button layout to prevent chart overlap */
-  .next-chart-btn {
-    position: absolute !important;
-    right: 1rem !important;
-    top: 50% !important;
-    bottom: auto !important;
-    transform: translateY(-50%) !important;
-    background: rgba(26, 67, 117, 0.9) !important;
-    border: 1px solid rgba(127, 252, 255, 0.6) !important;
-    border-radius: 20px !important;
-    padding: 6px 12px !important;
-    font-size: 0.8rem !important;
-    width: auto !important;
-    height: auto !important;
-    z-index: 15 !important;
-  }
-  
-  .next-chart-btn:hover {
-    background: rgba(127, 252, 255, 0.1) !important;
-    transform: translateY(-50%) scale(1.05) !important;
-  }
+  /* Chart carousel pagination stays centered at bottom of main-box */
 
   /* Chart text visibility fixes for 1200-1279px */
   .main-box {

@@ -17,7 +17,9 @@ import NotificationBox from './components/NotificationBox';
 import ReportsChart from './components/ReportsChart';
 import FarmHealthGauge from './components/FarmHealthGauge';
 import PondsAtRiskStackedChart from './components/PondsAtRiskStackedChart';
+import WeeklyRiskTrendChart from './components/WeeklyRiskTrendChart';
 import { useRiskData } from './contexts/RiskDataContext';
+import { normalizeRisk } from './utils/riskUtils';
 import { logMessages, logTemporaryTechOfficerActivity } from './utils/logger';
 import AnimatedModal from './components/AnimatedModal';
 // PasswordChangeModal removed - using ProfileSettings password reset instead
@@ -561,9 +563,11 @@ const PiscaRiskHome = () => {
     setModalKey(prev => prev + 1);
   };
 
-  // Chart carousel state (ReportsChart default -> PondsAtRisk next)
-  const [chartIndex, setChartIndex] = useState(1); // 0: Reports, 1: Ponds at Risk
-  const nextChart = () => setChartIndex((prev) => (prev + 1) % 2);
+  // Chart carousel: 0 Weekly Trend, 1 Farm Risk Overview, 2 Reports
+  const CHART_COUNT = 3;
+  const [chartIndex, setChartIndex] = useState(0);
+  const nextChart = () => setChartIndex((prev) => (prev + 1) % CHART_COUNT);
+  const prevChart = () => setChartIndex((prev) => (prev - 1 + CHART_COUNT) % CHART_COUNT);
 
   // Drilldown modal for stacked chart
   const [showDrilldown, setShowDrilldown] = useState(false);
@@ -577,6 +581,65 @@ const PiscaRiskHome = () => {
   const [modalRangeStart, setModalRangeStart] = useState(null);
   const [modalRangeEnd, setModalRangeEnd] = useState(null);
   const { farms: allFarmsRiskData } = useRiskData();
+
+  const normalizeFarmName = (name) => {
+    if (!name || typeof name !== 'string') return 'unknown-farm';
+    return name.trim().toLowerCase().replace(/\s+/g, '-');
+  };
+
+  const resolveModalFarmKey = (farmName, farmKey) => {
+    if (farmKey) return farmKey;
+    if (!farmName) return null;
+    const clickedFarm = allFarmsRiskData.find(
+      (f) => f.name === farmName || normalizeFarmName(f.name) === normalizeFarmName(farmName)
+    );
+    return clickedFarm?.key || normalizeFarmName(farmName);
+  };
+
+  const openRiskReportFromChart = ({
+    openOverviewOnly,
+    clickedFarmName,
+    clickedFarmKey,
+    riskLevel,
+    clickedPonds,
+    rangeStart,
+    rangeEnd,
+    clickDateMs,
+  }) => {
+    if (openOverviewOnly) {
+      setModalFarmName('');
+      setModalDetailsFarmKey(null);
+      setModalInitialRiskLevel('all');
+      setModalInitialPonds([]);
+      setModalInitialPond(null);
+      setModalRangeStart(null);
+      setModalRangeEnd(null);
+      try {
+        sessionStorage.removeItem('riskModal.initialDateMs');
+      } catch (_) {}
+    } else {
+      setModalFarmName(clickedFarmName || '');
+      setModalDetailsFarmKey(resolveModalFarmKey(clickedFarmName, clickedFarmKey));
+      setModalInitialRiskLevel(riskLevel || 'all');
+      setModalInitialPonds(Array.isArray(clickedPonds) ? clickedPonds : []);
+      setModalInitialPond(null);
+      setModalRangeStart(rangeStart || null);
+      setModalRangeEnd(rangeEnd || null);
+      try {
+        if (clickDateMs) sessionStorage.setItem('riskModal.initialDateMs', String(clickDateMs));
+        else sessionStorage.removeItem('riskModal.initialDateMs');
+      } catch (_) {}
+    }
+
+    setModalContent({
+      id: 4,
+      title: t('dashboard.riskReports'),
+      content: null,
+      icon: <FaExclamationTriangle className="box-icon" />,
+    });
+    setModalKey((prev) => prev + 1);
+    setShowModal(true);
+  };
 
   const openDrilldown = ({ type, farmKey, risk, farms, clickedFarmName, clickedRiskLevel, clickedPonds, clickDateMs, timeFilter, customStart, customEnd, rangeStart, rangeEnd }) => {
     let items = [];
@@ -592,17 +655,6 @@ const PiscaRiskHome = () => {
       if (ms === 0) return false;
       const date = new Date(ms);
       return date >= rangeStart && date <= rangeEnd;
-    };
-
-    // Helper: normalize risk like components
-    const normalizeRisk = (level) => {
-      if (!level || typeof level !== 'string') return 'Normal';
-      const s = level.toLowerCase();
-      if (s.includes('high') || s.includes('critical')) return 'High';
-      if (s.includes('medium')) return 'Medium';
-      if (s.includes('low')) return 'Low';
-      if (s.includes('normal')) return 'Normal';
-      return level.charAt(0).toUpperCase() + level.slice(1);
     };
 
     // Helper: pick the latest generated date within range and dedupe to latest per pond on that date
@@ -677,7 +729,7 @@ const PiscaRiskHome = () => {
         const latestPerPond = latestBatchPerPondForRange(preds);
         items = latestPerPond.map(p => ({
           pond: p.fish_pond || 'Unknown Pond',
-          risk: normalizeRisk(p.risk_level || 'Normal'),
+          risk: normalizeRisk(p.risk_level || 'Low'),
           farm: farm.name,
           timestamp: fmtTs(p.generated_timestamp || p.timestamp),
           date: fmtTs(p.generated_timestamp || p.timestamp).split(',')[0],
@@ -724,7 +776,7 @@ const PiscaRiskHome = () => {
         const preds = Array.isArray(f.predictions) ? f.predictions : [];
         const latestPerPond = latestBatchPerPondForRange(preds);
         latestPerPond.forEach(p => {
-          const lvl = normalizeRisk(p.risk_level || 'Normal');
+          const lvl = normalizeRisk(p.risk_level || 'Low');
           if (lvl === risk) {
             items.push({
               pond: p.fish_pond || 'Unknown Pond',
@@ -791,7 +843,8 @@ const PiscaRiskHome = () => {
         case 4: // Risk Reports
           return (
             <div className="risk-modal-content">
-              <RiskReportModal 
+              <RiskReportModal
+                key={modalKey}
                 isModal={true} 
                 initialFarmName={modalFarmName} 
                 initialTimestampMs={(function(){ try { const raw = sessionStorage.getItem('riskModal.initialDateMs'); return raw ? parseInt(raw, 10) : null; } catch(_) { return null; } })()} 
@@ -808,7 +861,7 @@ const PiscaRiskHome = () => {
           return null;
       }
     };
-  }, [selectedPond, t, location.state, modalKey, modalFarmName, modalDetailsFarmKey, modalInitialRiskLevel, modalInitialPond, modalInitialPonds, weatherData, lastUpdated, refreshWeather, handleExport, loading]);
+  }, [selectedPond, t, location.state, modalKey, modalFarmName, modalDetailsFarmKey, modalInitialRiskLevel, modalInitialPond, modalInitialPonds, modalRangeStart, modalRangeEnd, weatherData, lastUpdated, refreshWeather, handleExport, loading]);
 
   return (
     <div className="homepage-container">
@@ -971,12 +1024,13 @@ const PiscaRiskHome = () => {
           <section className="dashboard">
             <div className="dashboard-top-row">
               <div className="main-box">
-                {chartIndex === 0 ? (
-                  <ReportsChart
-                    dropdownCoordinator={dropdownCoordinator}
-                    onDropdownOpen={notifyDropdownOpen}
+                {chartIndex === 0 && (
+                  <WeeklyRiskTrendChart
+                    onLoadingChange={setChartLoading}
+                    onActualDotClick={openRiskReportFromChart}
                   />
-                ) : (
+                )}
+                {chartIndex === 1 && (
                   <PondsAtRiskStackedChart
                     onDrilldown={openDrilldown}
                     onLoadingChange={setChartLoading}
@@ -985,9 +1039,32 @@ const PiscaRiskHome = () => {
                     onDropdownOpen={notifyDropdownOpen}
                   />
                 )}
-                <button className={`next-chart-btn ${chartLoading ? 'loading' : ''} ${chartGroupMode === 'risk' ? 'risk-view' : ''} ${chartIndex === 0 ? 'reports-chart' : 'ponds-chart'}`} onClick={nextChart} aria-label={chartIndex === 0 ? "Next chart" : "Previous chart"}>
-                  {chartIndex === 0 ? "←" : "→"}
-                </button>
+                {chartIndex === 2 && (
+                  <ReportsChart
+                    dropdownCoordinator={dropdownCoordinator}
+                    onDropdownOpen={notifyDropdownOpen}
+                  />
+                )}
+                <div className={`chart-nav-arrows ${chartLoading ? 'loading' : ''}`}>
+                  <button
+                    type="button"
+                    className="chart-nav-btn"
+                    onClick={nextChart}
+                    disabled={chartLoading}
+                    aria-label={t('dashboard.chartCarousel.next')}
+                  >
+                    →
+                  </button>
+                  <button
+                    type="button"
+                    className="chart-nav-btn"
+                    onClick={prevChart}
+                    disabled={chartLoading}
+                    aria-label={t('dashboard.chartCarousel.previous')}
+                  >
+                    ←
+                  </button>
+                </div>
               </div>
 
               <div className="right-sidebar">

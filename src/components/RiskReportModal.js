@@ -14,6 +14,7 @@ import { logActivity, logMessages } from '../utils/logger';
 import { AuthContext } from '../contexts/AuthContext';
 import { useFarms } from '../contexts/FarmsContext';
 import { useRiskData } from '../contexts/RiskDataContext';
+import { normalizeRisk } from '../utils/riskUtils';
 import { useRefreshFeedback } from '../hooks/useRefreshFeedback';
 import RefreshStatusMessage from './RefreshStatusMessage';
 import './RiskReportModal.css';
@@ -1207,16 +1208,6 @@ const RiskReportModal = ({ isModal = false, initialFarmName = '', initialTimesta
   const normalizeFarmName = (name) => {
     if (!name || typeof name !== 'string') return 'unknown-farm';
     return name.trim().toLowerCase().replace(/\s+/g, '-');
-  };
-
-  const normalizeRisk = (level) => {
-    if (!level || typeof level !== 'string') return 'Normal';
-    const s = level.toLowerCase().trim();
-    if (s.includes('high') || s.includes('critical')) return 'High';
-    if (s.includes('medium')) return 'Medium';
-    if (s.includes('low')) return 'Low';
-    if (s.includes('normal')) return 'Normal';
-    return 'Normal';
   };
 
   // Helper function to convert timestamp to milliseconds

@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useRiskData } from '../contexts/RiskDataContext';
 import { useTranslation } from 'react-i18next';
 import { useFarms } from '../contexts/FarmsContext';
+import { normalizeRisk, riskSeverityScore } from '../utils/riskUtils';
 
 const RISK_COLORS = {
   High: '#FF4444',
@@ -288,16 +289,6 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
   }, [isAssignedToFarm, groupMode]);
 
 
-  const normalizeRisk = (level) => {
-    if (!level || typeof level !== 'string') return 'Normal';
-    const s = level.toLowerCase().trim();
-    if (s.includes('high') || s.includes('critical')) return 'High';
-    if (s.includes('medium')) return 'Medium';
-    if (s.includes('low')) return 'Low';
-    if (s.includes('normal')) return 'Normal';
-    return 'Normal';
-  };
-
   // Helpers mirrored from RiskReportModal for consistency
   const formatPondName = (pondName) => {
     const raw = (pondName || '').toString().trim();
@@ -446,10 +437,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       if (inRange.length === 0) return [];
       // Across the entire range, keep the latest per pond; on exact timestamp ties, prefer lower severity
       const pondMap = new Map();
-      const sev = (lvl) => {
-        const s = (lvl || '').toString().toLowerCase();
-        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
-      };
+      const sev = (lvl) => riskSeverityScore(lvl);
       const ts = (p) => getTimestampMs(p.timestamp);
       inRange
         .sort((a, b) => ts(b) - ts(a))
@@ -468,18 +456,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       let high = 0, medium = 0, low = 0;
       const preds = Array.isArray(f.predictions) ? f.predictions : [];
       const latestPerPond = getLatestBatchPerPondForRange(preds);
-      // Force a stability tie-break identical to modal: if multiple entries share
-      // the exact same timestamp for a pond, prefer the lower severity.
-      const normalize = (lvl) => {
-        if (!lvl || typeof lvl !== 'string') return 'Normal';
-        const s = lvl.toLowerCase();
-        if (s.includes('high') || s.includes('critical')) return 'High';
-        if (s.includes('medium')) return 'Medium';
-        if (s.includes('low')) return 'Low';
-        if (s.includes('normal')) return 'Normal';
-        return lvl.charAt(0).toUpperCase() + lvl.slice(1);
-      };
-      const sev = (lvl) => ({ Normal:0, Low:1, Medium:2, High:3 })[normalize(lvl)] ?? 0;
+      const sev = (lvl) => riskSeverityScore(lvl);
       const ts = (p) => getTimestampMs(p.timestamp);
       const stableMap = new Map();
       latestPerPond.sort((a,b) => ts(b) - ts(a)).forEach(p => {
@@ -495,7 +472,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         const lvl = normalizeRisk(p.risk_level);
         if (lvl === 'High') high += 1;
         else if (lvl === 'Medium') medium += 1;
-        else if (lvl === 'Low') low += 1;
+        else low += 1;
       });
 
 
@@ -523,10 +500,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       if (inRange.length === 0) return [];
       const pondMap = new Map();
       const ts = (p) => getTimestampMs(p.timestamp);
-      const sev = (lvl) => {
-        const s = (lvl || '').toString().toLowerCase();
-        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
-      };
+      const sev = (lvl) => riskSeverityScore(lvl);
       inRange
         .sort((a, b) => ts(b) - ts(a))
         .forEach(pred => {
@@ -545,16 +519,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       let high = 0, medium = 0, low = 0;
       const preds = Array.isArray(f.predictions) ? f.predictions : [];
       const latestPerPond = getLatestBatchPerPondForRange(preds);
-      const normalize = (lvl) => {
-        if (!lvl || typeof lvl !== 'string') return 'Normal';
-        const s = lvl.toLowerCase().trim();
-        if (s.includes('high') || s.includes('critical')) return 'High';
-        if (s.includes('medium')) return 'Medium';
-        if (s.includes('low')) return 'Low';
-        if (s.includes('normal')) return 'Normal';
-        return 'Normal';
-      };
-      const sev = (lvl) => ({ Normal:0, Low:1, Medium:2, High:3 })[normalize(lvl)] ?? 0;
+      const sev = (lvl) => riskSeverityScore(lvl);
       const ts = (p) => getTimestampMs(p.timestamp);
       const stableMap = new Map();
       latestPerPond.sort((a,b) => ts(b) - ts(a)).forEach(p => {
@@ -570,7 +535,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
         const lvl = normalizeRisk(p.risk_level);
         if (lvl === 'High') high += 1;
         else if (lvl === 'Medium') medium += 1;
-        else if (lvl === 'Low') low += 1;
+        else low += 1;
       });
       riskBuckets.High[f.name] = high;
       riskBuckets.Medium[f.name] = medium;
@@ -593,10 +558,7 @@ const PondsAtRiskStackedChart = ({ onDrilldown, onLoadingChange, onGroupModeChan
       if (inRange.length === 0) return [];
       const pondMap = new Map();
       const ts = (p) => getTimestampMs(p.timestamp);
-      const sev = (lvl) => {
-        const s = (lvl || '').toString().toLowerCase();
-        if (s.includes('high')) return 3; if (s.includes('medium')) return 2; if (s.includes('low')) return 1; return 0;
-      };
+      const sev = (lvl) => riskSeverityScore(lvl);
       inRange
         .sort((a, b) => ts(b) - ts(a))
         .forEach(pred => {

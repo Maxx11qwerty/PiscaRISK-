@@ -1,38 +1,29 @@
 import { db } from '../firebase';
 import { collection, getDocs, query } from 'firebase/firestore';
+import { normalizeRisk, riskLevelKey, riskSeverityScore } from '../utils/riskUtils';
 
 const normalizeFarmName = (name) => {
   if (!name || typeof name !== 'string') return 'unknown-farm';
   return name.trim().toLowerCase().replace(/\s+/g, '-');
 };
 
-const normalizeRisk = (level) => {
-  if (!level || typeof level !== 'string') return 'Normal';
-  const s = level.toLowerCase();
-  if (s.includes('high') || s.includes('critical')) return 'High';
-  if (s.includes('medium')) return 'Medium';
-  if (s.includes('low')) return 'Low';
-  if (s.includes('normal')) return 'Normal';
-  return level.charAt(0).toUpperCase() + level.slice(1);
-};
+const levelKey = riskLevelKey;
 
-const levelKey = (level) => {
-  const n = normalizeRisk(level);
-  if (n === 'High') return 'high';
-  if (n === 'Medium') return 'medium';
-  if (n === 'Low') return 'low';
-  return 'normal';
-};
+const mergeRiskCounts = (counts = {}) => ({
+  high: counts.high || 0,
+  medium: counts.medium || 0,
+  low: (counts.low || 0) + (counts.normal || 0),
+});
 
 const majorityFromCounts = (counts) => {
-  const entries = Object.entries(counts);
-  if (entries.length === 0) return 'Normal';
+  const merged = mergeRiskCounts(counts);
+  const entries = Object.entries(merged).filter(([, value]) => value > 0);
+  if (entries.length === 0) return 'Low';
   entries.sort((a, b) => b[1] - a[1]);
   const top = entries[0][0];
   if (top === 'high') return 'High';
   if (top === 'medium') return 'Medium';
-  if (top === 'low') return 'Low';
-  return 'Normal';
+  return 'Low';
 };
 
 const getTimestampMs = (ts) => {
@@ -61,13 +52,7 @@ const deduplicatePredictions = (predictions) => {
   // 2) If timestamps tie, prefer lower severity (Normal < Low < Medium < High)
   // 3) If still tied, prefer risk_predictions source
   const bestByPond = new Map();
-  const sevScore = (lvl) => {
-    const x = (lvl || '').toString().toLowerCase();
-    if (x.includes('high')) return 3;
-    if (x.includes('medium')) return 2;
-    if (x.includes('low')) return 1;
-    return 0; // normal or unknown
-  };
+  const sevScore = (lvl) => riskSeverityScore(lvl);
   predictions.forEach((p) => {
     const pondRaw = (p.fish_pond || '').toString();
     const pondKey = pondRaw.trim().toLowerCase();
@@ -294,7 +279,7 @@ export const fetchRiskReportData = async () => {
       farm_key: farmKey,
       predictions: [],
       counts: { high: 0, medium: 0, low: 0, normal: 0 },
-      overall_risk: 'Normal',
+      overall_risk: 'Low',
       feedback: null,
       has_reports: false,
     };
@@ -310,15 +295,7 @@ export const fetchRiskReportData = async () => {
   });
 
   // Prefer aggregate feedback, highest severity; then apply corrected_risk_level and diagnostics
-  const sev = (lvl) => {
-    if (!lvl) return 0;
-    const l = lvl.toLowerCase();
-    if (l.includes('high')) return 3;
-    if (l.includes('medium')) return 2;
-    if (l.includes('low')) return 1;
-    if (l.includes('normal')) return 0;
-    return 0;
-  };
+  const sev = (lvl) => riskSeverityScore(lvl);
   feedbacks.forEach(f => {
     const farm = byFarm[f.farm_key];
     if (!farm) return;
@@ -345,8 +322,10 @@ export const fetchRiskReportData = async () => {
         farm.counts = {
           high: d.high_risk_count || d.high || farm.counts.high,
           medium: d.medium_risk_count || d.medium || farm.counts.medium,
-          low: d.low_risk_count || d.low || farm.counts.low,
-          normal: d.normal_count || d.normal || farm.counts.normal,
+          low:
+            (d.low_risk_count || d.low || farm.counts.low) +
+            (d.normal_count || d.normal || farm.counts.normal),
+          normal: 0,
         };
       }
       if (fb.corrected_risk_level) farm.overall_risk = fb.corrected_risk_level;
