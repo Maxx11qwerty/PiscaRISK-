@@ -116,7 +116,7 @@ function ForgotPassword() {
   };
 
   const handleBackToLogin = () => {
-    navigate('/');
+    navigate('/login');
   };
 
   const handleTryAnotherEmail = () => {
