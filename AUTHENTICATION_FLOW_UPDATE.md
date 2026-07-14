@@ -1,137 +1,158 @@
-# Authentication Flow Update for Newly Added Users
+# Authentication Flow
+
+How user authentication, verification, and dashboard access work in the current PiscaRISK web app.
 
 ## Overview
-This document explains the updated authentication flow that ensures newly added users must verify their email and phone number before their account becomes active and accessible.
 
-## Key Features
-- Email verification required for dashboard access
-- OTP verification on first login to verify phone number
-- Secure authentication via Firebase Authentication
+- Users are **created by Tech Officers or Admins** in Account Management — there is no public `/signup` route
+- Login supports **email/username** and **phone number** + password (**Google Sign-In disabled**)
+- **Email verification** and **phone OTP** are required before full dashboard access
+- Account **status** must be `active` (with auto-activation after email verification on login)
 
-## Updated Authentication Flow
+## Routes
 
-### 1. First Tech Officer Creation
-- The first Tech Officer is generated directly in Account Management (not from Firestore)
-- Example: username: TechOfficer1, email: techofficer1@gmail.com
+| Path | Component | Notes |
+|------|-----------|-------|
+| `/` | `LandingPage` | Public marketing page; redirects to `/Homepage` if logged in |
+| `/login` | `Login` | Main auth entry |
+| `/forgot-password` | `ForgotPassword` | Self-service email reset |
+| `/Homepage` | `Homepage` | Requires active + phone verified |
 
-### 2. New User Addition by Tech Officer
-- When a Tech Officer adds a new user through Account Management:
-  - New user is stored in Firestore with `status: "inactive"`
-  - `emailVerified: false`
-  - `role: "admin"` | `"tech_officer"` | `"temp_tech_officer"` | `"fish_farmer"`
-- Example: username: micaorjalo, email: chobikalu.21@gmail.com
+Protected routes use `ProtectedRoute` in `App.js` (Account Management, Feedback, Logs, Profile Settings, Pond Conditions).
 
-### 3. Login Attempts by Newly Added User
+## User Creation Flow
 
-#### A. Email/Username + Password Login
-1. System checks if email exists in Firestore
-2. If `status === "inactive"` → Block access with message: "Your account is pending admin approval. Please wait for activation."
-3. User must verify email first
-4. After email verification, `status` updates to `"active"`
-5. OTP verification required on next login
+### 1. First Tech Officer
 
-#### B. Phone Number Login
-1. System validates Philippine mobile number format
-2. Normalizes phone number to E.164 format (+63...)
-3. Checks if phone number exists in Firestore
-4. Enforces same email verification and status checks
-5. User can login with either email or phone number
+Created directly in Account Management (not from a public signup form).
 
-## Key Changes Made
+### 2. Users Added by Tech Officer / Admin
 
-### 1. Enhanced Phone Number Login
-- Philippine mobile number validation and formatting
-- Normalization to E.164 format for consistency
-- Support for both email and phone number as login credentials
-- Proper integration with Firebase Authentication
-
-### 2. Phone Number Verification
-- Mandatory OTP verification on first login
-- SMS-based verification for Philippine numbers
-- Validates phone ownership before full system access
-
-### 3. Enhanced Regular Login Function
-- Added email verification check for both Tech Officers and Admins
-- Auto-updates admin status to active after email verification
-
-### 4. Enhanced Email Verification Check
-- Automatically updates user status to active when email is verified
-- Maintains proper state synchronization
-
-### 5. OTP Verification System
-- Triggered on first successful login
-- Verifies phone number ownership
-- Required before accessing dashboard
-- Uses Firebase phone authentication
-
-## Firestore Document Structure
+When created via Account Management:
 
 ```javascript
-// Newly added user document
 {
-  email: "chobikalu.21@gmail.com",
+  email: "user@example.com",
   username: "fnameexample",
   role: "admin" | "tech_officer" | "temp_tech_officer" | "fish_farmer",
-  status: "inactive",           // Changes to "active" after email verification
-  emailVerified: false,         // Changes to true after verification
+  status: "inactive",
+  emailVerified: false,
+  phoneNumber: "+639171234567",  // E.164
+  phoneVerified: false,
   createdAt: timestamp,
-  createdBy: "tech_officer_uid" | "admin_uid",
-  phoneNumber: "+639171234567",  // Normalized E.164 format
-  phoneVerified: false,         // Set to true after OTP verification
-  lastModified: timestamp
+  createdBy: "creator_uid"
 }
 ```
 
+Cloud Function `createStaffAccount` may also be used for staff provisioning.
+
+### 3. User Activates Account
+
+1. User receives credentials / verification email
+2. Verifies email (Firebase `sendEmailVerification`)
+3. Logs in at `/login`
+4. On first login: **OTP phone verification** (`OtpVerification` modal)
+5. Status updates to `active`; user reaches `/Homepage`
+
+## Login Methods
+
+### A. Email / Username + Password
+
+1. Resolve user in Firestore
+2. If `emailVerified === false` → block with verification message
+3. If `status === inactive` and email not verified → block (pending approval)
+4. If email verified → status may auto-update to `active`
+5. If `phoneVerified === false` → show OTP modal
+6. Navigate to `/Homepage`
+
+### B. Phone Number + Password
+
+1. Validate Philippine mobile format (`phonePh.js`)
+2. Normalize to E.164 (`+63...`)
+3. Same email verification and status checks as email login
+4. OTP on first login if phone not verified
+
+
+## UI Components (Auth)
+
+| Component | Purpose |
+|-----------|---------|
+| `Login.js` | Main login form and verification modals (Google Sign-In UI disabled) |
+| `EmailVerificationModal` | Resend / return during email verification |
+| `OtpVerification` | Phone OTP on first login |
+| `MobileAppLandingModal` | Mobile app promo on login |
+| `ForgotPassword` | Password reset request |
+
+## AuthContext Key Functions
+
+| Function | Purpose |
+|----------|---------|
+| `login` | Email/username login |
+| `loginWithPhone` | Phone + password login |
+| `signup` | Programmatic signup (used internally; no public page) |
+| `logout` | Sign out |
+| `resendVerificationEmail` | Resend email verification |
+| `updateStatusAfterVerification` | Set status active after email verify |
+| `checkEmailVerification` | Sync Firebase Auth email status to Firestore |
+| `migrateExistingUser` | Migrate legacy user records |
+
+## Dashboard Access Gate (`App.js`)
+
+```javascript
+const isFullyAuthed =
+  currentUser &&
+  status === 'active' &&
+  emailVerified === true &&
+  phoneVerified === true;
+
+const canNavigate =
+  currentUser &&
+  status === 'active' &&
+  phoneVerified === true;
+```
+
+`/Homepage` uses `canNavigate`. Full auth requires email + phone verified.
+
+## Role Hierarchy
+
+| Role | Access |
+|------|--------|
+| Tech Officer | Full system access |
+| New Main Tech Officer | Tech officer privileges (promotion path) |
+| Temporary Tech Officer | Time-limited admin; auto-deactivated by Cloud Function |
+| Admin (no farm) | Super admin |
+| Admin (with farm) | Farm Admin — scoped to assigned farm |
+| Fish Farmer | Field/mobile operations |
+
 ## Security Benefits
 
-1. **No Bypass**: Newly added users cannot skip email verification using social login
-2. **Consistent Flow**: All authentication methods follow the same verification rules
-3. **Proper Linking**: Social accounts are properly linked to existing Firestore documents
-4. **Status Management**: Account status automatically updates based on verification state
-5. **Audit Trail**: All changes are logged with timestamps
+1. No public self-registration bypass
+2. Email verification enforced on all login methods
+3. Phone ownership verified via OTP
+4. Status synced between Firebase Auth and Firestore
+5. Activity logged via `logger.js`
 
 ## Testing Scenarios
 
-### Scenario 1: New User with Email Login (Email Not Verified)
-1. Tech Officer adds new user via Account Management
-2. New user tries email/password login
-3. **Expected Result**: Blocked with "Please verify your email" message
+### New user, email not verified
 
-### Scenario 2: New User with Email Login (Email Verified)
-1. Tech Officer adds new user via Account Management
-2. New user verifies email through verification link
-3. New user tries email/password login
-4. **Expected Result**: Account activated, status becomes "active"
-5. **OTP Prompt**: User must verify phone number with OTP on first login
+1. Tech Officer creates user
+2. User tries login → blocked: verify email first
 
-### Scenario 3: New User with Regular Login (Email Not Verified)
-1. Tech Officer adds new user via Account Management
-2. New user tries email/password login
-3. **Expected Result**: Blocked with "Your account is pending approval" message
+### Email verified, first login
 
-### Scenario 4: New User with Regular Login (Email Verified)
-1. Tech Officer adds new user via Account Management
-2. New user verifies email through verification link
-3. New user tries email/password login
-4. **Expected Result**: Login successful, status becomes "active"
+1. User verifies email
+2. Login succeeds → OTP modal appears
+3. After OTP → dashboard access
 
-## Console Logging
-The system now includes detailed console logging for debugging:
-- Email and phone login flow details
-- Email verification status updates
-- OTP verification process
-- Account status changes
-- Phone number normalization and validation
+### Legacy user (no status field)
 
-## Next Steps
-1. Test the authentication flow with newly added users
-2. Verify email verification works correctly
-3. Test OTP verification after successful login
-4. Monitor console logs for debugging information
+1. User logs in
+2. `migrateExistingUser` runs automatically
+3. Status set based on `emailVerified`
 
-## Current Role Hierarchy
+## Related Documentation
 
-1. **Tech Officer**: Full system access, can create all user types
-2. **Admin** (with farm): Farm-specific admin access, can only create Fish Farmers
-3. **Temporary Tech Officer**: Limited-time administrative access
-4. **Fish Farmer**: Mobile-optimized field operations access
+- [EMAIL_VERIFICATION_FLOW.md](./EMAIL_VERIFICATION_FLOW.md)
+- [EXISTING_USERS_MIGRATION.md](./EXISTING_USERS_MIGRATION.md)
+- [docs/piscarisk-firestore.dbml](./docs/piscarisk-firestore.dbml) — Firestore user schema

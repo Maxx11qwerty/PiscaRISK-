@@ -1,80 +1,84 @@
 # PiscaRISK Documentation Index
 
-This document provides a quick reference guide to all documentation files in the PiscaRISK project.
+Quick reference for all project documentation.
 
-## 📚 Main Documentation
+## Main Documentation
 
-### Getting Started
-- **[README.md](./README.md)** - Main project documentation with overview, features, installation, and usage
-- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Complete deployment guide for all hosting platforms
+| Document | Description |
+|----------|-------------|
+| [README.md](./README.md) | Project overview, features, architecture, setup |
+| [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) | System installation & deployment from shared source (ZIP/folder) |
+| [docs/piscarisk-firestore.dbml](./docs/piscarisk-firestore.dbml) | Firestore schema diagram (paste into [dbdiagram.io](https://dbdiagram.io)) |
 
-### Authentication & User Management
-- **[AUTHENTICATION_FLOW_UPDATE.md](./AUTHENTICATION_FLOW_UPDATE.md)** - Detailed authentication flow for user verification and login
-- **[EMAIL_VERIFICATION_FLOW.md](./EMAIL_VERIFICATION_FLOW.md)** - Email verification requirements and flow for all users
-- **[EXISTING_USERS_MIGRATION.md](./EXISTING_USERS_MIGRATION.md)** - Handling and migrating existing users to new authentication system
+## Authentication & Users
 
-### Security
-- **[SECURITY_GUIDE.md](./SECURITY_GUIDE.md)** - Comprehensive security implementation guide covering all security measures
-- **[TROUBLESHOOTING_SECURITY_HEADERS.md](./TROUBLESHOOTING_SECURITY_HEADERS.md)** - Troubleshooting security header issues
+| Document | Description |
+|----------|-------------|
+| [AUTHENTICATION_FLOW_UPDATE.md](./AUTHENTICATION_FLOW_UPDATE.md) | Login, OTP, and account activation flow |
+| [EMAIL_VERIFICATION_FLOW.md](./EMAIL_VERIFICATION_FLOW.md) | Email verification requirements |
+| [EXISTING_USERS_MIGRATION.md](./EXISTING_USERS_MIGRATION.md) | Legacy user status migration |
 
-### Components & Features
-- **[SIDEBAR_USAGE_GUIDE.md](./SIDEBAR_USAGE_GUIDE.md)** - How to use the Sidebar component
+## Security
 
-## 🚀 Quick Start
+| Document | Description |
+|----------|-------------|
+| [SECURITY_GUIDE.md](./SECURITY_GUIDE.md) | CSP, headers, sanitization, secure storage |
+| [TROUBLESHOOTING_SECURITY_HEADERS.md](./TROUBLESHOOTING_SECURITY_HEADERS.md) | Debugging missing or incorrect headers |
 
-1. Read [README.md](./README.md) for project overview
-2. Check [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for deployment
-3. Review [SECURITY_GUIDE.md](./SECURITY_GUIDE.md) for security setup
+## Components
 
-## 📖 Documentation by Topic
+| Document | Description |
+|----------|-------------|
+| [SIDEBAR_USAGE_GUIDE.md](./SIDEBAR_USAGE_GUIDE.md) | Sidebar navigation component |
 
-### For Developers
-- **Setup**: README.md
-- **Authentication**: AUTHENTICATION_FLOW_UPDATE.md, EMAIL_VERIFICATION_FLOW.md
-- **Security**: SECURITY_GUIDE.md
-- **Deployment**: DEPLOYMENT_GUIDE.md
-- **Components**: SIDEBAR_USAGE_GUIDE.md
+## Quick Start
 
-### For Administrators
-- **User Management**: README.md (Usage section)
-- **Account Management**: AUTHENTICATION_FLOW_UPDATE.md
-- **Security**: SECURITY_GUIDE.md
-- **Troubleshooting**: TROUBLESHOOTING_SECURITY_HEADERS.md
+1. [README.md](./README.md) — overview and local setup
+2. [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) — deploy to production
+3. [SECURITY_GUIDE.md](./SECURITY_GUIDE.md) — verify security configuration
 
-### For Support
-- **Common Issues**: TROUBLESHOOTING_SECURITY_HEADERS.md
-- **User Migration**: EXISTING_USERS_MIGRATION.md
+## By Audience
 
-## 📝 Documentation Standards
+### Developers
 
-### Format
-- Markdown (.md) format
-- Clear section headers
-- Code examples where applicable
-- Troubleshooting sections for complex topics
+- Setup: README.md
+- Data model: docs/piscarisk-firestore.dbml
+- Auth: AUTHENTICATION_FLOW_UPDATE.md, EMAIL_VERIFICATION_FLOW.md
+- Security: SECURITY_GUIDE.md
+- Deploy: DEPLOYMENT_GUIDE.md
+- UI: SIDEBAR_USAGE_GUIDE.md
 
-### Updates
-- Keep documentation in sync with code changes
-- Update this index when adding new documentation
-- Remove or consolidate duplicate content
+### Administrators
 
-## 🤝 Contributing to Documentation
+- User management: README.md (Usage), AUTHENTICATION_FLOW_UPDATE.md
+- Security: SECURITY_GUIDE.md
+- Troubleshooting: TROUBLESHOOTING_SECURITY_HEADERS.md
 
-When creating new documentation:
-1. Use clear, descriptive filenames
-2. Include a brief overview at the top
-3. Add to this index
-4. Link related documents
-5. Update README.md if it's a major feature
+### Support
 
-## 📞 Support
+- Header issues: TROUBLESHOOTING_SECURITY_HEADERS.md
+- Legacy users: EXISTING_USERS_MIGRATION.md
 
-For questions about documentation or the project:
-- Email: security@piscarisk.onrender.com
-- Security Policy: https://piscarisk.onrender.com/security-policy
+## Key Source Files (for reference)
 
----
+| Area | Location |
+|------|----------|
+| Routes | `src/App.js` |
+| Auth logic | `src/contexts/AuthContext.js` |
+| CSP build script | `scripts/set-csp.js` |
+| Firebase hosting headers | `firebase.json` |
+| Render headers | `public/render.json` |
+| Express server + Helmet | `server.js` |
+| Cloud Functions | `functions/index.js` |
 
-**Last Updated**: October 2024  
-**Documentation Version**: 1.0
+## Contributing to Documentation
 
+1. Use clear filenames and section headers
+2. Add new docs to this index
+3. Link related documents
+4. Update README.md for major feature changes
+5. Keep docs aligned with `src/App.js` routes and `package.json` scripts
+
+
+**Last Updated**: June 2025  
+**Documentation Version**: 2.0

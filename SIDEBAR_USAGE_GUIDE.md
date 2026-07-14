@@ -1,187 +1,173 @@
 # Sidebar Component Usage Guide
 
-## Overview
-The new `Sidebar` component combines both the `SidebarTop` (user profile section) and all sidebar navigation content into one reusable component. This makes it easy to display a consistent sidebar across all pages.
+The `Sidebar` component provides consistent navigation, user profile display, language toggle, and export controls across authenticated pages.
 
-## Files Created
-- `src/components/Sidebar.js` - The main sidebar component
-- `src/components/Sidebar.css` - All sidebar styling
+## Files
 
-## How to Use
+- `src/components/Sidebar.js`
+- `src/components/Sidebar.css`
 
-### 1. Import the Component
+## Pages Using Sidebar
+
+| Page | Route |
+|------|-------|
+| `Homepage.js` | `/Homepage` |
+| `AccountManagement.js` | `/AccountManagement` |
+| `ProfileSettings.js` | `/ProfileSettings` |
+| `Feedback.js` | `/Feedback` |
+| `Logs.js` | `/logs` |
+
+## Import
+
 ```javascript
 import Sidebar from './components/Sidebar';
 ```
 
-### 2. Add the Component to Your Page
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `sidebarOpen` | boolean | Mobile slide-in state |
+| `sidebarCollapsed` | boolean | Desktop collapsed width |
+| `currentUser` | object | User from `AuthContext` |
+| `showDownloadOptions` | boolean | Export dropdown visibility |
+| `setShowDownloadOptions` | function | Toggle export dropdown |
+| `onDropdownOpen` | function | Close other dropdowns when export opens |
+| `handleExport` | function | `(format: 'pdf' \| 'csv') => void` |
+| `onDashboardClick` | function | Navigate to dashboard |
+| `onAccountManagementClick` | function | Navigate to account management |
+| `onLogsClick` | function | Navigate to logs |
+| `onFeedbackClick` | function | Navigate to feedback |
+
+## Example (Homepage pattern)
+
 ```javascript
-<Sidebar 
-  currentUser={currentUser}
-  sidebarOpen={sidebarOpen}
-  onLogout={handleLogout}
-  onAccountManagementClick={handleAccountManagementClick}
-  onLogsClick={handleLogsClick}
-  onRewardManagementClick={handleRewardManagementClick}
-/>
-```
-
-### 3. Required Props
-- `currentUser` - User object from AuthContext
-- `sidebarOpen` - Boolean for collapsed/expanded state
-- `onLogout` - Function to handle logout
-- `onAccountManagementClick` - Function to navigate to Account Management
-- `onLogsClick` - Function to navigate to Logs
-- `onRewardManagementClick` - Function to navigate to Reward Management
-
-## Example Implementation
-
-### Basic Usage
-```javascript
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../contexts/AuthContext';
-import Sidebar from '../components/Sidebar';
+import { AuthContext } from './contexts/AuthContext';
+import Sidebar from './components/Sidebar';
 
-const YourPage = () => {
-  const { currentUser, logout } = useContext(AuthContext);
+const MyPage = () => {
+  const { currentUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
-  const handleAccountManagementClick = async () => {
-    navigate('/AccountManagement');
-  };
-
-  const handleLogsClick = async () => {
-    navigate('/Logs');
-  };
-
-  const handleRewardManagementClick = async () => {
-    navigate('/RewardManagement');
+  const handleExport = (format) => {
+    // Page-specific PDF/CSV export logic
+    setShowDownloadOptions(false);
   };
 
   return (
-    <div className="page-container">
-      <Sidebar 
+    <div className="page-layout">
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        sidebarCollapsed={sidebarCollapsed}
         currentUser={currentUser}
-        sidebarOpen={false}
-        onLogout={handleLogout}
-        onAccountManagementClick={handleAccountManagementClick}
-        onLogsClick={handleLogsClick}
-        onRewardManagementClick={handleRewardManagementClick}
+        showDownloadOptions={showDownloadOptions}
+        setShowDownloadOptions={setShowDownloadOptions}
+        onDropdownOpen={() => {}}
+        handleExport={handleExport}
+        onDashboardClick={() => navigate('/Homepage')}
+        onAccountManagementClick={() => navigate('/AccountManagement')}
+        onLogsClick={() => navigate('/logs')}
+        onFeedbackClick={() => navigate('/Feedback')}
       />
-      
-      <div className="main-content">
-        {/* Your page content here */}
-      </div>
+      <main className="main-content">
+        {/* page content */}
+      </main>
     </div>
   );
 };
-
-export default YourPage;
 ```
 
-## Pages That Can Use This Component
+## Features
 
-### ✅ Already Updated
-- `Homepage.js` - Uses the new Sidebar component
-- `AccountManagement.js` - Uses the new Sidebar component
+### User profile section
 
-### 🔄 Ready to Update
-- `ProfileSettings.js` - Can replace existing navigation with Sidebar
-- `Feedback.js` - Can add Sidebar for consistent navigation
-- `Logs.js` - Can add Sidebar for consistent navigation
-- `RewardManagement.js` - Can add Sidebar for consistent navigation
+- Profile image or default icon
+- Display name (username or email prefix)
+- Role label (Tech Officer, Farm Admin, Fish Farmer, etc.)
 
-## Features Included
+### Navigation items
 
-### 1. User Profile Section (SidebarTop)
-- Profile picture or default user icon
-- Username display
-- Welcome message
+- **Dashboard** → `/Homepage`
+- **Accounts** → `/AccountManagement` (role-gated)
+- **Logs** → `/logs` (role-gated)
+- **Feedback** → `/Feedback` (role-gated for some roles)
 
-### 2. Navigation Menu
-- Dashboard (Homepage)
-- Accounts
-- Logs
-- Feedback
-- Rewards
+Active route is highlighted using `useLocation()`.
 
-### 3. Bottom Options
-- Logout button
+### Language toggle
 
-### 4. Export Data Section
-- PDF export option
-- CSV export option
+- Switches between English (`en`) and Tagalog (`tl`)
+- Uses `LanguageContext` + i18next
+- Preference stored via `secureStorage`
 
-### 5. Responsive Design
-- Collapsible sidebar
-- Mobile-friendly layout
-- Responsive typography
+### Export section
 
-## CSS Classes Available
+- PDF and CSV options (when `handleExport` provided)
+- Dropdown controlled by `showDownloadOptions`
 
-### Main Container
-- `.sidebar-wrapper` - Main sidebar container
-- `.sidebar-wrapper.collapsed` - Collapsed state
+### Notifications badge
 
-### User Profile
-- `.sidebar-top` - Top section container
-- `.user-info` - User information container
-- `.profile-picture` - Profile image styling
-- `.user-icon` - Default user icon
-- `.welcome-text` - Welcome message container
-- `.username` - Username text
+- Pending activations count from `NotificationContext` (`pendingActivations`)
 
-### Navigation
-- `.sidebar` - Navigation container
-- `.sidebar-buttons` - Navigation buttons container
-- `.sidebar-nav-item` - Individual navigation item
-- `.sidebar-nav-icon` - Navigation icons
+## Role-Based Visibility
 
-### Export Section
-- `.sidebar-export-container` - Export options container
-- `.sidebar-download-options` - Download options dropdown
-- `.sidebar-download-option` - Individual download option
+Sidebar hides or shows nav items based on role:
 
-## Responsive Breakpoints
+| Role | Accounts | Logs | Feedback |
+|------|----------|------|----------|
+| Super Admin (admin, no farm) | ✅ | ✅ | ✅ |
+| Tech Officer | ✅ | ✅ | ✅ |
+| Temporary Tech Officer | ✅ | ✅ | ✅ |
+| Farm Admin | ✅ (scoped) | ✅ | ❌ |
+| Fish Farmer | ❌ | ❌ | ❌ |
 
-- **Desktop**: Full sidebar with text labels
-- **Tablet**: Responsive layout adjustments
-- **Mobile**: Collapsed sidebar with icon-only view
+Exact logic is in `Sidebar.js` (`isSuperAdmin`, `isTechOfficer`, `canAccessFeedback`, etc.).
 
-## Benefits
+## Responsive Behavior
 
-1. **Consistency** - Same sidebar across all pages
-2. **Maintainability** - Single component to update
-3. **Reusability** - Easy to add to new pages
-4. **Responsive** - Works on all screen sizes
-5. **Customizable** - Props allow page-specific behavior
+| Breakpoint | Behavior |
+|------------|----------|
+| Desktop (>1023px) | `sidebarCollapsed` toggles width |
+| Mobile/tablet (≤1023px) | `sidebarOpen` slides sidebar in/out |
+
+CSS classes: `.sidebar-wrapper`, `.sidebar-wrapper.collapsed`, `.sidebar-wrapper.sidebarOpen`
+
+## CSS Classes
+
+| Class | Purpose |
+|-------|---------|
+| `.sidebar-wrapper` | Main container |
+| `.sidebar-top` | User profile area |
+| `.user-info` | Avatar + name |
+| `.sidebar` | Navigation list |
+| `.sidebar-nav-item` | Nav button |
+| `.sidebar-export-container` | Export dropdown |
+
+## Adding Sidebar to a New Page
+
+1. Import `Sidebar` and required contexts
+2. Add sidebar state (`sidebarOpen`, `sidebarCollapsed`, `showDownloadOptions`)
+3. Pass all required props (see table above)
+4. Implement `handleExport` for page-specific exports
+5. Import or match layout CSS from an existing page (e.g. `Homepage.css`)
 
 ## Troubleshooting
 
-### Common Issues
-1. **Sidebar not showing** - Check if `currentUser` is passed correctly
-2. **Navigation not working** - Ensure all handler functions are implemented
-3. **Styling conflicts** - Make sure `Sidebar.css` is imported
+| Issue | Fix |
+|-------|-----|
+| Sidebar empty | Ensure `currentUser` is passed from `AuthContext` |
+| Nav click does nothing | Wire `onDashboardClick`, etc. with `navigate()` |
+| Wrong active highlight | Check route path matches `Sidebar.js` path checks |
+| Export not working | Implement `handleExport` on the parent page |
+| Styling broken | Import `Sidebar.css`; check layout wrapper classes |
 
-### CSS Conflicts
-If you experience styling issues, check for:
-- Duplicate CSS rules in your page's CSS file
-- Conflicting class names
-- Missing font imports
+## Related
 
-## Next Steps
-
-To complete the sidebar integration across all pages:
-
-1. Update `ProfileSettings.js`
-2. Update `Feedback.js`
-3. Update `Logs.js`
-4. Update `RewardManagement.js`
-
-Each page should follow the same pattern shown in the example implementation above.
+- [README.md](./README.md) — routes and roles
+- `src/contexts/LanguageContext.js` — language toggle
+- `src/contexts/NotificationContext.js` — activation badge

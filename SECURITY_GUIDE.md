@@ -1,166 +1,147 @@
 # PiscaRisk Security Implementation Guide
 
-This document outlines the security measures implemented to address OWASP security alerts and enhance the overall security posture of the PiscaRisk application.
+Security measures implemented across the PiscaRisk web application, Express API server, and hosting platforms.
 
-## Security Issues Addressed
+## Security Layers
 
-### 1. Content Security Policy (CSP) Header ✅
-**Issue**: Missing CSP header makes the application vulnerable to XSS attacks.
+| Layer | Files | What it protects |
+|-------|-------|------------------|
+| Hosting headers | `firebase.json`, `public/render.json`, `public/_headers`, `public/web.config`, `public/.htaccess` | Production HTTP response headers |
+| HTML meta tags | `public/index.html` | CSP and meta security tags in the built app |
+| Build script | `scripts/set-csp.js` | Swaps dev vs production CSP on `npm start` / `npm run build` |
+| Express server | `server.js` (Helmet) | API routes and static file serving |
+| Application code | `securityUtils.js`, `secureStorage.js`, `sanitize.js`, `logger.js` | Input sanitization, storage, audit logs |
 
-**Solution**: 
-- Added comprehensive CSP header in `public/index.html`
-- Configured to allow only necessary sources for scripts, styles, fonts, and connections
-- Includes Firebase and Google services required by the application
-- Blocks inline scripts and objects by default
+> **Note:** Standalone CSP test HTML pages were removed from `public/` as they were manual dev tools only. They did **not** control production headers. Your security grade comes from the files above.
 
-**Implementation**:
-```html
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' https://fonts.gstatic.com;
-  img-src 'self' data: https: blob:;
-  connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org;
-  frame-src 'self' https://*.google.com;
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-  frame-ancestors 'none';
-" />
-```
+## 1. Content Security Policy (CSP)
 
-**Note**: The CSP includes `https://api.openweathermap.org` in the `connect-src` directive to allow weather data fetching.
+**Issue addressed:** XSS via unrestricted script/style sources.
 
-### 2. Anti-clickjacking Headers ✅
-**Issue**: Missing X-Frame-Options header allows clickjacking attacks.
+**Implementation:**
 
-**Solution**:
-- Added `X-Frame-Options: DENY` header
-- Included `frame-ancestors 'none'` in CSP
-- Prevents the application from being embedded in iframes
+- `public/index.html` contains a CSP `<meta>` tag
+- `scripts/set-csp.js` updates CSP for development vs production builds
+- Hosting platforms add CSP via response headers (see deployment files)
 
-### 3. X-Content-Type-Options Header ✅
-**Issue**: Missing header allows MIME-type sniffing attacks.
+**Allowed sources include:** Firebase, Google Auth, reCAPTCHA, OpenWeatherMap, Google Analytics (blocked client-side in `index.html` where configured).
 
-**Solution**:
-- Added `X-Content-Type-Options: nosniff` header
-- Prevents browsers from interpreting files as different MIME types
+**Weather API:** `https://api.openweathermap.org` is in `connect-src`.
 
-### 4. Timestamp Disclosure ✅
-**Issue**: Unix timestamps in responses may help attackers fingerprint software versions.
+## 2. Anti-clickjacking
 
-**Solution**:
-- Created `src/utils/securityUtils.js` with timestamp sanitization functions
-- Implemented `sanitizeTimestamp()` function that shows relative time instead of exact timestamps
-- Updated RiskReportModal to use sanitized timestamps
-- Added data age validation for localStorage
+**Issue addressed:** UI redress / clickjacking.
 
-### 5. Secure localStorage Usage ✅
-**Issue**: Sensitive data in localStorage is vulnerable to XSS attacks.
+**Implementation:**
 
-**Solution**:
-- Created `src/utils/secureStorage.js` with secure storage wrapper
-- Sanitizes all data before storing in localStorage
-- Adds metadata and validation to stored data
-- Implements data age limits and size restrictions
-- Updated LanguageContext to use secure storage
+- `X-Frame-Options: SAMEORIGIN` (allows same-origin frames; required for OAuth/reCAPTCHA)
+- `frame-ancestors` in CSP allows trusted domains (Google, Firebase, Render)
+- Not `DENY` — OAuth popups and reCAPTCHA require controlled framing
 
-### 6. Sensitive Information in URLs ✅
-**Issue**: Sensitive data in URLs can leak via logs and browser history.
+## 3. X-Content-Type-Options
 
-**Solution**:
-- Created `src/utils/secureRouting.js` for secure URL handling
-- Identifies and removes sensitive parameters from URLs
-- Provides secure navigation functions
-- Implements URL sanitization and validation
+**Implementation:** `X-Content-Type-Options: nosniff` in hosting config and `index.html` meta.
 
-### 7. Server Configuration Files ✅
-**Solution**: Created multiple server configuration files:
-- `public/_headers` - For Netlify/Vercel deployment
-- `public/web.config` - For IIS servers
-- `public/security.txt` - Security contact information
+## 4. Strict Transport Security (HSTS)
 
-## Additional Security Measures
+**Implementation:** `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` in `firebase.json`, `render.json`, `_headers`, `web.config`.
 
-### Security Utilities (`src/utils/securityUtils.js`)
-- Input sanitization functions
-- URL sanitization
-- Secure random ID generation
-- Security event logging
-- Context security validation
+Requires HTTPS on the hosting platform.
 
-### Secure Storage (`src/utils/secureStorage.js`)
-- Wrapper around localStorage with sanitization
-- Data validation and age limits
-- Size restrictions
-- Error handling and logging
+## 5. Referrer & Permissions Policies
 
-### Secure Routing (`src/utils/secureRouting.js`)
-- Safe navigation functions
-- URL parameter sanitization
-- Sensitive data detection
-- Automatic URL cleaning
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Permissions-Policy` restricts camera, microphone, geolocation, etc. (camera allowed for self where needed)
 
-## Server-Side Security Headers
+## 6. Timestamp Disclosure
 
-The following headers should be configured on your web server:
+**Implementation:** `src/utils/securityUtils.js`
+
+- `sanitizeTimestamp()` — relative time instead of raw Unix timestamps in UI
+- Used in components like `RiskReportModal.js`
+
+## 7. Secure localStorage
+
+**Implementation:** `src/utils/secureStorage.js`
+
+- Wraps localStorage with sanitization and validation
+- Data age limits and size checks
+- Used by `LanguageContext` for locale preference
+
+## 8. Input Sanitization
+
+**Implementation:** `src/utils/sanitize.js` (client) and `functions/sanitize.js` (Cloud Functions)
+
+- `sanitizeObjectStrings`, `sanitizeInput` used across forms, Firestore writes, and account service
+
+## 9. Activity Logging
+
+**Implementation:** `src/utils/logger.js`
+
+- Audit trail for sensitive operations (password changes, account actions, exports)
+- Firestore-backed log storage
+
+## 10. Authentication Security
+
+- Firebase Authentication (email/password, phone OTP, Google)
+- reCAPTCHA Enterprise (`src/routes/recaptcha.js`, `server.js`)
+- Firebase ID token verification on `/api/secure/*` routes (`server.js`)
+- Email + phone verification gates before full dashboard access
+
+## Server-Side Headers (Reference)
+
+Typical production response headers:
 
 ```http
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://api.openweathermap.org; frame-src 'self' https://*.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';
+Content-Security-Policy: default-src 'self'; script-src 'self' ...; connect-src 'self' https://*.firebaseio.com ...;
 X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
+X-Frame-Options: SAMEORIGIN
 Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+Permissions-Policy: accelerometer=(), camera=(self), ...
 Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-Server: (remove or obfuscate)
-Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate
+Cross-Origin-Opener-Policy: same-origin-allow-popups
 ```
 
-## Deployment Recommendations
+Exact CSP strings differ slightly per platform — see `firebase.json` and `public/render.json` for canonical values.
 
-### For Netlify/Vercel:
-- Use the `public/_headers` file
-- Ensure HTTPS is enforced
-- Configure redirects for HTTP to HTTPS
+## Deployment by Platform
 
-### For IIS:
-- Use the `public/web.config` file
-- Configure URL rewrite rules
-- Set up request filtering
+| Platform | Configuration file |
+|----------|-------------------|
+| Firebase Hosting | `firebase.json` |
+| Render.com | `public/render.json` |
+| Netlify / Vercel | `public/_headers` |
+| IIS | `public/web.config` |
+| Apache | `public/.htaccess` |
+| Custom Node | `server.js` (Helmet) |
 
-### For Apache:
-- Add headers to `.htaccess` or virtual host configuration
-- Enable mod_headers and mod_rewrite
+## Verifying Security
 
-### For Nginx:
-- Add security headers to server configuration
-- Configure SSL/TLS properly
+1. **Browser DevTools** → Network → main document → Response Headers
+2. **[securityheaders.com](https://securityheaders.com)** — scan your production URL (e.g. `https://piscarisk.onrender.com/`)
+3. **[Mozilla Observatory](https://observatory.mozilla.org/)**
+4. **curl:**
+   ```bash
+   curl -I https://your-site.com/
+   ```
 
-## Monitoring and Maintenance
+## Monitoring & Maintenance
 
-1. **Regular Security Audits**: Run OWASP ZAP or similar tools regularly
-2. **Dependency Updates**: Keep all dependencies updated
-3. **Security Headers**: Verify headers are properly set
-4. **Log Monitoring**: Monitor security events and logs
-5. **Penetration Testing**: Conduct regular penetration tests
-
-## Testing the Implementation
-
-1. **OWASP ZAP**: Re-run the security scan to verify fixes
-2. **Browser DevTools**: Check security headers in Network tab
-3. **CSP Evaluator**: Test Content Security Policy
-4. **Security Headers**: Use online tools to verify headers
+1. Re-scan headers after each deployment
+2. Keep dependencies updated (`npm audit`)
+3. Review CSP console violations in browser
+4. Monitor `logger.js` audit entries for suspicious activity
+5. Rotate Firebase service account keys periodically
 
 ## Contact
 
-For security-related issues or questions:
 - Email: security@piscarisk.onrender.com
 - Security Policy: https://piscarisk.onrender.com/security-policy
 - Security.txt: https://piscarisk.onrender.com/.well-known/security.txt
 
 ## Version History
 
-- v1.0 - Initial security implementation addressing OWASP alerts
-- v1.1 - Added secure storage and routing utilities
-- v1.2 - Enhanced timestamp sanitization and URL security
+- **v1.0** — Initial OWASP-oriented security implementation
+- **v1.1** — Secure storage utilities
+- **v1.2** — Timestamp sanitization
+- **v2.0** — Updated for current hosting config; removed references to deleted test pages and `secureRouting.js`

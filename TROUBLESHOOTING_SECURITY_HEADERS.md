@@ -1,231 +1,169 @@
 # Security Headers Troubleshooting Guide
 
-## Issue: Headers Not Appearing After Deployment
+How to diagnose and fix missing or incorrect security headers after deployment.
 
-### Common Causes and Solutions
+## Quick Diagnosis
 
-#### 1. Firebase Hosting Configuration Issues
-
-**Problem**: Headers defined in `firebase.json` are not being applied.
-
-**Solutions**:
-- Verify `firebase.json` syntax is correct
-- Ensure the `hosting` section is properly configured
-- Check that the `source` pattern matches your files (`**` for all files)
-- Redeploy after making changes: `firebase deploy --only hosting`
-
-**Debug Steps**:
 ```bash
-# Check Firebase configuration
-firebase hosting:channel:list
-
-# Deploy with verbose output
-firebase deploy --only hosting --debug
-
-# Check if headers are in the deployed configuration
-firebase hosting:channel:open live
-```
-
-#### 2. Caching Issues
-
-**Problem**: Old responses are cached and new headers aren't visible.
-
-**Solutions**:
-- Clear browser cache (Ctrl+Shift+R)
-- Use incognito/private browsing mode
-- Wait 5-10 minutes for CDN cache to clear
-- Use different browsers for testing
-
-**Debug Steps**:
-```bash
-# Test with curl to bypass browser cache
+# Check all response headers
 curl -I https://your-site.com/
 
-# Test with different user agents
-curl -I -H "User-Agent: Mozilla/5.0" https://your-site.com/
+# Check specific headers
+curl -I https://your-site.com/ | findstr /i "content-security-policy strict-transport"
 ```
 
-#### 3. Platform-Specific Issues
+Or use [securityheaders.com](https://securityheaders.com/) with your production URL.
 
-##### Firebase Hosting
-- Headers must be defined in `firebase.json`
-- Some headers may be overridden by Firebase's own security policies
-- Check Firebase Console for any security policy conflicts
+## Which File Controls Headers?
 
-##### Netlify
-- Headers must be in `_headers` file in the root or `public` directory
-- File must be deployed with the site
-- Check Netlify dashboard for header configuration
+| Hosting | Configuration file |
+|---------|-------------------|
+| Firebase Hosting | `firebase.json` |
+| Render.com | `public/render.json` |
+| Netlify / Vercel | `public/_headers` |
+| IIS | `public/web.config` |
+| Apache | `public/.htaccess` |
+| Express (`server.js`) | Helmet middleware in code |
+| All builds | `public/index.html` (CSP meta tag) + `scripts/set-csp.js` |
 
-##### Vercel
-- Headers can be in `vercel.json` or `_headers` file
-- Check Vercel dashboard for configuration
+> Removed standalone test HTML pages (e.g. `csp-test.html`) were **manual dev tools only**. They never controlled production headers. Deleting them does not lower your security grade.
 
-##### Render.com
-- Headers should be in `web.config` (Windows) or server configuration
-- May require custom server setup
+## Common Causes
 
-#### 4. Configuration Format Issues
+### 1. Wrong platform config deployed
 
-**Problem**: Incorrect header format or syntax.
+**Symptom:** Headers missing on Render but present locally.
 
-**Common Mistakes**:
-- Missing quotes around header values
-- Incorrect JSON syntax in `firebase.json`
-- Wrong file format for `_headers` file
-- Missing semicolons in CSP
+**Fix:** Ensure `public/render.json` is in the repo and Render static site is used (not a misconfigured web service).
 
-**Correct Formats**:
+### 2. Firebase not redeployed
 
-Firebase.json:
-```json
-{
-  "hosting": {
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          {
-            "key": "Strict-Transport-Security",
-            "value": "max-age=31536000; includeSubDomains; preload"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+**Symptom:** Old headers after editing `firebase.json`.
 
-_headers file:
-```
-/*
-  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'
-```
-
-#### 5. Testing and Verification
-
-**Manual Testing**:
-1. Open browser Developer Tools (F12)
-2. Go to Network tab
-3. Reload the page
-4. Click on the main document request
-5. Check Response Headers section
-
-**Automated Testing**:
+**Fix:**
 ```bash
-# Run the provided test script
-node test-security-headers.js
-
-# Test specific headers
-curl -I https://your-site.com/ | grep -i "strict-transport-security"
-curl -I https://your-site.com/ | grep -i "content-security-policy"
-curl -I https://your-site.com/ | grep -i "x-frame-options"
-```
-
-**Online Tools**:
-- [Security Headers](https://securityheaders.com/)
-- [Mozilla Observatory](https://observatory.mozilla.org/)
-- [SSL Labs](https://www.ssllabs.com/ssltest/)
-
-#### 6. Debugging Steps
-
-1. **Check Configuration Files**:
-   - Verify all configuration files exist
-   - Check syntax with JSON validators
-   - Ensure proper file permissions
-
-2. **Test Locally**:
-   - Run local server and test headers
-   - Use `curl` or `wget` to test
-   - Check server logs for errors
-
-3. **Check Deployment**:
-   - Verify deployment was successful
-   - Check hosting platform logs
-   - Test on different devices/networks
-
-4. **Monitor Browser Console**:
-   - Look for CSP violations
-   - Check for any security warnings
-   - Monitor network requests
-
-#### 7. Platform-Specific Debugging
-
-##### Firebase Hosting
-```bash
-# Check Firebase CLI version
-firebase --version
-
-# Check hosting configuration
-firebase hosting:channel:list
-
-# Deploy with debug info
 firebase deploy --only hosting --debug
-
-# Check if site is properly configured
-firebase hosting:channel:open live
 ```
 
-##### Netlify
+### 3. Browser / CDN cache
+
+**Symptom:** Headers look old after deploy.
+
+**Fix:**
+- Hard refresh: Ctrl+Shift+R
+- Incognito window
+- Wait 5–10 minutes for CDN
+- Test with `curl -I` (bypasses browser cache)
+
+### 4. Testing wrong URL
+
+**Symptom:** Grade dropped after cleanup.
+
+**Fix:** Scan the **main app URL** (`/` or `/login`), not removed test pages like `/csp-test.html`.
+
+### 5. CSP syntax error
+
+**Symptom:** Entire CSP header ignored.
+
+**Fix:**
+- Validate JSON in `firebase.json`
+- Check semicolons in CSP directive strings
+- Look for browser console CSP parse errors
+
+## Platform-Specific Notes
+
+### Firebase Hosting
+
+- Headers in `firebase.json` → `hosting.headers`
+- `source: "**"` applies to all files
+- Some Firebase policies may supplement your headers
+
 ```bash
-# Check Netlify CLI
-netlify --version
-
-# Check site configuration
-netlify status
-
-# Deploy with debug info
-netlify deploy --prod --debug
+firebase --version
+firebase deploy --only hosting --debug
 ```
 
-##### Render.com
-- Check Render dashboard for deployment logs
-- Verify environment variables
-- Check if custom server is running
+### Render.com
 
-#### 8. Common Error Messages and Solutions
+- Uses `public/render.json` automatically for static sites
+- **Not** `web.config` (that is for IIS)
+- Build command: `npm run build:render`
 
-**"Headers not found"**:
-- Check if configuration file is in correct location
-- Verify file syntax
-- Ensure deployment included the configuration
+### Netlify / Vercel
 
-**"CSP violations"**:
-- Check browser console for specific violations
-- Adjust CSP policy to allow required resources
-- Test with report-only mode first
+- `public/_headers` must be in the deployed `build` output
+- CRA copies `public/` contents into `build/` on build
 
-**"Mixed content warnings"**:
-- Ensure all resources use HTTPS
-- Update any HTTP URLs to HTTPS
-- Check for hardcoded HTTP links
+### Express (`server.js`)
 
-#### 9. Emergency Rollback
+- Helmet sets headers for API and static routes
+- Used when running `npm run server` or `npm run start:prod`
+- Does not apply if you deploy only the static `build/` folder without Node
 
-If headers cause issues:
-1. Revert to previous configuration
-2. Deploy immediately
-3. Test functionality
-4. Fix issues in development
-5. Redeploy when ready
+## Verifying Headers
 
-#### 10. Getting Help
+### Browser DevTools
 
-If issues persist:
-1. Check hosting platform documentation
-2. Review security header specifications
-3. Test with minimal configuration first
-4. Contact hosting platform support
-5. Check community forums for similar issues
+1. F12 → Network
+2. Reload page
+3. Click document request (first row)
+4. Response Headers section
+
+### Expected headers
+
+- `Content-Security-Policy`
+- `Strict-Transport-Security` (HTTPS only)
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: SAMEORIGIN`
+- `Referrer-Policy`
+- `Permissions-Policy`
+
+### Online tools
+
+- [securityheaders.com](https://securityheaders.com/)
+- [observatory.mozilla.org](https://observatory.mozilla.org/)
+
+## CSP Violations
+
+**Symptom:** Features broken, console shows CSP errors.
+
+**Fix:**
+1. Read the exact blocked URL in console
+2. Add domain to appropriate directive in `firebase.json` / `render.json` / `set-csp.js`
+3. Rebuild: `npm run build`
+4. Redeploy
+
+**Common domains already allowed:** Firebase, reCAPTCHA (Google infrastructure), OpenWeatherMap.
+
+## reCAPTCHA / Firebase popup issues
+
+Often header-related (not Google OAuth login — that is disabled):
+
+- `frame-src` must include `*.google.com`, `recaptcha.google.com`
+- `script-src` must include `www.gstatic.com`, `apis.google.com`
+- `connect-src` must include Firebase and Identity Toolkit URLs
+- `Cross-Origin-Opener-Policy: same-origin-allow-popups` needed for reCAPTCHA and Firebase Auth phone verification
+
+## Emergency Rollback
+
+1. Revert `firebase.json` / `render.json` in git
+2. Redeploy immediately
+3. Verify site works
+4. Fix CSP incrementally in dev
 
 ## Quick Fix Checklist
 
-- [ ] Configuration files exist and are syntactically correct
-- [ ] Headers are properly formatted
-- [ ] Deployment was successful
-- [ ] Browser cache is cleared
-- [ ] Testing with multiple browsers
-- [ ] Checking online security tools
-- [ ] Monitoring browser console for errors
-- [ ] Testing on different devices/networks
+- [ ] Correct config file for your hosting platform
+- [ ] Successful deploy after config change
+- [ ] Testing main URL (`/`), not deleted test pages
+- [ ] Browser cache cleared
+- [ ] `curl -I` confirms headers server-side
+- [ ] HTTPS enabled (required for HSTS)
+- [ ] No CSP syntax errors in console
+
+## Getting Help
+
+1. [SECURITY_GUIDE.md](./SECURITY_GUIDE.md) — what each layer does
+2. [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) — platform setup
+3. Hosting platform docs (Firebase, Render, etc.)
+4. security@piscarisk.onrender.com

@@ -1,268 +1,203 @@
 # PiscaRISK Web Application
 
 ## Overview
-PiscaRISK is a comprehensive web application for managing fish farming operations, including weather monitoring, pond conditions, user management, and reporting. Built with React.js and Firebase, it provides real-time data monitoring, risk assessment, and comprehensive user management capabilities.
 
-This project demonstrates modern web development practices, secure authentication, role-based access control, and integration with third-party APIs for weather monitoring.
+PiscaRISK is a web application for managing aquaculture operations: weather monitoring, pond conditions, risk assessment, user management, and reporting. Built with React and Firebase, it provides real-time dashboards, role-based access control, and integrations with OpenWeatherMap and Google reCAPTCHA Enterprise.
 
 ## Features
 
 ### User Management & Authentication
-- **Multiple User Roles**: 
-  - Tech Officer (main administrative role with full system access)
-  - Farm Admin (admin assigned to a specific farm)
-  - Temporary Tech Officer (limited-time admin access)
-  - New Main Tech Officer (tech officer being promoted)
-  - Fish Farmer (mobile-optimized for field operations)
-- **Login Method**:
-  - Email/Username and Password
-  - Phone Number and Password
-- **Email Verification**: All users must verify their email before accessing the dashboard
-- **Phone Verification**: Mandatory OTP verification on first login to verify phone number
-- **Account Status Management**: Active, Inactive, Suspended states
-- **Session Persistence**: Enhanced cross-tab session management
-- **Phone Number Support**: Philippine mobile number validation and formatting
+
+- **Roles**: Tech Officer, Farm Admin, Temporary Tech Officer, New Main Tech Officer, Fish Farmer
+- **Login methods**: Email/username + password, phone number + password
+- **Email verification**: Required before full dashboard access
+- **Phone verification**: OTP on first login (Firebase phone auth)
+- **Account status**: Active, Inactive, Suspended
+- **Account creation**: Tech Officers and Admins create users via Account Management (no public self-signup page)
+- **Philippine phone support**: Validation and E.164 normalization
 
 ### Password Management
-- **Password Reset**: Tech Officers and Administrators can reset user passwords
-- **Firebase Email Reset**: Integrated with Firebase Authentication for secure password reset
-- **Secure Password Generation**: System generates secure random passwords when needed
-- **Password Strength Validation**: Ensures strong password requirements
-- **Forgot Password Flow**: Self-service password reset via email
-- **Password Change**: Secure password updates in profile settings
 
-#### Password Requirements
-- Minimum 8 characters
-- At least one uppercase letter (A-Z)
-- At least one lowercase letter (a-z)
-- At least one number (0-9)
-- At least one special character (!@#$%^&*)
+- Self-service forgot-password flow (`/forgot-password`)
+- Admin password reset via Cloud Functions (`adminResetPassword`)
+- Password changes in Profile Settings
+- Forced password change support (`forcePasswordChange`, `checkPasswordChangeRequired`)
 
-### Weather Monitoring
-- Real-time weather data integration via OpenWeatherMap API
-- Historical weather tracking
-- Weather alerts and notifications
-- Visual weather displays with icons and animations
+**Password requirements**: 8+ characters, uppercase, lowercase, number, special character.
 
-### Pond Management & Monitoring
-- Pond condition monitoring dashboard
-- Water quality parameters tracking
-- Fish health indicators and risk assessment
-- Risk reports and analytics
-- Ponds at risk stacked charts
-- Farm health gauge visualization
+### Dashboard & Monitoring
+
+- **Homepage** (`/Homepage`): Weather box, farm health gauge, ponds-at-risk chart, weekly risk trend, reports chart, risk report modal, PiscaRisk data panel
+- **Pond conditions** (`/pond-conditions`): Water quality, fish condition, stock/feed logs
+- **Weather**: OpenWeatherMap integration with animated weather assets
+- **Risk analytics**: Stacked bar charts, trend charts, condition insights, export to PDF/CSV
 
 ### Reporting & Analytics
-- Comprehensive data export (PDF/CSV formats)
-- Interactive chart visualizations
-- Historical data analysis
-- Export capabilities for:
-  - Account data
-  - Pond conditions
-  - Risk reports
-  - Logs and activity
-  - Health gauge data
-  - Feedback data
 
-### UI/UX Features
-- Responsive design for mobile and desktop
-- Sidebar navigation component
-- Bilingual support (English/Tagalog)
-- Night mode (coming soon)
-- Toast notifications
-- Animated modals and transitions
-- Export data options (PDF/CSV)
+Export utilities support PDF and CSV for accounts, pond conditions, risk reports, logs, health gauge, feedback, weather, and more.
+
+### UI/UX
+
+- Public **landing page** at `/` with mobile app download (APK + QR)
+- Responsive layout for mobile and desktop
+- Shared **Sidebar** navigation across main pages
+- English / Tagalog (i18next)
+- Toast notifications (react-toastify + Sileo)
+- Animated modals (`motion/react`)
+
+## Application Routes
+
+| Route | Access | Page |
+|-------|--------|------|
+| `/` | Public (redirects if logged in) | Landing page |
+| `/login` | Public | Login |
+| `/forgot-password` | Public | Forgot password |
+| `/Homepage` | Active + phone verified | Main dashboard |
+| `/AccountManagement` | Protected | User management |
+| `/Feedback` | Protected | Feedback |
+| `/logs` | Protected | Activity logs |
+| `/pond-conditions` | Protected | Pond condition dashboard |
+| `/ProfileSettings` | Protected | Profile & password settings |
+| `*` | — | Redirects to `/login` |
+
+Full dashboard access requires: `status === active`, `emailVerified === true`, and `phoneVerified === true`.
 
 ## Technical Architecture
 
 ### Frontend
-- **React.js 19.1.0** with modern hooks and context API
-- **React Router 7.5.0** for navigation and protected routes
-- **Material-UI (MUI) 7.3.4** for UI components
-- **Framer Motion 12.16.0** for animations
-- **i18next** for internationalization (English/Tagalog)
-- **Recharts 2.15.3** for data visualizations
-- **React Icons** for iconography
-- Responsive design for mobile and desktop
+
+- **React 19** with Context API and hooks
+- **React Router 7** for routing and protected routes
+- **MUI 7** for UI components
+- **motion/react** (via `sileo` / `AnimatedModal`) for animations
+- **Recharts** for charts
+- **i18next** for English / Tagalog
+- **react-toastify** + **Sileo** for notifications
 
 ### Backend & Services
-- **Firebase 10.12.0** (Firestore database, Authentication, Cloud Functions)
-- **Express 4.21.2** server for backend operations
-- **Firebase Admin SDK** for server-side operations
-- **Google Cloud reCAPTCHA Enterprise** for bot protection
-- **OpenWeatherMap API** for weather data
 
-### Key Components & Utilities
-- **Contexts**: AuthContext, FarmsContext, LanguageContext, NotificationContext
-- **Services**: accountService, riskDataService, weatherService
-- **Utils**: Secure storage, routing, sanitization, logging, export utilities
-- **Components**: Sidebar, WeatherBox, PondConditionDashboard, RiskReportModal, and more
+- **Firebase**: Firestore, Authentication, Cloud Functions
+- **Express** (`server.js`): reCAPTCHA verification, OTP mock endpoint, static build serving, Helmet security headers
+- **Firebase Admin SDK**: Server-side token verification
+- **Google Cloud reCAPTCHA Enterprise**
+- **OpenWeatherMap API**
 
-### Security Features
-- **Content Security Policy (CSP)**: Comprehensive CSP headers
-- **Security Headers**: X-Frame-Options, X-Content-Type-Options, HSTS, etc.
-- **Email Verification**: Mandatory for all users
-- **Secure Storage**: Sanitized localStorage with validation
-- **Input Sanitization**: All user inputs are sanitized
-- **Secure Routing**: URL parameter sanitization
-- **Activity Logging**: Comprehensive audit trails
-- **Role-Based Access Control**: Detailed permissions per role
-- **Session Management**: Enhanced persistence with IndexedDB
+### React Contexts
+
+| Context | Purpose |
+|---------|---------|
+| `AuthContext` | Authentication, session, verification |
+| `FarmsContext` | Farm list and assignments |
+| `RiskDataContext` | Risk report data (with farm exclusions) |
+| `ReportsDataContext` | Reports bundle for charts |
+| `DashboardMetaContext` | Dashboard metadata |
+| `WeatherContext` | Weather data |
+| `LanguageContext` | Locale (uses `secureStorage`) |
+| `NotificationContext` | In-app notifications and toasts |
+
+### Services
+
+- `accountService.js` — user CRUD helpers
+- `riskDataService.js` — risk predictions and scoring
+- `reportsDataService.js` — reports bundle fetching
+- `weatherService.js` — OpenWeatherMap integration
+
+### Cloud Functions (`functions/index.js`)
+
+- `createStaffAccount` — staff account creation
+- `deleteAuthUser` — auth user deletion
+- `adminResetPassword` — admin-initiated password reset
+- `forcePasswordChange` — force password change flag
+- `checkPasswordChangeRequired` — check if change required
+- `autoDeactivateTempTOs` — scheduled deactivation of expired temporary tech officers
+
+### Security
+
+- CSP via `public/index.html` meta tags (updated by `scripts/set-csp.js` on build)
+- Server/hosting headers: `firebase.json`, `public/render.json`, `public/_headers`, `public/web.config`, `public/.htaccess`
+- `server.js` Helmet middleware for API server
+- Input sanitization (`sanitize.js`), secure storage (`secureStorage.js`), security utils (`securityUtils.js`)
+- Activity logging (`logger.js`)
+- reCAPTCHA Enterprise on login
 
 ## Installation and Setup
 
-### Prerequisites
-- Node.js >= 18.0.0
-- npm >= 9.0.0
-- Firebase project with Firestore enabled
-- Google Cloud Platform account for Cloud Functions
+See **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** for the full system installation and deployment guide. The project is distributed as **raw source code** (ZIP/folder), not via a public Git repository.
 
-### Installation Steps
+**Quick start (after extracting the source):**
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd piska-risk
-   ```
+```bash
+cd piska-risk
+npm install
+cd functions && npm install && cd ..
+npm run dev
+```
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Firebase**
-   - Set up Firebase project at https://console.firebase.google.com
-   - Enable Authentication (Email/Password only)
-   - Create Firestore database
-   - Enable Cloud Functions
-
-4. **Set up Firebase credentials**
-   - Add `serviceAccountKey.json` to project root (for Cloud Functions)
-   - Update `src/firebase.js` with your Firebase config
-
-5. **Deploy Cloud Functions** (optional, for production)
-   ```bash
-   cd functions
-   npm install
-   cd ..
-   firebase deploy --only functions
-   ```
-
-6. **Configure CSP** (automatic on build)
-   ```bash
-   node scripts/set-csp.js
-   ```
-
-7. **Start development server**
-   ```bash
-   npm start
-   ```
-
-8. **Build for production**
-   ```bash
-   npm run build
-   ```
+Open http://localhost:3000 (React) with API on port 3001. Configure `src/firebase.js` and `serviceAccountKey.json` before production use — see the deployment guide.
 
 ## Usage
 
-### For Tech Officers
-- **Account Management**: Create, update, activate/deactivate user accounts
-- **Password Reset**: Reset passwords for any user via Firebase email reset
-- **Farm Assignment**: Assign users to farms during user creation
-- **Role Management**: Change user roles and permissions
-- **Monitor Activity**: View logs and activity reports
-- **Export Data**: Export user accounts and activity data
+### Tech Officers
 
-### For Farm Admins
-- **Account Management**: Manage users within assigned farm
-- **Pond Monitoring**: Access pond condition dashboard for assigned farm
-- **Risk Reports**: View and analyze risk assessments for assigned farm
-- **Weather Monitoring**: Real-time weather data
-- **Create Accounts**: Add Fish Farmers to assigned farm
-- **Limited Access**: Cannot create other admins or tech officers
+- Create and manage all user types in Account Management
+- Reset passwords, assign farms, change roles
+- View logs, export data, monitor all farms
 
-### For Fish Farmers
-- **Mobile Access**: Optimized for mobile field operations
-- **Pond Data Entry**: Submit pond condition data
-- **Feedback**: Submit feedback and reports
-- **View Dashboard**: Access farm-specific information
+### Farm Admins
 
-### Login Process
-1. **Enter Credentials**: Login with email/username or phone number and password
-2. **Email Verification**: Must have verified email to access dashboard
-3. **OTP Verification**: On first login, complete OTP verification to verify phone number
-4. **Access Dashboard**: Use sidebar to navigate features
-5. **Language Selection**: Switch between English and Tagalog
+- Manage users within assigned farm
+- Monitor pond conditions and risk for assigned farm
+- Create Fish Farmer accounts
 
-### Signup Process
-1. **Choose Farm**: Select the farm you are assigned to during registration
-2. **Enter Details**: Provide email, username, password, and phone number
-3. **Email Verification**: Verify your email address
-4. **Account Activation**: Wait for Tech Officer to activate your account
-5. **First Login**: Complete OTP verification for phone number verification
-6. **Access Dashboard**: Start using the system
+### Fish Farmers
 
-## Security Considerations
+- Mobile-friendly access for field operations
+- Submit pond data and feedback
 
-### Authentication & Authorization
-- Email verification required for all users before dashboard access
-- Phone number verification via mandatory OTP on first login
-- Strong password requirements enforced
-- Role-based access control (RBAC)
-- Session management with enhanced persistence
+### Login Flow
 
-### Data Protection
-- Passwords never stored in plain text
-- All user inputs sanitized
-- Secure localStorage with validation
-- Content Security Policy (CSP) headers
-- XSS and clickjacking protection
-- MIME type sniffing prevention
-
-### Security Headers
-- Content-Security-Policy
-- X-Frame-Options: DENY
-- X-Content-Type-Options: nosniff
-- Strict-Transport-Security
-- Referrer-Policy
-- Permissions-Policy
-
-### Audit & Logging
-- All password operations logged
-- Activity tracking for sensitive operations
-- User action audit trails
-- Error logging and monitoring
+1. Visit `/login` (or `/` landing page → Login)
+2. Sign in with email/username or phone number + password
+3. Verify email if not yet verified (`EmailVerificationModal`)
+4. Complete OTP on first login (`OtpVerification`)
+5. Access dashboard via Sidebar navigation
 
 ## Available Scripts
 
-- `npm start` - Start development server with CSP configuration
-- `npm run build` - Build for production
-- `npm run build:strict` - Build with strict CSP for production
-- `npm test` - Run tests
-- `npm run server` - Start Express server
-- `npm run dev` - Start both server and React (concurrently)
-- `npm run deploy:security` - Build and deploy with security headers
+| Script | Description |
+|--------|-------------|
+| `npm start` | Dev server (runs `set-csp.js` first) |
+| `npm run build` | Production build |
+| `npm run build:strict` | Production build with strict CSP |
+| `npm run build:render` | Render.com build command |
+| `npm run server` | Express API server (port 3001) |
+| `npm run dev` | Server + React concurrently |
+| `npm run start:prod` | Production Express server |
+| `npm run deploy:security` | Strict build + Firebase hosting deploy |
+| `npm test` | Jest tests (react-scripts) |
 
 ## Deployment
 
-See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for detailed deployment instructions for:
-- Render.com (recommended)
-- Custom Express Server
-- Apache Server
-- IIS Server
-- Firebase Hosting
+See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for local installation, Render Web Service (recommended), Firebase Hosting, VPS, Apache, and IIS.
 
-## Additional Documentation
+Security headers are configured in hosting files — not removed when cleaning unused test pages. See [SECURITY_GUIDE.md](./SECURITY_GUIDE.md).
 
-- [Authentication Flow](./AUTHENTICATION_FLOW_UPDATE.md) - Authentication implementation details
-- [Email Verification](./EMAIL_VERIFICATION_FLOW.md) - Email verification flow
-- [User Migration](./EXISTING_USERS_MIGRATION.md) - Handling existing users
-- [Security Guide](./SECURITY_GUIDE.md) - Security implementations
-- [Sidebar Usage](./SIDEBAR_USAGE_GUIDE.md) - Sidebar component documentation
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [DOCUMENTATION_INDEX.md](./DOCUMENTATION_INDEX.md) | Index of all docs |
+| [AUTHENTICATION_FLOW_UPDATE.md](./AUTHENTICATION_FLOW_UPDATE.md) | Auth and verification flow |
+| [EMAIL_VERIFICATION_FLOW.md](./EMAIL_VERIFICATION_FLOW.md) | Email verification rules |
+| [EXISTING_USERS_MIGRATION.md](./EXISTING_USERS_MIGRATION.md) | Legacy user migration |
+| [SECURITY_GUIDE.md](./SECURITY_GUIDE.md) | Security implementation |
+| [TROUBLESHOOTING_SECURITY_HEADERS.md](./TROUBLESHOOTING_SECURITY_HEADERS.md) | Header troubleshooting |
+| [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) | Deployment guide |
+| [SIDEBAR_USAGE_GUIDE.md](./SIDEBAR_USAGE_GUIDE.md) | Sidebar component |
+| [docs/piscarisk-firestore.dbml](./docs/piscarisk-firestore.dbml) | Firestore schema (dbdiagram.io) |
 
 ## Support
 
-For technical support or questions:
 - Email: security@piscarisk.onrender.com
 - Security Policy: https://piscarisk.onrender.com/security-policy
 - Security.txt: https://piscarisk.onrender.com/.well-known/security.txt
