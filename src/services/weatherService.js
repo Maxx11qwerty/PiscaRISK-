@@ -1,11 +1,16 @@
 // src/services/weatherService.js
-const API_KEY = "d2ac047010bdc4eb7a196d94bf69cd27";
+const API_KEY = process.env.REACT_APP_OPENWEATHER_API_KEY;
 
-// Default coordinates (updated) — 14.1406° N, 121.2684° E
+// Default coordinates — 14.1406° N, 121.2684° E (Bay, Laguna)
 const DEFAULT_LAT = 14.1406;
 const DEFAULT_LON = 121.2684;
 
 export const fetchWeatherData = async (lat = DEFAULT_LAT, lon = DEFAULT_LON) => {
+  if (!API_KEY) {
+    console.error('Missing REACT_APP_OPENWEATHER_API_KEY. Copy .env.example to .env and set your key.');
+    return null;
+  }
+
   try {
     const response = await fetch(
       `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric`
