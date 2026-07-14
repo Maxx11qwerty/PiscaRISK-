@@ -19,6 +19,7 @@
 serviceAccountKey.json
 *-service-account*.json
 *serviceAccount*.json
+*-firebase-adminsdk-*.json
 
 # firebase / IDE / OS
 .firebase/
