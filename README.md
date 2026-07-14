@@ -196,11 +196,6 @@ Security headers are configured in hosting files — not removed when cleaning u
 | [SIDEBAR_USAGE_GUIDE.md](./SIDEBAR_USAGE_GUIDE.md) | Sidebar component |
 | [docs/piscarisk-firestore.dbml](./docs/piscarisk-firestore.dbml) | Firestore schema (dbdiagram.io) |
 
-## Support
-
-- Email: security@piscarisk.onrender.com
-- Security Policy: https://piscarisk.onrender.com/security-policy
-- Security.txt: https://piscarisk.onrender.com/.well-known/security.txt
 
 ## License
 
